@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <link rel="stylesheet" href="./css/Backend Management.css">
+    <meta charset="UTF-8">
+    <title>PyPoly 後臺管理</title>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="logo-area">
+            <h2 style="margin:0; font-size: 22px;">PyPoly <span style="font-weight: 300; opacity: 0.5;">Admin</span></h2>
+        </div>
+        <div class="nav-item" data-page="Question-CMS">題目庫管理</div>
+        <div class="nav-item" data-page="Game-Analytics">遊戲數據監控</div>
+        <div class="nav-item active" data-page="User-Management">玩家帳號管理</div>
+        <div class="nav-item" data-page="Vision-Debugger">系統通訊偵錯</div>
+        <script>
+            // 側邊選單頁面切換功能
+            document.addEventListener('DOMContentLoaded', function() {
+                const navItems = document.querySelectorAll('.nav-item');
+                
+                // 初始化：顯示預設頁面（玩家帳號管理）
+                showPage('User-Management');
+                
+                // 為每個導航項目添加點擊事件
+                navItems.forEach((item) => {
+                    item.addEventListener('click', function() {
+                        const pageClass = this.getAttribute('data-page');
+                        
+                        // 移除所有 active 類別
+                        navItems.forEach(i => i.classList.remove('active'));
+                        
+                        // 添加 active 類別到當前項目
+                        this.classList.add('active');
+                        
+                        // 顯示對應頁面
+                        showPage(pageClass);
+                    });
+                });
+            });
+            
+            // 頁面切換函數
+            function showPage(pageClass) {
+                const allPages = document.querySelectorAll('.User-Management, .Game-Analytics, .Question-CMS, .Vision-Debugger');
+                
+                allPages.forEach(page => {
+                    if (page.classList.contains(pageClass)) {
+                        // 根據頁面類型設置不同的display屬性
+                        if (pageClass === 'Vision-Debugger') {
+                            page.style.display = 'grid';
+                        } else {
+                            page.style.display = 'flex';
+                        }
+                        page.classList.add('active-page');
+                    } else {
+                        page.style.display = 'none';
+                        page.classList.remove('active-page');
+                    }
+                });
+            }
+        </script>
+    </div>
+<!-- 主內容區域，根據選單切換顯示不同的管理頁面 -->
+<!-- 預設顯示玩家帳號管理頁面 -->
+<div class="User-Management">
+    <div class="main-content">
+        <div class="header-box">
+            <div>
+                <h1>玩家帳號管理</h1>
+                <p style="color: var(--text-gray); margin-top: 5px;">管理所有玩家資訊、帳號狀態及遊玩歷程</p>
+            </div>
+            <div style="font-size: 14px; color: var(--text-gray);">
+                總註冊人數：<span style="color: white; font-weight: bold;">1,248</span>
+            </div>
+        </div>
+
+        <div class="filter-section">
+            <input type="text" class="search-input" placeholder="搜尋玩家名稱、Email 或 ID...">
+            <select class="search-input" style="flex: 0 0 150px;">
+                <option>所有狀態</option>
+                <option>在線</option>
+                <option>離線</option>
+            </select>
+            <button style="background: var(--accent-cyan); border: none; padding: 0 25px; border-radius: 10px; font-weight: bold; cursor: pointer;">過濾</button>
+        </div>
+
+        <div class="user-table-container">
+            <table class="user-table">
+                <thead>
+                    <tr>
+                        <th>玩家</th>
+                        <th>電子郵件</th>
+                        <th>遊玩場次</th>
+                        <th>帳號狀態</th>
+                        <th>最後上線時間</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>
+                            <div style="font-weight: bold;">Sandy</div>
+                            <div style="font-size: 11px; color: var(--text-gray);">UID: #8821</div>
+                        </td>
+                        <td>sandy.dev@example.com</td>
+                        <td>42 次</td>
+                        <td><span class="status-badge status-online">在線</span></td>
+                        <td>剛剛</td>
+                        <td>
+                            <span class="action-link">詳情</span>
+                            <span class="action-link delete-link">停權</span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <div style="font-weight: bold;">柏睿 Brian</div>
+                            <div style="font-size: 11px; color: var(--text-gray);">UID: #1024</div>
+                        </td>
+                        <td>brian.b@example.com</td>
+                        <td>128 次</td>
+                        <td><span class="status-badge status-offline">離線</span></td>
+                        <td>2 小時前</td>
+                        <td>
+                            <span class="action-link">詳情</span>
+                            <span class="action-link delete-link">停權</span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <div style="font-weight: bold;">嘉鈞 JJ</div>
+                            <div style="font-size: 11px; color: var(--text-gray);">UID: #3099</div>
+                        </td>
+                        <td>jj.mis@example.com</td>
+                        <td>15 次</td>
+                        <td><span class="status-badge status-offline">離線</span></td>
+                        <td>2026/03/14</td>
+                        <td>
+                            <span class="action-link">詳情</span>
+                            <span class="action-link delete-link">停權</span>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="pagination">
+                <div>顯示 1 到 10，共 1,248 位玩家</div>
+                <div style="display: flex; gap: 10px; cursor: pointer;">
+                    <span style="color: var(--accent-cyan);">< 上一頁</span>
+                    <span style="color: var(--accent-cyan);">下一頁 ></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- 遊戲數據分析頁面 -->
+<div class="Game-Analytics" style="display: none;">
+    <div class="main-content">
+        <div class="header-box">
+            <h1 style="color: white;">數據監控中心</h1>
+            <p style="color: var(--text-gray); margin-top: 5px;">實時監控當前遊戲狀態與學習成效分析</p>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">進行中對局</div>
+                <div class="stat-value">08</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">今日總人次</div>
+                <div class="stat-value">124</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">平均正確率</div>
+                <div class="stat-value" style="color: var(--accent-green);">76%</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">系統負載</div>
+                <div class="stat-value">低</div>
+            </div>
+        </div>
+
+        <div class="content-grid">
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">對局實時狀態</span>
+                    <span style="font-size: 12px; color: var(--text-gray);">更新於 2 分鐘前</span>
+                </div>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>房間名稱</th>
+                            <th>人數</th>
+                            <th>狀態</th>
+                            <th>圈數</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Sandy_Python 房</td>
+                            <td>2 / 2</td>
+                            <td><span class="status-dot online"></span>戰鬥中</td>
+                            <td>2 / 3</td>
+                        </tr>
+                        <tr>
+                            <td>柏睿的測試場</td>
+                            <td>1 / 2</td>
+                            <td><span class="status-dot waiting"></span>等待中</td>
+                            <td>0 / 1</td>
+                        </tr>
+                        <tr>
+                            <td>嘉鈞的進階挑戰</td>
+                            <td>2 / 2</td>
+                            <td><span class="status-dot online"></span>戰鬥中</td>
+                            <td>4 / 5</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">高錯誤率題目預警</span>
+                    <span style="font-size: 12px; color: var(--accent-red);">需要注意</span>
+                </div>
+                <div class="error-list">
+                    <div class="error-item">
+                        <div class="error-meta">
+                            <span>#204 多重迴圈 (Nested Loop)</span>
+                            <span style="color: var(--accent-red);">85% 錯誤率</span>
+                        </div>
+                        <div class="progress-bg"><div class="progress-fill" style="width: 85%;"></div></div>
+                    </div>
+                    
+                    <div class="error-item">
+                        <div class="error-meta">
+                            <span>#112 List 切片 (Slicing)</span>
+                            <span style="color: var(--accent-red);">62% 錯誤率</span>
+                        </div>
+                        <div class="progress-bg"><div class="progress-fill" style="width: 62%;"></div></div>
+                    </div>
+
+                    <div class="error-item">
+                        <div class="error-meta">
+                            <span>#105 變數命名規範</span>
+                            <span style="color: var(--accent-red);">41% 錯誤率</span>
+                        </div>
+                        <div class="progress-bg"><div class="progress-fill" style="width: 41%;"></div></div>
+                    </div>
+
+                    <div style="margin-top: 30px; background: rgba(56, 189, 248, 0.05); padding: 15px; border-radius: 10px; border: 1px solid rgba(56, 189, 248, 0.2); font-size: 13px; line-height: 1.6;">
+                        <strong style="color: var(--accent-cyan);">💡 分析建議：</strong><br>
+                        編號 #204 的錯誤率異常偏高，可能是因為題目範本中的縮排（Indentation）說明不足，建議優化題目敘述。
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- 題目庫管理頁面 -->
+<div class="Question-CMS" style="display: none;">
+    <div class="main-content">
+        <div class="header-box">
+            <h1>題目庫管理</h1>
+            <button class="btn-add" onclick="location.href='#edit'">＋ 新增題目</button>
+        </div>
+
+        <div class="filter-bar">
+            <input type="text" class="input-dark" style="flex: 1;" placeholder="關鍵字搜尋題目...">
+            <select class="input-dark">
+                <option>所有分類</option>
+                <option>變數定義</option>
+                <option>條件判斷 (if)</option>
+                <option>迴圈 (for/while)</option>
+            </select>
+            <select class="input-dark">
+                <option>所有難度</option>
+                <option>基礎</option>
+                <option>進階</option>
+            </select>
+        </div>
+
+        <table class="q-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>題目名稱</th>
+                    <th>分類</th>
+                    <th>難度</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>#101</td>
+                    <td>整數變數賦值</td>
+                    <td><span class="badge bg-blue">變數定義</span></td>
+                    <td>基礎</td>
+                    <td><a href="#" style="color: var(--accent-cyan);">編輯</a></td>
+                </tr>
+                <tr>
+                    <td>#204</td>
+                    <td>if-else 判斷分數</td>
+                    <td><span class="badge bg-purple">條件判斷</span></td>
+                    <td>進階</td>
+                    <td><a href="#" style="color: var(--accent-cyan);">編輯</a></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+<!--系統通訊偵錯-->
+<div class="Vision-Debugger" style="display: none;">
+    <div class="video-main">
+        <div class="status-bar">
+            <div class="status-on">PYTHON CORE: ONLINE</div>
+            <div class="status-on">UNITY BRIDGE: CONNECTED</div>
+            <div style="color: var(--accent-yellow);">FPS: 30.2</div>
+        </div>
+
+        <div class="view-grid">
+            <div class="view-box">
+                <span>RAW FEED (RGB)</span>
+                <div class="video-placeholder" style="background: #111; display: flex; align-items: center; justify-content: center;">Camera Active</div>
+            </div>
+            <div class="view-box">
+                <span>GRAYSCALE / THRESHOLD</span>
+                <div class="video-placeholder" style="background: #222;"></div>
+            </div>
+            <div class="view-box">
+                <span>ARUCO MARKER DETECTION</span>
+                <div class="video-placeholder" style="background: #111;"></div>
+            </div>
+            <div class="view-box">
+                <span>FEATURE POINTS (ORB/SIFT)</span>
+                <div class="video-placeholder" style="background: #0a0a0a;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="control-panel">
+        <div class="tuning-group">
+            <h3>閥值調整 (THRESHOLD)</h3>
+            <div class="slider-row">
+                <label>Binary Threshold <span>127</span></label>
+                <input type="range" min="0" max="255" value="127">
+            </div>
+            <div class="slider-row">
+                <label>Blur Intensity <span>5</span></label>
+                <input type="range" min="1" max="21" step="2" value="5">
+            </div>
+            <div class="slider-row">
+                <label>Adaptive Method <span>Canny</span></label>
+                <input type="range" min="0" max="100" value="40">
+            </div>
+            <button style="width: 100%; margin-top: 10px; background: #333; color: white; border: none; padding: 5px; cursor: pointer;">套用至設定檔</button>
+        </div>
+
+        <div style="display: flex; flex-direction: column; flex-grow: 1;">
+            <h3 style="font-size: 14px; margin: 0 0 10px 0;">通訊日誌 (JSON LOG)</h3>
+            <div class="log-window" id="logWindow">
+                <div class="log-entry"><span class="log-time">[17:10:01]</span> {"dice": null, "event": "waiting"}</div>
+                <div class="log-entry"><span class="log-time">[17:10:05]</span> {"dice": 4, "marker": "ID21", "pos": [124, 452]}</div>
+                <div class="log-entry"><span class="log-time">[17:10:08]</span> <span style="color: #ff5555;">[WARN] Marker tracking lost.</span></div>
+                <div class="log-entry"><span class="log-time">[17:10:12]</span> {"action": "buy", "syntax": "if", "status": "pending"}</div>
+            </div>
+        </div>
+
+        <button style="background: var(--accent-green); color: black; border: none; padding: 15px; border-radius: 8px; font-weight: bold; cursor: pointer;">重新連結核心</button>
+    </div>
+    <!--
+    <script>
+        // 模擬 Log 自動捲動
+        const logWin = document.getElementById('logWindow');
+        setInterval(() => {
+            const newLog = document.createElement('div');
+            newLog.className = 'log-entry';
+            const time = new Date().toLocaleTimeString();
+            newLog.innerHTML = `<span class="log-time">[${time}]</span> {"heartbeat": "ok", "latency": "12ms"}`;
+            logWin.appendChild(newLog);
+            logWin.scrollTop = logWin.scrollHeight;
+        }, 5000);
+    </script>-->
+</div>
+</body>
+</html>

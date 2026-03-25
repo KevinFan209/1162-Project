@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>PyPoly 基礎解碼任務</title>
+    <link rel="stylesheet" href="./css/coding task easy.css">
+</head>
+<body>
+
+<div class="pypoly-overlay">
+    <div class="task-window">
+        <div class="neon-line"></div>
+        
+        <div class="system-hint">
+            <span>⚡ SYSTEM:</span> 請在空格內輸入正確的符號或關鍵字。
+        </div>
+
+        <div class="header">
+            <span class="mode-tag">BASIC MODE</span>
+            <h2>語法解碼挑戰</h2>
+        </div>
+
+        <p class="desc">
+            Sandy，偵測到新地產！<br>
+            <strong>任務：</strong> 請填入正確的「賦值運算子」，將 100 指定給變數 <code>score</code>。
+        </p>
+
+        <div class="editor-container">
+            <code>score</code>
+            <input type="text" id="basic-ans" class="input-fill" placeholder="?" maxlength="2" autofocus>
+            <code>100</code>
+        </div>
+
+        <div class="footer-actions">
+            <div id="output" class="terminal-output">> 等待指令輸入...</div>
+            <button class="btn-execute" onclick="runCheck()">執行解碼 (RUN)</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function runCheck() {
+        const ans = document.getElementById('basic-ans').value.trim();
+        const output = document.getElementById('output');
+
+        // 基礎校核邏輯
+        if (ans === '=') {
+            output.innerHTML = '<span class="success">[SUCCESS] 語法正確。購買資格已確認。</span>';
+            output.style.borderColor = '#4ee44e';
+            
+            setTimeout(() => {
+                alert("任務達成！已獲得土地。");
+            }, 400);
+            
+        } else {
+            output.innerHTML = '<span class="error">[ERROR] 語法錯誤：無效的運算子 "' + ans + '"。</span>';
+            output.style.borderColor = '#f05454';
+            
+            // 視窗震動效果
+            document.querySelector('.task-window').animate([
+                { transform: 'translateX(0)' },
+                { transform: 'translateX(-8px)' },
+                { transform: 'translateX(8px)' },
+                { transform: 'translateX(0)' }
+            ], { duration: 150, iterations: 2 });
+        }
+    }
+
+    // 支援按下 Enter 鍵直接執行
+    document.getElementById('basic-ans').addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') {
+            runCheck();
+        }
+    });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,136 @@
+:root {
+    --bg-overlay: rgba(5, 5, 10, 0.9);
+    --window-bg: rgba(20, 10, 35, 0.98);
+    --accent-purple: #9d50bb;
+    --accent-green: #4ee44e;
+    --accent-red: #f05454;
+    --editor-bg: #0d0d0d;
+}
+
+body {
+    margin: 0; background: #111;
+    font-family: 'Fira Code', 'Consolas', monospace;
+    display: flex; justify-content: center; align-items: center; height: 100vh;
+}
+
+/* 滿版遮罩 */
+.pypoly-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: var(--bg-overlay);
+    display: flex; justify-content: center; align-items: center;
+    backdrop-filter: blur(12px);
+    z-index: 1000;
+}
+
+/* 任務視窗主體 - 進階紫色調 */
+.task-window {
+    width: 650px;
+    background: var(--window-bg);
+    border: 2px solid var(--accent-purple);
+    border-radius: 20px;
+    padding: 40px;
+    position: relative;
+    box-shadow: 0 0 40px rgba(157, 80, 187, 0.3), inset 0 0 20px rgba(157, 80, 187, 0.1);
+    animation: windowEnter 0.4s ease-out;
+}
+
+@keyframes windowEnter {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* 頂部霓虹光條 */
+.neon-line {
+    position: absolute; top: 0; left: 0; width: 100%; height: 3px;
+    background: linear-gradient(90deg, transparent, var(--accent-purple), transparent);
+    box-shadow: 0 0 10px var(--accent-purple);
+}
+
+/* 系統狀態提示 */
+.system-hint {
+    background: rgba(157, 80, 187, 0.15);
+    border-left: 4px solid var(--accent-purple);
+    padding: 12px 20px;
+    margin-bottom: 25px;
+    color: #d8b4fe;
+    font-size: 13px;
+    display: flex; align-items: center; gap: 10px;
+}
+
+/* 標題與任務 */
+.header { margin-bottom: 20px; }
+.mode-tag { background: var(--accent-purple); color: #fff; padding: 2px 8px; font-size: 10px; font-weight: bold; border-radius: 4px; }
+.task-window h2 { margin: 10px 0; font-size: 24px; color: #fff; text-shadow: 0 0 10px rgba(157, 80, 187, 0.5); }
+.desc { color: #aaa; font-size: 15px; line-height: 1.6; }
+
+/* 手寫編輯器區塊 */
+.editor-container {
+    background: var(--editor-bg);
+    border: 1px solid #333;
+    border-radius: 10px;
+    margin: 25px 0;
+    display: flex;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+.line-numbers {
+    background: #1a1a1a;
+    color: #555;
+    padding: 15px 10px;
+    text-align: right;
+    font-size: 14px;
+    user-select: none;
+    border-right: 1px solid #222;
+}
+
+.code-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--accent-green);
+    padding: 15px;
+    font-family: inherit;
+    font-size: 16px;
+    line-height: 1.5;
+    resize: none;
+    outline: none;
+    caret-color: #fff; /* 白色游標 */
+}
+
+/* 按鈕區域 */
+.footer-actions { display: flex; flex-direction: column; gap: 15px; }
+
+.btn-execute {
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(95deg, #6e48aa, #9d50bb);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.2s;
+    letter-spacing: 1px;
+}
+
+.btn-execute:hover { 
+    filter: brightness(1.2);
+    box-shadow: 0 0 20px rgba(157, 80, 187, 0.5);
+    transform: translateY(-2px);
+}
+
+/* 終端機反饋 */
+.terminal-output {
+    background: #000;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    min-height: 20px;
+    color: #888;
+    border: 1px solid #222;
+}
+
+.success { color: var(--accent-green); }
+.error { color: var(--accent-red); }

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>PyPoly 進階編譯任務</title>
+    <link rel="stylesheet" href="./css/coding task.css">
+</head>
+<body>
+
+<div class="pypoly-overlay">
+    <div class="task-window">
+        <div class="neon-line"></div>
+        
+        <div class="system-hint">
+            <span>⚡ SYSTEM:</span> 請使用鍵盤輸入正確的 Python 程式碼以完成編譯。
+        </div>
+
+        <div class="header">
+            <span class="mode-tag">ADVANCED MODE</span>
+            <h2>核心邏輯編譯挑戰</h2>
+        </div>
+
+        <p class="desc">
+            Sandy，此土地需要進階權限！<br>
+            <strong>任務：</strong> 若變數 <code>hp</code> 小於 <code>10</code>，請印出 <code>"Danger"</code>。
+        </p>
+
+        <div class="editor-container">
+            <div class="line-numbers">
+                1<br>2<br>3
+            </div>
+            <textarea id="code-editor" class="code-input" spellcheck="false" placeholder="# 在此輸入代碼..."></textarea>
+        </div>
+
+        <div class="footer-actions">
+            <div id="output" class="terminal-output">> 等待編譯指令...</div>
+            <button class="btn-execute" onclick="runCompile()">執行編譯 (EXECUTE)</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function runCompile() {
+        const code = document.getElementById('code-editor').value.trim();
+        const output = document.getElementById('output');
+
+        // 簡單模擬進階校核邏輯
+        // 正確答案範例：if hp < 10: \n    print("Danger")
+        const cleanCode = code.replace(/\s+/g, ' '); // 忽略空格換行影響
+        
+        if (cleanCode.includes('if hp < 10:') && cleanCode.includes('print("Danger")')) {
+            output.innerHTML = '<span class="success">[SUCCESS] 編譯完成。土地權限已解鎖。</span>';
+            output.style.borderColor = '#4ee44e';
+            
+            setTimeout(() => {
+                alert("編譯成功！資產已同步至雲端。");
+            }, 500);
+            
+        } else {
+            output.innerHTML = '<span class="error">[ERROR] 語法錯誤：請確認冒號、縮進及引號使用。</span>';
+            output.style.borderColor = '#f05454';
+            
+            // 視窗震動效果
+            document.querySelector('.task-window').animate([
+                { transform: 'translateX(0)' },
+                { transform: 'translateX(-10px)' },
+                { transform: 'translateX(10px)' },
+                { transform: 'translateX(0)' }
+            ], { duration: 200, iterations: 2 });
+        }
+    }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>PyPoly - 雙人對戰大廳</title>
+    <link rel="stylesheet" href="./css/login.css">
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <div class="game-icon">🎮</div>
+        <h1 class="logo-text">PyPoly</h1>
+        <div style="font-size: 12px; letter-spacing: 4px; opacity: 0.5; margin-top: 5px;">PYTHON ADVENTURE</div>
+    </div>
+
+    <div class="auth-card">
+        <div class="tab-group">
+            <button id="tab-login" class="tab-btn active" onclick="switchTab('login')">登入</button>
+            <button id="tab-signup" class="tab-btn" onclick="switchTab('signup')">註冊</button>
+        </div>
+
+        <div id="login-form">
+            <div class="form-group">
+                <label>電子郵件</label>
+                <div class="input-wrapper">
+                    <span>📧</span>
+                    <input type="email" placeholder="your@email.com">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>密碼</label>
+                <div class="input-wrapper">
+                    <span>🔒</span>
+                    <input type="password" placeholder="••••••••">
+                </div>
+            </div>
+            <div class="helper-row">
+                <label class="checkbox-group">
+                    <input type="checkbox"> 記住我
+                </label>
+                <a href="#">忘記密碼？</a>
+            </div>
+            <button class="btn-main" onclick="location.href='lobby.html'">開始遊戲</button>
+        </div>
+
+        <div id="signup-form" class="hidden">
+            <div class="form-group">
+                <label>使用者名稱</label>
+                <div class="input-wrapper">
+                    <span>👤</span>
+                    <input type="text" placeholder="玩家暱稱">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>電子郵件</label>
+                <div class="input-wrapper">
+                    <span>📧</span>
+                    <input type="email" placeholder="your@email.com">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>密碼</label>
+                <div class="input-wrapper">
+                    <span>🔒</span>
+                    <input type="password" placeholder="至少8位字元">
+                </div>
+            </div>
+            <div class="helper-row">
+                <label class="checkbox-group" style="font-size: 11px;">
+                    <input type="checkbox"> 我同意服務條款與隱私政策
+                </label>
+            </div>
+            <button class="btn-main">建立帳號</button>
+        </div>
+
+        <div class="divider">或使用其他方式</div>
+
+        <button class="btn-google">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" width="18">
+            使用 Google 帳號登入
+        </button>
+    </div>
+</div>
+
+<script>
+    function switchTab(type) {
+        const loginForm = document.getElementById('login-form');
+        const signupForm = document.getElementById('signup-form');
+        const loginTab = document.getElementById('tab-login');
+        const signupTab = document.getElementById('tab-signup');
+
+        if (type === 'login') {
+            loginForm.classList.remove('hidden');
+            signupForm.classList.add('hidden');
+            loginTab.classList.add('active');
+            signupTab.classList.remove('active');
+        } else {
+            loginForm.classList.add('hidden');
+            signupForm.classList.remove('hidden');
+            loginTab.classList.remove('active');
+            signupTab.classList.add('active');
+        }
+    }
+</script>
+
+</body>
+</html>

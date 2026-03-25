@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>3D 小車</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h2>3D 小車</h2>
+
+  <div class="blank-panel">
+    <h3>操作</h3>
+    <p>W / ↑：前進</p>
+    <p>S / ↓：後退</p>
+    <p>A / ←：左轉</p>
+    <p>D / →：右轉</p>
+  </div>
+
+  <div class="scene" id="scene"></div>
+
+<script type="module">
+import * as THREE from "https://esm.sh/three@0.160";
+import { GLTFLoader } from "https://esm.sh/three@0.160/examples/jsm/loaders/GLTFLoader.js";
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1e272e);
+
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 2000);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.getElementById("scene").appendChild(renderer.domElement);
+
+/* 光源 */
+scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+const light = new THREE.DirectionalLight(0xffffff, 1);
+light.position.set(100,200,100);
+scene.add(light);
+
+/* 地板 */
+const plane = new THREE.Mesh(
+  new THREE.PlaneGeometry(2000,2000),
+  new THREE.MeshStandardMaterial({ color:0x222222 })
+);
+plane.rotation.x = -Math.PI/2;
+scene.add(plane);
+
+/* 車 */
+let car;
+
+/* 載入模型 */
+new GLTFLoader().load("cyberpunk_car.glb", (gltf)=>{
+
+  car = gltf.scene;
+
+  /* === 自動修正模型 === */
+  const box = new THREE.Box3().setFromObject(car);
+  const size = box.getSize(new THREE.Vector3()).length();
+  const center = box.getCenter(new THREE.Vector3());
+
+  // 統一大小
+  const scale = 80 / size;
+  car.scale.setScalar(scale);
+
+  // 置中
+  car.position.sub(center.multiplyScalar(scale));
+
+  // 抬高
+  car.position.y += 20;
+
+  scene.add(car);
+
+}, undefined, (err)=>{
+  console.error("載入失敗", err);
+});
+
+/* 控制 */
+let x=0, z=0, rot=0;
+let vx=0, vz=0;
+const keys = {};
+
+document.addEventListener("keydown", e=>keys[e.key]=true);
+document.addEventListener("keyup", e=>keys[e.key]=false);
+
+/* 主迴圈 */
+function animate(){
+  requestAnimationFrame(animate);
+
+  if(car){
+
+    const accel = 0.4;
+    const turn = 0.04;
+
+    if(keys["w"]||keys["ArrowUp"]){
+      vx -= Math.sin(rot)*accel;
+      vz -= Math.cos(rot)*accel;
+    }
+    if(keys["s"]||keys["ArrowDown"]){
+      vx += Math.sin(rot)*accel;
+      vz += Math.cos(rot)*accel;
+    }
+    if(keys["a"]||keys["ArrowLeft"]) rot += turn;
+    if(keys["d"]||keys["ArrowRight"]) rot -= turn;
+
+    vx *= 0.95;
+    vz *= 0.95;
+
+    x += vx;
+    z += vz;
+
+    car.position.x = x;
+    car.position.z = z;
+    car.rotation.y = rot;
+
+    /* === 第三人稱鏡頭 === */
+    const camOffset = new THREE.Vector3(
+      Math.sin(rot)*150,
+      100,
+      Math.cos(rot)*150
+    );
+
+    const targetPos = new THREE.Vector3(
+      x + camOffset.x,
+      camOffset.y,
+      z + camOffset.z
+    );
+
+    // 平滑移動
+    camera.position.lerp(targetPos, 0.1);
+
+    camera.lookAt(x, 20, z);
+  }
+
+  renderer.render(scene, camera);
+}
+
+animate();
+
+/* resize */
+window.addEventListener("resize", ()=>{
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>

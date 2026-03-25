@@ -1,0 +1,72 @@
+:root {
+    --bg-dark: #05050a;
+    --card-bg: rgba(15, 23, 42, 0.9);
+    --accent-cyan: #00d2ff;
+    --accent-purple: #9d50bb;
+    --winner-gold: #ffd700;
+    --text-main: #f1f5f9;
+}
+
+body {
+    margin: 0; background: var(--bg-dark);
+    background-image: radial-gradient(circle at center, #1e293b 0%, #05050a 100%);
+    color: var(--text-main); font-family: 'Segoe UI', sans-serif;
+    display: flex; justify-content: center; align-items: center; height: 100vh;
+}
+
+.results-container {
+    width: 1000px; display: grid; grid-template-columns: 1fr 1.2fr; gap: 30px;
+    animation: fadeIn 0.8s ease-out;
+}
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+/* 左側：排行榜 */
+.leaderboard-card {
+    background: var(--card-bg); border-radius: 24px; padding: 40px;
+    border: 2px solid var(--winner-gold); box-shadow: 0 0 30px rgba(255, 215, 0, 0.2);
+    text-align: center;
+}
+
+.winner-crown { font-size: 60px; margin-bottom: 10px; }
+.winner-name { font-size: 32px; font-weight: 900; color: var(--winner-gold); margin-bottom: 30px; }
+
+.rank-item {
+    display: flex; justify-content: space-between; align-items: center;
+    background: rgba(0,0,0,0.3); padding: 20px; border-radius: 15px; margin-bottom: 15px;
+    border-left: 5px solid var(--accent-cyan);
+}
+
+.rank-info { text-align: left; }
+.rank-val { font-size: 24px; font-weight: bold; color: var(--accent-cyan); }
+
+/* 右側：學習報告 */
+.stats-card {
+    background: var(--card-bg); border-radius: 24px; padding: 40px;
+    border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(15px);
+}
+
+.stats-header { border-bottom: 1px solid #333; padding-bottom: 15px; margin-bottom: 25px; }
+
+.syntax-report { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+.syntax-item {
+    background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px;
+    border: 1px solid #333; text-align: center;
+}
+.syntax-count { font-size: 28px; font-weight: bold; color: var(--accent-purple); }
+
+.accuracy-chart {
+    margin-top: 30px; background: #000; height: 10px; border-radius: 5px; overflow: hidden;
+}
+.accuracy-fill { height: 100%; background: linear-gradient(90deg, var(--accent-purple), var(--accent-cyan)); width: 85%; }
+
+/* 按鈕區 */
+.footer-btns {
+    grid-column: span 2; display: flex; justify-content: center; gap: 20px; margin-top: 20px;
+}
+.btn {
+    padding: 15px 40px; border-radius: 12px; border: none; font-weight: bold; cursor: pointer; transition: 0.3s;
+}
+.btn-again { background: var(--winner-gold); color: #000; }
+.btn-lobby { background: rgba(255,255,255,0.1); color: #fff; border: 1px solid #444; }
+.btn:hover { transform: scale(1.05); filter: brightness(1.2); }

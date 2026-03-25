@@ -1,0 +1,112 @@
+:root {
+    --bg-color: #05050a;
+    --card-bg: rgba(15, 23, 42, 0.9);
+    --accent-cyan: #00d2ff;
+    --accent-purple: #9d50bb;
+    --text-main: #f1f5f9;
+}
+
+body {
+    margin: 0; background: var(--bg-color);
+    background-image: linear-gradient(rgba(0, 210, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 210, 255, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px; color: var(--text-main);
+    font-family: 'Segoe UI', 'PingFang TC', sans-serif;
+    display: flex; justify-content: center; align-items: center; height: 100vh;
+}
+
+.container { width: 100%; max-width: 400px; text-align: center; }
+
+/* 頂部 LOGO 區 */
+.header { margin-bottom: 25px; }
+.game-icon {
+    width: 60px; height: 60px; background: linear-gradient(135deg, #306998, var(--accent-cyan));
+    border-radius: 50%; display: flex; justify-content: center; align-items: center;
+    margin: 0 auto 15px; font-size: 30px; box-shadow: 0 0 20px rgba(0, 210, 255, 0.3);
+}
+.logo-text {
+    font-size: 42px; font-weight: 900; letter-spacing: 2px;
+    background: linear-gradient(to right, #306998, var(--accent-cyan));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 10px rgba(0, 210, 255, 0.5)); margin: 0;
+}
+
+/* 主卡片區域 */
+.auth-card {
+    background: var(--card-bg); border-radius: 24px; padding: 40px;
+    border: 1px solid rgba(0, 210, 255, 0.2); backdrop-filter: blur(15px);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+}
+
+/* 格子切換 Tabs */
+.tab-group {
+    display: flex; background: rgba(0,0,0,0.5); border-radius: 12px;
+    padding: 5px; margin-bottom: 30px; border: 1px solid #333;
+}
+.tab-btn {
+    flex: 1; padding: 12px; border: none; background: transparent;
+    color: #666; cursor: pointer; font-size: 14px; border-radius: 8px; transition: 0.3s;
+}
+.tab-btn.active {
+    background: linear-gradient(45deg, #306998, var(--accent-purple));
+    color: white; font-weight: bold; box-shadow: 0 4px 15px rgba(0, 210, 255, 0.2);
+}
+
+/* 表單與輸入框 */
+.form-group { text-align: left; margin-bottom: 20px; }
+.form-group label { display: block; font-size: 12px; color: #aaa; margin-bottom: 8px; margin-left: 5px; text-transform: uppercase; }
+
+.input-wrapper { position: relative; }
+.input-wrapper span { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); opacity: 0.5; }
+
+input[type="text"], input[type="email"], input[type="password"] {
+    width: 100%; padding: 12px 12px 12px 40px; box-sizing: border-box;
+    background: rgba(0,0,0,0.4); border: 1px solid #333;
+    color: white; border-radius: 10px; font-size: 14px; transition: 0.3s;
+}
+input:focus { border-color: var(--accent-cyan); outline: none; box-shadow: 0 0 10px rgba(0, 210, 255, 0.2); }
+
+/* 修正後的 記住我 佈局 */
+.helper-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    color: #777;
+    margin-bottom: 25px;
+}
+
+.checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 8px; /* 勾選框跟文字的距離 */
+    cursor: pointer;
+}
+
+.checkbox-group input[type="checkbox"] {
+    width: auto; /* 確保不會佔滿 100% */
+    margin: 0;
+    cursor: pointer;
+}
+
+.helper-row a { color: var(--accent-cyan); text-decoration: none; }
+
+/* 主按鈕 */
+.btn-main {
+    width: 100%; padding: 15px; border: none; border-radius: 12px;
+    background: linear-gradient(45deg, #306998, var(--accent-purple));
+    color: white; font-size: 16px; font-weight: bold; cursor: pointer;
+    transition: 0.3s; box-shadow: 0 4px 15px rgba(0, 210, 255, 0.3);
+}
+.btn-main:hover { transform: translateY(-2px); opacity: 0.9; }
+
+/* Google 登入 */
+.divider { margin: 25px 0; display: flex; align-items: center; color: #444; font-size: 12px; }
+.divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: #222; margin: 0 10px; }
+
+.btn-google {
+    width: 100%; padding: 12px; border: 1px solid #333; background: white;
+    border-radius: 10px; display: flex; justify-content: center; align-items: center;
+    gap: 10px; cursor: pointer; font-size: 14px; color: #444; font-weight: 500;
+}
+
+.hidden { display: none; }

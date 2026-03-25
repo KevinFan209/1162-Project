@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>PyPoly - 雙人對戰大廳</title>
+    <link rel="stylesheet" href="./css/lobby.css">
+</head>
+<body>
+
+    <div class="lobby-wrapper">
+        <div class="profile-card">
+            <div style="text-align: center;">
+                <h1 class="logo-text">PyPoly</h1>
+                <div style="font-size: 10px; letter-spacing: 3px; opacity: 0.5;">Python Adventure</div>
+            </div>
+            <div class="char-box" id="current-emoji">🚗</div>
+            <input type="text" value="Sandy_Python" class="input-dark" style="text-align: center;">
+            <div style="margin-top: auto;">
+                <button class="btn-action" style="width: 100%; background: #222; border: 1px solid #444;">更換座駕</button>
+            </div>
+        </div>
+
+        <div class="content-area">
+            <div class="header-panel">
+                <h2 style="margin:0;">尋找挑戰者</h2>
+                <button class="btn-action" onclick="toggleModal(true)">＋ 建立新對局</button>
+            </div>
+            <div class="room-container">
+                <div class="room-card">
+                    <div><strong>柏睿的基礎教室</strong><br><small style="opacity: 0.5;">基礎版 | 3 圈</small></div>
+                    <div style="font-style: italic; opacity: 0.2; padding: 0 20px;">VS</div>
+                    <div style="text-align: right;"><span style="color: var(--accent-cyan); font-size: 14px;">等待中 (1/2)</span><br><button class="btn-action" style="padding: 5px 15px; margin-top: 5px;">加入</button></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modal-overlay" onclick="toggleModal(false)"></div>
+    <div class="modal-content" id="modal-content">
+        <h2 style="margin-top: 0; color: var(--accent-cyan);">建立新對局</h2>
+        
+        <label style="font-size: 14px; opacity: 0.8;">房間名稱</label>
+        <input type="text" class="input-dark" placeholder="例如：Sandy 的挑戰室">
+
+        <label style="font-size: 14px; opacity: 0.8;">遊戲模式</label>
+        <div class="mode-toggle">
+            <button id="btn-base" class="active" onclick="setMode('base')">基礎版</button>
+            <button id="btn-adv" onclick="setMode('adv')">進階版</button>
+        </div>
+
+        <label style="font-size: 14px; opacity: 0.8;">獲勝條件 (圈數)</label>
+        <select class="input-dark">
+            <option>繞行世界一周 (1 圈)</option>
+            <option selected>標準冒險模式 (3 圈)</option>
+            <option>程式大師挑戰 (5 圈)</option>
+        </select>
+
+        <button class="btn-action" style="width: 100%; font-size: 16px; padding: 15px;" onclick="startGame()">立即開啟對戰</button>
+    </div>
+
+    <script>
+        function toggleModal(show) {
+            const display = show ? 'block' : 'none';
+            document.getElementById('modal-overlay').style.display = display;
+            document.getElementById('modal-content').style.display = display;
+        }
+
+        function setMode(mode) {
+            const baseBtn = document.getElementById('btn-base');
+            const advBtn = document.getElementById('btn-adv');
+            if(mode === 'base') {
+                baseBtn.classList.add('active'); advBtn.classList.remove('active');
+            } else {
+                advBtn.classList.add('active'); baseBtn.classList.remove('active');
+            }
+        }
+
+        function startGame() {
+            alert("房間建立成功！即將進入 PyPoly 世界...");
+            toggleModal(false);
+            // 這裡未來可以跳轉到主遊戲網頁
+        }
+    </script>
+</body>
+</html>
