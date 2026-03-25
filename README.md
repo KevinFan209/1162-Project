@@ -10,8 +10,10 @@
 - 范植鈞
 - 導師: 鄭育評
 ## 複製檔案
-```git clone https://github.com/KevinFan209/1162-Project.git```
-```cd 1162-Project```
+```bash
+git clone https://github.com/KevinFan209/1162-Project.git
+cd 1162-Project
+```
 ## 系統概述
 本專題旨在開發一套結合遊戲化學習與影像辨識技術的Python程式語言教育系統。透過大富翁（Monopoly）遊戲形式，讓學習者在遊戲過程中透過實體互動（擲骰子、手勢辨識）與程式題目作答，達到寓教於樂的學習效果。
 ## 目標
@@ -57,4 +59,4 @@
 |MySQL|關聯式資料庫|成熟穩定、社群支援廣|
 |Redis|快取資料庫	提升即時遊戲效能|
 
-*後續帶補上...*
+*後續待補上...*
