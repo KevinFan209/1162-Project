@@ -41,7 +41,7 @@
                 </label>
                 <a href="#">忘記密碼？</a>
             </div>
-            <button class="btn-main" onclick="location.href='lobby.html'">開始遊戲</button>
+            <button class="btn-main">開始遊戲</button>
         </div>
 
         <div id="signup-form" class="hidden">
@@ -83,26 +83,6 @@
     </div>
 </div>
 
-<script>
-    function switchTab(type) {
-        const loginForm = document.getElementById('login-form');
-        const signupForm = document.getElementById('signup-form');
-        const loginTab = document.getElementById('tab-login');
-        const signupTab = document.getElementById('tab-signup');
-
-        if (type === 'login') {
-            loginForm.classList.remove('hidden');
-            signupForm.classList.add('hidden');
-            loginTab.classList.add('active');
-            signupTab.classList.remove('active');
-        } else {
-            loginForm.classList.add('hidden');
-            signupForm.classList.remove('hidden');
-            loginTab.classList.remove('active');
-            signupTab.classList.add('active');
-        }
-    }
-</script>
-
+    <script src="js/login.js"></script>
 </body>
 </html>
