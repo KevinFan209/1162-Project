@@ -18,7 +18,7 @@ h2 {
 
 /* 左側空白介面 */
 .blank-panel {
-  positiin:absolute;
+  position:absolute;
   width: 250px;
   background: rgba(30, 39, 46, 0.5);
   border: 1px dashed rgba(102, 126, 234, 0.3);

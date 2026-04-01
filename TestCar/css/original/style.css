@@ -29,7 +29,7 @@ body {
   animation: spinCar 8s linear infinite;
 }
 
-/* 🎯 自動旋轉（展示用） */
+/* 🎯 自動旋轉（展示用） *//*
 @keyframes spinCar {
   from {
     transform: rotateX(0deg) rotateZ(0deg);
@@ -37,7 +37,7 @@ body {
   to {
     transform: rotateX(360deg) rotateZ(360deg);
   }
-} 
+} */
 
 /* 🎮 手動方向（會覆蓋 rotateY）
 .direction-right { transform: rotateX(35deg) rotateY(0deg); }
