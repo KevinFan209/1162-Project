@@ -5,7 +5,134 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PyPoly - Task Basic Layout</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/basic.css">
+    <style>
+        :root {
+            --primary-blue: #4facfe;
+            --success-green: #00cdac;
+            --success-green-shadow: #00a88b;
+            --bg-light: #f8fbff;
+            --text-dark: #000000;
+            --text-gray: #636e72;
+            --border-light: #f1f2f6;
+            --sidebar-dark: #334155;
+            --sidebar-dark-shadow: #1e293b;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
+
+        /* 🏆 修正：移除右下角的黃色 radial-gradient，只保留左上角淡藍色 */
+        body {
+            background-color: var(--bg-light);
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(79, 172, 254, 0.05) 0%, transparent 25%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        .task-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.02);
+            backdrop-filter: blur(2px);
+            display: flex; align-items: center; justify-content: center; z-index: 2000;
+        }
+
+        .task-card {
+            width: 550px;
+            background: white;
+            border-radius: 40px;
+            overflow: hidden; 
+            box-shadow: 0 15px 40px rgba(0,0,0,0.08);
+            border: 1.5px solid var(--border-light);
+            animation: popIn 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
+        }
+
+        .task-header-box {
+            background: linear-gradient(to bottom, #ffffff 0%, #fcfcfc 100%);
+            padding: 30px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1.5px solid var(--border-light);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+        }
+
+        .task-header-box h2 {
+            font-weight: 900;
+            font-size: 1.8rem;
+            color: var(--text-dark);
+            letter-spacing: 1px;
+        }
+
+        .task-badge {
+            background: #f1f5f9;
+            padding: 8px 15px;
+            border-radius: 12px;
+            font-weight: 800;
+            color: var(--text-gray);
+            font-size: 0.9rem;
+        }
+
+        .task-body { padding: 40px; display: flex; flex-direction: column; align-items: center; }
+
+        .task-instruction {
+            font-weight: 800;
+            color: var(--text-gray);
+            font-size: 1rem;
+            margin-bottom: 25px;
+            width: 100%;
+            text-align: left;
+        }
+
+        .code-window {
+            width: 100%;
+            background: #f8fafc;
+            border: 1.5px solid var(--border-light);
+            border-radius: 25px;
+            overflow: hidden;
+            margin-bottom: 25px;
+        }
+
+        .code-top {
+            background: #ffffff;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1.5px solid var(--border-light);
+        }
+
+        .code-dots { display: flex; gap: 8px; margin-right: 15px; }
+        .code-dots span { width: 10px; height: 10px; border-radius: 50%; }
+        .code-filename { font-family: monospace; font-size: 0.85rem; color: var(--text-gray); font-weight: 900; }
+
+        .editor-content { padding: 35px; font-family: 'Consolas', monospace; font-size: 1.3rem; }
+
+        .code-input {
+            font-family: inherit; font-size: 1.2rem; width: 120px; text-align: center;
+            padding: 4px 10px; border-radius: 12px; border: 1.5px solid var(--border-light);
+            background: white; color: var(--primary-blue); font-weight: 900; outline: none;
+        }
+
+        .keyword { color: var(--primary-blue); font-weight: 900; }
+        .comment { color: #94a3b8; font-size: 0.95rem; margin-top: 15px; font-weight: 800; display: block; }
+
+        .feedback-area { height: 30px; font-weight: 900; margin-bottom: 20px; font-size: 1.1rem; }
+        .success { color: var(--success-green); }
+        .error { color: #ff4757; }
+
+        .task-footer { width: 100%; display: flex; gap: 15px; }
+        .btn-3d {
+            border: none; border-radius: 20px; font-weight: 900; font-size: 1.2rem;
+            cursor: pointer; transition: 0.1s; display: flex; align-items: center; justify-content: center;
+        }
+        .btn-submit { flex: 2; padding: 22px; background: var(--success-green); color: white; box-shadow: 0 6px 0 var(--success-green-shadow); }
+        .btn-cancel { flex: 1; padding: 22px; background: var(--sidebar-dark); color: white; box-shadow: 0 6px 0 var(--sidebar-dark-shadow); }
+        .btn-3d:active { transform: translateY(4px); box-shadow: 0 2px 0 currentColor; }
+
+        @keyframes popIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    </style>
 </head>
 <body>
 
@@ -48,6 +175,19 @@
         </div>
     </div>
 
-    <script src="js/basic.js"></script>
+    <script>
+        function check() {
+            const input = document.getElementById('answer').value.trim();
+            const feedback = document.getElementById('feedback');
+            if (input === "1500") {
+                feedback.innerHTML = '<span class="success">✅ 驗證成功！資格已解除鎖定</span>';
+            } else {
+                feedback.innerHTML = '<span class="error">❌ 語法錯誤，系統拒絕執行</span>';
+            }
+        }
+        function closeWindow() {
+            document.querySelector('.task-overlay').style.display = 'none';
+        }
+    </script>
 </body>
 </html>

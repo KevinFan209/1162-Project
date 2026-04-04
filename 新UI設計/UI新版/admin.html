@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PyPoly - Admin User Management</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-blue: #4facfe;
+            --success-green: #00cdac;
+            --success-green-shadow: #00a88b;
+            --bg-gray: #f1f5f9;
+            --text-dark: #000000;
+            --text-gray: #64748b;
+            --sidebar-dark: #334155;
+            --sidebar-dark-shadow: #1e293b;
+            --border-light: #e2e8f0;
+            --danger-red: #ff7675;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
+        body { background-color: var(--bg-gray); height: 100vh; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+
+        /* 🏆 Header 同步 */
+        header {
+            background: linear-gradient(to bottom, #ffffff 0%, #fcfcfc 100%);
+            padding: 0 40px; display: flex; justify-content: space-between; align-items: center;
+            height: 85px; z-index: 100; border-bottom: 1.5px solid var(--border-light); 
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+        }
+        .header-left h1 { font-size: 2.5rem; font-weight: 900; margin-bottom: 10px;color: var(--text-dark); }
+        .header-right { display: flex; align-items: center; gap: 20px; }
+        .page-tag { font-weight: 800; color: var(--text-gray); background: #f1f5f9; padding: 10px 22px; border-radius: 12px; font-size: 0.95rem; }
+
+        /* 🏆 側邊選單與遮罩 */
+        .menu-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.15); display: none; z-index: 999; backdrop-filter: blur(2px); }
+        .menu-overlay.open { display: block; }
+        .side-menu { position: fixed; top: 0; right: -320px; width: 320px; height: 100vh; background: white; box-shadow: -10px 0 30px rgba(0,0,0,0.05); z-index: 1000; transition: 0.4s cubic-bezier(0.165, 0.84, 0.44, 1); padding: 100px 30px 40px; display: flex; flex-direction: column; gap: 15px; }
+        .side-menu.open { right: 0; }
+        .menu-item { padding: 18px 25px; border-radius: 15px; font-weight: 800; color: var(--text-gray); text-decoration: none; display: flex; align-items: center; gap: 15px; background: #f8fafc; }
+        .menu-item.danger { margin-top: auto; color: #ff4757; }
+
+        /* 🏆 Admin Layout */
+        .admin-main { flex: 1; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .admin-container { display: flex; gap: 30px; width: 95%; max-width: 1250px; height: 82vh; }
+
+        /* Sidebar Nav */
+        .admin-nav {
+            width: 280px; background: white; border-radius: 35px; padding: 30px 20px;
+            display: flex; flex-direction: column; gap: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #f1f2f6;
+        }
+        .nav-link { 
+            width: 100%; padding: 16px; border: none; border-radius: 15px; 
+            font-weight: 900; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 12px;
+            background: #f8fafc; color: var(--text-gray); transition: 0.2s;
+        }
+        .nav-link.active { background: var(--sidebar-dark); color: white; box-shadow: 0 6px 0 var(--sidebar-dark-shadow); }
+
+        /* Main Board */
+        .admin-board { flex: 1; display: flex; flex-direction: column; gap: 20px; overflow: hidden; }
+        
+        /* Search & Action Bar */
+        .board-header { 
+            background: white; padding: 20px 30px; border-radius: 25px; 
+            display: flex; justify-content: space-between; align-items: center; 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.03); border: 1px solid #f1f2f6; 
+        }
+        .search-input { padding: 12px 20px; border-radius: 12px; border: 1.5px solid var(--border-light); background: #f8fafc; width: 300px; font-weight: 700; }
+        .btn-add { padding: 12px 25px; background: var(--success-green); color: white; border: none; border-radius: 12px; font-weight: 900; cursor: pointer; box-shadow: 0 6px 0 var(--success-green-shadow); }
+        .btn-add:active { transform: translateY(4px); box-shadow: none; }
+
+        /* User Table Container */
+        .user-list-container { 
+            background: white; flex: 1; border-radius: 40px; padding: 30px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #f1f2f6;
+            overflow-y: auto;
+        }
+
+        /* User Row Item */
+        .user-row {
+            background: #f8fafc; padding: 20px 30px; border-radius: 25px;
+            display: grid; grid-template-columns: 80px 1fr 1fr 1fr 150px;
+            align-items: center; margin-bottom: 12px; border: 1px solid #f1f2f6;
+            transition: 0.2s;
+        }
+        .user-row:hover { background: #fff; border-color: var(--primary-blue); transform: scale(1.01); }
+        
+        .user-avatar { width: 45px; height: 45px; background: #e2e8f0; border-radius: 12px; display: flex; justify-content: center; align-items: center; font-size: 1.2rem; }
+        .user-id { font-weight: 900; color: var(--text-dark); }
+        .user-email { color: var(--text-gray); font-weight: 700; font-size: 0.9rem; }
+        .user-status { display: inline-block; padding: 5px 12px; border-radius: 8px; font-size: 0.8rem; font-weight: 900; }
+        .status-online { background: #ebfffa; color: var(--success-green); }
+        .status-offline { background: #f1f5f9; color: var(--text-gray); }
+
+        .action-btns { display: flex; gap: 10px; justify-content: flex-end; }
+        .btn-icon { padding: 10px; border: none; border-radius: 10px; cursor: pointer; font-weight: 800; font-size: 0.85rem; }
+        .btn-edit { background: #e2e8f0; color: var(--text-dark); }
+        .btn-ban { background: #fff5f5; color: var(--danger-red); }
+    </style>
+</head>
+<body>
+
+<div class="menu-overlay" id="overlay" onclick="toggleMenu()"></div>
+<div class="side-menu" id="sideMenu">
+    <a href="Profile.html" class="menu-item"><span>👤</span> 個人主頁</a>
+    <a href="Guide.html" class="menu-item"><span>📖</span> 遊戲說明</a>
+    <a href="learn.html" class="menu-item"><span>📊</span> 學習統計</a>
+    <a href="Settings.html" class="menu-item"><span>⚙️</span> 遊戲設定</a>
+    <a href="Lobby.html" class="menu-item"><span>🏠</span> 返回大廳</a>
+    <a href="Login.html" class="menu-item" style="margin-top:auto; color:#ff4757;"><span>🚪</span> 登出遊戲</a>
+</div>
+
+<header>
+    <div class="header-left"><h1>PyPoly</h1></div>
+    <div class="header-right">
+        <div class="page-tag">管理後台中心 ⚙️</div>
+        <button class="menu-btn" onclick="toggleMenu()" style="background:none; border:none; cursor:pointer;">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+        </button>
+    </div>
+</header>
+
+<div class="admin-main">
+    <div class="admin-container">
+        <aside class="admin-nav">
+            <h2 style="font-weight: 900; font-size: 1.4rem; margin-bottom: 15px; padding-left: 10px;">後台選單</h2>
+            <button class="nav-link active"><span>👥</span> 用戶權限管理</button>
+            <button class="nav-link"><span>❓</span> 考題庫編輯</button>
+            <button class="nav-link"><span>📷</span> 影像辨識偵錯</button>
+            <button class="nav-link"><span>📈</span> 遊戲數據監控</button>
+            <button class="nav-link" style="margin-top: auto; color: var(--danger-red);"><span>🛑</span> 伺服器狀態</button>
+        </aside>
+
+        <main class="admin-board">
+            <div class="board-header">
+                <input type="text" class="search-input" placeholder="搜尋 ID 或 使用者名稱...">
+                <button class="btn-add">+ 新增管理員</button>
+            </div>
+
+            <div class="user-list-container">
+                <div style="display: grid; grid-template-columns: 80px 1fr 1fr 1fr 150px; padding: 0 30px 15px; font-weight: 900; color: var(--text-gray); font-size: 0.85rem;">
+                    <span>頭像</span>
+                    <span>使用者 ID</span>
+                    <span>電子信箱</span>
+                    <span>當前狀態</span>
+                    <span style="text-align: right;">操作項目</span>
+                </div>
+
+                <div class="user-row">
+                    <div class="user-avatar">👤</div>
+                    <div class="user-id">Sandy (Admin)</div>
+                    <div class="user-email">sandy@example.com</div>
+                    <div><span class="user-status status-online">● 在線中</span></div>
+                    <div class="action-btns">
+                        <button class="btn-icon btn-edit">編輯</button>
+                        <button class="btn-icon btn-ban">封鎖</button>
+                    </div>
+                </div>
+
+                <div class="user-row">
+                    <div class="user-avatar">🤖</div>
+                    <div class="user-id">AI Bot 01</div>
+                    <div class="user-email">system_bot@pypoly.com</div>
+                    <div><span class="user-status status-online">● 在線中</span></div>
+                    <div class="action-btns">
+                        <button class="btn-icon btn-edit">編輯</button>
+                        <button class="btn-icon btn-ban">停用</button>
+                    </div>
+                </div>
+
+                <div class="user-row">
+                    <div class="user-avatar">👤</div>
+                    <div class="user-id">Test_User_03</div>
+                    <div class="user-email">test03@gmail.com</div>
+                    <div><span class="user-status status-offline">○ 離線</span></div>
+                    <div class="action-btns">
+                        <button class="btn-icon btn-edit">編輯</button>
+                        <button class="btn-icon btn-ban">封鎖</button>
+                    </div>
+                </div>
+
+                </div>
+        </main>
+    </div>
+</div>
+
+<script>
+    function toggleMenu() {
+        const sideMenu = document.getElementById('sideMenu');
+        const overlay = document.getElementById('overlay');
+        sideMenu.classList.toggle('open');
+        overlay.classList.toggle('open');
+    }
+</script>
+</body>
+</html>

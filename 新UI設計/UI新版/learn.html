@@ -5,7 +5,106 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PyPoly - 學習成就統計</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/learn.css">
+    <style>
+        :root {
+            --success-green: #00cdac;
+            --success-green-shadow: #00a88b;
+            --bg-gray: #f1f5f9;
+            --text-dark: #000000;
+            --text-gray: #64748b;
+            --border-light: #e2e8f0;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
+        body { background-color: var(--bg-gray); height: 100vh; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+
+        header {
+            background: linear-gradient(to bottom, #ffffff 0%, #fcfcfc 100%);
+            padding: 0 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 85px;
+            z-index: 100;
+            border-bottom: 1.5px solid var(--border-light); 
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+        }
+
+        .header-left h1 {
+            font-size: 2.5rem;
+            font-weight: 900;
+            margin-bottom: 10px;
+            color: var(--text-dark);
+        }
+
+        .header-right { display: flex; align-items: center; gap: 20px; }
+
+        .page-tag { 
+            font-weight: 800; 
+            color: var(--text-gray); 
+            background: #f1f5f9; 
+            padding: 10px 22px; 
+            border-radius: 12px; 
+            font-size: 0.95rem; 
+        }
+
+        .menu-btn {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 10px;
+            transition: 0.2s;
+        }
+        .menu-btn:hover { opacity: 0.6; }
+
+        .menu-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.15); display: none; z-index: 999;
+            backdrop-filter: blur(2px);
+        }
+        .menu-overlay.open { display: block; }
+
+        .side-menu {
+            position: fixed; top: 0; right: -320px; width: 320px; height: 100vh;
+            background: white; box-shadow: -10px 0 30px rgba(0,0,0,0.05);
+            z-index: 1000; transition: 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+            padding: 100px 30px 40px; display: flex; flex-direction: column; gap: 15px;
+        }
+        .side-menu.open { right: 0; }
+
+        .menu-item {
+            padding: 18px 25px; border-radius: 15px; font-weight: 800;
+            color: var(--text-gray); text-decoration: none; display: flex;
+            align-items: center; gap: 15px; transition: 0.2s; background: #f8fafc;
+        }
+        .menu-item:hover { background: var(--bg-gray); color: var(--text-dark); }
+        .menu-item.danger { margin-top: auto; color: #ff4757; }
+
+        .stats-main { flex: 1; display: grid; grid-template-columns: 1fr 380px; gap: 25px; padding: 25px; overflow: hidden; }
+        .stats-content { display: grid; grid-template-rows: auto 1fr; gap: 25px; overflow-y: auto; padding-right: 10px; }
+        .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+        .summary-card { background: white; padding: 30px; border-radius: 35px; border: 1.5px solid var(--border-light); text-align: center; }
+        .summary-label { color: var(--text-gray); font-weight: 900; font-size: 0.85rem; margin-bottom: 10px; text-transform: uppercase; }
+        .summary-value { font-size: 2.5rem; font-weight: 900; color: var(--text-dark); }
+        .summary-unit { font-size: 1rem; color: var(--success-green); margin-left: 5px; }
+
+        .chart-section { background: white; border-radius: 35px; padding: 40px; border: 1.5px solid var(--border-light); }
+        .chart-header { font-weight: 900; font-size: 1.5rem; margin-bottom: 30px; border-left: 8px solid var(--success-green); padding-left: 15px; }
+        .progress-item { display: flex; align-items: center; gap: 20px; margin-bottom: 25px; }
+        .skill-name { width: 140px; font-weight: 900; color: var(--text-dark); font-size: 1.1rem; }
+        .progress-bar-bg { flex: 1; height: 16px; background: var(--bg-gray); border-radius: 10px; overflow: hidden; }
+        .progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--success-green), #55efc4); border-radius: 10px; }
+
+        .side-ai-panel { background: white; border-radius: 35px; border: 1.5px solid var(--border-light); padding: 30px; display: flex; flex-direction: column; gap: 20px; }
+        .ai-header { font-weight: 900; font-size: 1.4rem; color: var(--text-dark); display: flex; align-items: center; gap: 10px; }
+        .ai-status-dot { width: 10px; height: 10px; background: var(--success-green); border-radius: 50%; animation: pulse 1.5s infinite; }
+        .ai-report-box { flex: 1; background: #f8fafc; border-radius: 25px; padding: 25px; overflow-y: auto; color: var(--text-gray); font-weight: 700; line-height: 1.8; }
+        .btn-action { padding: 22px; background: var(--success-green); color: white; border: none; border-radius: 25px; font-size: 1.3rem; font-weight: 900; cursor: pointer; box-shadow: 0 8px 0 var(--success-green-shadow); }
+        @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.5); opacity: 0.5; } }
+    </style>
 </head>
 <body>
 
@@ -14,9 +113,9 @@
     <a href="Profile.html" class="menu-item"><span>👤</span> 個人主頁</a>
     <a href="Guide.html" class="menu-item"><span>📖</span> 遊戲說明</a>
     <a href="learn.html" class="menu-item"><span>📊</span> 學習統計</a>
-    <a href="#" class="menu-item"><span>⚙️</span> 遊戲設定</a>
+    <a href="Settings.html" class="menu-item"><span>⚙️</span> 遊戲設定</a>
     <a href="Lobby.html" class="menu-item"><span>🏠</span> 返回大廳</a>
-    <a href="Login.html" class="menu-item danger"><span>🚪</span> 登出遊戲</a>
+    <a href="Login.html" class="menu-item" style="margin-top:auto; color:#ff4757;"><span>🚪</span> 登出遊戲</a>
 </div>
 
 <header>
@@ -78,6 +177,11 @@
     </div>
 </div>
 
-<script src="js/learn.js"></script>
+<script>
+    function toggleMenu() {
+        document.getElementById('sideMenu').classList.toggle('open');
+        document.getElementById('overlay').classList.toggle('open');
+    }
+</script>
 </body>
 </html>
