@@ -18,6 +18,73 @@ if ($db->connect_error) {
 
 $action = $_POST['action'] ?? '';
 
+if ($action === 'googleLogin') {
+
+    $id_token = $_POST['token'] ?? '';
+
+    if (!$id_token) {
+        echo json_encode(["status"=>"error","message"=>"缺少 token"]);
+        exit;
+    }
+
+    // 驗證 Google Token
+    $url = "https://oauth2.googleapis.com/tokeninfo?id_token=" . $id_token;
+    $response = file_get_contents($url);
+    $googleUser = json_decode($response, true);
+
+    if (!isset($googleUser['email'])) {
+        echo json_encode(["status"=>"error","message"=>"Google 驗證失敗"]);
+        exit;
+    }
+
+    $email = $googleUser['email'];
+    $username = $googleUser['name'] ?? "GoogleUser";
+
+    // 檢查使用者是否存在
+    $stmt = $db->prepare("SELECT * FROM users WHERE email=?");
+    $stmt->bind_param("s", $email);
+    $stmt->execute();
+    $user = $stmt->get_result()->fetch_assoc();
+
+    // 如果不存在 → 自動註冊
+    if (!$user) {
+
+        $randomPassword = password_hash(uniqid(), PASSWORD_BCRYPT);
+
+        $stmt = $db->prepare("INSERT INTO users (username,email,password) VALUES (?,?,?)");
+        $stmt->bind_param("sss", $username, $email, $randomPassword);
+        $stmt->execute();
+
+        $user_id = $stmt->insert_id;
+
+        $user = [
+            "id" => $user_id,
+            "username" => $username,
+            "email" => $email
+        ];
+    }
+
+    // 產生 JWT（跟你原本一樣）
+    $payload = [
+        "iat" => time(),
+        "exp" => time() + 3600,
+        "data" => [
+            "id" => $user['id'],
+            "username" => $user['username'],
+            "email" => $user['email']
+        ]
+    ];
+
+    $token = JWT::encode($payload, $secretKey, 'HS256');
+
+    echo json_encode([
+        "status"=>"success",
+        "token"=>$token
+    ]);
+
+    exit;
+}
+
 /* ================= 註冊 ================= */
 if ($action === 'register') {
 
@@ -97,6 +164,39 @@ if ($action === 'login') {
             "status"=>"error",
             "message"=>"帳號或密碼錯誤"
         ]);
+    }
+
+    exit;
+}
+
+if ($action === 'refresh') {
+
+    $token = $_POST['token'] ?? '';
+
+    if (!$token) {
+        echo json_encode(["status"=>"error"]);
+        exit;
+    }
+
+    try {
+        $decoded = JWT::decode($token, new Key($secretKey, 'HS256'));
+
+        // 重新產生新 token
+        $payload = [
+            "iat" => time(),
+            "exp" => time() + 3600,
+            "data" => (array)$decoded->data
+        ];
+
+        $newToken = JWT::encode($payload, $secretKey, 'HS256');
+
+        echo json_encode([
+            "status"=>"success",
+            "token"=>$newToken
+        ]);
+
+    } catch (Exception $e) {
+        echo json_encode(["status"=>"error"]);
     }
 
     exit;
