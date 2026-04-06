@@ -59,4 +59,114 @@ cd 1162-Project
 |MySQL|關聯式資料庫|成熟穩定、社群支援廣|
 |Redis|快取資料庫	提升即時遊戲效能|
 
-*後續待補上...*
+
+
+## 模組設計
+### 客戶端模組
+- 登入與大廳模組：使用者註冊、登入、遊戲大廳  
+- 主遊戲棋盤模組：遊戲地圖、玩家移動、事件觸發  
+- 互動任務模組：程式題目顯示、作答介面、即時回饋  
+- 遊戲結算模組：分數計算、排名顯示、歷史記錄  
+
+### 伺服器端模組
+- 使用者管理模組：帳號驗證、權限控管  
+- 遊戲邏輯模組：遊戲規則、回合管理、金錢計算  
+- 題目管理模組：題庫維護、難度分級、自動評分  
+- 影像辨識模組：手勢辨識、骰子偵測、ArUco標記  
+
+### 後台管理模組
+- 題目管理系統（Question CMS）  
+- 影像辨識偵錯頁（Vision Debugger）  
+- 遊戲數據監控（Game Analytics）  
+- 玩家帳號管理系統（User Management）  
+
+## 資料庫設計
+### 使用者表（users）
+|欄位名稱|資料型態|說明|
+|---|---|---|
+|user_id|INT (PK)|使用者唯一識別碼|
+|username|VARCHAR(50)|使用者名稱|
+|password_hash|VARCHAR(255)|密碼雜湊值|
+|email|VARCHAR(100)|電子郵件|
+|created_at|DATETIME|建立時間|
+|last_login|DATETIME|最後登入時間|
+
+### 遊戲記錄表（game_records）
+|欄位名稱|資料型態|說明|
+|---|---|---|
+|game_id|INT (PK)|遊戲唯一識別碼|
+|user_id|INT (FK)|使用者識別碼|
+|score|INT|遊戲分數|
+|money|INT|遊戲金錢|
+|rounds|INT|遊戲回合數|
+|start_time|DATETIME|開始時間|
+|end_time|DATETIME|結束時間|
+
+### 題目表（questions）
+|欄位名稱|資料型態|說明|
+|---|---|---|
+|question_id|INT (PK)|題目唯一識別碼|
+|category|VARCHAR(50)|題目類別|
+|difficulty|INT|難度等級（1-5）|
+|content|TEXT|題目內容|
+|answer|TEXT|正確答案|
+|explanation|TEXT|題目解析|
+
+## API 設計
+### RESTful API
+|方法|路徑|說明|
+|---|---|---|
+|POST|/api/auth/login|使用者登入|
+|POST|/api/auth/register|使用者註冊|
+|GET|/api/game/:id|取得遊戲資訊|
+|POST|/api/game/start|開始新遊戲|
+|POST|/api/game/move|玩家移動|
+|GET|/api/questions/random|取得隨機題目|
+|POST|/api/answers/submit|提交答案|
+|GET|/api/leaderboard|排行榜|
+
+### WebSocket 事件
+|事件|方向|說明|
+|---|---|---|
+|dice_roll|Client → Server|骰子結果|
+|player_move|Server → Client|玩家移動|
+|question_show|Server → Client|顯示題目|
+|answer_result|Server → Client|答題結果|
+|game_state|Server → Client|狀態更新|
+
+## UI/UX 設計
+- 登入與大廳頁  
+- 主遊戲棋盤頁  
+- 任務作答視窗  
+- 遊戲結算頁  
+
+## 安全性
+- JWT 身份驗證  
+- bcrypt 密碼加密  
+- HTTPS 通訊  
+- 防 SQL Injection / XSS  
+
+## 部署
+**開發環境**
+- VS Code  
+- Node.js  
+- Python + OpenCV  
+- Git + GitHub  
+
+**生產環境**
+- Nginx  
+- Node.js (PM2)  
+- MySQL  
+- AWS S3 / MinIO  
+- CloudFlare  
+
+## 開發時程
+|階段|時間|內容|
+|---|---|---|
+|需求分析|3/4 - 3/9|需求確認|
+|系統設計|3/9 - 3/15|架構/UI|
+|前後端開發|3/15 - 4/15|功能實作|
+|影像辨識|3/20 - 4/20|辨識模組|
+|整合測試|4/15 - 4/30|測試|
+|部署|5/1 - 5/7|上線|
+
