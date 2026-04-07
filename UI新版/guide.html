@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PyPoly - 冒險生存手冊</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --success-green: #00cdac;
+            --success-green-shadow: #00a88b;
+            --bg-gray: #f1f5f9;
+            --text-dark: #000000;
+            --text-gray: #64748b;
+            --border-light: #e2e8f0;
+            --primary-blue: #4facfe;
+            --danger-red: #ff7675;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
+
+        body {
+            background-color: var(--bg-gray);
+            height: 100vh;
+            display: flex; flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        header {
+            background: linear-gradient(to bottom, #ffffff 0%, #fcfcfc 100%);
+            padding: 0 40px; display: flex; justify-content: space-between; align-items: center;
+            height: 85px; z-index: 100; border-bottom: 1.5px solid var(--border-light); 
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+        }
+
+        .header-left h1 {
+            font-size: 2.5rem;
+            font-weight: 900;
+            margin-bottom: 10px;
+            color: var(--text-dark);
+        }
+        .header-right { display: flex; align-items: center; gap: 20px; }
+        .page-tag { font-weight: 800; color: var(--text-gray); background: #f1f5f9; padding: 10px 22px; border-radius: 12px; font-size: 0.95rem; }
+
+        .menu-btn {
+            background: transparent; border: none; cursor: pointer;
+            display: flex; flex-direction: column; justify-content: center;
+            padding: 10px; transition: 0.2s;
+        }
+        .menu-btn:hover { opacity: 0.6; }
+
+        .menu-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.15); display: none; z-index: 999;
+            backdrop-filter: blur(2px);
+        }
+        .menu-overlay.open { display: block; }
+
+        .side-menu {
+            position: fixed; top: 0; right: -320px; width: 320px; height: 100vh;
+            background: white; box-shadow: -10px 0 30px rgba(0,0,0,0.05);
+            z-index: 1000; transition: 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+            padding: 100px 30px 40px; display: flex; flex-direction: column; gap: 15px;
+        }
+        .side-menu.open { right: 0; }
+
+        .menu-item {
+            padding: 18px 25px; border-radius: 15px; font-weight: 800;
+            color: var(--text-gray); text-decoration: none; display: flex;
+            align-items: center; gap: 15px; transition: 0.2s; background: #f8fafc;
+        }
+        .menu-item:hover { background: var(--bg-gray); color: var(--text-dark); }
+        .menu-item.danger { margin-top: auto; color: #ff4757; }
+
+        .guide-main { flex: 1; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .guide-card {
+            background: white; width: 95%; max-width: 850px; height: 85vh;
+            padding: 40px 60px; border-radius: 40px; box-shadow: 0 20px 60px rgba(0,0,0,0.08);
+            border: 1.5px solid var(--border-light); display: flex; flex-direction: column;
+            animation: cardSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes cardSlideUp { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .guide-header { text-align: center; margin-bottom: 30px; }
+        .guide-header h2 { font-weight: 900; font-size: 2.2rem; color: var(--text-dark); letter-spacing: 1px; }
+
+        .guide-scroll { flex: 1; overflow-y: auto; padding-right: 15px; }
+        .rule-section { margin-bottom: 20px; display: flex; gap: 20px; padding: 25px; background: #f8fafc; border-radius: 30px; border: 1.5px solid #f1f2f6; transition: 0.4s; }
+        .rule-section:hover { border-color: var(--success-green); background: #ffffff; transform: translateY(-5px); }
+        .rule-icon { background: var(--success-green); color: white; width: 48px; height: 48px; border-radius: 16px; display: flex; justify-content: center; align-items: center; font-weight: 900; flex-shrink: 0; box-shadow: 0 5px 0 var(--success-green-shadow); }
+        .rule-info h3 { font-weight: 900; font-size: 1.25rem; margin-bottom: 8px; color: var(--text-dark); }
+        .rule-info p { color: var(--text-gray); font-weight: 700; line-height: 1.7; font-size: 1rem; }
+        
+        .highlight-blue { color: var(--primary-blue); font-weight: 900; }
+        .highlight-red { color: var(--danger-red); font-weight: 900; }
+        .start-bonus-tag { background: #fff9db; color: #fab005; padding: 2px 8px; border-radius: 6px; font-weight: 900; }
+
+        .btn-start { margin-top: 25px; padding: 22px; background: var(--success-green); color: white; border: none; border-radius: 25px; font-size: 1.4rem; font-weight: 900; cursor: pointer; box-shadow: 0 8px 0 var(--success-green-shadow); transition: 0.2s; }
+        .btn-start:active { transform: translateY(8px); box-shadow: 0 0 0 var(--success-green-shadow); }
+        
+        .guide-scroll::-webkit-scrollbar { width: 8px; }
+        .guide-scroll::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="menu-overlay" id="overlay" onclick="toggleMenu()"></div>
+
+<div class="side-menu" id="sideMenu">
+    <a href="Profile.html" class="menu-item"><span>👤</span> 個人主頁</a>
+    <a href="Guide.html" class="menu-item"><span>📖</span> 遊戲說明</a>
+    <a href="learn.html" class="menu-item"><span>📊</span> 學習統計</a>
+    <a href="Settings.html" class="menu-item"><span>⚙️</span> 遊戲設定</a>
+    <a href="Lobby.html" class="menu-item"><span>🏠</span> 返回大廳</a>
+    <a href="Login.html" class="menu-item" style="margin-top:auto; color:#ff4757;"><span>🚪</span> 登出遊戲</a>
+</div>
+
+<header>
+    <div class="header-left"><h1>PyPoly</h1></div>
+    <div class="header-right">
+        <div class="page-tag">遊戲說明 📖</div>
+        <button class="menu-btn" onclick="toggleMenu()">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+        </button>
+    </div>
+</header>
+
+<div class="guide-main">
+    <div class="guide-card">
+        <div class="guide-header"><h2>📖 冒險生存手冊</h2></div>
+        <div class="guide-scroll">
+            
+            <div class="rule-section">
+                <div class="rule-icon">1</div>
+                <div class="rule-info">
+                    <h3>起始旅費與獲勝條件</h3>
+                    <p>每位探險家將獲得 <span class="start-bonus-tag">$1,500</span> <b>起始資金</b>。遊戲結束時，<b>「總資產（現金 + 土地價值）」</b>最高者將成為終極 Python 大富翁！</p>
+                </div>
+            </div>
+
+            <div class="rule-section">
+                <div class="rule-icon">2</div>
+                <div class="rule-info">
+                    <h3>AI 偵測：互動擲骰</h3>
+                    <p>當輪到您的回合時，請對準鏡頭進行 <span class="highlight-blue">「往上快速敲擊」</span> 動作，系統將自動觸發擲骰。接著，請對著相機 <span class="highlight-blue">「比出對應的點數數字」</span>（如 1~6），角色即會出發。</p>
+                </div>
+            </div>
+
+            <div class="rule-section">
+                <div class="rule-icon">3</div>
+                <div class="rule-info">
+                    <h3>Python 挑戰與收購</h3>
+                    <p>停留在無主土地時，必須閱讀文化故事並解答隨機出現的 <span class="highlight-blue">「Python 邏輯題」</span>。答對即可獲得購買資格；若答錯，則喪失該回合購買權並支付少量罰金。</p>
+                </div>
+            </div>
+
+            <div class="rule-section">
+                <div class="rule-icon">4</div>
+                <div class="rule-info">
+                    <h3>強行收購機制</h3>
+                    <p>若停留在他人的土地，除了支付基本的<b>過路費</b>外，您可以選擇進行 <span class="highlight-red">「強行收購」</span>。您必須挑戰更高難度的考題，成功即可奪取該地，失敗則需支付加倍賠償！</p>
+                </div>
+            </div>
+
+            <div class="rule-section">
+                <div class="rule-icon">5</div>
+                <div class="rule-info">
+                    <h3>海關查驗：體能懲罰</h3>
+                    <p>這不是普通的旅行！停留在<b>「海關查驗」</b>格時，必須在 AI 相機前完成 <span class="highlight-red">開合跳 10 下</span>。若在計時結束前未達標，您的角色將被遣返回前一個路口，並取消該圈獎勵。</p>
+                </div>
+            </div>
+
+            <div class="rule-section">
+                <div class="rule-icon">6</div>
+                <div class="rule-info">
+                    <h3>意外狀況：簽證與機場</h3>
+                    <p>旅途總有意外！停留在 <b>VISA ERROR</b> 格需支付 <span class="highlight-red">$150</span> 行政費。若進入 <b>AIRPORT</b>，代表航班延誤，您將被困在候機室，<span class="highlight-red">暫停行動 1 個回合</span>。</p>
+                </div>
+            </div>
+
+            <div class="rule-section">
+                <div class="rule-icon">7</div>
+                <div class="rule-info">
+                    <h3>環球旅費補給</h3>
+                    <p>每繞行世界棋盤一圈並經過 <b>「台灣起點」</b> 時，政府將撥發 <span class="start-bonus-tag">$200</span> 的環球補助金。勤奮移動是致富的不二法門！</p>
+                </div>
+            </div>
+
+        </div>
+        <button class="btn-start" onclick="location.href='Lobby.html'">我準備好了，出發！</button>
+    </div>
+</div>
+
+<script>
+    function toggleMenu() {
+        const sideMenu = document.getElementById('sideMenu');
+        const overlay = document.getElementById('overlay');
+        sideMenu.classList.toggle('open');
+        overlay.classList.toggle('open');
+    }
+</script>
+</body>
+</html>
