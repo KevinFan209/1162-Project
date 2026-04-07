@@ -1,0 +1,8 @@
+# 檔案路徑定義
+path: C:\Users\User\Desktop\Monopoly\dataset  # 資料集根目錄
+train: C:\Users\User\Desktop\Monopoly\dataset\images\train  # 訓練集位置
+val: C:\Users\User\Desktop\Monopoly\dataset\images\val      # 驗證集位置
+
+# 類別定義
+nc: 6  # 類別數量 (1-6手勢)
+names: ['1', '2', '3', '4', '5', '6'] # 類別名稱
