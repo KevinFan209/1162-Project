@@ -1,0 +1,85 @@
+body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            perspective: 3000px;
+            overflow: hidden;
+        }
+        .cylinder-container {
+            transform-style: preserve-3d;
+            transform: rotateX(-25deg);
+            animation: rotate 5s infinite linear;
+            animation-play-state: paused;
+        }
+        .cylinder {
+            position: relative;
+            width: 360px;
+            height: 450px;
+            transform-style: preserve-3d;
+        }
+        .top, .bottom {
+            position: absolute;
+            width: 360px;
+            height: 360px;
+            border-radius: 50%;
+            background: rgba(74, 144, 226, 1);
+        }
+        .top {
+            transform: rotateX(90deg) translateZ(180px);
+        }
+        .bottom {
+            transform: rotateX(90deg) translateZ(0px);
+        }
+        .side {
+            position: absolute;
+            width: 72px;
+            height: 60px;
+            background: linear-gradient(to bottom, rgba(74, 144, 226, 0.8), rgba(54, 124, 206, 0.9));
+            left:144px;
+
+            box-shadow: inset 0 0 90px rgba(0, 0, 0, 0.2);
+        }
+        @keyframes rotate {
+            0% { transform: rotateX(-25deg) rotateY(0deg) rotateZ(25deg); }
+            100% { transform: rotateX(335deg) rotateY(360deg) rotateZ(-335deg); }
+        }
+        .controls {
+            position: fixed;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 30px;
+            align-items: center;
+        }
+        .slider-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 18px;
+            color: #333;
+            font-size: 42px;
+        }
+        .slider-group .input-row {
+            display: flex;
+            gap: 30px;
+            align-items: center;
+        }
+        .slider-group input {
+            width: 360px;
+        }
+        button {
+            padding: 24px 48px;
+            background: rgba(74, 144, 226, 0.8);
+            border: none;
+            border-radius: 4px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background: rgba(54, 124, 206, 1);
+            transform: translateY(-6px);
+        }

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PyPoly - Admin Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-blue: #4facfe;
+            --success-green: #00cdac;
+            --success-green-shadow: #00a88b;
+            --bg-gray: #f1f5f9;
+            --text-dark: #000000;
+            --text-gray: #64748b;
+            --sidebar-dark: #334155;
+            --sidebar-dark-shadow: #1e293b;
+            --border-light: #e2e8f0;
+            --danger-red: #ff7675;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
+        body { background-color: var(--bg-gray); height: 100vh; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+
+        /* 🏆 Header */
+        header {
+            background: linear-gradient(to bottom, #ffffff 0%, #fcfcfc 100%);
+            padding: 0 40px; display: flex; justify-content: space-between; align-items: center;
+            height: 85px; z-index: 100; border-bottom: 1.5px solid var(--border-light); 
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+        }
+        .header-left h1 { font-size: 2.5rem; font-weight: 900;margin-bottom: 10px; color: var(--text-dark); }
+        .header-right { display: flex; align-items: center; gap: 20px; }
+        .page-tag { font-weight: 800; color: var(--text-gray); background: #f1f5f9; padding: 10px 22px; border-radius: 12px; font-size: 0.95rem; }
+
+        .menu-btn { background: transparent; border: none; cursor: pointer; display: flex; flex-direction: column; justify-content: center; padding: 10px; transition: 0.2s; }
+        .menu-btn:hover { opacity: 0.6; }
+
+        .menu-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.15); display: none; z-index: 999; backdrop-filter: blur(2px); }
+        .menu-overlay.open { display: block; }
+        .side-menu { position: fixed; top: 0; right: -320px; width: 320px; height: 100vh; background: white; box-shadow: -10px 0 30px rgba(0,0,0,0.05); z-index: 1000; transition: 0.4s cubic-bezier(0.165, 0.84, 0.44, 1); padding: 100px 30px 40px; display: flex; flex-direction: column; gap: 15px; }
+        .side-menu.open { right: 0; }
+        .menu-item { padding: 18px 25px; border-radius: 15px; font-weight: 800; color: var(--text-gray); text-decoration: none; display: flex; align-items: center; gap: 15px; transition: 0.2s; background: #f8fafc; }
+        .menu-item:hover { background: var(--bg-gray); color: var(--text-dark); }
+        .menu-item.danger { margin-top: auto; color: #ff4757; }
+
+        /* 🏆 Admin Layout */
+        .admin-main { flex: 1; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .admin-container { display: flex; gap: 30px; width: 95%; max-width: 1250px; height: 82vh; }
+
+        /* Sidebar Nav */
+        .admin-nav {
+            width: 280px; background: white; border-radius: 35px; padding: 30px 20px;
+            display: flex; flex-direction: column; gap: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #f1f2f6;
+        }
+        .nav-link { 
+            width: 100%; padding: 16px; border: none; border-radius: 15px; 
+            font-weight: 900; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 12px;
+            background: #f8fafc; color: var(--text-gray); transition: 0.2s;
+        }
+        .nav-link.active { background: var(--sidebar-dark); color: white; box-shadow: 0 6px 0 var(--sidebar-dark-shadow); }
+        .nav-link:hover:not(.active) { background: #f1f5f9; }
+
+        /* Main Content Board */
+        .admin-board { flex: 1; display: grid; grid-template-rows: auto 1fr; gap: 20px; overflow: hidden; }
+        
+        /* Stats Grid for Game Monitoring */
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+        .stat-card { background: white; padding: 20px; border-radius: 25px; border: 1px solid var(--border-light); text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.02); }
+        .stat-label { font-size: 0.8rem; font-weight: 900; color: var(--text-gray); text-transform: uppercase; margin-bottom: 5px; }
+        .stat-val { font-size: 1.8rem; font-weight: 900; color: var(--text-dark); }
+        .stat-val span { color: var(--success-green); font-size: 0.9rem; margin-left: 5px; }
+
+        /* Data Container */
+        .board-content { background: white; border-radius: 40px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); overflow-y: auto; border: 1px solid #f1f2f6; }
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+        .section-title { font-weight: 900; font-size: 1.3rem; border-left: 8px solid var(--primary-blue); padding-left: 15px; }
+
+        /* 🏆 Vision Debugging View */
+        .vision-debug-grid { display: grid; grid-template-columns: 1fr 300px; gap: 20px; height: 100%; }
+        .camera-feed { background: #000; border-radius: 25px; position: relative; overflow: hidden; display: flex; justify-content: center; align-items: center; color: rgba(255,255,255,0.3); }
+        .debug-overlay-info { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.6); padding: 15px; border-radius: 15px; color: #00ff00; font-family: monospace; font-size: 0.85rem; pointer-events: none; }
+        
+        .debug-sidebar { display: flex; flex-direction: column; gap: 15px; }
+        .debug-log-box { flex: 1; background: #f8fafc; border-radius: 20px; padding: 15px; font-size: 0.8rem; font-family: monospace; overflow-y: auto; border: 1px solid var(--border-light); }
+        .log-entry { margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+        .log-entry.success { color: var(--success-green); }
+        .log-entry.warn { color: var(--gold-yellow); }
+
+        .btn-refresh { padding: 12px; background: var(--sidebar-dark); color: white; border: none; border-radius: 12px; font-weight: 800; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="menu-overlay" id="overlay" onclick="toggleMenu()"></div>
+<div class="side-menu" id="sideMenu">
+    <a href="Profile.html" class="menu-item"><span>👤</span> 個人主頁</a>
+    <a href="Guide.html" class="menu-item"><span>📖</span> 遊戲說明</a>
+    <a href="learn.html" class="menu-item"><span>📊</span> 學習統計</a>
+    <a href="Settings.html" class="menu-item"><span>⚙️</span> 遊戲設定</a>
+    <a href="Lobby.html" class="menu-item"><span>🏠</span> 返回大廳</a>
+    <a href="Login.html" class="menu-item" style="margin-top:auto; color:#ff4757;"><span>🚪</span> 登出遊戲</a>
+</div>
+
+<header>
+    <div class="header-left"><h1>PyPoly</h1></div>
+    <div class="header-right">
+        <div class="page-tag">管理後台中心 ⚙️</div>
+        <button class="menu-btn" onclick="toggleMenu()">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+        </button>
+    </div>
+</header>
+
+<div class="admin-main">
+    <div class="admin-container">
+        <aside class="admin-nav">
+            <h2 style="font-weight: 900; font-size: 1.4rem; margin-bottom: 15px; padding-left: 10px;">後台選單</h2>
+            <button class="nav-link"><span>👥</span> 用戶權限管理</button>
+            <button class="nav-link"><span>❓</span> 考題庫編輯</button>
+            <button class="nav-link active"><span>📷</span> 影像辨識偵錯</button>
+            <button class="nav-link"><span>📈</span> 遊戲數據監控</button>
+            <button class="nav-link" style="margin-top: auto; color: var(--danger-red);"><span>🛑</span> 伺服器狀態</button>
+        </aside>
+
+        <main class="admin-board">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">辨識準確率</div>
+                    <div class="stat-val">98.2<span>%</span></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">平均辨識延遲</div>
+                    <div class="stat-val">42<span>ms</span></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">當前活動鏡頭</div>
+                    <div class="stat-val">12<span>台</span></div>
+                </div>
+            </div>
+
+            <div class="board-content">
+                <div class="section-header">
+                    <div class="section-title">影像辨識偵錯 (Camera ID: #CAM-084)</div>
+                    <button class="btn-refresh">重新校準 AI</button>
+                </div>
+
+                <div class="vision-debug-grid">
+                    <div class="camera-feed">
+                        <div style="text-align: center;">
+                            <p>[ Camera Stream Offline / Simulation Mode ]</p>
+                            <small>Mediapipe Hands Loading...</small>
+                        </div>
+                        <div class="debug-overlay-info">
+                            FPS: 60.2<br>
+                            Action: KNOCK_UP<br>
+                            Confidence: 0.94<br>
+                            Landmarks: DETECTED
+                        </div>
+                    </div>
+
+                    <div class="debug-sidebar">
+                        <div class="stat-label">即時辨識日誌</div>
+                        <div class="debug-log-box">
+                            <div class="log-entry success">[12:30:01] Player_Sandy: KNOCK_UP detected. (Conf: 0.98)</div>
+                            <div class="log-entry">[12:30:05] Waiting for number gesture...</div>
+                            <div class="log-entry success">[12:30:08] Gesture "THREE" detected. (Conf: 0.91)</div>
+                            <div class="log-entry warn">[12:30:15] Low lighting warning on CAM-084.</div>
+                            <div class="log-entry">[12:30:20] Bot_AI: Dice roll trigger received.</div>
+                            <div class="log-entry success">[12:30:25] Squat action verified for Customs check.</div>
+                        </div>
+                        <button class="btn-refresh" style="background: var(--primary-blue);">下載偵錯數據</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<script>
+    function toggleMenu() {
+        const sideMenu = document.getElementById('sideMenu');
+        const overlay = document.getElementById('overlay');
+        sideMenu.classList.toggle('open');
+        overlay.classList.toggle('open');
+    }
+</script>
+</body>
+</html>

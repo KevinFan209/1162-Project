@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PyPoly - Lobby</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-blue: #4facfe;
+            --success-green: #00cdac;
+            --success-green-shadow: #00a88b;
+            --primary-yellow: #ffde59;
+            --yellow-shadow: #e6c543;
+            --bg-gray: #f1f5f9;
+            --text-dark: #000000;
+            --text-gray: #64748b;
+            --sidebar-dark: #334155;
+            --sidebar-dark-shadow: #1e293b;
+            --border-light: #e2e8f0;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
+
+        body {
+            background-color: var(--bg-gray);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* 🏆 頂部列 */
+        header {
+            background: linear-gradient(to bottom, #ffffff 0%, #fcfcfc 100%);
+            padding: 0 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 85px;
+            z-index: 100;
+            border-bottom: 1.5px solid var(--border-light); 
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+        }
+
+        .header-left h1 {
+            font-size: 2.5rem;
+            font-weight: 900;
+            margin-bottom: 10px;
+            color: var(--text-dark);
+        }
+
+        .header-right { display: flex; align-items: center; gap: 20px; }
+
+        .player-name { font-weight: 800; color: var(--text-dark); font-size: 1.1rem; }
+
+        /* 🏆 主選單按鈕容器 */
+        .menu-btn {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 10px;
+            transition: 0.2s;
+        }
+
+        .menu-btn:hover {
+            opacity: 0.6;
+        }
+
+        /* 🏆 遮罩與側邊選單 */
+        .menu-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.15); display: none; z-index: 999;
+            backdrop-filter: blur(2px);
+        }
+        .menu-overlay.open { display: block; }
+
+        .side-menu {
+            position: fixed; top: 0; right: -320px; width: 320px; height: 100vh;
+            background: white; box-shadow: -10px 0 30px rgba(0,0,0,0.05);
+            z-index: 1000; transition: 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+            padding: 100px 30px 40px; display: flex; flex-direction: column; gap: 15px;
+        }
+        .side-menu.open { right: 0; }
+
+        .menu-item {
+            padding: 18px 25px; border-radius: 15px; font-weight: 800;
+            color: var(--text-gray); text-decoration: none; display: flex;
+            align-items: center; gap: 15px; transition: 0.2s; background: #f8fafc;
+        }
+        .menu-item:hover { background: var(--bg-gray); color: var(--text-dark); }
+        .menu-item.danger { margin-top: auto; color: #ff4757; }
+
+        /* 🏆 大廳佈局 */
+        .lobby-main { flex: 1; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .lobby-container { display: flex; gap: 30px; width: 95%; max-width: 1100px; height: 82vh; }
+
+        .sidebar {
+            width: 320px; 
+            background: white; 
+            border-radius: 35px;
+            padding: 35px 30px;
+            display: flex; 
+            flex-direction: column;
+            align-items: center; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            border: 1px solid #f1f2f6;
+        }
+
+        .char-box {
+            width: 100%; aspect-ratio: 1; background: #f8fafc;
+            border: 2px solid var(--primary-blue); border-radius: 28px;
+            display: flex; justify-content: center; align-items: center;
+            margin-bottom: 30px; box-shadow: inset 0 0 15px rgba(79, 172, 254, 0.1);
+        }
+
+        .id-label {
+            width: 100%; background: #000; color: white; padding: 16px;
+            border-radius: 15px; font-weight: 900; text-align: center;
+            margin-bottom: auto; font-size: 1.1rem;
+        }
+
+        .btn-3d {
+            border: none; border-radius: 12px; font-weight: 900;
+            cursor: pointer; transition: 0.1s; display: inline-flex;
+            align-items: center; justify-content: center;
+        }
+        .btn-side { width: 100%; padding: 18px; background: var(--sidebar-dark); color: white; box-shadow: 0 6px 0 var(--sidebar-dark-shadow); }
+
+        .main-board { flex: 1; display: flex; flex-direction: column; gap: 25px; }
+        .board-header {
+            background: white; padding: 25px 40px; border-radius: 25px;
+            display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.03); border: 1px solid #f1f2f6;
+        }
+        .btn-create { padding: 14px 25px; background: var(--success-green); color: white; box-shadow: 0 6px 0 var(--success-green-shadow); }
+
+        .room-scroll {
+            background: white; flex: 1; border-radius: 40px; padding: 35px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05); overflow-y: auto; border: 1px solid #f1f2f6;
+        }
+        .room-item {
+            background: #f8fafc; padding: 25px 30px; border-radius: 25px;
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 20px; border: 1px solid #f1f2f6;
+        }
+        .btn-join { padding: 12px 40px; background: var(--primary-yellow); color: #574b10; box-shadow: 0 6px 0 var(--yellow-shadow); }
+    </style>
+</head>
+<body>
+
+<div class="menu-overlay" id="overlay" onclick="toggleMenu()"></div>
+
+<div class="side-menu" id="sideMenu">
+    <a href="Profile.html" class="menu-item"><span>👤</span> 個人主頁</a>
+    <a href="Guide.html" class="menu-item"><span>📖</span> 遊戲說明</a>
+    <a href="learn.html" class="menu-item"><span>📊</span> 學習統計</a>
+    <a href="#" class="menu-item"><span>⚙️</span> 遊戲設定</a>
+    <a href="Lobby.html" class="menu-item"><span>🏠</span> 返回大廳</a>
+    <a href="Login.html" class="menu-item danger"><span>🚪</span> 登出遊戲</a>
+</div>
+
+<header>
+    <div class="header-left"><h1>PyPoly</h1></div>
+    <div class="header-right">
+        <div class="player-name">Sandy</div>
+        <button class="menu-btn" onclick="toggleMenu()">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+        </button>
+    </div>
+</header>
+
+<div class="lobby-main">
+    <div class="lobby-container">
+        <aside class="sidebar">
+            <h2 style="font-weight: 900; font-size: 1.8rem; color: var(--text-dark); margin-bottom: 25px; letter-spacing: 1px;">遊戲大廳</h2>
+            <div class="char-box"><div style="color:var(--primary-blue); font-weight:800;">[Q版角色]</div></div>
+            <div class="id-label">Sandy</div>
+            <button class="btn-3d btn-side" style="margin-top: 25px;">切換角色</button>
+        </aside>
+
+        <main class="main-board">
+            <header class="board-header">
+                <h3 style="font-weight: 900; font-size: 1.4rem;">尋找挑戰者</h3>
+                <button class="btn-3d btn-create" onclick="location.href='CreateRoom.html'">+ 建立新對局</button>
+            </header>
+            
+            <section class="room-scroll">
+                <div style="font-weight: 900; font-size: 1.4rem; color: var(--text-black); margin-bottom: 20px; padding-left: 5px;">
+                    公開房間列表
+                </div>
+
+                <div class="room-item">
+                    <div>
+                        <div style="font-weight: 900; font-size: 1.3rem;">柏睿的基礎教室</div>
+                        <p style="font-size: 0.95rem; color: #64748b; font-weight: 700; margin-top: 6px;">基礎版 | 3 圈</p>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="font-size: 0.85rem; color: #64748b; font-weight: 900; display: block; margin-bottom: 10px;">等待中 (1/2)</span>
+                        <button class="btn-3d btn-join" onclick="location.href='Battle.html'">加入</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+</div>
+
+<script>
+    function toggleMenu() {
+        const sideMenu = document.getElementById('sideMenu');
+        const overlay = document.getElementById('overlay');
+        sideMenu.classList.toggle('open');
+        overlay.classList.toggle('open');
+    }
+</script>
+</body>
+</html>
