@@ -7,32 +7,19 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <button id="insertImageBtn" >插入圖片</button>
     <div class="cylinder-container">
         <div class="cylinder">
-            <div class="top"></div>
+            <div class="top">
+                <input type="file" id="imageInput" accept="image/*" style="display: none;">
+            </div>
             <div class="bottom"></div>
-        </div>
-    </div>
-    <div class="controls">
-        <button id="play-button">
-            <i class="fas fa-play"></i> Play
-        </button>
-        <button id="pause-button">
-            <i class="fas fa-pause"></i> Pause
-        </button>
-        <div class="slider-group">
-            <label for="cylinder-length">高度: <span id="length-value">450</span>px</label>
-            <input id="cylinder-length" type="range" min="30" max="900">
         </div>
     </div>
     <script>
         const side_count = 60; // 圓柱體側面數量
         let length = 90; // 圓柱體高度
-        const slider = document.getElementById('cylinder-length');
-        slider.value = length;
         const cylinder = document.querySelector('.cylinder');
-        const lengthInput = document.getElementById('cylinder-length');
-        const lengthValue = document.getElementById('length-value');
         const existingSides = cylinder.querySelectorAll('.side');
         existingSides.forEach(side => side.remove());
         for (let i = 0; i < side_count; i++) {
@@ -64,12 +51,32 @@
             const bottom = document.querySelector('.bottom');
             top.style.transform = `rotateX(90deg) translateZ(${radius}px)`;
             bottom.style.transform = `rotateX(-90deg) translateZ(${length - radius}px)`;
-            lengthValue.textContent = length;
         }
 
-        lengthInput.addEventListener('input', event => updateCylinderHeight(event.target.value));
         updateCylinderHeight(length);
+
+        // 新增圖片插入功能
+        const insertBtn = document.getElementById('insertImageBtn');
+        const imageInput = document.getElementById('imageInput');
+        const topDiv = document.querySelector('.top');
+
+        insertBtn.addEventListener('click', () => {
+            imageInput.click();  // 觸發隱藏的文件輸入
+        });
+
+        imageInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    topDiv.style.backgroundImage = `url(${e.target.result})`;
+                    topDiv.style.backgroundSize = 'cover';  // 圖片覆蓋整個圓形區域
+                    topDiv.style.backgroundPosition = 'center';
+                    topDiv.style.backgroundRepeat = 'no-repeat';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
     </script>
-    <script src="script.js"></script>
 </body>
 </html>

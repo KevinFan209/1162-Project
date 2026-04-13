@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PyPoly - Battle</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="game.css">
+</head>
+<body>
+
+<div class="menu-overlay" id="overlay" onclick="toggleMenu()"></div>
+
+<div class="side-menu" id="sideMenu">
+    <a href="Profile.html" class="menu-item"><span>👤</span> 個人主頁</a>
+    <a href="Guide.html" class="menu-item"><span>📖</span> 遊戲說明</a>
+    <a href="learn.html" class="menu-item"><span>📊</span> 學習統計</a>
+    <a href="Settings.html" class="menu-item"><span>⚙️</span> 遊戲設定</a>
+    <a href="Lobby.html" class="menu-item"><span>🏠</span> 返回大廳</a>
+    <a href="Login.html" class="menu-item" style="margin-top:auto; color:#ff4757;"><span>🚪</span> 登出遊戲</a>
+</div>
+
+<header>
+    <div class="header-left"><h1>PyPoly</h1></div>
+    <div class="header-right">
+        <div class="room-name-display">Sandy 的冒險教室</div>
+        <div class="game-status">圈數 3 / 5 ⏳</div>
+        <button class="menu-btn" onclick="toggleMenu()">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+        </button>
+    </div>
+</header>
+
+<div class="game-main">
+    <div class="board-container">
+        <button id="insertImageBtn" style="position: absolute;">插入圖片</button>
+        <div class="monopoly-board">
+            <div class="cylinder-container">
+                <div class="cylinder">
+                    <div class="top">
+                        <input type="file" id="imageInput" accept="image/*" style="display: none;">
+                    </div>
+                    <div class="bottom"></div>
+                </div>
+            </div>
+            <div class="tile corner" style="grid-column: 1; grid-row: 1; color:var(--success-green); background: #ebfffa;">
+                <div class="tile-category">START</div>
+                <div class="tile-name">台灣</div>
+                <div class="tile-price">200</div>
+                <div style="width:20px; height:20px; border-radius:50%; background:var(--p1-color); position:absolute; bottom:12px; left:12px; border:2px solid white;"></div>
+            </div>
+            <div class="tile" style="grid-column: 2; grid-row: 1;"><div class="tile-category">JAPAN</div><div class="tile-name">日本</div><div class="tile-price">100</div></div>
+            <div class="tile" style="grid-column: 3; grid-row: 1;"><div class="tile-category">KOREA</div><div class="tile-name">韓國</div><div class="tile-price">120</div></div>
+            <div class="tile" style="grid-column: 4; grid-row: 1;"><div class="tile-category">CHINA</div><div class="tile-name">中國</div><div class="tile-price">150</div></div>
+            <div class="tile" style="grid-column: 5; grid-row: 1;"><div class="tile-category">THAILAND</div><div class="tile-name">泰國</div><div class="tile-price">180</div></div>
+            <div class="tile" style="grid-column: 6; grid-row: 1;"><div class="tile-category">SINGAPORE</div><div class="tile-name">新加坡</div><div class="tile-price">200</div></div>
+            <div class="tile" style="grid-column: 7; grid-row: 1;"><div class="tile-category">AUSTRALIA</div><div class="tile-name">澳洲</div><div class="tile-price">240</div></div>
+            <div class="tile" style="grid-column: 8; grid-row: 1;"><div class="tile-category">UK</div><div class="tile-name">英國</div><div class="tile-price">260</div></div>
+            <div class="tile corner" style="grid-column: 9; grid-row: 1; background: #fff5f5;"><div class="tile-category">VISA ERROR</div><div class="tile-name">簽證遺失</div><div class="tile-price">-150</div></div>
+            <div class="tile" style="grid-column: 9; grid-row: 2;"><div class="tile-category">ICELAND</div><div class="tile-name">冰島</div><div class="tile-price">300</div></div>
+            <div class="tile" style="grid-column: 9; grid-row: 3;"><div class="tile-category">USA</div><div class="tile-name">美國</div><div class="tile-price">350</div></div>
+            <div class="tile" style="grid-column: 9; grid-row: 4;"><div class="tile-category">MEXICO</div><div class="tile-name">墨西哥</div><div class="tile-price">380</div></div>
+            <div class="tile" style="grid-column: 9; grid-row: 5;"><div class="tile-category">FRANCE</div><div class="tile-name">法國</div><div class="tile-price">420</div></div>
+            <div class="tile corner" style="grid-column: 9; grid-row: 6; background: #fffbeb;"><div class="tile-category">CUSTOMS CHECK</div><div class="tile-name">海關查驗</div><div class="tile-price">10 TIMES</div></div>
+            <div class="tile" style="grid-column: 8; grid-row: 6;"><div class="tile-category">BRAZIL</div><div class="tile-name">巴西</div><div class="tile-price">480</div></div>
+            <div class="tile" style="grid-column: 7; grid-row: 6;"><div class="tile-category">PERU</div><div class="tile-name">秘魯</div><div class="tile-price">520</div></div>
+            <div class="tile" style="grid-column: 6; grid-row: 6;"><div class="tile-category">ARGENTINA</div><div class="tile-name">阿根廷</div><div class="tile-price">550</div></div>
+            <div class="tile" style="grid-column: 5; grid-row: 6;"><div class="tile-category">EGYPT</div><div class="tile-name">埃及</div><div class="tile-price">600</div></div>
+            <div class="tile" style="grid-column: 4; grid-row: 6;"><div class="tile-category">DUBAI</div><div class="tile-name">杜拜</div><div class="tile-price">650</div></div>
+            <div class="tile" style="grid-column: 3; grid-row: 6;"><div class="tile-category">GREECE</div><div class="tile-name">希臘</div><div class="tile-price">700</div></div>
+            <div class="tile" style="grid-column: 2; grid-row: 6;"><div class="tile-category">ITALY</div><div class="tile-name">義大利</div><div class="tile-price">750</div></div>
+            <div class="tile corner" style="grid-column: 1; grid-row: 6; background: #f0f4ff;"><div class="tile-category">AIRPORT</div><div class="tile-name">機場候機</div><div class="tile-price">WAIT</div></div>
+            <div class="tile" style="grid-column: 1; grid-row: 5;"><div class="tile-category">SWITZERLAND</div><div class="tile-name">瑞士</div><div class="tile-price">800</div></div>
+            <div class="tile" style="grid-column: 1; grid-row: 4;"><div class="tile-category">SPAIN</div><div class="tile-name">西班牙</div><div class="tile-price">850</div></div>
+            <div class="tile" style="grid-column: 1; grid-row: 3;"><div class="tile-category">CANADA</div><div class="tile-name">加拿大</div><div class="tile-price">900</div></div>
+            <div class="tile" style="grid-column: 1; grid-row: 2;"><div class="tile-category">NETHERLANDS</div><div class="tile-name">荷蘭</div><div class="tile-price">1000</div></div>
+            <div class="board-center"><div class="center-logo">PyPoly</div></div>
+        </div>
+    </div>
+    <div class="side-panel">
+        <div class="player-info active">
+            <div class="user-name">Sandy (P1)</div>
+            <div class="money-display">
+                <div class="money-label">Balance</div>
+                <div class="money-amount">2,450</div>
+            </div>
+        </div>
+        <div class="player-info">
+            <div class="user-name">AI Bot (P2)</div>
+            <div class="money-display">
+                <div class="money-label">Balance</div>
+                <div class="money-amount">1,800</div>
+            </div>
+        </div>
+        <div class="control-box"><button class="btn-action">ROLL DICE</button></div>
+    </div>
+</div>
+
+<script>
+    function toggleMenu() {
+        document.getElementById('sideMenu').classList.toggle('open');
+        document.getElementById('overlay').classList.toggle('open');
+    }
+    const side_count = 30; // 圓柱體側面數量
+    let length = 30; // 圓柱體高度
+    const cylinder = document.querySelector('.cylinder');
+    const existingSides = cylinder.querySelectorAll('.side');
+    existingSides.forEach(side => side.remove());
+    for (let i = 0; i < side_count; i++) {
+        const side = document.createElement('div');
+        side.className = 'side';
+        cylinder.appendChild(side);
+    }
+    // 動態生成CSS規則
+    const style = document.createElement('style');
+    document.head.appendChild(style);
+    const sides = cylinder.querySelectorAll('.side');
+    const radius = length*2;
+    const sideWidth = 2 * radius * Math.tan(Math.PI / sides.length) + 0.1; // 使用正n邊形邊長公式，並稍微增加以避免間隙
+    const leftValue = (radius*2 - sideWidth) / 2;
+    const baseRule = `.side { width: ${sideWidth}px !important; height: ${length}px; left: ${leftValue}px !important; }`;
+    style.sheet.insertRule(baseRule, style.sheet.cssRules.length);
+    const angleIncrement = 360 / sides.length;
+    sides.forEach((side, index) => {
+        const angle = (index + 1) * angleIncrement;
+        const rule = `.side:nth-child(${index + 3}) { transform: rotateY(${angle}deg) translateZ(${radius}px); }`;
+        style.sheet.insertRule(rule, style.sheet.cssRules.length);
+    });
+
+    function updateCylinderHeight(value) {
+        length = Number(value);
+        cylinder.style.height = `${length}px`;
+        sides.forEach(side => side.style.height = `${length}px`);
+        const top = document.querySelector('.top');
+        const bottom = document.querySelector('.bottom');
+        top.style.transform = `rotateX(90deg) translateZ(${radius}px)`;
+        bottom.style.transform = `rotateX(-90deg) translateZ(${length - radius}px)`;
+    }
+
+    updateCylinderHeight(length);
+
+    // 新增圖片插入功能
+    const insertBtn = document.getElementById('insertImageBtn');
+    const imageInput = document.getElementById('imageInput');
+    const topDiv = document.querySelector('.top');
+
+    insertBtn.addEventListener('click', () => {
+        imageInput.click();  // 觸發隱藏的文件輸入
+    });
+
+    imageInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                topDiv.style.backgroundImage = `url(${e.target.result})`;
+                topDiv.style.backgroundSize = 'cover';  // 圖片覆蓋整個圓形區域
+                topDiv.style.backgroundPosition = 'center';
+                topDiv.style.backgroundRepeat = 'no-repeat';
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+
+    // ========================================================
+    // ✅ 連續移動版本 (WASD smooth movement)
+    // ========================================================
+
+    const cylinderContainer = document.querySelector('.cylinder-container');
+
+    // 位置狀態（不要每次從 transform 解析！）
+    let posX = 0;
+    let posZ = 0;
+
+    // 按鍵狀態
+    const keys = {
+        w: false,
+        a: false,
+        s: false,
+        d: false
+    };
+
+    // 按下
+    document.addEventListener('keydown', (e) => {
+        const key = e.key.toLowerCase();
+        if (keys.hasOwnProperty(key)) {
+            keys[key] = true;
+            e.preventDefault();
+        }
+    });
+
+    // 放開
+    document.addEventListener('keyup', (e) => {
+        const key = e.key.toLowerCase();
+        if (keys.hasOwnProperty(key)) {
+            keys[key] = false;
+        }
+    });
+
+    // 持續更新（關鍵！）
+    function gameLoop() {
+        const speed = 20; // 移動速度（你可以調）
+
+        if (keys.w) posZ -= speed;
+        if (keys.s) posZ += speed;
+        if (keys.a) posX -= speed;
+        if (keys.d) posX += speed;
+
+        // 邊界限制
+        posZ = Math.min(Math.max(posZ, -300), 300);
+        posX = Math.min(Math.max(posX, 0), 900);
+
+        // 更新 transform
+        cylinderContainer.style.transform =
+            `rotateX(-90deg) translateY(-20px) translateX(${posX}px) translateZ(${posZ}px)`;
+
+        requestAnimationFrame(gameLoop);
+    }
+
+    // 啟動
+    gameLoop();
+
+console.log("✅ WASD 連續移動已啟用");
+
+</script>
+</body>
+</html>
