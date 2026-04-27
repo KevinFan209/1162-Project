@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Minecraft 風格 3D 小人</title>
+<link rel="stylesheet" href="figure3d.css">
+</head>
+<body>
+
+<div class="title">Minecraft 風格 3D 小人展示</div>
+
+<div class="scene">
+ <div class="figure-wrapper idle" id="figure">
+ <!-- Head -->
+ <div class="prism head">
+    <div class="face front"></div><div class="face back"></div>
+    <div class="face left"></div><div class="face right"></div>
+    <div class="face top"></div><div class="face bottom"></div>
+ </div>
+ <!-- Torso -->
+ <div class="prism torso">
+    <div class="face front"></div><div class="face back"></div>
+    <div class="face left"></div><div class="face right"></div>
+    <div class="face top"></div><div class="face bottom"></div>
+ </div>
+ <!-- Arms -->
+ <div class="prism arm-left">
+    <div class="face front"></div><div class="face back"></div>
+    <div class="face left"></div><div class="face right"></div>
+    <div class="face top"></div><div class="face bottom"></div>
+ </div>
+ <div class="prism arm-right">
+    <div class="face front"></div><div class="face back"></div>
+    <div class="face left"></div><div class="face right"></div>
+    <div class="face top"></div><div class="face bottom"></div>
+ </div>
+ <!-- Legs -->
+ <div class="prism leg-left">
+    <div class="face front"></div><div class="face back"></div>
+    <div class="face left"></div><div class="face right"></div>
+    <div class="face top"></div><div class="face bottom"></div>
+ </div>
+ <div class="prism leg-right">
+    <div class="face front"></div><div class="face back"></div>
+    <div class="face left"></div><div class="face right"></div>
+    <div class="face top"></div><div class="face bottom"></div>
+ </div>
+ </div>
+</div>
+
+<div class="shadow" id="shadow"></div>
+
+<div class="colors">
+ <div class="color-dot selected" style="background:#d8d8d8" onclick="setColor('white')" title="原色"></div>
+ <div class="color-dot" style="background:#7ecbff" onclick="setColor('blue')" title="藍色"></div>
+ <div class="color-dot" style="background:#ffb347" onclick="setColor('orange')" title="橘色"></div>
+ <div class="color-dot" style="background:#90ee90" onclick="setColor('green')" title="綠色"></div>
+ <div class="color-dot" style="background:#ffb6c1" onclick="setColor('pink')" title="粉色"></div>
+ <div class="color-dot" style="background:#dda0dd" onclick="setColor('purple')" title="紫色"></div>
+ <div class="color-dot" style="background:#ffd700" onclick="setColor('gold')" title="金色"></div>
+</div>
+
+<div class="hint">
+ <span style="color:#aaa">滑鼠拖曳可旋轉視角</span>
+</div>
+
+<script>
+ const figure = document.getElementById('figure');
+ let dragging = false;
+ let startX = 0, startY = 0;
+ let rotX = -15, rotY = 45;
+ // 放大 1.5 倍
+ let scale = 1;
+ 
+ document.addEventListener('mousedown', e => {
+   // 排除 UI 元素（顏色選擇器、標題、提示）
+   if (e.target.closest('.colors, .color-dot, .title, .hint')) return;
+   dragging = true;
+   startX = e.clientX;
+   startY = e.clientY;
+ });
+ 
+ document.addEventListener('mousemove', e => {
+   if (!dragging) return;
+   const dx = e.clientX - startX;
+   const dy = e.clientY - startY;
+   startX = e.clientX;
+   startY = e.clientY;
+   rotY += dx * 0.5;
+   rotX += dy * 0.5;
+   rotX = Math.max(-90, Math.min(90, rotX));
+   figure.style.transform = `rotateX(${rotX}deg) rotateY(${rotY}deg) scale(${scale})`;
+ });
+ 
+ document.addEventListener('mouseup', () => { dragging = false; });
+ 
+ const palettes = {
+   white: { main: '#d8d8d8', light: '#f5f5f5', dark: '#a8a8a8' },
+   blue: { main: '#7ecbff', light: '#bde8ff', dark: '#4aa8dd' },
+   orange: { main: '#ffb347', light: '#ffe0b0', dark: '#cc7a22' },
+   green: { main: '#90ee90', light: '#c8f0c8', dark: '#55aa55' },
+   pink: { main: '#ffb6c1', light: '#ffe0e8', dark: '#cc7788' },
+   purple: { main: '#dda0dd', light: '#eebbee', dark: '#aa66aa' },
+   gold: { main: '#ffd700', light: '#fff5bb', dark: '#bb9900' },
+ };
+ 
+ function setColor(name) {
+   const p = palettes[name];
+   document.documentElement.style.setProperty('--color-main', p.main);
+   document.documentElement.style.setProperty('--color-light', p.light);
+   document.documentElement.style.setProperty('--color-dark', p.dark);
+   // 更新選中樣式
+   document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('selected'));
+   // 依照點擊的顏色點元素自行帶有 onclick，event 會在此函式內
+   const clicked = document.querySelector(`.color-dot[style*="${p.main}"]`);
+   if (clicked) clicked.classList.add('selected');
+ }
+ 
+ // 初始化尺寸與顏色
+ figure.style.transform = `rotateX(${rotX}deg) rotateY(${rotY}deg) scale(${scale})`;
+ setColor('white');
+</script>
+</body>
+</html>
