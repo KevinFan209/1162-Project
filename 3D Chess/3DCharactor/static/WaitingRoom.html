@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PyPoly - 等待冒險</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
+    <style>
+        /* 🏆 完全同步 lobby.html 的樣式變數 */
+        :root {
+            --primary-blue: #4facfe;
+            --success-green: #00cdac;
+            --success-green-shadow: #00a88b;
+            --primary-yellow: #ffde59;
+            --yellow-shadow: #e6c543;
+            --bg-gray: #f1f5f9;
+            --text-dark: #000000;
+            --text-gray: #64748b;
+            --sidebar-dark: #334155;
+            --sidebar-dark-shadow: #1e293b;
+            --border-light: #e2e8f0;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
+
+        body {
+            background-color: var(--bg-gray);
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* 頂部列同步 */
+        header {
+            background: linear-gradient(to bottom, #ffffff 0%, #fcfcfc 100%);
+            padding: 0 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 85px;
+            z-index: 100;
+            border-bottom: 1.5px solid var(--border-light); 
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+        }
+
+        .header-left h1 { font-size: 2.5rem; font-weight: 900; color: var(--text-dark); }
+        .header-right { display: flex; align-items: center; gap: 20px; }
+        .player-name { font-weight: 800; color: var(--text-dark); font-size: 1.1rem; }
+
+        /* 側邊選單同步 */
+        .menu-btn { background: transparent; border: none; cursor: pointer; padding: 10px; }
+        .menu-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.15); display: none; z-index: 999;
+            backdrop-filter: blur(2px);
+        }
+        .menu-overlay.open { display: block; }
+
+        .side-menu {
+            position: fixed; top: 0; right: -320px; width: 320px; height: 100%;
+            background: white; box-shadow: -10px 0 30px rgba(0,0,0,0.05);
+            z-index: 1000; transition: 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+            padding: 100px 30px 40px; display: flex; flex-direction: column; gap: 15px;
+        }
+        .side-menu.open { right: 0; }
+
+        .menu-item {
+            padding: 18px 25px; border-radius: 15px; font-weight: 800;
+            color: var(--text-gray); text-decoration: none; display: flex;
+            align-items: center; gap: 15px; background: #f8fafc;
+        }
+        .menu-item.danger { margin-top: auto; color: #ff4757; cursor: pointer; }
+
+        /* 等待室容器佈局 */
+        .lobby-main { flex: 1; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .lobby-container { display: flex; gap: 30px; width: 95%; max-width: 1100px; height: 82vh; }
+
+        .main-board { flex: 1; display: flex; flex-direction: column; gap: 25px; }
+        .room-scroll {
+            background: white; flex: 1; border-radius: 40px; padding: 40px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #f1f2f6;
+            display: flex; gap: 40px;
+        }
+
+        .room-info-section { flex: 1.2; border-right: 2px solid var(--border-light); padding-right: 40px; }
+        .player-section { flex: 1; display: flex; flex-direction: column; gap: 20px; }
+
+        .btn-3d {
+            border: none; border-radius: 12px; font-weight: 900;
+            cursor: pointer; transition: 0.1s; display: inline-flex;
+            align-items: center; justify-content: center;
+        }
+
+        .config-tag {
+            padding: 8px 15px; background: var(--bg-gray); border-radius: 50px;
+            font-size: 0.9rem; font-weight: 700; color: var(--text-gray); margin-right: 8px;
+        }
+
+        .code-area {
+            margin-top: 30px; padding: 25px; background: #f8fbff;
+            border-radius: 25px; border: 2px dashed var(--primary-blue); text-align: center;
+        }
+        .code-val { font-size: 2.2rem; font-weight: 900; color: var(--primary-blue); letter-spacing: 5px; }
+
+        .player-card {
+            background: #f8fafc; border-radius: 25px; padding: 20px;
+            display: flex; align-items: center; justify-content: space-between;
+            border: 1px solid #f1f2f6;
+        }
+        .avatar { width: 50px; height: 50px; background: white; border-radius: 15px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
+        
+        /* 按鈕樣式 */
+        .btn-start { width: 100%; padding: 20px; background: var(--success-green); color: white; box-shadow: 0 8px 0 var(--success-green-shadow); font-size: 1.3rem; margin-top: 20px; }
+        .btn-exit { width: 100%; padding: 15px; font-size: 1rem; color: white; margin-top: 10px; }
+        .btn-3d:active { transform: translateY(4px); box-shadow: none; }
+
+		/* 🏆 自定義彈窗基礎樣式 */
+		#passwordModal {display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 25px; box-shadow: 0 15px 50px rgba(0,0,0,0.2); z-index: 3000; flex-direction: column; gap: 20px; width: 350px; text-align: center; animation: modalFadeIn 0.3s ease-out; }
+
+		/* 登場動畫 */
+		@keyframes modalFadeIn { from { opacity: 0; transform: translate(-50%, -60%); } to { opacity: 1; transform: translate(-50%, -50%); } }
+		@keyframes shake {
+			0%, 100% { transform: translateX(0); }
+			25% { transform: translateX(-8px); }
+			50% { transform: translateX(8px); }
+			75% { transform: translateX(-8px); }
+		}
+ </style>
+</head>
+<body>
+
+<div class="menu-overlay" id="overlay" onclick="toggleMenu()"></div>
+
+<div class="side-menu" id="sideMenu">
+    <a href="profile.html" class="menu-item"><span>👤</span> 個人主頁</a>
+    <a href="guide.html" class="menu-item"><span>📖</span> 遊戲說明</a>
+    <a href="learn.html" class="menu-item"><span>📊</span> 學習統計</a>
+    <a href="#" class="menu-item"><span>⚙️</span> 遊戲設定</a>
+    <a href="javascript:void(0)" onclick="handleLobbyReturn()" class="menu-item"><span>🏠</span> 返回大廳</a>
+    <a href="javascript:void(0)" onclick="logout()" class="menu-item danger"><span>🚪</span> 登出遊戲</a>
+</div>
+
+<header>
+    <div class="header-left"><h1>PyPoly</h1></div>
+    <div class="header-right">
+        <div class="player-name" id="topPlayerName">載入中...</div>
+        <button class="menu-btn" onclick="toggleMenu()">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+        </button>
+    </div>
+</header>
+
+<div class="lobby-main">
+    <div class="lobby-container">
+        <main class="main-board">
+            <div class="room-scroll">
+                <div class="room-info-section">
+                    <h2 id="roomTitle" style="font-weight: 900; font-size: 2.2rem; margin-bottom: 20px;">載入中...</h2>
+                    <div id="configTags">
+                        <span class="config-tag" id="tagMode">---</span>
+                        <span class="config-tag" id="tagDiff">---</span>
+                        <span class="config-tag" id="tagLaps">---</span>
+                    </div>
+
+                    <div id="codeAreaDisplay" class="code-area" style="display: none;">
+                        <p style="font-size: 0.9rem; color: var(--text-gray); margin-bottom: 8px; font-weight: 800;">房間專屬邀請代碼</p>
+                        <div id="roomCodeDisplay" class="code-val">------</div>
+                    </div>
+					
+					<div id="flow-content" style="position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:9999; display:none; transition:0.5s; pointer-events: none;"></div>
+
+                    <div style="margin-top: auto; padding-top: 50px;">
+                        <button id="startBtn" class="btn-3d btn-start" onclick="startGame()">開始冒險</button>
+                        <button id="exitBtn" class="btn-3d btn-exit" onclick="showExitConfirm()">解散房間並退出</button>
+                    </div>
+                </div>
+
+				<div class="player-section">
+					<h3 style="font-weight: 900; color: var(--text-dark); margin-bottom: 10px;">
+						目前玩家 (<span id="playerCount">1</span>/2)
+					</h3>
+					
+					<div class="player-card">
+						<div style="display: flex; align-items: center; gap: 15px;">
+							<div class="avatar">👤</div>
+							<span id="hostNameText" style="font-weight: 800; font-size: 1.1rem;">載入中...</span>
+						</div>
+						<span style="background: var(--primary-blue); color: white; padding: 4px 10px; border-radius: 8px; font-size: 0.75rem; font-weight: 900;">房主</span>
+					</div>
+
+					<div id="guestSlot" class="player-card" style="opacity: 0.5; border: 2px dashed #e2e8f0;">
+						<div style="display: flex; align-items: center; gap: 15px;">
+							<div class="avatar" id="guestAvatar">❓</div>
+							<span id="guestNameText" style="font-weight: 800; color: var(--text-gray);">等待玩家加入...</span>
+						</div>
+						<button id="kickBtn" class="btn-3d" style="display:none; background:white; border:1px solid #ff4757; color:#ff4757; padding:4px 8px; font-size:0.7rem;" onclick="kickGuest()">請他出去</button>
+					</div>
+				</div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<div id="passwordModal" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 25px; box-shadow: 0 15px 50px rgba(0,0,0,0.15); z-index: 2000; flex-direction: column; gap: 20px; width: 350px; text-align: center;">
+    <div id="modalContent">
+        <h3 id="modalTitle" style="margin-bottom: 15px; font-weight: 900; color: var(--text-dark);">提示</h3>
+        <p id="modalDesc" style="color: var(--text-gray); font-weight: 700; line-height: 1.5;">確定要執行此操作嗎？</p>
+    </div>
+    <div style="display: flex; gap: 15px; margin-top: 10px;">
+        <button class="btn-3d" style="background: #e2e8f0; color: #64748b; flex: 1; padding: 12px; border: none; border-radius: 12px; font-weight: 800; cursor: pointer;" onclick="closeCustomModal()">取消</button>
+        <button id="modalConfirmBtn" class="btn-3d" style="background: #ff4757; color: white; flex: 1; padding: 12px; border: none; border-radius: 12px; font-weight: 800; cursor: pointer; box-shadow: 0 4px 0 #c0392b;">確定</button>
+    </div>
+</div>
+
+<script>
+    const API_URL = window.location.protocol !== 'file:' ? window.location.origin : 'http://localhost:8000';
+    let syncTimer = null; // 用於維持在線狀態
+	let refreshTimer = null;
+
+    // --- 1. 選單與導航控制 ---
+    function toggleMenu() {
+        const sideMenu = document.getElementById('sideMenu');
+        const overlay = document.getElementById('overlay');
+        if (sideMenu && overlay) {
+            sideMenu.classList.toggle('open');
+            overlay.classList.toggle('open');
+        }
+    }
+
+    // --- 2. 頁面初始化：身分驗證、資訊渲染、保活心跳 ---
+	window.onload = async function() {
+		const token = localStorage.getItem('token');
+		const username = localStorage.getItem('username');
+		const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+
+		// 1. 基礎檢查：確保有登入資訊與房間資料
+		if (!token || !username || !roomData) {
+			window.location.href = 'login.html';
+			return;
+		}
+
+		// 2. 更新頂部玩家名稱 UI
+		if (document.getElementById('topPlayerName')) {
+			document.getElementById('topPlayerName').innerText = username;
+		}
+
+		// 3. 🏆 核心修正：立即啟動遊戲監測與保活循環
+		// 這行沒動，平板就不會自動跳轉
+		startSyncLoop(username, token);
+
+
+		// 4. 啟動每 2 秒一次的基礎資訊刷新 (更新人數、剔除檢查)
+		refreshRoomStatus();
+		window.refreshTimer = setInterval(refreshRoomStatus, 2000);
+
+		// 5. 重新判定房主身分並渲染房間標籤
+		const isHost = (roomData.hostId === username);
+		localStorage.setItem('is_host', isHost ? 'true' : 'false');
+
+		// 填入房間資訊，避免顯示 ---
+		if (document.getElementById('roomTitle')) document.getElementById('roomTitle').innerText = roomData.name;
+		if (document.getElementById('tagMode')) document.getElementById('tagMode').innerText = roomData.mode;
+		if (document.getElementById('tagDiff')) document.getElementById('tagDiff').innerText = `難度: ${roomData.difficulty}`;
+		if (document.getElementById('tagLaps')) document.getElementById('tagLaps').innerText = `${roomData.winLaps} 圈`;
+
+		// 邀請碼顯示邏輯
+		const codeArea = document.getElementById('codeAreaDisplay');
+		if (roomData.type === 'private' || roomData.type === '私有') {
+			if (codeArea) codeArea.style.display = 'block';
+			if (document.getElementById('roomCodeDisplay')) {
+				document.getElementById('roomCodeDisplay').innerText = roomData.code;
+			}
+		} else {
+			if (codeArea) codeArea.style.display = 'none';
+		}
+
+		// 6. 權限按鈕 UI 初始化
+		const startBtn = document.getElementById('startBtn');
+		const exitBtn = document.getElementById('exitBtn');
+
+		if (isHost) {
+			startBtn.innerText = "開始冒險";
+			startBtn.disabled = false;
+			exitBtn.innerText = "解散房間並退出";
+			exitBtn.style.background = "#ff4757";
+			exitBtn.style.boxShadow = "0 6px 0 #c0392b";
+		} else {
+			startBtn.innerText = "等待房主開始...";
+			startBtn.disabled = true;
+			startBtn.style.opacity = "0.7";
+			startBtn.style.cursor = "not-allowed";
+			exitBtn.innerText = "離開房間";
+			exitBtn.style.background = "#64748b";
+			exitBtn.style.boxShadow = "0 6px 0 #334155";
+		}
+	};
+
+    // --- 3. 核心功能：自定義 UI 彈窗 (取代瀏覽器原生視窗) ---
+
+	// 🏆 1. 修正後的顯示彈窗函式：徹底取代原生 confirm()
+	function showExitConfirm() {
+		const isHost = localStorage.getItem('is_host') === 'true';
+		const modal = document.getElementById('passwordModal');
+		const overlay = document.getElementById('overlay');
+		
+		if (modal) {
+			// A. 設定 UI 文字 [對應你的美化設計]
+			const modalTitle = document.getElementById('modalTitle');
+			const modalDesc = document.getElementById('modalDesc');
+			
+			if (modalTitle) modalTitle.innerText = isHost ? "⚠️ 解散房間" : "🚪 離開房間";
+			if (modalDesc) modalDesc.innerText = isHost 
+				? "解散房間將會踢出所有正在等待的玩家，確定要繼續嗎？" 
+				: "您即將離開此房間，確定要返回大廳嗎？";
+
+			// B. 重新綁定「確定」按鈕的行為 (這會覆蓋掉之前的點擊事件)
+			const confirmBtn = document.getElementById('modalConfirmBtn');
+			if (confirmBtn) {
+				confirmBtn.onclick = async function() {
+					closeCustomModal(); // 先關閉 UI
+					await executeExit(); // 執行後端退出邏輯
+				};
+			}
+
+			// C. 顯示 UI
+			modal.style.display = 'flex';
+			if (overlay) overlay.classList.add('open');
+		}
+	}
+
+	// --- 1. 核心刷新函式：處理同步與資訊渲染 ---
+async function refreshRoomStatus() {
+    const myName = localStorage.getItem('username'); 
+    const rawData = localStorage.getItem('pypoly_active_room') || localStorage.getItem('room_info');
+    const localData = rawData ? JSON.parse(rawData) : null;
+    if (!localData) return;
+
+    // 🏆 1. 顯示房間專屬邀請代碼
+    const codeArea = document.getElementById('codeAreaDisplay');
+    const codeVal = document.getElementById('roomCodeDisplay');
+    
+    if (codeArea && codeVal) {
+        if (localData.type === 'private') {
+            codeArea.style.display = "block"; 
+            codeVal.innerText = localData.code; 
+        } else {
+            codeArea.style.display = "none";
+        }
+    }
+
+    try {
+        // 🏆 2. 向伺服器確認房間最新狀態
+        const res = await fetch(`${API_URL}/rooms/verify/${localData.code}?username=${encodeURIComponent(myName)}`);
+        
+        // 🏆 3. 處理房間被解散 (404)
+        if (res.status === 404) {
+            clearInterval(window.refreshTimer);
+            const modal = document.getElementById('passwordModal');
+            document.getElementById('modalTitle').innerText = "📢 房間已解散";
+            document.getElementById('modalDesc').innerText = "房主已解散房間，即將返回大廳。";
+            document.getElementById('modalConfirmBtn').onclick = () => {
+                localStorage.removeItem('pypoly_active_room');
+                location.href = 'lobby.html';
+            };
+            modal.style.display = 'flex';
+            if (document.getElementById('overlay')) document.getElementById('overlay').classList.add('open');
+            return;
+        }
+
+        const latest = await res.json();
+        const players = latest.players || [];
+        const serverHost = latest.hostId || localData.hostId;
+        const isActuallyHost = (myName === serverHost);
+
+        // 🏆 4. 訪客端偵測：檢查自己是否被剔除
+        const amIInRoom = players.includes(myName);
+        if (!isActuallyHost && !amIInRoom) {
+            clearInterval(window.refreshTimer);
+            const modal = document.getElementById('passwordModal');
+            document.getElementById('modalTitle').innerText = "🚪 您已被剔除";
+            document.getElementById('modalDesc').innerText = "您已被房主請出房間，即將返回大廳。";
+            document.getElementById('modalConfirmBtn').onclick = () => {
+                localStorage.removeItem('pypoly_active_room');
+                location.href = 'lobby.html';
+            };
+            modal.style.display = 'flex';
+            if (document.getElementById('overlay')) document.getElementById('overlay').classList.add('open');
+            return;
+        }
+
+        // 🏆 5. 更新 UI 資訊 (標題、難度等)
+        document.getElementById('roomTitle').innerText = latest.name || localData.name || "冒險教室";
+        document.getElementById('tagMode').innerText = latest.mode || localData.mode || "標準模式";
+        document.getElementById('tagDiff').innerText = `難度: ${latest.difficulty || localData.difficulty || '普通'}`;
+        document.getElementById('tagLaps').innerText = `${latest.winLaps || localData.winLaps || 5} 圈`;
+        document.getElementById('hostNameText').innerText = serverHost;
+        document.getElementById('playerCount').innerText = players.length;
+
+        // 🏆 6. 訪客卡片與「請他出去」按鈕邏輯
+        const guestName = players.find(p => p !== serverHost);
+        const guestText = document.getElementById('guestNameText');
+        const guestSlot = document.getElementById('guestSlot');
+        const kickBtn = document.getElementById('kickBtn'); // 抓取你的 HTML 按鈕元件
+        
+        if (guestText && guestSlot) {
+            if (guestName) {
+                guestSlot.style.opacity = "1";
+                guestSlot.style.border = "1.5px solid var(--border-light)";
+                guestText.innerText = (guestName === myName) ? `${guestName} (你)` : guestName;
+                guestText.style.color = "var(--text-dark)";
+                
+                // 如果我是房主，顯示剔除按鈕
+                if (isActuallyHost && kickBtn) {
+                    kickBtn.style.display = "block";
+                    kickBtn.onclick = () => kickGuest(guestName); 
+                }
+            } else {
+                guestSlot.style.opacity = "0.5";
+                guestSlot.style.border = "2px dashed #e2e8f0";
+                guestText.innerText = "等待玩家加入...";
+                if (kickBtn) kickBtn.style.display = "none";
+            }
+        }
+
+        // 🏆 7. 底部按鈕邏輯修正
+        const exitBtn = document.getElementById('exitBtn');
+        const startBtn = document.getElementById('startBtn');
+
+        if (exitBtn) {
+            if (isActuallyHost) {
+                exitBtn.innerText = "解散房間並退出";
+                exitBtn.style.background = "#ff4757"; 
+                exitBtn.style.boxShadow = "0 6px 0 #c0392b";
+                
+                if (startBtn) {
+                    startBtn.innerText = "開始冒險";
+                    startBtn.disabled = false; 
+                    startBtn.style.opacity = "1";
+                    startBtn.onclick = startGame; // 統一呼叫具備人數判斷的函式
+                }
+            } else {
+                exitBtn.innerText = "離開房間";
+                exitBtn.style.background = "#64748b"; 
+                exitBtn.style.boxShadow = "0 6px 0 #334155";
+                
+                if (startBtn) {
+                    startBtn.innerText = "等待房主開始...";
+                    startBtn.disabled = true; 
+                    startBtn.style.opacity = "0.7";
+                    startBtn.onclick = null;
+                }
+            }
+        }
+    } catch (e) { 
+        console.error("同步失敗:", e); 
+    }
+}
+
+/**
+ * 房主剔除玩家的函式
+ */
+async function kickGuest(guestName) {
+    if (!guestName) return;
+    
+    const rawData = localStorage.getItem('pypoly_active_room');
+    const roomData = JSON.parse(rawData);
+    const API_URL = window.location.protocol !== 'file:' ? window.location.origin : 'http://localhost:8000';
+
+    console.log(`🚀 發送踢人請求: 房間 ${roomData.code}, 玩家 ${guestName}`);
+
+    try {
+        const response = await fetch(`${API_URL}/rooms/kick/${roomData.code}?username=${encodeURIComponent(guestName)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            // 🏆 使用你要求的自定義彈窗風格
+            const modal = document.getElementById('passwordModal');
+            document.getElementById('modalTitle').innerText = "🚫 踢出成功";
+            document.getElementById('modalDesc').innerText = `玩家 ${guestName} 已被移出房間。`;
+            document.getElementById('modalConfirmBtn').onclick = closeCustomModal;
+            modal.style.display = 'flex';
+            
+            refreshRoomStatus(); // 立即重新整理人數
+        } else {
+            console.error("後端拒絕請求:", result.detail);
+        }
+    } catch (err) {
+        console.error("網路連線錯誤:", err);
+    }
+}
+	
+// 🏆 處理側邊選單「返回大廳」的點擊
+function handleLobbyReturn() {
+    const isHost = localStorage.getItem('is_host') === 'true';
+    
+    if (isHost) {
+        // 如果是房主，先關閉側邊選單，再彈出警告視窗
+        toggleMenu(); 
+        
+        const modal = document.getElementById('passwordModal');
+        const overlay = document.getElementById('overlay');
+        
+        if (modal && overlay) {
+            document.getElementById('modalTitle').innerText = "⚠️ 警告";
+            document.getElementById('modalDesc').innerText = "若房主離開房間，該房間將會被直接解散，所有玩家會被踢出。確定要離開並重新建立嗎？";
+            
+            const confirmBtn = document.getElementById('modalConfirmBtn');
+            confirmBtn.onclick = async () => {
+                closeCustomModal();
+                await executeExit(); // 這會執行 DELETE 請求解散房間並回大廳
+            };
+            
+            modal.style.display = 'flex';
+            overlay.classList.add('open');
+        }
+    } else {
+        // 如果是訪客，直接呼叫你原本的離開邏輯（或也給個簡單提示）
+        showExitConfirm(); 
+    }
+}
+
+// 🏆 核心修正：讓玩家離開時主動通知後端，更新人數 2/2 -> 1/2
+async function quitRoom() {
+    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const username = localStorage.getItem('username');
+
+    if (roomData && username) {
+        try {
+            // ⚡ 關鍵：使用 await 確保後端在跳轉前先收到移除請求
+            // 路由必須對應 main.py 的 @app.post("/rooms/leave/{code}")
+            await fetch(`${API_URL}/rooms/leave/${roomData.code}?username=${encodeURIComponent(username)}`, {
+                method: 'POST'
+            });
+            console.log(`👋 成功通知伺服器玩家 ${username} 已離開`);
+        } catch (err) {
+            console.error("離開房間請求失敗:", err);
+        }
+    }
+
+    // 清除本地暫存
+    localStorage.removeItem('pypoly_active_room');
+    localStorage.removeItem('is_host');
+    
+    // 返回大廳
+    location.replace('lobby.html');
+}
+
+	// --- 2. 退出邏輯與彈窗 ---
+async function executeExit() {
+    // 🏆 關鍵：第一步先停止定時器，防止「自動加回」
+    if (syncTimer) {
+        clearInterval(syncTimer);
+        syncTimer = null;
+    }
+
+    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const myName = localStorage.getItem('username');
+    const isHost = localStorage.getItem('is_host') === 'true';
+
+    try {
+        if (isHost) {
+            await fetch(`${API_URL}/rooms/delete/${roomData.code}`, { method: 'DELETE' });
+        } else {
+            // 務必等待 leave API 完成
+            await fetch(`${API_URL}/rooms/leave/${roomData.code}?username=${encodeURIComponent(myName)}`, {
+                method: 'POST'
+            });
+        }
+    } catch (err) {
+        console.error("退出失敗", err);
+    }
+
+    // 清除快照，防止重新整理頁面時又抓到舊房間
+    localStorage.removeItem('pypoly_active_room');
+    location.replace('lobby.html');
+}
+
+
+	// 🏆 2. 關閉彈窗的函式
+	function closeCustomModal() {
+		const modal = document.getElementById('passwordModal');
+		const overlay = document.getElementById('overlay');
+		if (modal) modal.style.display = 'none';
+		if (overlay) overlay.classList.remove('open');
+	}
+
+    // 🏆 取代 alert()：開始冒險的平滑轉場
+async function startGame() {
+    // 🏆 1. 取得基礎資訊
+    const myName = localStorage.getItem('username'); 
+    const token = localStorage.getItem('token');
+    const rawData = localStorage.getItem('pypoly_active_room');
+    const isHost = localStorage.getItem('is_host') === 'true';
+
+    if (!isHost) return;
+
+    // 🏆 2. 強化版 RoomCode 抓取邏輯 (解決 null 問題)
+    let roomCode = localStorage.getItem('roomCode');
+    
+    // 如果單獨的 roomCode 是空的，嘗試從 pypoly_active_room 物件中解析
+    if (!roomCode || roomCode === "null") {
+        if (rawData) {
+            try {
+                const roomObj = JSON.parse(rawData);
+                roomCode = roomObj.code; // 抓取物件內的 code 屬性
+            } catch (e) {
+                console.error("解析 pypoly_active_room 失敗:", e);
+            }
+        }
+    }
+
+    // 🏆 3. 防呆檢查：確保 roomCode 存在
+    if (!roomCode || roomCode === "null" || !myName) {
+        console.error("資料遺失 - RoomCode:", roomCode, "Username:", myName);
+        alert("找不到房間代碼，請嘗試重新整理頁面！");
+        return;
+    }
+
+    // 🏆 4. 人數檢查 (從畫面上的元素抓取最新人數)
+    const pCountElem = document.getElementById('playerCount');
+    const currentCount = pCountElem ? parseInt(pCountElem.innerText) : 1;
+    const maxCount = 2; 
+
+    if (currentCount < maxCount) {
+        const modal = document.getElementById('passwordModal');
+        const overlay = document.getElementById('overlay');
+        if (modal) {
+            document.getElementById('modalTitle').innerText = "⚠️ 人數不足";
+            document.getElementById('modalDesc').innerText = `目前人數僅 ${currentCount}/${maxCount}，請等待勇者加入後再開始冒險！`;
+            document.getElementById('modalConfirmBtn').onclick = closeCustomModal;
+            modal.style.display = 'flex';
+            if (overlay) overlay.classList.add('open');
+        }
+        
+        const btn = document.getElementById('startBtn');
+        btn.style.animation = "shake 0.5s";
+        setTimeout(() => btn.style.animation = "", 500);
+        return;
+    }
+
+    // 🏆 5. 執行啟動邏輯
+    const startBtn = document.getElementById('startBtn');
+    startBtn.innerText = "啟動中...";
+    startBtn.disabled = true;
+
+    try {
+        // 發送開始請求給後端 [路徑確保帶入正確的 roomCode]
+        const res = await fetch(`${API_URL}/rooms/start/${roomCode}?username=${encodeURIComponent(myName)}`, { 
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+		if (res.ok) {
+            const latestData = await res.json(); // 🏆 取得後端回傳的最新房間狀態
+            console.log("房主啟動成功，同步資料中...");
+            
+            // 🏆 關鍵：跳轉前必須先存入 snapshot，否則 game.html 會因為找不到資料而閃退
+            localStorage.setItem('pypoly_game_snapshot', JSON.stringify(latestData));
+            
+            // 🏆 修正：確保檔名與實際檔案 (game.html) 大小寫一致
+            window.location.href = 'game.html';
+        }else {
+            const errData = await res.json();
+            alert("啟動失敗：" + (errData.detail || "未知錯誤"));
+            startBtn.innerText = "開始冒險";
+            startBtn.disabled = false;
+        }
+    } catch (e) {
+        console.error("連線錯誤:", e);
+        startBtn.innerText = "開始冒險";
+        startBtn.disabled = false;
+    }
+}
+
+// 確保有計時器在跑
+setInterval(refreshRoomStatus, 2000);
+
+
+// 輔助 CSS: 按鈕抖動效果
+const style = document.createElement('style');
+style.innerHTML = `
+    @keyframes shake {
+        0% { transform: translateX(0); }
+        25% { transform: translateX(-5px); }
+        50% { transform: translateX(5px); }
+        75% { transform: translateX(-5px); }
+        100% { transform: translateX(0); }
+    }
+`;
+document.head.appendChild(style);
+
+    // --- 4. 後端同步與保活機制 ---
+// 修改 WaitingRoom.html 中的 startSyncLoop
+// WaitingRoom.html 的 startSyncLoop 修正
+function startSyncLoop(username, token) {
+    if (syncTimer) clearInterval(syncTimer);
+    
+    syncTimer = setInterval(async () => {
+        try {
+            // A. 先確認代碼 (排除 null 字串)
+            let roomCode = localStorage.getItem('roomCode');
+            const rawData = localStorage.getItem('pypoly_active_room');
+            if ((!roomCode || roomCode === "null") && rawData) {
+                roomCode = JSON.parse(rawData).code;
+            }
+            if (!roomCode || roomCode === "null") return;
+
+            // B. 請求 verify (確保路徑對齊 main.py)
+            const statusRes = await fetch(`${API_URL}/rooms/verify/${roomCode}?username=${encodeURIComponent(username)}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+			// WaitingRoom.html 中的 startSyncLoop 修正片段
+			if (statusRes.ok) {
+				const roomData = await statusRes.json();
+				
+				const isGaming = roomData.status === 'gaming' || roomData.status === 'playing';
+				const isStarted = roomData.is_started === true;
+
+				if (isGaming || isStarted) {
+					console.log("🚀 平板偵測到遊戲開始，準備跳轉...");
+					
+					// 🏆 修正補強：確保名稱不會變成代碼
+					const localActive = JSON.parse(localStorage.getItem('pypoly_active_room') || '{}');
+					if (!roomData.name && localActive.name) {
+						roomData.name = localActive.name;
+					}
+					if (!roomData.winLaps && localActive.winLaps) {
+						roomData.winLaps = localActive.winLaps;
+					}
+
+					// 存入快照
+					localStorage.setItem('pypoly_game_snapshot', JSON.stringify(roomData));
+					
+					clearInterval(syncTimer);
+					if (window.refreshTimer) clearInterval(window.refreshTimer);
+					
+					window.location.href = 'game.html';
+				}
+			}
+        } catch (err) {
+            console.error("平板同步循環異常:", err);
+        }
+    }, 3000); 
+}
+
+    async function logout() {
+        if (syncTimer) clearInterval(syncTimer);
+        const username = localStorage.getItem('username');
+        if (!username) return;
+        const url = `${API_URL}/auth/logout?username=${encodeURIComponent(username)}&confirm=true`;
+        try { await fetch(url, { method: 'POST' }); } catch (err) {}
+        localStorage.clear();
+        window.location.href = 'login.html';
+    }
+</script>
+</body>
+</html>

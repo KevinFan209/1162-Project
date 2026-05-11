@@ -1,0 +1,1879 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PyPoly - Battle</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
+	<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+	
+    <style>
+        :root {
+            --primary-blue: #4facfe;
+            --primary-yellow: #ffde59;
+            --success-green: #00cdac;
+            --bg-gray: #f1f5f9;
+            --text-dark: #000000;
+            --text-gray: #64748b;
+            --border-light: #e2e8f0;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
+        body { background-color: var(--bg-gray); height: 100%; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+
+        #threejs-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+
+        header {
+            position: relative; z-index: 10;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 0 40px; display: flex; justify-content: space-between;
+            align-items: center; height: 85px;
+            border-bottom: 1.5px solid var(--border-light); 
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+        }
+
+        .header-left h1 { font-size: 2.5rem; font-weight: 900; color: var(--text-dark); }
+        
+        /* 右上角狀態列 */
+        .header-right { display: flex; align-items: center; gap: 15px; }
+        .top-status-item {
+            background: white; padding: 8px 15px; border-radius: 12px;
+            font-weight: 800; font-size: 0.9rem; border: 1.5px solid var(--border-light);
+            display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .lap-status { background: var(--primary-yellow); border: none; }
+
+        /* 側邊欄與玩家卡片 */
+        .game-main { position: relative; z-index: 10; flex: 1; display: grid; grid-template-columns: 1fr 350px; gap: 25px; padding: 25px; pointer-events: none; }
+        .side-panel { pointer-events: auto; display: flex; flex-direction: column; gap: 15px; }
+        
+        .game-player-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px; padding: 18px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            display: flex; flex-direction: column; gap: 12px;
+            border: 1.5px solid white;
+        }
+
+        .player-header { display: flex; justify-content: space-between; align-items: center; }
+        .player-name { font-weight: 900; color: #334155; font-size: 1.1rem; }
+        
+        .player-stats-row { display: flex; justify-content: space-between; gap: 10px; }
+        .stat-item {
+            flex: 1; display: flex; align-items: center; gap: 6px;
+            background: #f8fafc; padding: 8px 12px; border-radius: 10px;
+            font-size: 0.95rem; font-weight: 800; border: 1px solid #edf2f7;
+        }
+        .coin-text { color: #f08c00; }
+        .lap-text { color: #4facfe; }
+		
+        .menu-item {
+            padding: 18px 25px; border-radius: 15px; font-weight: 800;
+            color: var(--text-gray); text-decoration: none; display: flex;
+            align-items: center; gap: 15px; transition: 0.2s; background: #f8fafc;
+        }
+        .menu-item:hover { background: var(--bg-gray); color: var(--text-dark); }
+        .menu-item.danger { margin-top: auto; color: #ff4757; cursor: pointer; }
+
+        /* 歡迎文字 Overlay (無背景色) */
+        #welcome-overlay {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 2000; text-align: center; color: white;
+            text-shadow: 0 4px 15px rgba(0,0,0,0.5); pointer-events: none;
+        }
+
+        .menu-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.15); display: none; z-index: 999; backdrop-filter: blur(2px); }
+        .menu-overlay.open { display: block; }
+        .side-menu { position: fixed; top: 0; right: -320px; width: 320px; height: 100%; background: white; z-index: 1000; transition: 0.4s; padding: 100px 30px 40px; display: flex; flex-direction: column; gap: 15px; box-shadow: -10px 0 30px rgba(0,0,0,0.05); }
+        .side-menu.open { right: 0; }
+        
+        #webcam { position: absolute; width: 1px; height: 1px; opacity: 0; }
+		
+		@keyframes scan { from { top: 0; } to { top: 100%; } }
+		
+		/* 確保容器預設是顯示的，直到偵測結束被設為 none */
+		#order-dice-container {
+			display: none;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			transition: opacity 0.5s ease;
+			z-index: 1000;
+		}
+
+		/* 點數文字置中樣式 */
+		#order-status-text {
+			position: fixed;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			font-size: 5rem;
+			font-weight: 900;
+			color: #ffde59;
+			text-shadow: 0 0 20px rgba(0,0,0,0.8);
+			display: none; /* 初始隱藏 */
+			z-index: 2000;
+		}
+	
+		#flow-content {
+			position: fixed !important;
+			top: 0 !important;
+			left: 0 !important;
+			width: 100vw !important;
+			height: 100vh !important;
+			display: flex !important;
+			flex-direction: column !important;
+			justify-content: center !important; /* 垂直置中 */
+			align-items: center !important;     /* 水平置中 */
+			pointer-events: none;
+			z-index: 99999;
+		}
+		
+		@keyframes listItemIn {
+			from { transform: translateY(-50px); opacity: 0; }
+			to { transform: translateY(0); opacity: 1; }
+		}
+
+		@keyframes noticePopIn {
+			from { transform: scale(0.9) translateY(20px); opacity: 0; }
+			to { transform: scale(1) translateY(0); opacity: 1; }
+		}
+
+    </style>
+</head>
+<body>
+
+<div id="threejs-container"></div>
+<video id="webcam" autoplay playsinline></video>
+
+<div class="menu-overlay" id="overlay" onclick="toggleMenu()"></div>
+<div class="side-menu" id="sideMenu">
+    <a href="javascript:void(0)" onclick="returnToLobby()" class="menu-item">🏠 返回大廳</a>
+    <a href="javascript:void(0)" onclick="logout()" class="menu-item danger">🚪 登出遊戲</a>
+</div>
+
+<header>
+    <div class="header-left"><h1>PyPoly</h1></div>
+    <div class="header-right">
+        <div class="top-status-item">📍 <span id="displayRoomName">載入中...</span></div>
+        <div class="top-status-item">👤 <span id="displayMyName">玩家</span></div>
+        <div class="top-status-item lap-status" id="headerLapInfo">圈數 1 / 5 ⏳</div>
+        
+        <button class="menu-btn" onclick="toggleMenu()" style="background:none; border:none; cursor:pointer; pointer-events:auto;">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+        </button>
+    </div>
+</header>
+
+<div class="game-main">
+    <div></div>
+    <div class="side-panel">
+        <div id="playerListContainer">
+            </div>
+    </div>
+</div>
+
+<div id="welcome-overlay"></div>
+
+<div id="task-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:9999; justify-content:center; align-items:center;">
+    <div style="background:white; padding:40px; border-radius:30px; text-align:center; min-width:400px; border: 5px solid var(--primary-yellow);">
+        <h2 id="task-title" style="font-size:2rem; margin-bottom:20px; font-weight:900;">🎲 任務挑戰</h2>
+        <p id="task-question" style="font-size:1.5rem; margin-bottom:30px; font-weight:800;">1 + 1 = ?</p>
+        <input type="text" id="task-input" style="width:100%; padding:15px; font-size:1.2rem; border-radius:15px; border:2px solid #ddd; margin-bottom:20px; text-align:center;">
+        <button onclick="submitTaskAnswer()" class="btn-3d" style="background:var(--success-green); color:white; padding:15px 40px; width:100%;">提交答案</button>
+    </div>
+</div>
+
+<div id="game-modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:10000; justify-content:center; align-items:center; backdrop-filter: blur(5px);">
+    
+    <div id="task-panel" style="background:white; padding:40px; border-radius:35px; text-align:center; min-width:420px; border:6px solid var(--primary-yellow); box-shadow:0 20px 50px rgba(0,0,0,0.3);">
+        <h2 style="font-size:2.5rem; margin-bottom:15px; font-weight:900; color:var(--text-dark);">🎲 任務挑戰</h2>
+        <p style="font-size:1.4rem; color:var(--text-gray); margin-bottom:25px; font-weight:700;">請回答正確答案以獲得買地權：</p>
+        <div style="font-size:3.5rem; font-weight:900; background:var(--bg-gray); padding:20px; border-radius:20px; margin-bottom:25px; color:var(--primary-blue);">1 + 1 = ?</div>
+        <input type="number" id="task-answer-input" placeholder="輸入答案..." style="width:100%; padding:18px; font-size:1.5rem; border-radius:18px; border:3px solid var(--border-light); text-align:center; margin-bottom:25px; font-weight:900;">
+        <button onclick="submitTaskAnswer()" class="btn-3d" style="width:100%; padding:18px; background:var(--success-green); color:white; font-size:1.3rem;">提交答案</button>
+    </div>
+
+    <div id="buy-panel" style="display:none; background:white; padding:40px; border-radius:35px; text-align:center; min-width:420px; border:6px solid var(--primary-blue); box-shadow:0 20px 50px rgba(0,0,0,0.3);">
+        <h2 style="font-size:2.5rem; margin-bottom:15px; font-weight:900; color:var(--text-dark);">🏡 發現空地！</h2>
+        <p style="font-size:1.4rem; color:var(--text-gray); margin-bottom:25px; font-weight:700;">這裡還沒有主人，要買下它嗎？</p>
+        <div style="font-size:2rem; font-weight:900; color:#f08c00; margin-bottom:30px;">價格：$500</div>
+        <div style="display:flex; gap:20px;">
+            <button onclick="confirmPurchase(true)" class="btn-3d" style="flex:1; padding:18px; background:var(--success-green); color:white;">確認購買</button>
+            <button onclick="confirmPurchase(false)" class="btn-3d" style="flex:1; padding:18px; background:var(--text-gray); color:white;">暫時放棄</button>
+        </div>
+    </div>
+</div>
+
+
+
+<script>
+	// 1. 最優先：定義基礎常數 (例如 API 路徑)
+	const API_URL = window.location.protocol !== 'file:' ? window.location.origin : 'http://localhost:8000';
+	const DICE_DIR = "dice_faces/"; 
+	const OUTLINE_DIR = "outlines/";
+
+	// 2. 其次：初始化 Socket 連線 (現在它能抓到 API_URL 了)
+	const socket = io(API_URL); 
+	
+	// 尋找你初始化 socket 的地方
+	socket.on('connect', () => {
+		console.log("✅ Socket 連線成功，正在申請加入房間...");
+		
+		// 取得房間代碼 (跟你 syncOrderDice 用的邏輯一致)
+		const activeRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
+		const roomCode = activeRoom ? activeRoom.code : localStorage.getItem('room_code');
+		const user = localStorage.getItem('username');
+
+		// 🏆 關鍵：告訴伺服器把你放進這個房間
+		socket.emit('join_game_room', {
+			room: roomCode,
+			user: user
+		});
+	});
+
+	// 3. 然後：定義遊戲狀態變數
+	let myDicePoint = 0; 
+	let opponentDicePoint = 0;
+	let isOrderDecided = false;
+	let isRolling = false;
+	let rollStartTime = 0;
+	const rollDuration = 1500; 
+
+	// 4. 最後：定義其他的全域變數
+	let cameraInstance = null; // 用來存 Camera 實例
+	let syncTimer = null;
+	let visionSocket = null;
+	let scene, camera, renderer, playerModel, virtualScreen;
+	let video, screenCanvas, screenCtx;
+	let currentGameState = { status: "PUNCH TO ROLL", dice_val: 1 };
+	let currentStream = null;
+	let currentLandmarks = null;
+	let playerModels = {};
+	let playerCurrentIndex = {};
+	let mapBlocks = [];
+	let allTileMeshes = [];
+	const pendingCharData = {};
+	const diceImages = {};
+	const outlineImages = {};
+	let lastHandY = 0;
+	let activeHands = null;
+	let activeCamera = null;
+	
+	window.onload = function() {
+		// 1. 讀取快照資料
+		const gameSnapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot'));
+		const myName = localStorage.getItem('username');
+
+		if (!gameSnapshot) {
+			console.error("找不到遊戲資料，返回大廳");
+			location.href = 'lobby.html';
+			return;
+		}
+
+		// --- 2. 解決房間名與個人資訊顯示問題 ---
+		const roomDisplayName = gameSnapshot.name || gameSnapshot.code;
+		const totalLaps = gameSnapshot.winLaps || 5;
+
+		// 填入房間名稱與玩家名稱
+		const headerRoomName = document.getElementById('displayRoomName');
+		const headerMyName = document.getElementById('displayMyName');
+		const headerLapInfo = document.getElementById('headerLapInfo');
+
+		if (headerRoomName) headerRoomName.innerText = roomDisplayName;
+		if (headerMyName) headerMyName.innerText = myName;
+
+		// 第一點修正：移除右上角選單的剩餘圈數顯示 (設為空字串或隱藏)
+		if (headerLapInfo) {
+			headerLapInfo.style.display = 'none'; 
+		}
+
+		// 處理歡迎標題
+		const welcomeTitle = document.getElementById('welcomeRoomName');
+		if (welcomeTitle) welcomeTitle.innerText = `歡迎來到 ${roomDisplayName}`;
+
+		// --- 3. 渲染右側玩家資訊 UI (第二點修正：取消邊框顏色) ---
+		const container = document.getElementById('playerListContainer');
+		if (container && gameSnapshot.players) {
+			container.innerHTML = ''; 
+
+			gameSnapshot.players.forEach(player => {
+				const isMe = (player === myName);
+				const playerCard = document.createElement('div');
+				
+				// 第二點修正：border 改為統一的淺灰色 (#f1f5f9)，取消特定顏色
+				playerCard.style.cssText = `
+					background: rgba(255, 255, 255, 0.9);
+					border-radius: 16px;
+					padding: 15px;
+					margin-bottom: 12px;
+					box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+					border: 1.5px solid #e2e8f0; 
+					display: flex;
+					flex-direction: column;
+					gap: 10px;
+				`;
+
+				playerCard.innerHTML = `
+					<div style="display: flex; justify-content: space-between; align-items: center;">
+						<div style="display: flex; align-items: center; gap: 8px;">
+							<span style="font-size: 1.1rem;">👤</span>
+							<span style="font-weight: 800; color: #334155;">${player}${isMe ? ' <span style="color:#64748b; font-size:0.8rem;">(你)</span>' : ''}</span>
+						</div>
+					</div>
+					
+					<div style="display: flex; gap: 8px;">
+						<div style="flex: 1; background: #fff9db; padding: 8px; border-radius: 10px; display: flex; align-items: center; gap: 6px; border: 1px solid #ffec99;">
+							<span style="color: #fab005; font-weight: 900;">💰</span>
+							<span id="balance-${player}" style="font-weight: 900; color: #f08c00; font-size: 1.1rem;">1,500</span>
+						</div>
+						<div style="flex: 1; background: #e3f2fd; padding: 8px; border-radius: 10px; display: flex; align-items: center; gap: 6px; border: 1px solid #bbdefb;">
+							<span style="color: #2196f3; font-weight: 900;">🏁</span>
+							<span id="laps-${player}" style="font-weight: 800; color: #1976d2; font-size: 1rem;">1 / ${totalLaps}</span>
+						</div>
+					</div>
+				`;
+				container.appendChild(playerCard);
+			});
+		}
+
+		// 4. 啟動 3D 與開場動畫
+		if (typeof init3D === "function") init3D();
+		if (typeof playOpeningAnim === "function") playOpeningAnim();
+	};
+	
+	socket.emit('join_game_room', { 
+		room: localStorage.getItem('room_code'), 
+		user: localStorage.getItem('username') 
+	});
+
+	function preloadAssets() {
+		for (let i = 1; i <= 6; i++) {
+			const d = new Image();
+			d.src = `${DICE_DIR}${i}.png`; // 修正路徑為 dice_faces/1.png
+			diceImages[i] = d;
+
+			const o = new Image();
+			o.src = `${OUTLINE_DIR}${i}.png`; // 修正路徑為 outlines/1.png
+			outlineImages[i] = o;
+			
+			d.onerror = () => console.error("找不到骰子圖:", d.src);
+			o.onerror = () => console.error("找不到輪廓圖:", o.src);
+		}
+	}
+	preloadAssets();
+	
+	function init3D() {
+		scene = new THREE.Scene();
+		scene.background = new THREE.Color(0xf1f5f9);
+		
+		camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+		camera.position.set(0, 100, 100);
+		camera.lookAt(0, 0, 0);
+
+		renderer = new THREE.WebGLRenderer({ antialias: true });
+		renderer.setSize(window.innerWidth, window.innerHeight);
+		document.getElementById('threejs-container').appendChild(renderer.domElement);
+
+		const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+		scene.add(ambientLight);
+		const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+		directionalLight.position.set(20, 40, 20);
+		scene.add(directionalLight);
+
+		create3DBoard();
+		createVisionScreen(); // 這裡會建立繪圖用的 Canvas
+
+		const playerGeo = new THREE.BoxGeometry(1, 2, 1);
+		const playerMat = new THREE.MeshStandardMaterial({ color: 0xff4757 });
+		playerModel = new THREE.Mesh(playerGeo, playerMat);
+		playerModel.position.set(-16, 1, 10);
+		playerModel.visible = false;
+		scene.add(playerModel);
+		
+		loadPlayerModels();
+
+		animate();
+	}
+	
+	function create3DBoard() {
+		mapBlocks = [];
+		const tileGeo = new THREE.BoxGeometry(3.5, 0.5, 3.5);
+		const tileMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+		
+		// 定義地圖路徑座標 (這部分與你原本的迴圈邏輯一致)
+		const tiles = [];
+		for(let i=0; i<9; i++) tiles.push({x: -16 + (i*4), z: 10});
+		for(let i=1; i<6; i++) tiles.push({x: 16, z: 10 - (i*4)});
+		for(let i=1; i<9; i++) tiles.push({x: 16 - (i*4), z: -10});
+		for(let i=1; i<5; i++) tiles.push({x: -16, z: -10 + (i*4)});
+
+		tiles.forEach((pos, index) => {
+			const tile = new THREE.Mesh(tileGeo, tileMat.clone());
+			tile.position.set(pos.x, 0, pos.z);
+			if(index === 0) tile.material.color.set(0x00cdac); 
+			scene.add(tile);
+			allTileMeshes.push(tile); // 🏆 存入 Mesh 實例
+			// 🏆 關鍵：將座標存入 mapBlocks 供角色移動參考
+			mapBlocks.push(tile.position); 
+		});
+	}
+
+
+	function createVisionScreen() {
+		// 🏆 將布幕比例稍微縮小 (原 16:9 保持，但大小從 16 降到 14)
+		const screenGeo = new THREE.PlaneGeometry(4,3 );
+		screenCanvas = document.createElement('canvas');
+		screenCanvas.width = 640;
+		screenCanvas.height = 480;
+		screenCtx = screenCanvas.getContext('2d');
+
+		const screenTexture = new THREE.CanvasTexture(screenCanvas);
+		const screenMat = new THREE.MeshBasicMaterial({ 
+			map: screenTexture, 
+			side: THREE.DoubleSide,
+			transparent: true,
+			depthTest: false // 確保在最前面
+		});
+		
+		virtualScreen = new THREE.Mesh(screenGeo, screenMat);
+		// 預設位置，啟動時 startMainTurn 會再重新計算位置
+		virtualScreen.position.set(0, 1.2, -3); 
+		virtualScreen.visible = false; 
+		scene.add(virtualScreen);
+	}
+	
+function makeDummyTexture() {
+    const c = document.createElement('canvas');
+    c.width = c.height = 1;
+    c.getContext('2d').fillStyle = '#f5c18a';
+    c.getContext('2d').fillRect(0, 0, 1, 1);
+    return new THREE.CanvasTexture(c);
+}
+
+function loadFaceTextureIntoMat(mat) {
+    const dataUrl = localStorage.getItem('pypoly_char_face');
+    if (!dataUrl) return;
+    const img = new Image();
+    img.onload = () => {
+        const fc = document.createElement('canvas');
+        fc.width = 512; fc.height = 128;
+        fc.getContext('2d').drawImage(img, 0, 0, 512, 128);
+        const tex = new THREE.CanvasTexture(fc);
+        tex.needsUpdate = true;
+        mat.uniforms.faceTex.value = tex;
+        mat.uniforms.hasFace.value = 1.0;
+        mat.needsUpdate = true;
+    };
+    img.src = dataUrl;
+}
+
+function applyCharDataToMat(mat, data) {
+    if (!mat) return;
+    if (data.colors) {
+        const c = data.colors;
+        if (c.head) mat.uniforms.colorHead.value.set(c.head);
+        if (c.arm)  mat.uniforms.colorArm.value.set(c.arm);
+        if (c.body) mat.uniforms.colorBody.value.set(c.body);
+        if (c.legs) mat.uniforms.colorLegs.value.set(c.legs);
+        if (c.feet) mat.uniforms.colorFeet.value.set(c.feet);
+    }
+    if (data.face) {
+        const img = new Image();
+        img.onload = () => {
+            const fc = document.createElement('canvas');
+            fc.width = 512; fc.height = 128;
+            fc.getContext('2d').drawImage(img, 0, 0, 512, 128);
+            const tex = new THREE.CanvasTexture(fc);
+            tex.needsUpdate = true;
+            mat.uniforms.faceTex.value = tex;
+            mat.uniforms.hasFace.value = 1.0;
+            mat.needsUpdate = true;
+        };
+        img.src = data.face;
+    }
+}
+
+function emitCharData() {
+    const myName = localStorage.getItem('username');
+    const activeRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const room = activeRoom ? activeRoom.code : localStorage.getItem('room_code');
+    if (!room) return;
+    const rawColors = localStorage.getItem('pypoly_char_colors');
+    const colors = rawColors ? JSON.parse(rawColors) : null;
+    const face = localStorage.getItem('pypoly_char_face') || null;
+    socket.emit('char_data_sync', { room, user: myName, colors, face });
+}
+
+function loadPlayerModels() {
+    const loader = new THREE.GLTFLoader();
+    const gameSnapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot'));
+    const players = gameSnapshot.players;
+    const myName = localStorage.getItem('username');
+
+    const defaultColors = { head: '#f5c18a', arm: '#5cbaee', body: '#4a90d9', legs: '#2c4a8c', feet: '#2c1f14' };
+
+    const CHAR_VERT = `
+        varying vec3 vWorldPos;
+        varying vec3 vNorm;
+        void main() {
+            vec4 wp = modelMatrix * vec4(position, 1.0);
+            vWorldPos = wp.xyz;
+            vNorm = normalize(mat3(modelMatrix) * normal);
+            gl_Position = projectionMatrix * viewMatrix * wp;
+        }
+    `;
+
+    // 手臂偵測使用模型本地 X（將世界 XZ 反旋轉 modelYaw），
+    // 解決 lookAt() 旋轉後世界 X 不等於本地 X 的問題。
+    const CHAR_FRAG = `
+        uniform vec3      colorHead;
+        uniform vec3      colorArm;
+        uniform vec3      colorBody;
+        uniform vec3      colorLegs;
+        uniform vec3      colorFeet;
+        uniform float     worldMinY;
+        uniform float     worldMaxY;
+        uniform float     armThreshX;
+        uniform float     modelCenterX;
+        uniform float     modelCenterZ;
+        uniform float     modelYaw;
+        uniform sampler2D faceTex;
+        uniform float     hasFace;
+        varying vec3      vWorldPos;
+        varying vec3      vNorm;
+        void main() {
+            float t = clamp((vWorldPos.y - worldMinY) / (worldMaxY - worldMinY), 0.0, 1.0);
+
+            // 將世界 XZ 反旋轉 modelYaw，還原成模型本地 X 及本地 Z 法向量
+            float cosA   = cos(-modelYaw);
+            float sinA   = sin(-modelYaw);
+            float dx     = vWorldPos.x - modelCenterX;
+            float dz     = vWorldPos.z - modelCenterZ;
+            float localX  = dx * cosA - dz * sinA;
+            float localNZ = vNorm.x * sinA + vNorm.z * cosA;
+
+            vec3 base;
+            if (abs(localX) > armThreshX && t > 0.245 && t < 0.755) {
+                base = (t > 0.50) ? colorArm : colorHead;
+            } else {
+                if (t > 0.75) {
+                    base = colorHead;
+                    if (hasFace > 0.5 && localNZ > 0.3) {
+                        float fu = clamp((localX + armThreshX) / (2.0 * armThreshX), 0.0, 1.0);
+                        float fv = clamp((t - 0.75) / 0.25, 0.0, 1.0);
+                        vec4 fc  = texture2D(faceTex, vec2(fu, fv));
+                        base     = fc.rgb;
+                    }
+                }
+                else if (t > 0.375) base = colorBody;
+                else if (t > 0.10)  base = colorLegs;
+                else                base = colorFeet;
+            }
+
+            vec3 n   = normalize(vNorm);
+            float d  = max(dot(n, normalize(vec3(5.0, 12.0, 8.0))), 0.0);
+            float f  = max(dot(n, normalize(vec3(-5.0, 3.0, -5.0))), 0.0) * 0.4;
+            float ambient = (hasFace > 0.5 && t > 0.75 && localNZ > 0.3) ? 0.95 : 0.85;
+            vec3 lit = base * (ambient + 0.5 * d + 0.15 * f);
+            gl_FragColor = vec4(clamp(lit, 0.0, 1.0), 1.0);
+        }
+    `;
+
+    players.forEach((playerName, index) => {
+        loader.load(`models/minecraft_-_steve.glb`, (gltf) => {
+            const model = gltf.scene;
+            // 自動縮放至目標高度（格子寬 3.5，角色約同等大小）
+            const TARGET_HEIGHT = 2.5;
+            const naturalBox    = new THREE.Box3().setFromObject(model);
+            const naturalHeight = naturalBox.max.y - naturalBox.min.y;
+            model.scale.setScalar(naturalHeight > 0 ? TARGET_HEIGHT / naturalHeight : 1);
+
+            const box = new THREE.Box3().setFromObject(model);
+            const objMinY    = box.min.y;
+            const objMaxY    = box.max.y;
+            const charHeight = objMaxY - objMinY;
+            const armThreshX = (box.max.x - box.min.x) * 0.25;
+
+            let colors = { ...defaultColors };
+            if (playerName === myName) {
+                const raw = localStorage.getItem('pypoly_char_colors');
+                if (raw) { try { Object.assign(colors, JSON.parse(raw)); } catch(e) {} }
+            }
+
+            const mat = new THREE.ShaderMaterial({
+                uniforms: {
+                    colorHead:    { value: new THREE.Color(colors.head) },
+                    colorArm:     { value: new THREE.Color(colors.arm)  },
+                    colorBody:    { value: new THREE.Color(colors.body) },
+                    colorLegs:    { value: new THREE.Color(colors.legs) },
+                    colorFeet:    { value: new THREE.Color(colors.feet) },
+                    worldMinY:    { value: objMinY },
+                    worldMaxY:    { value: objMaxY },
+                    armThreshX:   { value: armThreshX },
+                    modelCenterX: { value: 0.0 },
+                    modelCenterZ: { value: 0.0 },
+                    modelYaw:     { value: 0.0 },
+                    faceTex:      { value: makeDummyTexture() },
+                    hasFace:      { value: 0.0 }
+                },
+                vertexShader:   CHAR_VERT,
+                fragmentShader: CHAR_FRAG
+            });
+
+            model.userData.charShader = mat;
+            model.userData.objMinY    = objMinY;
+            model.userData.charHeight = charHeight;
+
+            if (playerName === myName) {
+                loadFaceTextureIntoMat(mat);
+                emitCharData();
+            } else if (pendingCharData[playerName]) {
+                applyCharDataToMat(mat, pendingCharData[playerName]);
+                delete pendingCharData[playerName];
+            }
+
+            model.traverse((child) => {
+                if (child.isMesh) {
+                    child.material = mat;
+                    child.castShadow = true;
+                    child.layers.set(0);
+                }
+            });
+
+            const startPos = mapBlocks[0];
+            const offset = (index === 0) ? 0 : 1.5;
+            model.position.set(startPos.x + offset, startPos.y + 0.25 - objMinY + 0.2, startPos.z);
+
+            const nextPos = mapBlocks[1];
+            model.lookAt(nextPos.x, model.position.y, nextPos.z);
+
+            scene.add(model);
+            playerModels[playerName] = model;
+        });
+    });
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+
+    for (const model of Object.values(playerModels)) {
+        const s = model.userData.charShader;
+        if (!s) continue;
+        const baseY  = model.userData.objMinY + model.position.y;
+        const height = model.userData.charHeight;
+        s.uniforms.worldMinY.value    = baseY;
+        s.uniforms.worldMaxY.value    = baseY + height;
+        s.uniforms.modelCenterX.value = model.position.x;
+        s.uniforms.modelCenterZ.value = model.position.z;
+        s.uniforms.modelYaw.value     = model.rotation.y;
+    }
+
+    if (virtualScreen && virtualScreen.visible && screenCtx && video && video.readyState >= 2) {
+        // --- A. 背景與鏡像 ---
+        screenCtx.save();
+        screenCtx.scale(-1, 1);
+        screenCtx.drawImage(video, -640, 0, 640, 480);
+        screenCtx.restore();
+
+        // --- B. 偵測點 (綠色小圓圈) ---
+        // 🏆 修正邏輯：只有當後端回傳有偵測到手 (hand_detected 為 true) 時才畫綠點
+        // 這樣就不會發生「手沒舉起來綠點卻一直掛在畫面上」的情況
+        if (currentGameState.hand_detected && currentGameState.hand_x && currentGameState.hand_y) {
+            screenCtx.beginPath();
+            screenCtx.arc(currentGameState.hand_x, currentGameState.hand_y, 10, 0, Math.PI * 2);
+            screenCtx.fillStyle = "#00FF00"; 
+            screenCtx.fill();
+            screenCtx.strokeStyle = "white";
+            screenCtx.lineWidth = 3;
+            screenCtx.stroke();
+        }
+
+        // --- C. UI 頂條 (移除深色背景矩形，改用文字陰影) ---
+        screenCtx.shadowBlur = 10;
+        screenCtx.shadowColor = "black";
+        screenCtx.fillStyle = "#00FF00";
+        screenCtx.font = "bold 32px Arial";
+        let statusText = currentGameState.status || "PUNCH UP TO ROLL!";
+        screenCtx.fillText(statusText.replace(/_/g, ' '), 30, 50);
+        screenCtx.shadowBlur = 0; // 重設陰影避免影響後續繪圖
+
+        // --- D. 核心繪圖邏輯 ---
+        const diceX = 270, diceY = 190, diceS = 100;
+
+        // 1. 滾動中
+        if (currentGameState.status.includes("ROLLING")) {
+            let img = diceImages[Math.floor(Math.random() * 6) + 1];
+            if (img && img.complete) screenCtx.drawImage(img, diceX, diceY, diceS, diceS);
+        } 
+        // 2. 骰完停頓 (GOT 階段)
+        else if (currentGameState.status.includes("GOT")) {
+            let img = diceImages[currentGameState.dice_val];
+            if (img && img.complete) screenCtx.drawImage(img, diceX, diceY, diceS, diceS);
+        }
+        // 3. 手勢辨識 (SHOW 階段)
+        else if (currentGameState.status.includes("SHOW")) {
+            // 🏆 骰子消失，畫出手勢輪廓，位置微調使其更精確
+            let outline = outlineImages[currentGameState.dice_val];
+            if (outline && outline.complete) {
+                screenCtx.globalAlpha = 0.7;
+                screenCtx.drawImage(outline, 120, 80, 400, 320); 
+                screenCtx.globalAlpha = 1.0;
+            }
+        } 
+        // 4. 初始/準備狀態
+        else {
+            let img = diceImages[1];
+            if (img && img.complete) screenCtx.drawImage(img, diceX, diceY, diceS, diceS);
+        }
+
+        virtualScreen.material.map.needsUpdate = true;
+    }
+    
+    renderer.render(scene, camera);
+}
+	
+function playOpeningAnim() {
+    const gameSnapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot'));
+    const roomName = gameSnapshot ? (gameSnapshot.name || gameSnapshot.code) : "PyPoly";
+    
+    // 固定在俯衝前的初始位置
+    camera.position.set(0, 30, 70); 
+    camera.lookAt(0, 0, 0);
+
+    // 建立或取得 Overlay 容器
+    let welcomeMsg = document.getElementById('welcomeOverlay');
+    if (!welcomeMsg) {
+        welcomeMsg = document.createElement('div');
+        welcomeMsg.id = 'welcomeOverlay';
+        document.body.appendChild(welcomeMsg);
+    }
+
+    // 強制設定 CSS 確保置中且不擋住互動
+    welcomeMsg.style.cssText = `
+        position: fixed !important; top: 0 !important; left: 0 !important;
+        width: 100vw !important; height: 100% !important;
+        background: transparent !important; z-index: 99999 !important;
+        pointer-events: none !important; display: block !important;
+        opacity: 1 !important; transition: opacity 1s;
+    `;
+
+    const textShadow = "text-shadow: 0 0 20px rgba(0,0,0,0.8), 0 4px 12px rgba(0,0,0,1); color: #ffffff; font-weight: 900; margin: 0; text-align: center;";
+
+    // 先顯示歡迎訊息
+	// 🏆 修正後的歡迎訊息
+	welcomeMsg.innerHTML = `
+		<div id="flow-content" style="transition: opacity 0.8s ease;">
+			<h1 style='font-size: 5rem; ${textShadow}'>PyPoly</h1>
+			<p style='font-size: 2.2rem; margin-top: 15px; ${textShadow}'>歡迎來到 ${roomName} 的冒險教室</p>
+		</div>
+	`;
+
+    // 2.5 秒後執行俯衝動畫並切換文字
+    setTimeout(() => {
+        const flowContent = document.getElementById('flow-content');
+        if (flowContent) flowContent.style.opacity = "0"; // 歡迎文字淡出
+
+        gsap.to(camera.position, {
+            x: 0,
+            y: 15,   // 下降高度
+            z: 30,   // 往前推進
+            duration: 2.5,
+            ease: "power2.inOut",
+            onComplete: () => {
+                // 🏆 重要：不要移除 welcomeMsg，只要把內容清空，讓 showDecideOrderUI 填入新訊息
+                if (flowContent) {
+                    flowContent.innerHTML = ""; 
+                    flowContent.style.opacity = "1";
+                }
+                showDecideOrderUI(); // 呼叫下一步
+            }
+        });
+    }, 2500);
+}
+
+	function startAutoVisionGame() {
+		const pos = playerModel.position;
+		// 🏆 修正：相機高度 camY 要與 lookTarget 的高度一致，才會是「平視」
+		const camY = pos.y + 1.2; 
+		const lookTarget = new THREE.Vector3(pos.x, camY, pos.z - 20);
+
+		gsap.to(camera.position, {
+			x: pos.x,
+			y: camY,
+			z: pos.z,
+			duration: 2,
+			ease: "power2.inOut",
+			onUpdate: () => {
+				camera.lookAt(lookTarget); 
+			},
+			onComplete: () => {
+				initCameraAndStartVision();
+			}
+		});
+	}
+	
+	async function stopAllVision() {
+		if (activeCamera) {
+			await activeCamera.stop();
+			activeCamera = null;
+		}
+		// 隱藏相關 UI
+		const uiText = document.getElementById('vision-ui-text');
+		if (uiText) uiText.style.display = 'none';
+	}
+	
+	async function initCameraAndStartVision() {
+		await stopAllVision(); // 🏆 啟動前先確保舊的關乾淨
+
+		virtualScreen.visible = true;
+		video = document.getElementById('webcam');
+
+		try {
+			const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+			video.srcObject = stream;
+			await video.play();
+			
+			// 🏆 修正：動態取得 IP，平板才連得到
+			const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+			const wsHost = API_URL.replace('http://', '').replace('https://', '');
+			visionSocket = new WebSocket(`${wsProtocol}//${wsHost}/ws/vision/game_start`);
+
+			activeHands = new Hands({
+				locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+			});
+
+			activeHands.setOptions({
+				maxNumHands: 1, modelComplexity: 1,
+				minDetectionConfidence: 0.7, minTrackingConfidence: 0.7
+			});
+
+			activeHands.onResults((results) => {
+				if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+					const flippedLandmarks = results.multiHandLandmarks[0].map(lm => ({
+						x: 1 - lm.x, // 🏆 鏡像翻轉，對齊 3D 畫面
+						y: lm.y,
+						z: lm.z
+					}));
+
+					const payload = { landmarks: flippedLandmarks, width: 640, height: 480 };
+					if (visionSocket.readyState === WebSocket.OPEN) {
+						visionSocket.send(JSON.stringify(payload));
+					}
+				}
+			});
+
+			activeCamera = new Camera(video, {
+				onFrame: async () => {
+					if (activeHands) await activeHands.send({ image: video });
+				},
+				width: 640, height: 480
+			});
+			
+			activeCamera.start();
+
+			// 修改原本的 visionSocket.onmessage 內部
+			visionSocket.onmessage = (e) => {
+				const data = JSON.parse(e.data);
+				currentGameState = data;
+
+				// 在 visionSocket.onmessage 內：
+				if (data.done) {
+					const myName = localStorage.getItem('username');
+					const steps = data.dice_val;
+
+					// 移除提示文字框
+					const ui = document.getElementById('vision-overlay');
+					if(ui) ui.remove();
+
+					stopAllVision();
+					virtualScreen.visible = false;
+					
+					// 發送給 Socket 讓對手知道我骰到幾點
+					socket.emit('player_move_sync', {
+						room: JSON.parse(localStorage.getItem('pypoly_active_room')).code,
+						user: myName,
+						steps: steps
+					});
+
+					movePlayerSequence(myName, steps);
+				}
+			};
+
+		} catch (err) {
+			console.error("啟動失敗:", err);
+		}
+	}
+	
+async function startRecognitionProcess() {
+    // 🏆 1. 徹底清理舊實例，防止重複啟動導致 Aborted 崩潰
+    if (cameraInstance) {
+        try {
+            await cameraInstance.stop();
+        } catch (e) { console.log("停止舊相機時發生錯誤:", e); }
+        cameraInstance = null;
+    }
+
+    // 🏆 2. 抓取動態產生的元素
+    const video = document.getElementById('temp-video');
+    const canvas = document.getElementById('recognition-canvas');
+    if (!video || !canvas) return console.error("找不到相機或畫布元素");
+    
+    const ctx = canvas.getContext('2d');
+    const flowContent = document.getElementById('flow-content');
+
+    // 🏆 3. 配置 MediaPipe Hands (使用最速模式)
+    const hands = new Hands({ 
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` 
+    });
+
+    hands.setOptions({
+        maxNumHands: 1,
+        modelComplexity: 0, // 0 代表最速模式，適合平板
+        minDetectionConfidence: 0.6,
+        minTrackingConfidence: 0.6
+    });
+
+    hands.onResults((results) => {
+        if (results.multiHandLandmarks) {
+            currentLandmarks = results.multiHandLandmarks[0];
+        }
+    });
+
+    try {
+        // 🏆 4. 取得相機串流
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { width: 400, height: 300, frameRate: { max: 15 } } 
+        });
+        video.srcObject = stream;
+
+        // 確保影片播放且樣式不影響渲染
+        video.style.cssText = "position: absolute; opacity: 0; pointer-events: none;";
+        await video.play();
+
+        // 🏆 5. 啟動相機工具
+        cameraInstance = new Camera(video, { 
+            onFrame: async () => {
+                if (!isOrderDecided && video.readyState === 4) {
+                    await hands.send({ image: video });
+                }
+            }, 
+            width: 400, height: 300 
+        });
+        cameraInstance.start();
+
+        let localDiceFrame = 0;
+        let isRollingLocal = false;
+        let lastHandYLocal = 0;
+
+        // 🏆 6. 核心繪圖循環
+        function renderLoop() {
+            // 如果 flow-content 被隱藏或內容被清空則停止，節省效能
+            if (!flowContent || flowContent.innerHTML === "") return;
+
+            // A. 繪製背景 (鏡像處理) - 只有當 video 就緒時才畫
+            if (video.readyState === 4) {
+                ctx.save();
+                ctx.scale(-1, 1);
+                ctx.drawImage(video, -400, 0, 400, 300);
+                ctx.restore();
+            } else {
+                // 尚未就緒前顯示黑色背景
+                ctx.fillStyle = "#000";
+                ctx.fillRect(0, 0, 400, 300);
+            }
+
+            // B. 偵測上衝觸發
+            if (currentLandmarks && !isRollingLocal && !isOrderDecided) {
+                const cy = currentLandmarks[9].y * 300;
+                // 顯示感應點 (幫助玩家對齊)
+                ctx.beginPath();
+                ctx.arc((1 - currentLandmarks[9].x) * 400, cy, 8, 0, Math.PI*2);
+                ctx.fillStyle = "#00FF00";
+                ctx.fill();
+
+                if (lastHandYLocal !== 0 && lastHandYLocal - cy > 18) { 
+                    isRollingLocal = true;
+                    setTimeout(() => {
+                        isRollingLocal = false;
+                        const finalPoint = Math.floor(Math.random() * 6) + 1;
+                        myDicePoint = finalPoint;
+                        onFistUpDetected(finalPoint);
+                    }, 1500);
+                }
+                lastHandYLocal = cy;
+            }
+
+            // C. 決定骰子圖案
+            let diceToShow = 1;
+            if (isRollingLocal) {
+                localDiceFrame++;
+                diceToShow = (Math.floor(localDiceFrame / 5) % 6) + 1;
+            } else if (myDicePoint > 0) {
+                diceToShow = myDicePoint;
+            }
+
+            // D. 繪製骰子
+            if (diceImages[diceToShow] && diceImages[diceToShow].complete) {
+                ctx.drawImage(diceImages[diceToShow], 150, 100, 100, 100);
+            }
+
+            drawScannerOverlay(ctx);
+            requestAnimationFrame(renderLoop);
+        }
+        
+        renderLoop();
+
+    } catch (err) {
+        console.error("啟動辨識流程失敗:", err);
+    }
+}
+	
+	function drawDiceFace(ctx, img, x, y, isRollingEffect) {
+		if (!img || !img.complete) return;
+		const size = 120; // 調整骰子大小
+		ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
+		
+		if (isRollingEffect) {
+			ctx.strokeStyle = "#ffde59";
+			ctx.lineWidth = 4;
+			ctx.strokeRect(x - size / 2 - 5, y - size / 2 - 5, size + 10, size + 10);
+		}
+	}
+
+	function renderOrderFrame() {
+		if (isOrderDecided && !isRolling) {
+			// 釋放相機資源
+			currentStream?.getTracks().forEach(track => track.stop());
+			return;
+		}
+
+		const ctx = document.getElementById('recognition-canvas').getContext('2d');
+		const video = document.getElementById('temp-video');
+		const cw = 400, ch = 300;
+
+		// 1. 畫出背景畫面 (鏡像)
+		ctx.save();
+		ctx.scale(-1, 1);
+		ctx.drawImage(video, -cw, 0, cw, ch);
+		ctx.restore();
+
+		const currTime = Date.now();
+		const dicePos = { x: 200, y: 150 }; // 畫布中心
+
+		// --- 2. 處理 MediaPipe 偵測邏輯 (移植自 play_dice.py) ---
+		// 假設 currentLandmarks 是從 MediaPipe 拿到的點
+		// 在 renderOrderFrame 函式內修改
+		if (currentLandmarks && currentLandmarks.length > 0) {
+			const lm9 = currentLandmarks[9];
+			const cx = lm9.x * cw;
+			const cy = lm9.y * ch;
+
+			const punchSpeed = lastHandY - cy; 
+			const dist = Math.sqrt(Math.pow(cx - dicePos.x, 2) + Math.pow(cy - dicePos.y, 2));
+
+			// 🏆 優化 1：速度降到 1.0 (Python 靈敏度)
+			// 🏆 優化 2：距離放寬到 180
+			if (dist < 200 && punchSpeed > 0.5 && !isRolling && !isOrderDecided) {
+				isRolling = true;
+				rollStartTime = currTime;
+				console.log("🎲 偵測到揮手！開始擲骰...");
+			}
+			lastHandY = cy;
+		}
+
+		// --- 3. 繪製骰子動畫 ---
+		// 尋找 renderOrderFrame 函式內的此段落並修改
+		if (isRolling) {
+			const elapsed = currTime - rollStartTime;
+			if (elapsed < rollDuration) {
+				// 旋轉中，顯示隨機花色
+				const tempVal = Math.floor(Math.random() * 6) + 1;
+				drawDiceFace(ctx, diceImages[tempVal], dicePos.x, dicePos.y, true);
+			// 在 renderOrderFrame 函式中
+			// 尋找 renderOrderFrame 函式內的動畫結束區塊 (else)
+			} else {
+				isRolling = false;
+				
+				// 🏆 修正：必須先產生隨機數字並賦值給全域變數
+				const finalPoint = Math.floor(Math.random() * 6) + 1;
+				myDicePoint = finalPoint; 
+				
+				console.log("🎲 動畫結束，最終點數：", finalPoint);
+				
+				// 🏆 傳入確定後的數字
+				onFistUpDetected(finalPoint); 
+			}
+		}
+
+		requestAnimationFrame(renderOrderFrame);
+	}
+	
+
+
+	function drawScannerOverlay(ctx) {
+		const size = 180;
+		const x = 200 - size/2;
+		const y = 150 - size/2;
+
+		ctx.strokeStyle = "#ffde59";
+		ctx.lineWidth = 4;
+		ctx.setLineDash([]); 
+
+		// 左上角 L
+		ctx.beginPath();
+		ctx.moveTo(x, y + 30); ctx.lineTo(x, y); ctx.lineTo(x + 30, y);
+		ctx.stroke();
+
+		// 右下角 L
+		ctx.beginPath();
+		ctx.moveTo(x + size, y + size - 30); ctx.lineTo(x + size, y + size); ctx.lineTo(x + size - 30, y + size);
+		ctx.stroke();
+
+		// 提示小字
+		ctx.fillStyle = "rgba(0,0,0,0.5)";
+		ctx.fillRect(110, 240, 180, 25);
+		ctx.fillStyle = "#fff";
+		ctx.font = "14px Arial";
+		ctx.textAlign = "center";
+		ctx.fillText("請對準掃描框比出手勢", 200, 258);
+	}
+
+	function showDecideOrderUI(roomName) {
+		const content = document.getElementById('flow-content');
+		if (!content) return;
+
+		// 🏆 定義文字樣式，解決變數未定義導致不顯示的問題
+		const textShadow = "text-shadow: 0 0 20px rgba(0,0,0,0.8), 0 4px 12px rgba(0,0,0,1); font-weight: 900; margin: 0; text-align: center;";
+
+		// 第一階段：大文字提示
+		content.style.opacity = "0";
+		setTimeout(() => {
+			content.innerHTML = `
+				<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100vw;">
+					<h2 style="font-size: 3.5rem; color: #ffde59; ${textShadow}">讓我們根據點數決定順序吧！</h2>
+					<p style="font-size: 2.2rem; margin-top: 25px; color: white; ${textShadow}">怎麼擲骰子呢？讓我們拳頭往上吧！✊</p>
+				</div>
+			`;
+			content.style.opacity = "1";
+
+			// 第二階段：進入相機模式
+			setTimeout(() => {
+				content.style.opacity = "0"; 
+				setTimeout(() => {
+					// 🏆 關鍵修正：對 content 進行重置，並確保內容佈局不受限
+					content.style.height = "100vh";
+					content.style.display = "flex";
+					content.style.alignItems = "center";
+					content.style.justifyContent = "center";
+
+					content.innerHTML = `
+						<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100vw; position: relative; z-index: 100000;">
+							
+							<h2 id="order-status-text" style="font-size: 3rem; color: #ffde59; transform: translate(-210px, -180px); ${textShadow} display: block !important;">
+								請拳頭向上來擲骰子 ✊
+							</h2>
+
+							<div style="position: relative; width: 400px; height: 300px; margin-top: 110px; border: 4px solid #fff; border-radius: 20px; overflow: hidden; box-shadow: 0 0 30px rgba(0,0,0,0.6); background: #000;">
+								<video id="temp-video" style="position: absolute; width: 100%; height: 100%; object-fit: cover; opacity: 0;" muted playsinline autoplay></video>
+								<canvas id="recognition-canvas" width="400" height="300" style="display: block; position: relative; z-index: 1;"></canvas>
+								<div id="scanner-line" style="position:absolute; top:0; left:0; width:100%; height:2px; background: #ffde59; box-shadow: 0 0 15px #ffde59; animation: scan 2s linear infinite; z-index: 2;"></div>
+							</div>
+						</div>
+					`;
+					content.style.opacity = "1"; 
+					
+					setTimeout(() => {
+						startRecognitionProcess();
+					}, 150);
+				}, 800);
+			}, 3500);
+		}, 800);
+	}
+
+	function syncOrderDice(point) {
+		// 🏆 修正 1：檢查 room_code 是否存在，你的 localStorage 可能是存 pypoly_active_room
+		const activeRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
+		const roomCode = activeRoom ? activeRoom.code : localStorage.getItem('room_code');
+		const user = localStorage.getItem('username');
+
+		if (socket && point !== undefined) {
+			console.log("📤 正在同步點數至伺服器...", point);
+			
+			// 🏆 關鍵修正 2：發送的 Key 必須嚴格對齊後端 main.py 的 data['points']
+			socket.emit('submit_order_dice', {
+				room: roomCode, // 後端對應 data['room']
+				user: user,     // 後端對應 data['user']
+				points: point   // 👈 這裡必須叫 points，不能叫 point 或其他名字
+			});
+		} else {
+			console.error("❌ 無法發送：Socket 未連線或點數無效 (undefined)");
+		}
+	}
+
+async function onFistUpDetected(point) {
+    const statusText = document.getElementById('order-status-text');
+    // 🏆 更新目前玩家看到的標題
+    if (statusText) statusText.innerText = `🎲 你擲出了 ${point} 點！`;
+
+    setTimeout(async () => {
+        const flowContent = document.getElementById('flow-content');
+        if (flowContent) {
+            // 先讓相機部分消失，但保留文字提示
+            const cameraBox = flowContent.querySelector('div[style*="background: #000"]');
+            if (cameraBox) cameraBox.style.display = 'none';
+
+            // 🏆 顯示等待對手的訊息
+			if (statusText) {
+                // 例如：向上移動 160 像素，向左移動 50 像素
+                statusText.style.transform = "translate(-240px, -70px)"; 
+                statusText.innerHTML = `
+                    <div style="text-align: center;">
+                        <span style="font-size: 3.5rem; color: #ffde59; text-shadow: 0 0 20px rgba(0,0,0,0.8);">🎲 你擲出了 ${point} 點！</span><br>
+                        <span style="font-size: 2.2rem; color: #fff; text-shadow: 0 0 15px rgba(0,0,0,0.8); opacity: 0.9;">等待對手擲骰中...</span>
+                    </div>
+                `;
+            }
+
+            // 停止並清理相機
+            if (cameraInstance) { 
+                await cameraInstance.stop(); 
+                cameraInstance = null; 
+            }
+
+            // 同步點數至後端
+            syncOrderDice(point);
+        }
+    }, 2000); 
+}
+
+	// 🏆 修正平手再一次的邏輯 (放在 socket 監聽器內)
+socket.on('dice_order_final', (results) => {
+    console.log("🎯 收到雙方擲骰結果了！", results);
+    const myName = localStorage.getItem('username');
+    const myPoint = results[myName];
+    const allUsers = Object.keys(results);
+    const opponentName = allUsers.find(name => name !== myName) || "對手";
+    const opponentPoint = results[opponentName];
+
+    // 🏆 定義樣式變數
+    const localTextShadow = "text-shadow: 0 0 20px rgba(0,0,0,0.8), 0 4px 12px rgba(0,0,0,1); font-weight: 900; margin: 0; text-align: center;";
+
+	const vsHTML = `
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; animation: noticePopIn 0.5s ease;">
+            <h2 style="font-size: 2.8rem; color: #1e293b; font-weight: 900; margin-bottom: 35px; text-align: center;">🎲 決定先後順序</h2>
+            
+            <div style="display: flex; flex-direction: column; gap: 15px; width: 450px; align-items: center;">
+                
+                <div style="width: 100%; background: white; border-radius: 25px; padding: 25px 30px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 20px rgba(0,0,0,0.04); border: 1px solid #f1f5f9; opacity: 0; animation: listItemIn 0.6s ease 0.3s forwards;">
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <div style="width: 12px; height: 12px; background: #4facfe; border-radius: 50%; box-shadow: 0 0 10px rgba(79,172,254,0.5);"></div>
+                        <p style="font-size: 1.8rem; color: #334155; font-weight: 800; margin: 0;">${myName}</p>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 20px;">
+                        <img src="dice_faces/${myPoint}.png" style="width: 60px; height: 60px;">
+                        <span style="font-size: 2.4rem; color: #4facfe; font-weight: 900;">${myPoint} <small style="font-size: 1.1rem; color: #94a3b8;">pt</small></span>
+                    </div>
+                </div>
+
+                <div style="width: 100%; text-align: center; font-size: 1.8rem; color: #cbd5e1; font-weight: 900; margin: 5px 0; letter-spacing: 4px; animation: noticePopIn 0.5s ease 0.8s;">VS</div>
+
+                <div style="width: 100%; background: white; border-radius: 25px; padding: 25px 30px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 20px rgba(0,0,0,0.04); border: 1px solid #f1f5f9; opacity: 0; animation: listItemIn 0.6s ease 1.3s forwards;">
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <div style="width: 12px; height: 12px; background: #94a3b8; border-radius: 50%;"></div>
+                        <p style="font-size: 1.8rem; color: #334155; font-weight: 800; margin: 0;">${opponentName}</p>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 20px;">
+                        <img src="dice_faces/${opponentPoint}.png" style="width: 60px; height: 60px;">
+                        <span style="font-size: 2.4rem; color: #334155; font-weight: 900;">${opponentPoint} <small style="font-size: 1.1rem; color: #94a3b8;">pt</small></span>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    `;
+
+    const content = document.getElementById('flow-content');
+    if (content) {
+        content.style.opacity = "1";
+        content.innerHTML = `<div class="background-overlay" style="display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 1s;">${vsHTML}</div>`;
+    }
+
+    // 🏆 修正後的計時邏輯
+	setTimeout(() => {
+        if (myPoint === opponentPoint) {
+            showGameNotice("🤝 你們真有默契！平手重新擲骰", 3500);
+            
+            isOrderDecided = false; 
+            isRolling = false; 
+            myDicePoint = 0;
+            
+            const activeRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
+            const roomCode = activeRoom ? activeRoom.code : localStorage.getItem('room_code');
+            socket.emit('reset_dice_order', { room: roomCode });
+
+            setTimeout(() => { showDecideOrderUI(); }, 4000);
+        } else {
+            const iAmFirst = myPoint > opponentPoint;
+            // 🏆 修正點：移除手部的 content.style.opacity = "0"，交給函式處理
+            const turnMsg = iAmFirst ? "🎲 你先開始！" : `⚔️ ${opponentName} 先開始！`;
+            
+            showGameNotice(turnMsg, 3500);
+            
+            setTimeout(() => {
+                if (cameraInstance) cameraInstance.stop();
+                finalizeGameStart(iAmFirst);
+            }, 3500);
+        }
+    }, 7500);
+}); // 這裡才是正確的結束括號
+		
+	socket.on('char_data_sync', (data) => {
+		const myName = localStorage.getItem('username');
+		if (data.user === myName) return;
+		const model = playerModels[data.user];
+		if (model) {
+			applyCharDataToMat(model.userData.charShader, data);
+		} else {
+			pendingCharData[data.user] = data;
+		}
+	});
+
+	// 在 socket 監聽區段加入 (建議放在 socket.on('dice_order_final') 附近)
+	socket.on('land_bought_sync', (data) => {
+		// 1. 找到對應的 3D 方塊
+		const targetTile = allTileMeshes[data.tileIndex];
+		
+		if (targetTile) {
+			// 2. 變更顏色
+			targetTile.material.color.set(data.color);
+			
+			// 3. 播放小動畫 (讓方塊跳動一下表示被買下)
+			gsap.to(targetTile.scale, {
+				y: 2, 
+				duration: 0.3, 
+				yoyo: true, 
+				repeat: 1, 
+				ease: "power2.out"
+			});
+		}
+		
+		showGameNotice(`${data.user} 成功收購了此地！🏡`);
+	});
+
+	function checkIfBothRolled() {
+		if (diceData.me !== null && diceData.opponent !== null) {
+			// 🏆 雙方都到齊了，開始比大小
+			const myName = localStorage.getItem('username');
+			const iAmFirst = diceData.me >= diceData.opponent;
+			
+			showGameNotice(`擲骰結果：我(${diceData.me}) VS 對手(${diceData.opponent})`);
+			
+			setTimeout(() => {
+				const winner = iAmFirst ? "你" : "對手";
+				showGameNotice(`${winner} 先開始！`);
+				
+				// 兩秒後進入正式回合
+				setTimeout(() => {
+					startMainTurn(iAmFirst); 
+				}, 2000);
+			}, 2500);
+		}
+	}
+
+	function findOpponentPoint(results, myName) {
+		for (let user in results) {
+			if (user !== myName) return results[user];
+		}
+		return 0;
+	}
+
+	async function handleDiceComparison() {
+		const iAmFirst = myDicePoint >= opponentDicePoint;
+		const myName = localStorage.getItem('username');
+		
+		// 🏆 提示誰先開始
+		alert(iAmFirst ? "你贏了！你先出發" : "對方先出發");
+		
+		// 假設贏的人先走 myDicePoint 步數
+		if(iAmFirst) {
+			await movePlayer(myName, myDicePoint);
+		} else {
+			// 找出對方的名字並移動
+			const players = JSON.parse(localStorage.getItem('pypoly_game_snapshot')).players;
+			const opponent = players.find(p => p !== myName);
+			await movePlayer(opponent, opponentDicePoint);
+		}
+
+		finalizeGameStart(iAmFirst); 
+	}
+	
+	function finalizeOrder(allDiceResults) {
+		// allDiceResults 格式範例: { "userA": 6, "userB": 3 }
+		const sortedPlayers = Object.entries(allDiceResults)
+			.sort((a, b) => b[1] - a[1]); // 由大到小排
+
+		const firstPlayer = sortedPlayers[0][0];
+		
+		// 顯示提示 UI
+		showSystemNotice(`擲骰結果：${sortedPlayers[0][0]} (${sortedPlayers[0][1]}點) > ${sortedPlayers[1][0]} (${sortedPlayers[1][1]}點)`);
+		
+		setTimeout(() => {
+			showSystemNotice(`🎉 比賽開始！由 ${firstPlayer} 率先行動`);
+			startTurn(firstPlayer); // 進入正式回合
+		}, 2000);
+	}
+
+function finalizeGameStart(iAmFirst) {
+    const myName = localStorage.getItem('username');
+    const myModel = playerModels[myName];
+    if (!myModel) return;
+
+    if (iAmFirst) {
+        // --- 玩家一：進入眼睛，並對自己隱藏頭部 ---
+        camera.layers.enable(0); // 看到格子、地圖
+        camera.layers.disable(1); // 隱藏自己的頭部 (不再有布偶裝感)
+
+		// 🏆 新增：找出對手是誰，並在我的畫面中隱藏他
+        const players = JSON.parse(localStorage.getItem('pypoly_game_snapshot')).players;
+        const opponentName = players.find(p => p !== myName);
+        if (playerModels[opponentName]) {
+            playerModels[opponentName].visible = false; // 這樣他就絕對擋不到你了
+        }
+
+        const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(myModel.quaternion);
+		const eyePos = new THREE.Vector3()
+            .copy(myModel.position)
+            .add(new THREE.Vector3(0, 1.3, 0))
+            .addScaledVector(forward, 1.5); // 調整 1.2 這個數值即可
+
+        gsap.to(camera.position, {
+            x: eyePos.x, y: eyePos.y, z: eyePos.z,
+            duration: 2.5,
+            ease: "expo.out",
+            onUpdate: () => {
+                camera.lookAt(eyePos.x + forward.x * 10, eyePos.y, eyePos.z + forward.z * 10);
+            },
+            onComplete: () => {
+                showGameNotice("🌟 輪到你了！請準備擲骰並比出手勢", 3000);
+                setTimeout(() => { startMainTurn(true); }, 3500);
+            }
+        });
+    } else {
+        // --- 玩家二：上帝視角 ---
+        camera.layers.enable(0);
+        camera.layers.enable(1); // 上帝視角可以看到所有人的頭
+
+        gsap.to(camera.position, {
+            x: 0, y: 35, z: 25, // 高空俯瞰位置
+            duration: 2.5,
+            ease: "power2.inOut",
+            onUpdate: () => {
+                camera.lookAt(0, 0, 0); // 盯著地圖中央
+            },
+            onComplete: () => {
+                startMainTurn(false);
+            }
+        });
+    }
+}
+
+function startMainTurn(isMyTurn) {
+    const myName = localStorage.getItem('username');
+    const players = JSON.parse(localStorage.getItem('pypoly_game_snapshot')).players;
+    const opponentName = players.find(p => p !== myName);
+
+	if (isMyTurn) {
+        const myModel = playerModels[myName];
+        const forward = new THREE.Vector3(0, 0, 1);
+        forward.applyQuaternion(myModel.quaternion);
+
+        // 🏆 修改這裡：增加距離 (例如從 2.5 改成 4.5)
+        const screenDistance = 4.5; 
+        const screenPos = new THREE.Vector3().copy(myModel.position);
+        
+        // 眼睛高度稍微調低一點 (1.1)，讓螢幕中心對準視線
+        screenPos.y += 1.1; 
+        screenPos.addScaledVector(forward, screenDistance);
+
+        virtualScreen.position.copy(screenPos);
+        // 確保螢幕是面向相機位置
+        virtualScreen.lookAt(camera.position); 
+        virtualScreen.visible = true;
+
+        initCameraWithOverlay(); 
+    } else {
+        // 上帝視角顯示文字
+        const msg = `等待玩家 ${opponentName} 擲骰中...`;
+        showCustomNotice(msg, "center"); 
+    }
+}
+
+function showCustomNotice(msg, position = "top") {
+    const flow = document.getElementById('flow-content');
+    if (!flow) return;
+    
+    let style = "position: fixed; left: 50%; transform: translateX(-50%);";
+    if (position === "top") style += "top: 15%;";
+    else style += "top: 50%;"; // 畫面中央
+
+    flow.innerHTML = `
+        <div style="${style} background: rgba(0,0,0,0.7); padding: 20px 40px; border-radius: 15px; border: 3px solid #ffde59;">
+            <h2 style="color: white; margin: 0; font-size: 2rem;">${msg}</h2>
+        </div>
+    `;
+    flow.style.opacity = "1";
+}
+
+function initCameraWithOverlay() {
+    // 這裡調用您原本的鏡頭啟動邏輯，但在 Canvas 頂部加上提示文字
+    // 範例：在您的檢視區域 overlay 一個 div
+    const visionUI = document.createElement('div');
+    visionUI.id = "vision-overlay";
+    visionUI.innerHTML = `
+        <div style="position:fixed; top:20%; left:50%; transform:translateX(-50%); z-index:100; pointer-events:none;">
+            <p style="background:rgba(0,0,0,0.6); color:#ffde59; padding:10px 20px; border-radius:10px; font-size:1.5rem; font-weight:900;">
+                請比出對應點數的手勢！
+            </p>
+        </div>
+    `;
+    document.body.appendChild(visionUI);
+    
+    // 開啟 WebSocket 辨識
+    initCameraAndStartVision();
+}
+
+	
+// 監聽對手移動
+socket.on('player_move_sync', (data) => {
+    showGameNotice(`📢 ${data.user} 擲出了 ${data.steps} 點，開始移動！`, 3000);
+    movePlayerSequence(data.user, data.steps);
+});
+
+
+// 🏆 修正後的移動序列：包含轉向、步數氣泡、相機跟隨
+async function movePlayerSequence(playerName, steps) {
+    const model = playerModels[playerName];
+    if (!model) return;
+    
+    const myName = localStorage.getItem('username');
+    const isMe = playerName === myName;
+    
+    // 1. 根據視角顯示不同的提示位置
+    const noticePos = isMe ? "top" : "center"; 
+    showCustomNotice(`${playerName} 擲出 ${steps} 點，開始前進！`, noticePos);
+
+    // 🏆 隱藏機制：如果是我在走動，暫時把對手模型隱藏，避免轉彎時擋到我的第一人稱視角
+    const players = JSON.parse(localStorage.getItem('pypoly_game_snapshot')).players;
+    const opponentName = players.find(p => p !== myName);
+    if (isMe && playerModels[opponentName]) {
+        playerModels[opponentName].visible = false;
+    }
+
+    if (playerCurrentIndex[playerName] === undefined) playerCurrentIndex[playerName] = 0;
+
+    for (let i = 1; i <= steps; i++) {
+        playerCurrentIndex[playerName] = (playerCurrentIndex[playerName] + 1) % mapBlocks.length;
+        const targetPos = mapBlocks[playerCurrentIndex[playerName]];
+
+        // 🏆 計算下一格座標 (包含原本左右錯開的邏輯)
+        const offset = (playerName === Object.keys(playerModels)[0] ? -0.8 : 0.8);
+        const finalTargetX = targetPos.x + offset;
+        const finalTargetZ = targetPos.z;
+
+        // 2. 轉向下一格
+        model.lookAt(finalTargetX, model.position.y, finalTargetZ);
+        
+        // 3. 產生 +1 氣泡
+        spawnStepBubble(model, `+${i}`);
+
+        // 4. 跳動動畫
+        await new Promise(resolve => {
+            gsap.to(model.position, {
+                x: finalTargetX,
+                z: finalTargetZ,
+                y: targetPos.y + 0.25 - model.userData.objMinY + 0.2,
+                duration: 0.6,
+                ease: "power1.out",
+                onUpdate: () => {
+                    if (isMe) {
+                        // 🏆 我的視角同步：保持在眼睛高度並「往前推」
+                        const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(model.quaternion);
+                        
+                        // 定義往前推的距離 (跟 finalizeGameStart 保持一致)
+                        const offsetDistance = 1.5; 
+
+                        // 先複製模型位置
+                        camera.position.copy(model.position);
+                        // 向上移到眼睛
+                        camera.position.y += 1.3; 
+                        // 🏆 關鍵：向「前」推離中心點，才不會看到模型內部
+                        camera.position.addScaledVector(forward, offsetDistance);
+
+                        // 相機盯著正前方遠處
+                        camera.lookAt(
+                            camera.position.x + forward.x * 10, 
+                            camera.position.y, 
+                            camera.position.z + forward.z * 10
+                        );
+                    }
+                },
+                onComplete: resolve
+            });
+        });
+    }
+
+    // 🏆 移動結束：如果是我剛走完，把對手顯示回來，準備看他行動
+    if (isMe && playerModels[opponentName]) {
+        playerModels[opponentName].visible = true;
+    }
+
+    console.log(`${playerName} 移動結束`);
+    
+    // 如果是自己走完，可以觸發後續任務邏輯
+    if (isMe && typeof triggerTask === "function") {
+        triggerTask();
+    }
+}
+
+// 客製化提示 UI
+function showCustomNotice(msg, pos, duration = 4000) {
+    const flow = document.getElementById('flow-content');
+    if (!flow) return;
+
+    // 🏆 徹底移除 background, border, padding
+    const yPos = (pos === "top") ? "15%" : "50%";
+    flow.innerHTML = `
+        <div style="position:fixed; left:50%; top:${yPos}; transform:translate(-50%, -50%); 
+                    color: white; text-align: center; z-index: 1000; pointer-events: none;">
+            <h1 style="margin:0; font-size: 3.8rem; font-weight: 900; 
+                       text-shadow: 0 0 20px rgba(0,0,0,0.9), 2px 2px 4px rgba(0,0,0,1);
+                       letter-spacing: 2px;">
+                ${msg}
+            </h1>
+        </div>
+    `;
+    flow.style.opacity = "1";
+
+    if (duration > 0) {
+        setTimeout(() => { flow.style.opacity = "0"; }, duration);
+    }
+}
+
+// 🏆 氣泡提示動畫：直接在 3D 場景中生成文字 Sprite
+function spawnStepBubble(parentModel, text) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128; canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffde59';
+    ctx.beginPath(); ctx.arc(64, 64, 50, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#000'; ctx.font = 'bold 60px Inter'; ctx.textAlign = 'center';
+    ctx.fillText(text, 64, 85);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    const spriteMaterial = new THREE.SpriteMaterial({ map: texture, transparent: true });
+    const sprite = new THREE.Sprite(spriteMaterial);
+    
+    sprite.position.copy(parentModel.position);
+    sprite.position.y += 2.5;
+    scene.add(sprite);
+
+    gsap.to(sprite.position, { y: sprite.position.y + 1.5, duration: 1.2 });
+    gsap.to(sprite.material, { opacity: 0, duration: 1.2, onComplete: () => scene.remove(sprite) });
+}
+	
+
+	function triggerTask() {
+		const myName = localStorage.getItem('username');
+		currentTileIndex = playerCurrentIndex[myName];
+		
+		// 如果是起點(0)，不觸發任務
+		if (currentTileIndex === 0) {
+			showGameNotice("回到起點，領取獎勵金！💰");
+			return;
+		}
+
+		// 顯示任務視窗
+		document.getElementById('task-overlay').style.display = 'flex';
+		document.getElementById('task-input').value = "";
+		document.getElementById('task-input').focus();
+	}
+
+	function submitTaskAnswer() {
+		const ans = document.getElementById('task-input').value;
+		const overlay = document.getElementById('task-overlay');
+
+		if (ans === "2") {
+			overlay.style.display = 'none';
+			showGameNotice("🎉 回答正確！進入買地階段", 2000);
+			
+			// 延遲一下顯示「買地選單」
+			setTimeout(showBuyLandUI, 1000);
+		} else {
+			showGameNotice("❌ 回答錯誤，失去買地機會！", 2000);
+			overlay.style.display = 'none';
+			// 換下一個玩家 (透過 Socket 通知 Python)
+			passTurnToNextPlayer();
+		}
+	}
+	
+	function showBuyLandUI() {
+		const myName = localStorage.getItem('username');
+		const currentIndex = playerCurrentIndex[myName];
+		const cost = 500; 
+
+		// 這裡實作一個簡單的確認，之後可以改成精美的 UI 按鈕
+		if (confirm(`回答正確！這塊地價值 $${cost}，是否購買？`)) {
+			// 發送給後端
+			socket.emit('buy_land', {
+				room: localStorage.getItem('pypoly_room_name'),
+				user: myName,
+				tileIndex: currentIndex
+			});
+			
+			// 更新本地錢幣 UI (假設 ID 是 cash-playername)
+			updateMoneyUI(myName, -cost);
+		} else {
+			// 放棄購買，直接換人
+			socket.emit('next_turn', { room: localStorage.getItem('pypoly_room_name') });
+		}
+	}
+	
+	function updateMoneyUI(playerName, amount) {
+		const cashElement = document.getElementById(`cash-${playerName}`);
+		if (cashElement) {
+			let currentCash = parseInt(cashElement.innerText.replace(',', ''));
+			currentCash += amount;
+			cashElement.innerText = currentCash.toLocaleString();
+		}
+	}
+
+	async function movePlayer(playerName, steps) {
+		const model = playerModels[playerName];
+		if (!model) return;
+
+		if (!playerCurrentIndex[playerName]) playerCurrentIndex[playerName] = 0;
+
+		for (let i = 0; i < steps; i++) {
+			playerCurrentIndex[playerName] = (playerCurrentIndex[playerName] + 1) % mapBlocks.length;
+			const targetPos = mapBlocks[playerCurrentIndex[playerName]];
+			
+			spawnStepBubble(model, `+${i + 1}`);
+
+			// 🏆 使用 Promise 配合 GSAP 達成一格一格跳動的效果
+			await new Promise(resolve => {
+				gsap.to(model.position, {
+					x: targetPos.x + (playerName === Object.keys(playerModels)[0] ? -0.8 : 0.8),
+					z: targetPos.z,
+					duration: 0.5,
+					ease: "back.out(1.7)", // 增加一點彈跳感
+					onStart: () => {
+						// 讓角色轉向目標方向
+						model.lookAt(targetPos.x, model.position.y, targetPos.z);
+					},
+					onComplete: resolve
+				});
+			});
+		}
+	}
+
+function showGameNotice(msg, duration = 3000) {
+    const content = document.getElementById('flow-content');
+    if (!content) return;
+    
+    // 🏆 先隱藏內容以利重置動畫
+    content.style.opacity = "0";
+    console.log("📢 準備顯示訊息:", msg);
+    
+	setTimeout(() => {
+        content.innerHTML = `
+            <div style="display: flex; justify-content: center; align-items: center; width: 100vw; height: 100vh; pointer-events: none; position: fixed; top: 0; left: 0; background: rgba(240, 249, 255, 0.3); backdrop-filter: blur(8px);">
+                <div style="
+                    background: rgba(255, 255, 255, 0.9); 
+                    padding: 40px 80px; 
+                    border-radius: 40px; 
+                    border: 2px solid #ffffff;
+                    box-shadow: 0 15px 40px rgba(0,0,0,0.06);
+                    animation: noticePopIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                ">
+                    <h2 style="
+                        font-size: 3.2rem; 
+                        color: #1e293b; 
+                        font-weight: 900; 
+                        margin: 0;
+                        text-align: center;
+                        letter-spacing: -1px;
+                        display: block !important;
+                    ">
+                        ${msg}
+                    </h2>
+                </div>
+            </div>
+        `;
+        content.style.opacity = "1";
+    }, 100);
+
+    if (duration > 0) {
+        setTimeout(() => { 
+            content.style.opacity = "0"; 
+            setTimeout(() => { if(content.style.opacity === "0") content.innerHTML = ""; }, 800);
+        }, duration);
+    }
+}
+
+	function startSyncLoop(username, token) {
+		syncTimer = setInterval(async () => {
+			fetch(`${API_URL}/auth/heartbeat?username=${username}`, {
+				method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
+			});
+		}, 5000);
+	}
+	
+	function toggleMenu() {
+		document.getElementById('sideMenu').classList.toggle('open');
+		document.getElementById('overlay').classList.toggle('open');
+	}
+	
+	async function leaveCurrentRoom() {
+		const activeRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
+		const username   = localStorage.getItem('username');
+		if (!activeRoom || !username) return;
+		const code   = activeRoom.code;
+		const isHost = activeRoom.hostId === username;
+		try {
+			if (isHost) {
+				await fetch(`${API_URL}/rooms/delete/${code}`, { method: 'DELETE' });
+			} else {
+				await fetch(`${API_URL}/rooms/leave/${code}?username=${encodeURIComponent(username)}`, { method: 'POST' });
+			}
+		} catch(e) {}
+		localStorage.removeItem('pypoly_active_room');
+	}
+
+	async function returnToLobby() {
+		await leaveCurrentRoom();
+		window.location.href = 'lobby.html';
+	}
+
+	async function logout() {
+		if (syncTimer) clearInterval(syncTimer);
+		await leaveCurrentRoom();
+		const username = localStorage.getItem('username');
+		await fetch(`${API_URL}/auth/logout?username=${username}&confirm=true`, { method: 'POST' });
+		localStorage.clear();
+		window.location.href = 'login.html';
+	}
+
+
+</script>
+</body>
+</html>
