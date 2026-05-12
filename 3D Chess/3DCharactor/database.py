@@ -1,24 +1,14 @@
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+import os
 
-# 🏆 XAMPP MySQL 連線設定
-# 帳號：root | 密碼：空 | 主機：localhost | 資料庫：pypoly_db
-SQLALCHEMY_DATABASE_URL = "mysql+pymysql://root:@localhost/pypoly_db"
+_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pypoly.db")
+SQLALCHEMY_DATABASE_URL = f"sqlite:///{_DB_PATH}"
 
-# 建立連線引擎
-# 🚀 優化重點：
-# 1. pool_size: 提高基礎連線數到 20
-# 2. max_overflow: 允許額外增加 30 個臨時連線
-# 3. pool_timeout: 延長等待時間至 60 秒，避免瞬間併發時報錯
-# 4. pool_recycle: 每半小時自動回收連線，防止 MySQL 端的斷開
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
-    pool_size=20,
-    max_overflow=30,
-    pool_timeout=60,
-    pool_recycle=1800,
-    pool_pre_ping=True
+    connect_args={"check_same_thread": False},
 )
 
 # 建立 Session 類別

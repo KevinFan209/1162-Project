@@ -37,7 +37,8 @@
       "Bash(ngrok version *)",
       "Bash(findstr /i \"python\")",
       "Bash(venv/Scripts/python.exe -m uvicorn main:sio_app --host 127.0.0.1 --port 8002)",
-      "Bash(kill %1)"
+      "Bash(kill %1)",
+      "Bash(cmd /c start.bat)"
     ]
   }
 }

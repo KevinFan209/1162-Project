@@ -1,7 +1,6 @@
 fastapi
 uvicorn[standard]
 sqlalchemy
-pymysql
 google-auth
 google-auth-oauthlib
 python-multipart
