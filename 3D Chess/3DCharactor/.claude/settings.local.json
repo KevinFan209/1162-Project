@@ -1,44 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(venv/Scripts/python.exe -c \"import ast; ast.parse\\(open\\('main.py'\\).read\\(\\)\\); print\\('語法正確'\\)\")",
-      "Bash(venv/Scripts/python.exe -c \"import ast; ast.parse\\(open\\('main.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
-      "Bash(venv/Scripts/python.exe -c \"import main; print\\('模組匯入成功'\\)\")",
-      "Bash(venv/Scripts/python.exe -c \"import main; print\\('sio_app:', main.sio_app\\)\")",
-      "Bash(venv/Scripts/python.exe -m pip install pymysql)",
-      "Bash(venv/Scripts/uvicorn.exe main:sio_app --host 0.0.0.0 --port 8000)",
-      "Bash(venv/Scripts/python.exe -m uvicorn main:sio_app --host 0.0.0.0 --port 8000)",
-      "Bash(venv/Scripts/python.exe -m uvicorn main:sio_app --host 0.0.0.0 --port 8000 --reload)",
-      "Bash(python3 *)",
-      "Bash(gh api *)",
-      "WebFetch(domain:raw.githubusercontent.com)",
-      "Bash(python gen_architecture.py)",
-      "Bash(python *)",
-      "Bash(pip install *)",
-      "Bash(curl -s http://127.0.0.1:4040/api/tunnels)",
-      "Bash(curl *)",
-      "Bash(pkill -f \"uvicorn main:sio_app\")",
-      "Bash(venv/Scripts/python.exe -m uvicorn main:sio_app --host 127.0.0.1 --port 8000 --reload)",
-      "Bash(echo \"PID: $!\")",
-      "Bash(venv/Scripts/python.exe -c \"import socketio; help\\(socketio.ASGIApp.__init__\\)\")",
-      "Bash(venv/Scripts/python.exe -c ' *)",
-      "Bash(venv/Scripts/python.exe -c \"import main; print\\('import OK'\\); print\\(main.sio_app\\)\")",
-      "Bash(pkill -f \"uvicorn\")",
-      "PowerShell(Get-NetTCPConnection *)",
-      "PowerShell(netstat *)",
-      "PowerShell(Stop-Process *)",
-      "Bash(venv/Scripts/python.exe -m uvicorn main:sio_app --host 127.0.0.1 --port 8000)",
-      "Bash(netstat -ano)",
-      "Bash(venv/Scripts/python.exe -m uvicorn main:sio_app --host 127.0.0.1 --port 8001)",
-      "Bash(pkill -f \"ngrok\")",
-      "Bash(tasklist)",
-      "Bash(taskkill *)",
-      "Bash(ssh *)",
-      "Bash(ngrok version *)",
-      "Bash(findstr /i \"python\")",
-      "Bash(venv/Scripts/python.exe -m uvicorn main:sio_app --host 127.0.0.1 --port 8002)",
-      "Bash(kill %1)",
-      "Bash(cmd /c start.bat)"
+      "PowerShell(git *)"
     ]
   }
 }
