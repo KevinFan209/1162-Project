@@ -1,4 +1,4 @@
-function toggleModal(show) {
+﻿function toggleModal(show) {
     const display = show ? 'block' : 'none';
     document.getElementById('modal-overlay').style.display = display;
     document.getElementById('modal-content').style.display = display;
@@ -15,7 +15,7 @@ function setMode(mode) {
 }
 
 function startGame() {
-    alert("房間建立成功！即將進入 PyPoly 世界...");
+    alert("房間建立成功！即將進入 BeeRich 世界...");
     toggleModal(false);
     // 這裡未來可以跳轉到主遊戲網頁
 }

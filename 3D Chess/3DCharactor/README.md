@@ -1,6 +1,6 @@
-# 3DCharactor — 資料夾說明
+﻿# 3DCharactor — 資料夾說明
 
-本資料夾包含 PyPoly 3D 大富翁專案中，角色自定義功能的所有開發成果。
+本資料夾包含 碼上致富BeeRich 3D 大富翁專案中，角色自定義功能的所有開發成果。
 
 ---
 
@@ -29,7 +29,7 @@
 
 包含內容：
 - `static/character.html` — 3D 角色自定義頁面
-- `static/pypoly_char.js` — 供 game.html 引入的角色渲染模組
+- `static/beerich_char.js` — 供 game.html 引入的角色渲染模組
 - `static/models/` — Steve GLB 模型與貼圖
 - `static/game.html` — 加入完整角色系統、離房邏輯、API URL 動態化
 - `static/lobby.html` — 加入角色自定義選單連結、API URL 動態化
@@ -49,7 +49,7 @@
 
 包含內容：
 - `static/character.html` — 3D 角色自定義頁面（全新）
-- `static/pypoly_char.js` — 角色渲染模組（全新）
+- `static/beerich_char.js` — 角色渲染模組（全新）
 - `static/models/minecraft_-_steve.glb` — Steve 3D 模型（全新）
 - `static/models/steve_tex_0.png` — 模型貼圖（全新）
 - `static/game.html` — 原版 + 僅加入角色系統（其餘未動）

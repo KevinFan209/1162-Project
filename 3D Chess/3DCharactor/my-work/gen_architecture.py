@@ -1,4 +1,4 @@
-import matplotlib.pyplot as plt
+﻿import matplotlib.pyplot as plt
 from matplotlib.patches import FancyBboxPatch
 import matplotlib as mpl
 
@@ -51,7 +51,7 @@ def dblarrow(x1, y1, x2, y2):
                 arrowprops=dict(arrowstyle='<->', color='#555', lw=2.5), zorder=5)
 
 # ── Title ─────────────────────────────────────────────────────────────────────
-ax.text(16, 21.5, 'PyPoly 系統架構圖',
+ax.text(16, 21.5, '碼上致富BeeRich 系統架構圖',
         ha='center', va='center', fontsize=58, fontweight='bold', color='#1a1a2e')
 ax.text(16, 20.85, '三層式架構（Three-Tier Architecture）',
         ha='center', va='center', fontsize=32, color='#444')

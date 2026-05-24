@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PyPoly - Lobby</title>
+    <title>BeeRich - Lobby</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -241,7 +241,7 @@
 </div>
 
 <header>
-    <div class="header-left"><h1>PyPoly</h1></div>
+    <div class="header-left"><h1>BeeRich</h1></div>
     <div class="header-right">
         <div class="player-name" id="topPlayerName">載入中...</div>
         <button class="menu-btn" onclick="toggleMenu()">
@@ -366,7 +366,7 @@
 			window.location.href = "login.html";
 		}
 		
-		localStorage.removeItem('pypoly_game_snapshot');
+		localStorage.removeItem('beerich_game_snapshot');
 		
 		// 🏆 執行渲染房間
 		renderRooms();
@@ -430,7 +430,7 @@
 	
 	// 🏆 自動清理幽靈房間
 	async function checkGhostRoom() {
-		const localRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
+		const localRoom = JSON.parse(localStorage.getItem('beerich_active_room'));
 		if (!localRoom) return;
 
 		try {
@@ -438,7 +438,7 @@
 			if (res.status === 404) {
 				// 如果伺服器說這房間不存在，就清掉本地資料
 				console.log("清理不存在的房間緩存...");
-				localStorage.removeItem('pypoly_active_room');
+				localStorage.removeItem('beerich_active_room');
 				localStorage.removeItem('is_host');
 			}
 		} catch (e) {
@@ -466,7 +466,7 @@ async function joinRoom(roomCode, type) {
             const serverRoom = await joinRes.json();
             
             // 儲存房間資料
-            localStorage.setItem('pypoly_active_room', JSON.stringify(serverRoom));
+            localStorage.setItem('beerich_active_room', JSON.stringify(serverRoom));
             
             // 🏆 關鍵：判定「我」是否為房主並存入 localStorage
             const isActuallyHost = (serverRoom.hostId === myName);
@@ -538,7 +538,7 @@ async function joinRoom(roomCode, type) {
 			return;
 		}
 
-		const localRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
+		const localRoom = JSON.parse(localStorage.getItem('beerich_active_room'));
 		
 		// 🏆 比對代碼是否正確
 		if (localRoom && code === localRoom.code) {
@@ -567,7 +567,7 @@ async function quickVerify() {
             const serverRoom = await joinRes.json();
             
             // 🏆 步驟 B：儲存伺服器回傳的最新房間狀態
-            localStorage.setItem('pypoly_active_room', JSON.stringify(serverRoom));
+            localStorage.setItem('beerich_active_room', JSON.stringify(serverRoom));
             
             // 判定是否為房主 (通常加入者會是 false)
             const isActuallyHost = (serverRoom.hostId === myName);

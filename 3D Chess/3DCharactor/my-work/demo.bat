@@ -13,31 +13,16 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-:: 第一次執行時建立虛擬環境
-if not exist "%~dp0demo_venv\Scripts\python.exe" (
-    echo.
-    echo  第一次執行，正在建立虛擬環境...
-    python -m venv "%~dp0demo_venv"
-    if %errorlevel% neq 0 (
-        echo  錯誤：虛擬環境建立失敗
-        pause
-        exit /b 1
-    )
-)
-
-:: 安裝 / 確認套件（已安裝的話會直接跳過）
-echo.
-echo  正在確認套件...
-"%~dp0demo_venv\Scripts\pip" install -q -r "%~dp0demo_requirements.txt"
+:: 確認 fastapi / uvicorn 已安裝（系統 Python 已內建，一般不需重裝）
+python -c "import fastapi, uvicorn" >nul 2>&1
 if %errorlevel% neq 0 (
     echo.
-    echo  錯誤：套件安裝失敗，請確認網路連線
-    pause
-    exit /b 1
+    echo  正在安裝必要套件...
+    python -m pip install -q fastapi "uvicorn[standard]"
 )
 
 echo.
 echo  正在啟動角色自定義展示伺服器...
 echo.
-"%~dp0demo_venv\Scripts\python.exe" "%~dp0demo_server.py"
+python "%~dp0demo_server.py"
 pause

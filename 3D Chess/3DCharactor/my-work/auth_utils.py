@@ -1,4 +1,4 @@
-from passlib.context import CryptContext
+﻿from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from typing import Optional
@@ -15,7 +15,7 @@ pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 # JWT 設定
-SECRET_KEY = os.getenv("SECRET_KEY", "pypoly-adventure-secret-key-2026")
+SECRET_KEY = os.getenv("SECRET_KEY", "beerich-adventure-secret-key-2026")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 有效期 24 小時
 

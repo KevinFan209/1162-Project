@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
@@ -291,7 +291,7 @@ function loadCharacters() {
 
         let colors;
         if (charMode === 'mine') {
-            const raw = localStorage.getItem('pypoly_char_colors');
+            const raw = localStorage.getItem('beerich_char_colors');
             colors = raw ? Object.assign({}, defaultColors, JSON.parse(raw)) : { ...defaultColors };
         } else if (charMode === 'random') {
             colors = { head: randomHex(), arm: randomHex(), body: randomHex(), legs: randomHex(), feet: randomHex() };
@@ -338,7 +338,7 @@ function loadCharacters() {
             });
 
             if (charMode === 'mine' && i === 0) {
-                const dataUrl = localStorage.getItem('pypoly_char_face');
+                const dataUrl = localStorage.getItem('beerich_char_face');
                 if (dataUrl) {
                     const img = new Image();
                     img.onload = () => {

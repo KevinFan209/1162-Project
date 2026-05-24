@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, WebSocket, Query
+﻿from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, WebSocket, Query
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -93,8 +93,8 @@ async def start_cleanup_task():
 # --- Helpers ---
 
 def send_otp_email(to_email: str, otp: str):
-    msg = MIMEText(f"您的 PyPoly 驗證碼為：{otp}\n\n此驗證碼將在 10 分鐘內有效。", 'plain', 'utf-8')
-    msg['Subject'] = "PyPoly 驗證碼"
+    msg = MIMEText(f"您的 BeeRich 驗證碼為：{otp}\n\n此驗證碼將在 10 分鐘內有效。", 'plain', 'utf-8')
+    msg['Subject'] = "BeeRich 驗證碼"
     msg['From'] = SENDER_EMAIL
     msg['To'] = to_email
     try:

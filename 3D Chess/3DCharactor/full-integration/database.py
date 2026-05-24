@@ -1,9 +1,9 @@
-from sqlalchemy import create_engine
+﻿from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
 
-_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pypoly.db")
+_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "beerich.db")
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{_DB_PATH}"
 
 engine = create_engine(

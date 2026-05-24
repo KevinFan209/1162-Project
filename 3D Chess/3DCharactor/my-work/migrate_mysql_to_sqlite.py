@@ -1,5 +1,5 @@
-"""
-從 XAMPP MySQL (pypoly_db) 搬移資料到 SQLite (pypoly.db)
+﻿"""
+從 XAMPP MySQL (beerich_db) 搬移資料到 SQLite (beerich.db)
 執行前請確認 XAMPP 的 MySQL 正在運行。
 執行方式：venv\Scripts\python.exe migrate_mysql_to_sqlite.py
 """
@@ -17,7 +17,7 @@ except ImportError:
 MYSQL_HOST = "localhost"
 MYSQL_USER = "root"
 MYSQL_PASSWORD = ""
-MYSQL_DB = "pypoly_db"
+MYSQL_DB = "beerich_db"
 
 print("=" * 50)
 print("  MySQL → SQLite 資料搬移工具")
@@ -51,7 +51,7 @@ print("\n[2/3] 建立 SQLite 資料庫...")
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pypoly.db")
+_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "beerich.db")
 
 if os.path.exists(_DB_PATH):
     confirm = input(f"\n  警告：{_DB_PATH} 已存在，繼續會覆蓋重複的帳號。\n  繼續？(y/n): ")

@@ -1,4 +1,4 @@
-:root {
+﻿:root {
     --bg-overlay: rgba(5, 5, 10, 0.9);
     --window-bg: rgba(20, 10, 35, 0.98);
     --accent-purple: #9d50bb;
@@ -14,7 +14,7 @@ body {
 }
 
 /* 滿版遮罩 */
-.pypoly-overlay {
+.beerich-overlay {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
     background: var(--bg-overlay);
     display: flex; justify-content: center; align-items: center;

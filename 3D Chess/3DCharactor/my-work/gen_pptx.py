@@ -1,4 +1,4 @@
-from pptx import Presentation
+﻿from pptx import Presentation
 from pptx.util import Inches, Pt, Emu
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
@@ -73,7 +73,7 @@ def section(slide, title, x, y, w, h, items, title_size=18, item_size=13,
 s1 = prs.slides.add_slide(BLANK)
 
 # 頁首標題
-tb(s1, 'PyPoly 系統架構', Inches(0.4), Inches(0.2),
+tb(s1, '碼上致富BeeRich 系統架構', Inches(0.4), Inches(0.2),
    Inches(12.5), Inches(0.7), 36, bold=True, color=DARK,
    align=PP_ALIGN.CENTER)
 
@@ -245,6 +245,6 @@ tb(s3, '3 / 3', Inches(12.5), Inches(7.15), Inches(0.7), Inches(0.3),
 
 # ── 儲存 ──────────────────────────────────────────────────────────────────────
 import os
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'PyPoly_slides.pptx')
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'BeeRich_slides.pptx')
 prs.save(OUT)
 print('Saved:', OUT)

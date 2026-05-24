@@ -1,9 +1,9 @@
-services:
+﻿services:
   db:
     image: mysql:8.0
     environment:
       MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
-      MYSQL_DATABASE: pypoly_db
+      MYSQL_DATABASE: beerich_db
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
@@ -17,7 +17,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: "mysql+pymysql://root:@db/pypoly_db"
+      DATABASE_URL: "mysql+pymysql://root:@db/beerich_db"
     depends_on:
       db:
         condition: service_healthy

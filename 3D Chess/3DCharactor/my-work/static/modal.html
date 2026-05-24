@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PyPoly - 建立房間</title>
+    <title>BeeRich - 建立房間</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;900&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
     <style>
@@ -285,13 +285,13 @@
 
 	// 修改後的 createAndGo
 	async function createAndGo() {
-		const activeRoom = localStorage.getItem('pypoly_active_room');
+		const activeRoom = localStorage.getItem('beerich_active_room');
 		
 		// 如果本地有舊資料，直接彈窗問使用者要不要清除
 		if (activeRoom) {
 			const reset = confirm("偵測到舊對局資料，是否強制清除並建立新房間？");
 			if (!reset) return;
-			localStorage.removeItem('pypoly_active_room');
+			localStorage.removeItem('beerich_active_room');
 		}
 
 		// 取得表單資料 (確保這些 ID 都對應正確)
@@ -321,7 +321,7 @@
 			});
 
 			if (response.ok) {
-				localStorage.setItem('pypoly_active_room', JSON.stringify(newRoomData));
+				localStorage.setItem('beerich_active_room', JSON.stringify(newRoomData));
 				localStorage.setItem('is_host', 'true');
 				window.location.href = 'WaitingRoom.html';
 			} else {

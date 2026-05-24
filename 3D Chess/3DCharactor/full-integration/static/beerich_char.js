@@ -1,5 +1,5 @@
-/**
- * pypoly_char.js — PyPoly 角色自定義整合模組
+﻿/**
+ * beerich_char.js — BeeRich 角色自定義整合模組
  *
  * 本檔案包含所有「角色自定義 → 棋盤顯示」的相關程式碼。
  * 在 game.html 中引入此檔案後，以下函式即可在全域使用：
@@ -15,10 +15,10 @@
  *   mapBlocks     — [] 陣列，棋盤各格的世界座標
  *
  * localStorage 讀取的 key（由 character.html 寫入）：
- *   pypoly_char_colors  — JSON {"head","arm","body","legs","feet"}
- *   pypoly_char_face    — base64 JPEG data URL
- *   pypoly_game_snapshot — 遊戲快照（game.html 本身也使用）
- *   pypoly_active_room   — 房間資訊
+ *   beerich_char_colors  — JSON {"head","arm","body","legs","feet"}
+ *   beerich_char_face    — base64 JPEG data URL
+ *   beerich_game_snapshot — 遊戲快照（game.html 本身也使用）
+ *   beerich_active_room   — 房間資訊
  */
 
 // ─────────────────────────────────────────────
@@ -39,7 +39,7 @@ function makeDummyTexture() {
 }
 
 function loadFaceTextureIntoMat(mat) {
-    const dataUrl = localStorage.getItem('pypoly_char_face');
+    const dataUrl = localStorage.getItem('beerich_char_face');
     if (!dataUrl) return;
     const img = new Image();
     img.onload = () => {
@@ -87,12 +87,12 @@ function applyCharDataToMat(mat, data) {
 
 function emitCharData() {
     const myName = localStorage.getItem('username');
-    const activeRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const activeRoom = JSON.parse(localStorage.getItem('beerich_active_room'));
     const room = activeRoom ? activeRoom.code : localStorage.getItem('room_code');
     if (!room) return;
-    const rawColors = localStorage.getItem('pypoly_char_colors');
+    const rawColors = localStorage.getItem('beerich_char_colors');
     const colors = rawColors ? JSON.parse(rawColors) : null;
-    const face = localStorage.getItem('pypoly_char_face') || null;
+    const face = localStorage.getItem('beerich_char_face') || null;
     socket.emit('char_data_sync', { room, user: myName, colors, face });
 }
 
@@ -186,7 +186,7 @@ const CHAR_FRAG = `
 
 function loadPlayerModels() {
     const loader = new THREE.GLTFLoader();
-    const gameSnapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot'));
+    const gameSnapshot = JSON.parse(localStorage.getItem('beerich_game_snapshot'));
     const players = gameSnapshot.players;
     const myName = localStorage.getItem('username');
 
@@ -214,7 +214,7 @@ function loadPlayerModels() {
             // 自己：從 localStorage 讀取顏色；對手：先用預設，等 char_data_sync 到了再更新
             let colors = { ...defaultColors };
             if (playerName === myName) {
-                const raw = localStorage.getItem('pypoly_char_colors');
+                const raw = localStorage.getItem('beerich_char_colors');
                 if (raw) { try { Object.assign(colors, JSON.parse(raw)); } catch(e) {} }
             }
 

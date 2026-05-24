@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PyPoly - 等待冒險</title>
+    <title>BeeRich - 等待冒險</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
     <style>
@@ -144,7 +144,7 @@
 </div>
 
 <header>
-    <div class="header-left"><h1>PyPoly</h1></div>
+    <div class="header-left"><h1>BeeRich</h1></div>
     <div class="header-right">
         <div class="player-name" id="topPlayerName">載入中...</div>
         <button class="menu-btn" onclick="toggleMenu()">
@@ -238,7 +238,7 @@
 	window.onload = async function() {
 		const token = localStorage.getItem('token');
 		const username = localStorage.getItem('username');
-		const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+		const roomData = JSON.parse(localStorage.getItem('beerich_active_room'));
 
 		// 1. 基礎檢查：確保有登入資訊與房間資料
 		if (!token || !username || !roomData) {
@@ -338,7 +338,7 @@
 	// --- 1. 核心刷新函式：處理同步與資訊渲染 ---
 async function refreshRoomStatus() {
     const myName = localStorage.getItem('username'); 
-    const rawData = localStorage.getItem('pypoly_active_room') || localStorage.getItem('room_info');
+    const rawData = localStorage.getItem('beerich_active_room') || localStorage.getItem('room_info');
     const localData = rawData ? JSON.parse(rawData) : null;
     if (!localData) return;
 
@@ -366,7 +366,7 @@ async function refreshRoomStatus() {
             document.getElementById('modalTitle').innerText = "📢 房間已解散";
             document.getElementById('modalDesc').innerText = "房主已解散房間，即將返回大廳。";
             document.getElementById('modalConfirmBtn').onclick = () => {
-                localStorage.removeItem('pypoly_active_room');
+                localStorage.removeItem('beerich_active_room');
                 location.href = 'lobby.html';
             };
             modal.style.display = 'flex';
@@ -387,7 +387,7 @@ async function refreshRoomStatus() {
             document.getElementById('modalTitle').innerText = "🚪 您已被剔除";
             document.getElementById('modalDesc').innerText = "您已被房主請出房間，即將返回大廳。";
             document.getElementById('modalConfirmBtn').onclick = () => {
-                localStorage.removeItem('pypoly_active_room');
+                localStorage.removeItem('beerich_active_room');
                 location.href = 'lobby.html';
             };
             modal.style.display = 'flex';
@@ -469,7 +469,7 @@ async function refreshRoomStatus() {
 async function kickGuest(guestName) {
     if (!guestName) return;
     
-    const rawData = localStorage.getItem('pypoly_active_room');
+    const rawData = localStorage.getItem('beerich_active_room');
     const roomData = JSON.parse(rawData);
     const API_URL = window.location.protocol !== 'file:' ? window.location.origin : 'http://localhost:8000';
 
@@ -532,7 +532,7 @@ function handleLobbyReturn() {
 
 // 🏆 核心修正：讓玩家離開時主動通知後端，更新人數 2/2 -> 1/2
 async function quitRoom() {
-    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomData = JSON.parse(localStorage.getItem('beerich_active_room'));
     const username = localStorage.getItem('username');
 
     if (roomData && username) {
@@ -549,7 +549,7 @@ async function quitRoom() {
     }
 
     // 清除本地暫存
-    localStorage.removeItem('pypoly_active_room');
+    localStorage.removeItem('beerich_active_room');
     localStorage.removeItem('is_host');
     
     // 返回大廳
@@ -564,7 +564,7 @@ async function executeExit() {
         syncTimer = null;
     }
 
-    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomData = JSON.parse(localStorage.getItem('beerich_active_room'));
     const myName = localStorage.getItem('username');
     const isHost = localStorage.getItem('is_host') === 'true';
 
@@ -582,7 +582,7 @@ async function executeExit() {
     }
 
     // 清除快照，防止重新整理頁面時又抓到舊房間
-    localStorage.removeItem('pypoly_active_room');
+    localStorage.removeItem('beerich_active_room');
     location.replace('lobby.html');
 }
 
@@ -600,7 +600,7 @@ async function startGame() {
     // 🏆 1. 取得基礎資訊
     const myName = localStorage.getItem('username'); 
     const token = localStorage.getItem('token');
-    const rawData = localStorage.getItem('pypoly_active_room');
+    const rawData = localStorage.getItem('beerich_active_room');
     const isHost = localStorage.getItem('is_host') === 'true';
 
     if (!isHost) return;
@@ -608,14 +608,14 @@ async function startGame() {
     // 🏆 2. 強化版 RoomCode 抓取邏輯 (解決 null 問題)
     let roomCode = localStorage.getItem('roomCode');
     
-    // 如果單獨的 roomCode 是空的，嘗試從 pypoly_active_room 物件中解析
+    // 如果單獨的 roomCode 是空的，嘗試從 beerich_active_room 物件中解析
     if (!roomCode || roomCode === "null") {
         if (rawData) {
             try {
                 const roomObj = JSON.parse(rawData);
                 roomCode = roomObj.code; // 抓取物件內的 code 屬性
             } catch (e) {
-                console.error("解析 pypoly_active_room 失敗:", e);
+                console.error("解析 beerich_active_room 失敗:", e);
             }
         }
     }
@@ -666,7 +666,7 @@ async function startGame() {
             console.log("房主啟動成功，同步資料中...");
             
             // 🏆 關鍵：跳轉前必須先存入 snapshot，否則 game.html 會因為找不到資料而閃退
-            localStorage.setItem('pypoly_game_snapshot', JSON.stringify(latestData));
+            localStorage.setItem('beerich_game_snapshot', JSON.stringify(latestData));
             
             // 🏆 修正：確保檔名與實際檔案 (game.html) 大小寫一致
             window.location.href = 'game.html';
@@ -710,7 +710,7 @@ function startSyncLoop(username, token) {
         try {
             // A. 先確認代碼 (排除 null 字串)
             let roomCode = localStorage.getItem('roomCode');
-            const rawData = localStorage.getItem('pypoly_active_room');
+            const rawData = localStorage.getItem('beerich_active_room');
             if ((!roomCode || roomCode === "null") && rawData) {
                 roomCode = JSON.parse(rawData).code;
             }
@@ -732,7 +732,7 @@ function startSyncLoop(username, token) {
 					console.log("🚀 平板偵測到遊戲開始，準備跳轉...");
 					
 					// 🏆 修正補強：確保名稱不會變成代碼
-					const localActive = JSON.parse(localStorage.getItem('pypoly_active_room') || '{}');
+					const localActive = JSON.parse(localStorage.getItem('beerich_active_room') || '{}');
 					if (!roomData.name && localActive.name) {
 						roomData.name = localActive.name;
 					}
@@ -741,7 +741,7 @@ function startSyncLoop(username, token) {
 					}
 
 					// 存入快照
-					localStorage.setItem('pypoly_game_snapshot', JSON.stringify(roomData));
+					localStorage.setItem('beerich_game_snapshot', JSON.stringify(roomData));
 					
 					clearInterval(syncTimer);
 					if (window.refreshTimer) clearInterval(window.refreshTimer);

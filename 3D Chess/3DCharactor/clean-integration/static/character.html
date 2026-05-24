@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PyPoly - 角色自定義</title>
+    <title>BeeRich - 角色自定義</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
@@ -148,7 +148,7 @@
 
 <header>
     <div class="header-left">
-        <h1 onclick="window.location.href='lobby.html'">PyPoly</h1>
+        <h1 onclick="window.location.href='lobby.html'">BeeRich</h1>
     </div>
     <div class="header-right">
         <span class="page-tag">角色自定義</span>
@@ -419,7 +419,7 @@
     // 同步套用已儲存的顏色到 partColors 和 UI，
     // 確保 buildShaderMat() 建立 shader 時就用正確顏色。
     (function applyStoredColors() {
-        const raw = localStorage.getItem('pypoly_char_colors');
+        const raw = localStorage.getItem('beerich_char_colors');
         if (!raw) return;
         try {
             const saved = JSON.parse(raw);
@@ -590,18 +590,18 @@
     }
 
     function saveColors() {
-        localStorage.setItem('pypoly_char_colors', JSON.stringify(partColors));
+        localStorage.setItem('beerich_char_colors', JSON.stringify(partColors));
         showModal('儲存成功', '角色外觀顏色已儲存！下次進入遊戲將自動套用。');
     }
 
     function resetColors() {
-        localStorage.removeItem('pypoly_char_colors');
+        localStorage.removeItem('beerich_char_colors');
         applyPreset('default');
         showModal('已重置', '已還原角色預設顏色。');
     }
 
     function loadSavedColors() {
-        const raw = localStorage.getItem('pypoly_char_colors');
+        const raw = localStorage.getItem('beerich_char_colors');
         if (!raw) { updateShaderColors(); return; }
         try {
             const parsed = JSON.parse(raw);
@@ -680,7 +680,7 @@
     });
 
     function loadSavedFace() {
-        const dataUrl = localStorage.getItem('pypoly_char_face');
+        const dataUrl = localStorage.getItem('beerich_char_face');
         if (!dataUrl || !shaderMat) return;
         const img = new Image();
         img.onload = () => {
@@ -835,7 +835,7 @@
         shaderMat.uniforms.hasFace.value = 1.0;
         shaderMat.needsUpdate = true;
 
-        localStorage.setItem('pypoly_char_face', faceCanvas.toDataURL('image/jpeg', 0.85));
+        localStorage.setItem('beerich_char_face', faceCanvas.toDataURL('image/jpeg', 0.85));
 
         document.getElementById('clearFaceBtn').disabled = false;
         setBadge('captured', '人臉已貼至角色臉部');
@@ -849,7 +849,7 @@
         shaderMat.uniforms.faceTex.value = makeDummyTexture();
         shaderMat.uniforms.hasFace.value = 0.0;
         shaderMat.needsUpdate = true;
-        localStorage.removeItem('pypoly_char_face');
+        localStorage.removeItem('beerich_char_face');
         document.getElementById('clearFaceBtn').disabled = true;
         setBadge('idle', '已清除人臉貼圖');
     }

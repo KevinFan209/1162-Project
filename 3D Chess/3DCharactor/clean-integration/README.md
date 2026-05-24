@@ -1,4 +1,4 @@
-# 角色自定義模組 — 整合說明
+﻿# 角色自定義模組 — 整合說明
 
 本整合包包含角色自定義功能所需的全部檔案，以及對現有檔案的最小改動說明。
 整合包**不含**資料庫切換、IP 動態化等無關改動。
@@ -12,7 +12,7 @@
   main.py                         後端主程式（原版 + char_data_sync 事件）
   static/
     character.html                角色自定義頁面（全新，直接複製）
-    pypoly_char.js                角色渲染模組（全新，直接複製）
+    beerich_char.js                角色渲染模組（全新，直接複製）
     game.html                     遊戲頁面（原版 + 角色系統程式碼）
     lobby.html                    大廳頁面（原版 + 角色自定義選單連結）
     models/
@@ -31,7 +31,7 @@
 | 來源（整合包） | 目的地（你們的專案） |
 |--------------|-------------------|
 | `static/character.html` | `static/character.html` |
-| `static/pypoly_char.js` | `static/pypoly_char.js` |
+| `static/beerich_char.js` | `static/beerich_char.js` |
 | `static/models/minecraft_-_steve.glb` | `static/models/minecraft_-_steve.glb` |
 | `static/models/steve_tex_0.png` | `static/models/steve_tex_0.png` |
 
@@ -51,7 +51,7 @@
 在 `<head>` 裡 GLTFLoader 的 `<script>` 之後加入：
 
 ```html
-<script src="pypoly_char.js"></script>
+<script src="beerich_char.js"></script>
 ```
 
 #### 2-2. 加入角色系統程式碼
@@ -68,7 +68,7 @@ function makeDummyTexture() {
 }
 
 function loadFaceTextureIntoMat(mat) {
-    const b64 = localStorage.getItem('pypoly_char_face');
+    const b64 = localStorage.getItem('beerich_char_face');
     if (!b64) return;
     const img = new Image();
     img.onload = () => {
@@ -107,8 +107,8 @@ function applyCharDataToMat(mat, data) {
 }
 
 function emitCharData() {
-    const colorsRaw = localStorage.getItem('pypoly_char_colors');
-    const face      = localStorage.getItem('pypoly_char_face');
+    const colorsRaw = localStorage.getItem('beerich_char_colors');
+    const face      = localStorage.getItem('beerich_char_face');
     const colors    = colorsRaw ? JSON.parse(colorsRaw) : null;
     const room      = localStorage.getItem('currentRoom');
     const user      = localStorage.getItem('username');
@@ -181,7 +181,7 @@ const CHAR_FRAG = `
 
 function loadPlayerModels() {
     if (typeof playerModels === 'undefined') {
-        console.warn('[pypoly_char] playerModels not found');
+        console.warn('[beerich_char] playerModels not found');
         return;
     }
     playerModels.forEach((pm, index) => {
@@ -192,7 +192,7 @@ function loadPlayerModels() {
 
     const loader = new THREE.GLTFLoader();
     loader.load('models/minecraft_-_steve.glb', (gltf) => {
-        const colorsRaw = localStorage.getItem('pypoly_char_colors');
+        const colorsRaw = localStorage.getItem('beerich_char_colors');
         const colors    = colorsRaw ? JSON.parse(colorsRaw) : {
             head: '#f5c18a', arm: '#5cbaee', body: '#4a90d9', legs: '#2c4a8c', feet: '#2c1f14'
         };
@@ -296,8 +296,8 @@ async def handle_char_data_sync(sid, data):
 
 | Key | 格式 | 說明 |
 |-----|------|------|
-| `pypoly_char_colors` | JSON `{"head":"#...","arm":"#...","body":"#...","legs":"#...","feet":"#..."}` | 角色各部位顏色 |
-| `pypoly_char_face` | base64 JPEG data URL | 人臉貼圖（相機擷取） |
+| `beerich_char_colors` | JSON `{"head":"#...","arm":"#...","body":"#...","legs":"#...","feet":"#..."}` | 角色各部位顏色 |
+| `beerich_char_face` | base64 JPEG data URL | 人臉貼圖（相機擷取） |
 
 ### Socket.IO 事件
 
@@ -310,9 +310,9 @@ async def handle_char_data_sync(sid, data):
 
 ---
 
-## `pypoly_char.js` 所需的全域變數
+## `beerich_char.js` 所需的全域變數
 
-`pypoly_char.js` 直接使用 `game.html` 現有的全域變數，整合前請確認以下變數存在：
+`beerich_char.js` 直接使用 `game.html` 現有的全域變數，整合前請確認以下變數存在：
 
 | 變數名稱 | 說明 |
 |---------|------|
@@ -327,7 +327,7 @@ async def handle_char_data_sync(sid, data):
 ## 影響範圍
 
 - `character.html`：全新獨立頁面，不影響任何現有功能。
-- `pypoly_char.js`：只在 `game.html` 引入，不影響其他頁面。
+- `beerich_char.js`：只在 `game.html` 引入，不影響其他頁面。
 - `game.html`：僅新增角色渲染程式碼，其餘邏輯完全未動。
 - `lobby.html`：只新增一行選單連結。
 - `main.py`：只新增一個 Socket.IO 事件轉發。

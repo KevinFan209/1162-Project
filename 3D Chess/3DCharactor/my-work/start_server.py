@@ -1,4 +1,4 @@
-import subprocess
+﻿import subprocess
 import sys
 import time
 import os
@@ -6,7 +6,7 @@ import signal
 import socket
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PYTHON = os.path.join(BASE_DIR, "venv", "Scripts", "python.exe")
+PYTHON = sys.executable  # 使用目前執行的 Python，不依賴 venv
 PORT = 8000
 
 uvicorn_proc = None
@@ -53,7 +53,7 @@ signal.signal(signal.SIGTERM, shutdown)
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("  PyPoly 伺服器啟動工具")
+    print("  BeeRich 伺服器啟動工具")
     print("=" * 50)
 
     print(f"\n[1/2] 清除舊有程序 (port {PORT})...")

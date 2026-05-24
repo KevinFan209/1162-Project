@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PyPoly - Battle</title>
+    <title>BeeRich - Battle</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
 	<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -158,7 +158,7 @@
 </div>
 
 <header>
-    <div class="header-left"><h1>PyPoly</h1></div>
+    <div class="header-left"><h1>BeeRich</h1></div>
     <div class="header-right">
         <div class="top-status-item">📍 <span id="displayRoomName">載入中...</span></div>
         <div class="top-status-item">👤 <span id="displayMyName">玩家</span></div>
@@ -230,7 +230,7 @@
 		console.log("✅ Socket 連線成功，正在申請加入房間...");
 		
 		// 取得房間代碼 (跟你 syncOrderDice 用的邏輯一致)
-		const activeRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
+		const activeRoom = JSON.parse(localStorage.getItem('beerich_active_room'));
 		const roomCode = activeRoom ? activeRoom.code : localStorage.getItem('room_code');
 		const user = localStorage.getItem('username');
 
@@ -271,7 +271,7 @@
 	
 	window.onload = function() {
 		// 1. 讀取快照資料
-		const gameSnapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot'));
+		const gameSnapshot = JSON.parse(localStorage.getItem('beerich_game_snapshot'));
 		const myName = localStorage.getItem('username');
 
 		if (!gameSnapshot) {
@@ -461,7 +461,7 @@ function makeDummyTexture() {
 }
 
 function loadFaceTextureIntoMat(mat) {
-    const dataUrl = localStorage.getItem('pypoly_char_face');
+    const dataUrl = localStorage.getItem('beerich_char_face');
     if (!dataUrl) return;
     const img = new Image();
     img.onload = () => {
@@ -505,18 +505,18 @@ function applyCharDataToMat(mat, data) {
 
 function emitCharData() {
     const myName = localStorage.getItem('username');
-    const activeRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const activeRoom = JSON.parse(localStorage.getItem('beerich_active_room'));
     const room = activeRoom ? activeRoom.code : localStorage.getItem('room_code');
     if (!room) return;
-    const rawColors = localStorage.getItem('pypoly_char_colors');
+    const rawColors = localStorage.getItem('beerich_char_colors');
     const colors = rawColors ? JSON.parse(rawColors) : null;
-    const face = localStorage.getItem('pypoly_char_face') || null;
+    const face = localStorage.getItem('beerich_char_face') || null;
     socket.emit('char_data_sync', { room, user: myName, colors, face });
 }
 
 function loadPlayerModels() {
     const loader = new THREE.GLTFLoader();
-    const gameSnapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot'));
+    const gameSnapshot = JSON.parse(localStorage.getItem('beerich_game_snapshot'));
     const players = gameSnapshot.players;
     const myName = localStorage.getItem('username');
 
@@ -606,7 +606,7 @@ function loadPlayerModels() {
 
             let colors = { ...defaultColors };
             if (playerName === myName) {
-                const raw = localStorage.getItem('pypoly_char_colors');
+                const raw = localStorage.getItem('beerich_char_colors');
                 if (raw) { try { Object.assign(colors, JSON.parse(raw)); } catch(e) {} }
             }
 
@@ -743,8 +743,8 @@ function animate() {
 }
 	
 function playOpeningAnim() {
-    const gameSnapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot'));
-    const roomName = gameSnapshot ? (gameSnapshot.name || gameSnapshot.code) : "PyPoly";
+    const gameSnapshot = JSON.parse(localStorage.getItem('beerich_game_snapshot'));
+    const roomName = gameSnapshot ? (gameSnapshot.name || gameSnapshot.code) : "BeeRich";
     
     // 固定在俯衝前的初始位置
     camera.position.set(0, 30, 70); 
@@ -773,7 +773,7 @@ function playOpeningAnim() {
 	// 🏆 修正後的歡迎訊息
 	welcomeMsg.innerHTML = `
 		<div id="flow-content" style="transition: opacity 0.8s ease;">
-			<h1 style='font-size: 5rem; ${textShadow}'>PyPoly</h1>
+			<h1 style='font-size: 5rem; ${textShadow}'>BeeRich</h1>
 			<p style='font-size: 2.2rem; margin-top: 15px; ${textShadow}'>歡迎來到 ${roomName} 的冒險教室</p>
 		</div>
 	`;
@@ -900,7 +900,7 @@ function playOpeningAnim() {
 					
 					// 發送給 Socket 讓對手知道我骰到幾點
 					socket.emit('player_move_sync', {
-						room: JSON.parse(localStorage.getItem('pypoly_active_room')).code,
+						room: JSON.parse(localStorage.getItem('beerich_active_room')).code,
 						user: myName,
 						steps: steps
 					});
@@ -1201,8 +1201,8 @@ async function startRecognitionProcess() {
 	}
 
 	function syncOrderDice(point) {
-		// 🏆 修正 1：檢查 room_code 是否存在，你的 localStorage 可能是存 pypoly_active_room
-		const activeRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
+		// 🏆 修正 1：檢查 room_code 是否存在，你的 localStorage 可能是存 beerich_active_room
+		const activeRoom = JSON.parse(localStorage.getItem('beerich_active_room'));
 		const roomCode = activeRoom ? activeRoom.code : localStorage.getItem('room_code');
 		const user = localStorage.getItem('username');
 
@@ -1317,7 +1317,7 @@ socket.on('dice_order_final', (results) => {
             isRolling = false; 
             myDicePoint = 0;
             
-            const activeRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
+            const activeRoom = JSON.parse(localStorage.getItem('beerich_active_room'));
             const roomCode = activeRoom ? activeRoom.code : localStorage.getItem('room_code');
             socket.emit('reset_dice_order', { room: roomCode });
 
@@ -1409,7 +1409,7 @@ socket.on('dice_order_final', (results) => {
 			await movePlayer(myName, myDicePoint);
 		} else {
 			// 找出對方的名字並移動
-			const players = JSON.parse(localStorage.getItem('pypoly_game_snapshot')).players;
+			const players = JSON.parse(localStorage.getItem('beerich_game_snapshot')).players;
 			const opponent = players.find(p => p !== myName);
 			await movePlayer(opponent, opponentDicePoint);
 		}
@@ -1444,7 +1444,7 @@ function finalizeGameStart(iAmFirst) {
         camera.layers.disable(1); // 隱藏自己的頭部 (不再有布偶裝感)
 
 		// 🏆 新增：找出對手是誰，並在我的畫面中隱藏他
-        const players = JSON.parse(localStorage.getItem('pypoly_game_snapshot')).players;
+        const players = JSON.parse(localStorage.getItem('beerich_game_snapshot')).players;
         const opponentName = players.find(p => p !== myName);
         if (playerModels[opponentName]) {
             playerModels[opponentName].visible = false; // 這樣他就絕對擋不到你了
@@ -1489,7 +1489,7 @@ function finalizeGameStart(iAmFirst) {
 
 function startMainTurn(isMyTurn) {
     const myName = localStorage.getItem('username');
-    const players = JSON.parse(localStorage.getItem('pypoly_game_snapshot')).players;
+    const players = JSON.parse(localStorage.getItem('beerich_game_snapshot')).players;
     const opponentName = players.find(p => p !== myName);
 
 	if (isMyTurn) {
@@ -1573,7 +1573,7 @@ async function movePlayerSequence(playerName, steps) {
     showCustomNotice(`${playerName} 擲出 ${steps} 點，開始前進！`, noticePos);
 
     // 🏆 隱藏機制：如果是我在走動，暫時把對手模型隱藏，避免轉彎時擋到我的第一人稱視角
-    const players = JSON.parse(localStorage.getItem('pypoly_game_snapshot')).players;
+    const players = JSON.parse(localStorage.getItem('beerich_game_snapshot')).players;
     const opponentName = players.find(p => p !== myName);
     if (isMe && playerModels[opponentName]) {
         playerModels[opponentName].visible = false;
@@ -1735,7 +1735,7 @@ function spawnStepBubble(parentModel, text) {
 		if (confirm(`回答正確！這塊地價值 $${cost}，是否購買？`)) {
 			// 發送給後端
 			socket.emit('buy_land', {
-				room: localStorage.getItem('pypoly_room_name'),
+				room: localStorage.getItem('beerich_room_name'),
 				user: myName,
 				tileIndex: currentIndex
 			});
@@ -1744,7 +1744,7 @@ function spawnStepBubble(parentModel, text) {
 			updateMoneyUI(myName, -cost);
 		} else {
 			// 放棄購買，直接換人
-			socket.emit('next_turn', { room: localStorage.getItem('pypoly_room_name') });
+			socket.emit('next_turn', { room: localStorage.getItem('beerich_room_name') });
 		}
 	}
 	
