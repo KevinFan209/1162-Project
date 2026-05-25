@@ -103,12 +103,16 @@
         .emoji-opt-label { font-size: 0.60rem; font-weight: 800; color: var(--text-gray); white-space: nowrap; }
         .emoji-opt.selected .emoji-opt-label { color: var(--primary-blue); }
 
-        .url-input-wrap { display: flex; gap: 8px; margin-top: 4px; }
-        .url-input { flex: 1; padding: 10px 12px; border: 1.5px solid var(--border-light); border-radius: 10px; font-size: 0.82rem; outline: none; transition: 0.15s; min-width: 0; }
-        .url-input:focus { border-color: var(--primary-blue); }
-        .url-load-btn { padding: 10px 14px; background: var(--primary-blue); color: white; border: none; border-radius: 10px; font-weight: 800; font-size: 0.82rem; cursor: pointer; white-space: nowrap; transition: 0.15s; }
-        .url-load-btn:hover { filter: brightness(1.08); }
-        .url-load-btn:disabled { opacity: 0.4; cursor: not-allowed; filter: none; }
+        .file-pick-label { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 14px; background: var(--primary-blue); color: white; border-radius: 10px; font-weight: 800; font-size: 0.82rem; cursor: pointer; transition: 0.15s; margin-top: 4px; }
+        .file-pick-label:hover { filter: brightness(1.08); }
+        .crop-wrap { position: relative; margin-top: 8px; border-radius: 10px; overflow: hidden; border: 1.5px solid var(--border-light); background: #111; display: none; touch-action: none; }
+        .crop-canvas { display: block; width: 100%; aspect-ratio: 1/1; cursor: grab; user-select: none; }
+        .crop-canvas.dragging { cursor: grabbing; }
+        .zoom-row { display: none; align-items: center; gap: 8px; margin-top: 6px; }
+        .zoom-label { font-size: 0.75rem; font-weight: 700; color: var(--text-gray); white-space: nowrap; }
+        .zoom-slider { flex: 1; accent-color: var(--primary-blue); }
+        .apply-crop-btn { display: none; width: 100%; padding: 10px; background: #22c55e; color: white; border: none; border-radius: 10px; font-weight: 800; font-size: 0.84rem; cursor: pointer; margin-top: 6px; transition: 0.15s; }
+        .apply-crop-btn:hover { filter: brightness(1.08); }
 
         .img-status { padding: 8px 12px; border-radius: 10px; font-size: 0.78rem; font-weight: 700; margin-top: 8px; text-align: center; display: none; }
         .img-status.loading { display: block; background: #f1f5f9; color: var(--text-gray); }
@@ -247,18 +251,27 @@
 
                 <!-- 2D 臉部預覽 -->
                 <div class="face-preview-wrap">
-                    <canvas id="face-img-preview" width="512" height="128"></canvas>
+                    <canvas id="face-img-preview" width="512" height="512"></canvas>
                 </div>
 
                 <div class="section-label">Twemoji 表情套裝</div>
                 <div class="emoji-grid" id="emoji-grid"></div>
 
                 <div class="divider"></div>
-                <div class="section-label">自訂圖片網址</div>
-                <div class="url-input-wrap">
-                    <input class="url-input" id="custom-url-input" type="text" placeholder="貼上圖片 URL（支援 PNG / JPG / SVG / WebP）">
-                    <button class="url-load-btn" id="url-load-btn" onclick="loadCustomImage()">載入</button>
+                <div class="section-label">從本機匯入圖片</div>
+                <label class="file-pick-label" for="local-file-input">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    選擇圖片檔案
+                </label>
+                <input type="file" id="local-file-input" accept="image/*" style="display:none" onchange="handleLocalFile(event)">
+                <div class="crop-wrap" id="crop-wrap">
+                    <canvas id="crop-canvas" class="crop-canvas" width="512" height="512"></canvas>
                 </div>
+                <div class="zoom-row" id="zoom-row">
+                    <span class="zoom-label">縮放</span>
+                    <input type="range" class="zoom-slider" id="zoom-slider" min="0.1" max="10" step="0.01" value="1" oninput="onZoomChange()">
+                </div>
+                <button class="apply-crop-btn" id="apply-crop-btn" onclick="applyCrop()">套用裁切</button>
                 <div class="img-status" id="img-status"></div>
 
                 <button class="btn btn-green" onclick="saveFaceImage()" style="margin-top:12px">儲存到遊戲</button>
@@ -598,6 +611,14 @@ const EMOJI_PRESETS = [
 let currentFaceCanvas = null;
 let selectedCpEl = null;
 
+// crop state
+let cropImage = null;
+let cropScale = 1;
+let cropOffX = 0, cropOffY = 0;
+let cropDragging = false;
+let cropDragStartX = 0, cropDragStartY = 0;
+let cropDragOffX = 0, cropDragOffY = 0;
+
 // ── 建立 Emoji 選項格 ──
 function buildEmojiGrid() {
     const grid = document.getElementById('emoji-grid');
@@ -638,7 +659,7 @@ function fetchImageToCanvas(url) {
 
 // ── 將圖片繪至 512×128 臉部 canvas（置中 128×128 區域） ──
 function applyImageToFace(imgEl) {
-    const W = 512, H = 128;
+    const W = 512, H = 512;
     const fc = document.createElement('canvas');
     fc.width = W; fc.height = H;
     const ctx = fc.getContext('2d');
@@ -676,7 +697,7 @@ function applyImageToFace(imgEl) {
 // ── 套用 Twemoji 表情 ──
 async function applyTwemojiPreset(codepoint, el) {
     setImgStatus('loading', '載入 Twemoji 圖示中...');
-    setUrlLoadBtn(true);
+    resetCropUI();
     // 更新選取樣式
     if (selectedCpEl) selectedCpEl.classList.remove('selected');
     if (el) { el.classList.add('selected'); selectedCpEl = el; }
@@ -688,25 +709,122 @@ async function applyTwemojiPreset(codepoint, el) {
         setImgStatus('error', '載入失敗，請確認網路連線後重試。');
         if (selectedCpEl) { selectedCpEl.classList.remove('selected'); selectedCpEl = null; }
     }
-    setUrlLoadBtn(false);
 }
 
-// ── 載入自訂圖片 URL ──
-async function loadCustomImage() {
-    const url = document.getElementById('custom-url-input').value.trim();
-    if (!url) { setImgStatus('error', '請輸入圖片網址'); return; }
-    setImgStatus('loading', '載入自訂圖片中...');
-    setUrlLoadBtn(true);
-    // 取消 emoji 選取
-    if (selectedCpEl) { selectedCpEl.classList.remove('selected'); selectedCpEl = null; }
-    try {
-        const img = await fetchImageToCanvas(url);
-        currentFaceCanvas = applyImageToFace(img);
-        setImgStatus('success', '已套用自訂圖片！');
-    } catch(e) {
-        setImgStatus('error', '載入失敗，請確認網址正確且圖片來源允許跨域存取（CORS）。');
-    }
-    setUrlLoadBtn(false);
+// ── 本機圖片裁切 ──
+function handleLocalFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => {
+            cropImage = img;
+            // 初始縮放：讓最短邊填滿裁切框
+            const shortest = Math.min(img.width, img.height);
+            cropScale = 512 / shortest;
+            cropOffX = (img.width - shortest) / 2;
+            cropOffY = (img.height - shortest) / 2;
+            const slider = document.getElementById('zoom-slider');
+            slider.min  = cropScale * 0.2;
+            slider.max  = cropScale * 10;
+            slider.step = cropScale * 0.01;
+            slider.value = cropScale;
+            drawCropCanvas();
+            document.getElementById('crop-wrap').style.display = '';
+            document.getElementById('zoom-row').style.display = 'flex';
+            document.getElementById('apply-crop-btn').style.display = '';
+            // 取消 emoji 選取
+            if (selectedCpEl) { selectedCpEl.classList.remove('selected'); selectedCpEl = null; }
+            setImgStatus('success', '已載入圖片，可拖曳或縮放來調整裁切範圍，完成後點「套用裁切」');
+        };
+        img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function onZoomChange() {
+    cropScale = parseFloat(document.getElementById('zoom-slider').value);
+    clampCrop();
+    drawCropCanvas();
+}
+
+function clampCrop() {
+    if (!cropImage) return;
+    const srcSize = 512 / cropScale;
+    cropOffX = Math.max(0, Math.min(cropOffX, Math.max(0, cropImage.width  - srcSize)));
+    cropOffY = Math.max(0, Math.min(cropOffY, Math.max(0, cropImage.height - srcSize)));
+}
+
+function drawCropCanvas() {
+    if (!cropImage) return;
+    const cc  = document.getElementById('crop-canvas');
+    const ctx = cc.getContext('2d');
+    const srcSize = 512 / cropScale;
+    ctx.fillStyle = '#111';
+    ctx.fillRect(0, 0, 512, 512);
+    ctx.drawImage(cropImage, cropOffX, cropOffY, srcSize, srcSize, 0, 0, 512, 512);
+}
+
+function applyCrop() {
+    if (!cropImage) return;
+    const out = document.createElement('canvas');
+    out.width = 512; out.height = 512;
+    const srcSize = 512 / cropScale;
+    out.getContext('2d').drawImage(cropImage, cropOffX, cropOffY, srcSize, srcSize, 0, 0, 512, 512);
+    currentFaceCanvas = applyImageToFace(out);
+    setImgStatus('success', '已套用裁切圖片！');
+}
+
+function resetCropUI() {
+    cropImage = null; cropScale = 1; cropOffX = 0; cropOffY = 0;
+    document.getElementById('crop-wrap').style.display = 'none';
+    document.getElementById('zoom-row').style.display = 'none';
+    document.getElementById('apply-crop-btn').style.display = 'none';
+    document.getElementById('local-file-input').value = '';
+}
+
+function initCropDragListeners() {
+    const cc = document.getElementById('crop-canvas');
+    cc.addEventListener('mousedown', (e) => {
+        if (!cropImage) return;
+        cropDragging = true;
+        cropDragStartX = e.clientX; cropDragStartY = e.clientY;
+        cropDragOffX = cropOffX; cropDragOffY = cropOffY;
+        cc.classList.add('dragging');
+        e.preventDefault();
+    });
+    window.addEventListener('mousemove', (e) => {
+        if (!cropDragging) return;
+        const rect = cc.getBoundingClientRect();
+        const cssToSrc = (512 / cropScale) / rect.width;
+        cropOffX = cropDragOffX - (e.clientX - cropDragStartX) * cssToSrc;
+        cropOffY = cropDragOffY - (e.clientY - cropDragStartY) * cssToSrc;
+        clampCrop();
+        drawCropCanvas();
+    });
+    window.addEventListener('mouseup', () => {
+        cropDragging = false;
+        cc.classList.remove('dragging');
+    });
+    cc.addEventListener('touchstart', (e) => {
+        if (!cropImage || e.touches.length !== 1) return;
+        cropDragging = true;
+        cropDragStartX = e.touches[0].clientX; cropDragStartY = e.touches[0].clientY;
+        cropDragOffX = cropOffX; cropDragOffY = cropOffY;
+        e.preventDefault();
+    }, { passive: false });
+    cc.addEventListener('touchmove', (e) => {
+        if (!cropDragging || e.touches.length !== 1) return;
+        const rect = cc.getBoundingClientRect();
+        const cssToSrc = (512 / cropScale) / rect.width;
+        cropOffX = cropDragOffX - (e.touches[0].clientX - cropDragStartX) * cssToSrc;
+        cropOffY = cropDragOffY - (e.touches[0].clientY - cropDragStartY) * cssToSrc;
+        clampCrop();
+        drawCropCanvas();
+        e.preventDefault();
+    }, { passive: false });
+    cc.addEventListener('touchend', () => { cropDragging = false; });
 }
 
 // ── 儲存 ──
@@ -717,6 +835,11 @@ function saveFaceImage() {
     }
     localStorage.setItem('beerich_char_face', currentFaceCanvas.toDataURL('image/png'));
     localStorage.removeItem('beerich_char_features');
+    if (selectedCpEl) {
+        localStorage.setItem('beerich_char_emoji', selectedCpEl.dataset.cp);
+    } else {
+        localStorage.removeItem('beerich_char_emoji');
+    }
     showModal('儲存成功', '表情圖片已儲存！進入遊戲後將自動套用。');
 }
 
@@ -725,6 +848,7 @@ function clearFaceImage() {
     currentFaceCanvas = null;
     localStorage.removeItem('beerich_char_face');
     localStorage.removeItem('beerich_char_features');
+    localStorage.removeItem('beerich_char_emoji');
     if (shaderMat) {
         const prevTex = shaderMat.uniforms.faceTex.value;
         if (prevTex) prevTex.dispose();
@@ -737,10 +861,10 @@ function clearFaceImage() {
     if (prev) {
         const ctx = prev.getContext('2d');
         ctx.fillStyle = partColors.head || '#f5c18a';
-        ctx.fillRect(0, 0, 512, 128);
+        ctx.fillRect(0, 0, 512, 512);
     }
     if (selectedCpEl) { selectedCpEl.classList.remove('selected'); selectedCpEl = null; }
-    document.getElementById('custom-url-input').value = '';
+    resetCropUI();
     setImgStatus('idle', '');
     showModal('已清除', '表情圖片已清除。');
 }
@@ -752,14 +876,14 @@ function loadSavedFace() {
     const img = new Image();
     img.onload = () => {
         const fc = document.createElement('canvas');
-        fc.width = 512; fc.height = 128;
-        fc.getContext('2d').drawImage(img, 0, 0, 512, 128);
+        fc.width = 512; fc.height = 512;
+        fc.getContext('2d').drawImage(img, 0, 0, 512, 512);
         currentFaceCanvas = fc;
         // 更新 2D 預覽
         const prev = document.getElementById('face-img-preview');
         if (prev) {
             const pc = prev.getContext('2d');
-            pc.clearRect(0, 0, 512, 128);
+            pc.clearRect(0, 0, 512, 512);
             pc.drawImage(fc, 0, 0);
         }
         // 推入 shader
@@ -770,8 +894,15 @@ function loadSavedFace() {
         shaderMat.uniforms.faceTex.value = tex;
         shaderMat.uniforms.hasFace.value = 1.0;
         shaderMat.needsUpdate = true;
-        document.getElementById('clearFaceBtn').disabled = false;
-        setBadge('captured', '已載入儲存的臉部貼圖');
+        const savedCp = localStorage.getItem('beerich_char_emoji');
+        if (savedCp) {
+            const el = document.querySelector(`.emoji-opt[data-cp="${savedCp}"]`);
+            if (el) { if (selectedCpEl) selectedCpEl.classList.remove('selected'); el.classList.add('selected'); selectedCpEl = el; }
+            setImgStatus('success', '已載入儲存的表情圖片');
+        } else {
+            document.getElementById('clearFaceBtn').disabled = false;
+            setBadge('captured', '已載入儲存的臉部貼圖');
+        }
     };
     img.src = dataUrl;
 }
@@ -782,9 +913,6 @@ function setImgStatus(type, text) {
     el.className = `img-status ${type}`;
     el.textContent = text;
 }
-function setUrlLoadBtn(disabled) {
-    document.getElementById('url-load-btn').disabled = disabled;
-}
 
 // 初始化 emoji 格
 buildEmojiGrid();
@@ -794,8 +922,10 @@ buildEmojiGrid();
     if (!prev) return;
     const ctx = prev.getContext('2d');
     ctx.fillStyle = partColors.head || '#f5c18a';
-    ctx.fillRect(0, 0, 512, 128);
+    ctx.fillRect(0, 0, 512, 512);
 })();
+// 初始化裁切拖曳事件
+initCropDragListeners();
 
 // =====================================================
 //  Camera & Face Detection
@@ -883,9 +1013,9 @@ function applyFaceToModel() {
     const ey = Math.min(vh, Math.floor((bb.yCenter + bb.height*0.45) * vh));
     const sw = ex-sx, sh = ey-sy;
     if (sw <= 0 || sh <= 0) return;
-    const faceCanvas = document.createElement('canvas'); faceCanvas.width = 512; faceCanvas.height = 128;
+    const faceCanvas = document.createElement('canvas'); faceCanvas.width = 512; faceCanvas.height = 512;
     const fCtx = faceCanvas.getContext('2d');
-    fCtx.save(); fCtx.scale(-1,1); fCtx.drawImage(cap, sx, sy, sw, sh, -512, 0, 512, 128); fCtx.restore();
+    fCtx.save(); fCtx.scale(-1,1); fCtx.drawImage(cap, sx, sy, sw, sh, -512, 0, 512, 512); fCtx.restore();
     const prevTex = shaderMat.uniforms.faceTex.value; if (prevTex) prevTex.dispose();
     const tex = new THREE.CanvasTexture(faceCanvas); tex.needsUpdate = true;
     shaderMat.uniforms.faceTex.value = tex;

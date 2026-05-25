@@ -243,7 +243,7 @@
 
                 <!-- 2D 臉部預覽 -->
                 <div class="face-preview-wrap">
-                    <canvas id="face-feat-preview" width="512" height="128"></canvas>
+                    <canvas id="face-feat-preview" width="512" height="512"></canvas>
                 </div>
 
                 <div class="section-label">眉毛</div>
@@ -741,11 +741,8 @@ function drawFaceFeatures(ctx, W, H, feats) {
     } else if (mouth === 'grin') {
         ctx.fillStyle = '#1a0a02';
         ctx.beginPath(); ctx.moveTo(MCX-mw, MCY); ctx.quadraticCurveTo(MCX, MCY+ma*1.6, MCX+mw, MCY); ctx.closePath(); ctx.fill();
-        ctx.save();
-        ctx.beginPath(); ctx.rect(MCX-mw+s, MCY, mw*2-2*s, ma);
-        ctx.clip();
-        ctx.fillStyle = '#f0f0f0'; ctx.fillRect(MCX-mw+s, MCY, mw*2-2*s, ma);
-        ctx.restore();
+        ctx.fillStyle = '#f0f0f0';
+        ctx.beginPath(); ctx.moveTo(MCX-mw, MCY); ctx.quadraticCurveTo(MCX, MCY+ma*0.7, MCX+mw, MCY); ctx.closePath(); ctx.fill();
         ctx.lineWidth = 2 * s;
         ctx.beginPath(); ctx.moveTo(MCX-mw, MCY); ctx.quadraticCurveTo(MCX, MCY+ma*1.6, MCX+mw, MCY); ctx.stroke();
     } else if (mouth === 'surprise') {
@@ -821,10 +818,8 @@ function drawFeatureThumbnail(type, id) {
         } else if (id === 'grin') {
             ctx.fillStyle='#1a0a02';
             ctx.beginPath(); ctx.moveTo(cx-mw,cy); ctx.quadraticCurveTo(cx,cy+ma*1.4,cx+mw,cy); ctx.closePath(); ctx.fill();
-            ctx.save();
-            ctx.beginPath(); ctx.rect(cx-mw+1,cy,mw*2-2,8); ctx.clip();
-            ctx.fillStyle='#f0f0f0'; ctx.fillRect(cx-mw+1,cy,mw*2-2,8);
-            ctx.restore();
+            ctx.fillStyle='#f0f0f0';
+            ctx.beginPath(); ctx.moveTo(cx-mw,cy); ctx.quadraticCurveTo(cx,cy+ma*0.6,cx+mw,cy); ctx.closePath(); ctx.fill();
             ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(cx-mw,cy); ctx.quadraticCurveTo(cx,cy+ma*1.4,cx+mw,cy); ctx.stroke();
         } else if (id === 'surprise') {
             ctx.fillStyle='#1a0a02'; ctx.beginPath(); ctx.ellipse(cx,cy,9,12,0,0,Math.PI*2); ctx.fill();
@@ -839,7 +834,7 @@ function drawFeatureThumbnail(type, id) {
 
 // ── 合成臉部 texture 並推入 shader ──
 function composeFaceTexture() {
-    const W = 512, H = 128;
+    const W = 512, H = 512;
     const faceCanvas = document.createElement('canvas');
     faceCanvas.width = W; faceCanvas.height = H;
     const ctx = faceCanvas.getContext('2d');
@@ -854,7 +849,7 @@ function composeFaceTexture() {
     const prev = document.getElementById('face-feat-preview');
     if (prev) {
         const pc = prev.getContext('2d');
-        pc.clearRect(0, 0, 512, 128);
+        pc.clearRect(0, 0, 512, 512);
         pc.drawImage(faceCanvas, 0, 0);
     }
 
@@ -962,7 +957,7 @@ function clearFaceFeatures() {
     if (prev) {
         const ctx = prev.getContext('2d');
         ctx.fillStyle = partColors.head || '#f5c18a';
-        ctx.fillRect(0, 0, 512, 128);
+        ctx.fillRect(0, 0, 512, 512);
     }
     // 重設選取到預設
     Object.assign(faceFeatures, { eyebrow:'standard', eye:'round', nose:'none', mouth:'smile' });
@@ -987,8 +982,8 @@ function loadSavedFaceOrFeatures() {
     const img = new Image();
     img.onload = () => {
         const fc = document.createElement('canvas');
-        fc.width = 512; fc.height = 128;
-        fc.getContext('2d').drawImage(img, 0, 0, 512, 128);
+        fc.width = 512; fc.height = 512;
+        fc.getContext('2d').drawImage(img, 0, 0, 512, 512);
         const prevTex = shaderMat.uniforms.faceTex.value;
         if (prevTex) prevTex.dispose();
         const tex = new THREE.CanvasTexture(fc);
@@ -1105,9 +1100,9 @@ function applyFaceToModel() {
     const ey = Math.min(vh, Math.floor((bb.yCenter + bb.height*0.45) * vh));
     const sw = ex-sx, sh = ey-sy;
     if (sw <= 0 || sh <= 0) return;
-    const faceCanvas = document.createElement('canvas'); faceCanvas.width = 512; faceCanvas.height = 128;
+    const faceCanvas = document.createElement('canvas'); faceCanvas.width = 512; faceCanvas.height = 512;
     const fCtx = faceCanvas.getContext('2d');
-    fCtx.save(); fCtx.scale(-1,1); fCtx.drawImage(cap, sx, sy, sw, sh, -512, 0, 512, 128); fCtx.restore();
+    fCtx.save(); fCtx.scale(-1,1); fCtx.drawImage(cap, sx, sy, sw, sh, -512, 0, 512, 512); fCtx.restore();
     const prevTex = shaderMat.uniforms.faceTex.value; if (prevTex) prevTex.dispose();
     const tex = new THREE.CanvasTexture(faceCanvas); tex.needsUpdate = true;
     shaderMat.uniforms.faceTex.value = tex;
