@@ -230,7 +230,7 @@
 		console.log("✅ Socket 連線成功，正在申請加入房間...");
 		
 		// 取得房間代碼 (跟你 syncOrderDice 用的邏輯一致)
-		const activeRoom = JSON.parse(localStorage.getItem('beerich_active_room'));
+		const activeRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
 		const roomCode = activeRoom ? activeRoom.code : localStorage.getItem('room_code');
 		const user = localStorage.getItem('username');
 
@@ -270,8 +270,17 @@
 	let activeCamera = null;
 	
 	window.onload = function() {
+		// dev preview: open game.html?preview=1 to bypass auth
+		if (new URLSearchParams(window.location.search).get('preview') === '1') {
+			localStorage.setItem('pypoly_game_snapshot', JSON.stringify({
+				name: 'Preview', code: 'TEST', winLaps: 5, players: ['Alice', 'Bob']
+			}));
+			localStorage.setItem('username', 'Alice');
+			localStorage.setItem('pypoly_active_room', JSON.stringify({ code: 'TEST' }));
+		}
+
 		// 1. 讀取快照資料
-		const gameSnapshot = JSON.parse(localStorage.getItem('beerich_game_snapshot'));
+		const gameSnapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot'));
 		const myName = localStorage.getItem('username');
 
 		if (!gameSnapshot) {
@@ -374,7 +383,8 @@
 	
 	function init3D() {
 		scene = new THREE.Scene();
-		scene.background = new THREE.Color(0xf1f5f9);
+		scene.background = new THREE.Color(0x87ceeb);
+		scene.fog = new THREE.Fog(0x87ceeb, 60, 150);
 		
 		camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 		camera.position.set(0, 100, 100);
@@ -407,25 +417,140 @@
 	
 	function create3DBoard() {
 		mapBlocks = [];
-		const tileGeo = new THREE.BoxGeometry(3.5, 0.5, 3.5);
-		const tileMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-		
-		// 定義地圖路徑座標 (這部分與你原本的迴圈邏輯一致)
-		const tiles = [];
-		for(let i=0; i<9; i++) tiles.push({x: -16 + (i*4), z: 10});
-		for(let i=1; i<6; i++) tiles.push({x: 16, z: 10 - (i*4)});
-		for(let i=1; i<9; i++) tiles.push({x: 16 - (i*4), z: -10});
-		for(let i=1; i<5; i++) tiles.push({x: -16, z: -10 + (i*4)});
 
-		tiles.forEach((pos, index) => {
-			const tile = new THREE.Mesh(tileGeo, tileMat.clone());
-			tile.position.set(pos.x, 0, pos.z);
-			if(index === 0) tile.material.color.set(0x00cdac); 
+		const topH  = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4];
+		const topT  = ['start','grass','stone','grass','event','stone','sand','grass','stone'];
+		const rightH = [4, 4, 4, 3.5, 3];
+		const rightT = ['ice','event','lava','stone','ice'];
+		const botH  = [3, 2.5, 2, 2, 1.5, 1, 0.5, 0];
+		const botT  = ['lava','event','stone','sand','grass','event','stone','grass'];
+		const leftH = [0, 0.5, 0.5, 0];
+		const leftT = ['ice','stone','event','grass'];
+
+		const tileData = [];
+		for (let i = 0; i < 9; i++) tileData.push({ x: -16 + i*4,  z: 10,       y: topH[i],    type: topT[i]    });
+		for (let i = 1; i < 6; i++) tileData.push({ x: 16,          z: 10 - i*4, y: rightH[i-1],type: rightT[i-1]});
+		for (let i = 1; i < 9; i++) tileData.push({ x: 16 - i*4,   z: -10,      y: botH[i-1],  type: botT[i-1]  });
+		for (let i = 1; i < 5; i++) tileData.push({ x: -16,         z: -10 + i*4,y: leftH[i-1], type: leftT[i-1] });
+
+		const tileGeo = new THREE.BoxGeometry(3.5, 0.5, 3.5);
+
+		tileData.forEach((td, index) => {
+			const mat = new THREE.MeshStandardMaterial({
+				map: createTileTexture(td.type),
+				roughness: 0.8,
+				metalness: 0.05
+			});
+			const tile = new THREE.Mesh(tileGeo, mat);
+			tile.position.set(td.x, td.y, td.z);
+			tile.userData.tileType = td.type;
 			scene.add(tile);
-			allTileMeshes.push(tile); // 🏆 存入 Mesh 實例
-			// 🏆 關鍵：將座標存入 mapBlocks 供角色移動參考
-			mapBlocks.push(tile.position); 
+			allTileMeshes.push(tile);
+			mapBlocks.push(tile.position);
+
+			// Support pillar under elevated tiles
+			if (td.y > 0.4) {
+				const pillarGeo = new THREE.BoxGeometry(3.0, td.y, 3.0);
+				const pillarMat = new THREE.MeshStandardMaterial({ color: 0x78909c, roughness: 0.9 });
+				const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+				pillar.position.set(td.x, td.y / 2 - 0.25, td.z);
+				scene.add(pillar);
+			}
+
+			// Floating ? marker above event tiles
+			if (td.type === 'event') {
+				const mc = document.createElement('canvas');
+				mc.width = mc.height = 64;
+				const mctx = mc.getContext('2d');
+				mctx.fillStyle = '#9c27b0';
+				mctx.beginPath(); mctx.arc(32, 32, 28, 0, Math.PI * 2); mctx.fill();
+				mctx.fillStyle = '#ffffff';
+				mctx.font = 'bold 38px Arial';
+				mctx.textAlign = 'center';
+				mctx.textBaseline = 'middle';
+				mctx.fillText('?', 32, 34);
+				const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(mc), transparent: true }));
+				sp.scale.set(1.4, 1.4, 1);
+				sp.position.set(td.x, td.y + 2.2, td.z);
+				scene.add(sp);
+			}
 		});
+
+		// Ground plane
+		const groundGeo = new THREE.PlaneGeometry(60, 34);
+		const groundMat = new THREE.MeshStandardMaterial({ color: 0x7cb342, roughness: 1.0 });
+		const ground = new THREE.Mesh(groundGeo, groundMat);
+		ground.rotation.x = -Math.PI / 2;
+		ground.position.y = -0.3;
+		scene.add(ground);
+	}
+
+	function createTileTexture(type) {
+		const c = document.createElement('canvas');
+		c.width = c.height = 128;
+		const ctx = c.getContext('2d');
+
+		const palette = {
+			start: ['#00cdac', '#008f78'],
+			grass: ['#66bb6a', '#388e3c'],
+			stone: ['#90a4ae', '#546e7a'],
+			sand:  ['#ffca28', '#f9a825'],
+			ice:   ['#80deea', '#00acc1'],
+			lava:  ['#ff7043', '#bf360c'],
+			event: ['#ce93d8', '#7b1fa2']
+		};
+
+		const [light, dark] = palette[type] || ['#e0e0e0', '#9e9e9e'];
+		ctx.fillStyle = light;
+		ctx.fillRect(0, 0, 128, 128);
+
+		if (type === 'grass') {
+			ctx.fillStyle = dark;
+			for (let r = 0; r < 12; r++)
+				ctx.fillRect(8 + (r % 4) * 30, 10 + Math.floor(r / 4) * 30, 5, 12);
+		} else if (type === 'stone') {
+			ctx.strokeStyle = dark; ctx.lineWidth = 3;
+			for (let row = 0; row < 4; row++) {
+				const xoff = (row % 2) * 32;
+				for (let col = 0; col < 3; col++)
+					ctx.strokeRect(xoff + col * 64 - 28, row * 32 + 5, 56, 24);
+			}
+		} else if (type === 'sand') {
+			ctx.strokeStyle = dark; ctx.lineWidth = 2;
+			for (let row = 0; row < 5; row++) {
+				ctx.beginPath();
+				for (let x = 0; x <= 128; x += 8) {
+					const y = row * 26 + 12 + Math.sin(x * 0.15) * 5;
+					x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+				}
+				ctx.stroke();
+			}
+		} else if (type === 'ice') {
+			ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 2;
+			for (let a = 0; a < 6; a++) {
+				const angle = (a * Math.PI) / 3;
+				ctx.beginPath();
+				ctx.moveTo(64, 64);
+				ctx.lineTo(64 + Math.cos(angle) * 44, 64 + Math.sin(angle) * 44);
+				ctx.stroke();
+			}
+		} else if (type === 'lava') {
+			ctx.strokeStyle = '#ffcc02'; ctx.lineWidth = 3;
+			ctx.beginPath(); ctx.moveTo(18, 22); ctx.lineTo(58, 58); ctx.lineTo(30, 108); ctx.stroke();
+			ctx.beginPath(); ctx.moveTo(88, 18); ctx.lineTo(106, 68); ctx.lineTo(68, 108); ctx.stroke();
+		} else if (type === 'event') {
+			ctx.fillStyle = dark; ctx.font = 'bold 80px Arial';
+			ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+			ctx.fillText('?', 64, 68);
+		} else if (type === 'start') {
+			ctx.fillStyle = dark; ctx.font = 'bold 52px Arial';
+			ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+			ctx.fillText('GO', 64, 64);
+		}
+
+		ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 4;
+		ctx.strokeRect(2, 2, 124, 124);
+		return new THREE.CanvasTexture(c);
 	}
 
 
@@ -461,7 +586,7 @@ function makeDummyTexture() {
 }
 
 function loadFaceTextureIntoMat(mat) {
-    const dataUrl = localStorage.getItem('beerich_char_face');
+    const dataUrl = localStorage.getItem('pypoly_char_face');
     if (!dataUrl) return;
     const img = new Image();
     img.onload = () => {
@@ -505,18 +630,18 @@ function applyCharDataToMat(mat, data) {
 
 function emitCharData() {
     const myName = localStorage.getItem('username');
-    const activeRoom = JSON.parse(localStorage.getItem('beerich_active_room'));
+    const activeRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
     const room = activeRoom ? activeRoom.code : localStorage.getItem('room_code');
     if (!room) return;
-    const rawColors = localStorage.getItem('beerich_char_colors');
+    const rawColors = localStorage.getItem('pypoly_char_colors');
     const colors = rawColors ? JSON.parse(rawColors) : null;
-    const face = localStorage.getItem('beerich_char_face') || null;
+    const face = localStorage.getItem('pypoly_char_face') || null;
     socket.emit('char_data_sync', { room, user: myName, colors, face });
 }
 
 function loadPlayerModels() {
     const loader = new THREE.GLTFLoader();
-    const gameSnapshot = JSON.parse(localStorage.getItem('beerich_game_snapshot'));
+    const gameSnapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot'));
     const players = gameSnapshot.players;
     const myName = localStorage.getItem('username');
 
@@ -606,7 +731,7 @@ function loadPlayerModels() {
 
             let colors = { ...defaultColors };
             if (playerName === myName) {
-                const raw = localStorage.getItem('beerich_char_colors');
+                const raw = localStorage.getItem('pypoly_char_colors');
                 if (raw) { try { Object.assign(colors, JSON.parse(raw)); } catch(e) {} }
             }
 
@@ -743,7 +868,7 @@ function animate() {
 }
 	
 function playOpeningAnim() {
-    const gameSnapshot = JSON.parse(localStorage.getItem('beerich_game_snapshot'));
+    const gameSnapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot'));
     const roomName = gameSnapshot ? (gameSnapshot.name || gameSnapshot.code) : "BeeRich";
     
     // 固定在俯衝前的初始位置
@@ -900,7 +1025,7 @@ function playOpeningAnim() {
 					
 					// 發送給 Socket 讓對手知道我骰到幾點
 					socket.emit('player_move_sync', {
-						room: JSON.parse(localStorage.getItem('beerich_active_room')).code,
+						room: JSON.parse(localStorage.getItem('pypoly_active_room')).code,
 						user: myName,
 						steps: steps
 					});
@@ -1201,8 +1326,8 @@ async function startRecognitionProcess() {
 	}
 
 	function syncOrderDice(point) {
-		// 🏆 修正 1：檢查 room_code 是否存在，你的 localStorage 可能是存 beerich_active_room
-		const activeRoom = JSON.parse(localStorage.getItem('beerich_active_room'));
+		// 🏆 修正 1：檢查 room_code 是否存在，你的 localStorage 可能是存 pypoly_active_room
+		const activeRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
 		const roomCode = activeRoom ? activeRoom.code : localStorage.getItem('room_code');
 		const user = localStorage.getItem('username');
 
@@ -1317,7 +1442,7 @@ socket.on('dice_order_final', (results) => {
             isRolling = false; 
             myDicePoint = 0;
             
-            const activeRoom = JSON.parse(localStorage.getItem('beerich_active_room'));
+            const activeRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
             const roomCode = activeRoom ? activeRoom.code : localStorage.getItem('room_code');
             socket.emit('reset_dice_order', { room: roomCode });
 
@@ -1409,7 +1534,7 @@ socket.on('dice_order_final', (results) => {
 			await movePlayer(myName, myDicePoint);
 		} else {
 			// 找出對方的名字並移動
-			const players = JSON.parse(localStorage.getItem('beerich_game_snapshot')).players;
+			const players = JSON.parse(localStorage.getItem('pypoly_game_snapshot')).players;
 			const opponent = players.find(p => p !== myName);
 			await movePlayer(opponent, opponentDicePoint);
 		}
@@ -1444,7 +1569,7 @@ function finalizeGameStart(iAmFirst) {
         camera.layers.disable(1); // 隱藏自己的頭部 (不再有布偶裝感)
 
 		// 🏆 新增：找出對手是誰，並在我的畫面中隱藏他
-        const players = JSON.parse(localStorage.getItem('beerich_game_snapshot')).players;
+        const players = JSON.parse(localStorage.getItem('pypoly_game_snapshot')).players;
         const opponentName = players.find(p => p !== myName);
         if (playerModels[opponentName]) {
             playerModels[opponentName].visible = false; // 這樣他就絕對擋不到你了
@@ -1489,7 +1614,7 @@ function finalizeGameStart(iAmFirst) {
 
 function startMainTurn(isMyTurn) {
     const myName = localStorage.getItem('username');
-    const players = JSON.parse(localStorage.getItem('beerich_game_snapshot')).players;
+    const players = JSON.parse(localStorage.getItem('pypoly_game_snapshot')).players;
     const opponentName = players.find(p => p !== myName);
 
 	if (isMyTurn) {
@@ -1573,7 +1698,7 @@ async function movePlayerSequence(playerName, steps) {
     showCustomNotice(`${playerName} 擲出 ${steps} 點，開始前進！`, noticePos);
 
     // 🏆 隱藏機制：如果是我在走動，暫時把對手模型隱藏，避免轉彎時擋到我的第一人稱視角
-    const players = JSON.parse(localStorage.getItem('beerich_game_snapshot')).players;
+    const players = JSON.parse(localStorage.getItem('pypoly_game_snapshot')).players;
     const opponentName = players.find(p => p !== myName);
     if (isMe && playerModels[opponentName]) {
         playerModels[opponentName].visible = false;
@@ -1735,7 +1860,7 @@ function spawnStepBubble(parentModel, text) {
 		if (confirm(`回答正確！這塊地價值 $${cost}，是否購買？`)) {
 			// 發送給後端
 			socket.emit('buy_land', {
-				room: localStorage.getItem('beerich_room_name'),
+				room: localStorage.getItem('pypoly_room_name'),
 				user: myName,
 				tileIndex: currentIndex
 			});
@@ -1744,7 +1869,7 @@ function spawnStepBubble(parentModel, text) {
 			updateMoneyUI(myName, -cost);
 		} else {
 			// 放棄購買，直接換人
-			socket.emit('next_turn', { room: localStorage.getItem('beerich_room_name') });
+			socket.emit('next_turn', { room: localStorage.getItem('pypoly_room_name') });
 		}
 	}
 	
@@ -1844,7 +1969,7 @@ function showGameNotice(msg, duration = 3000) {
 	}
 	
 	async function leaveCurrentRoom() {
-		const activeRoom = JSON.parse(localStorage.getItem('beerich_active_room'));
+		const activeRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
 		const username   = localStorage.getItem('username');
 		if (!activeRoom || !username) return;
 		const code   = activeRoom.code;
@@ -1856,7 +1981,7 @@ function showGameNotice(msg, duration = 3000) {
 				await fetch(`${API_URL}/rooms/leave/${code}?username=${encodeURIComponent(username)}`, { method: 'POST' });
 			}
 		} catch(e) {}
-		localStorage.removeItem('beerich_active_room');
+		localStorage.removeItem('pypoly_active_room');
 	}
 
 	async function returnToLobby() {

@@ -4,7 +4,8 @@
       "PowerShell(git *)",
       "Bash(Get-ChildItem -Recurse \"C:\\\\Users\\\\范植鈞\\\\Desktop\\\\116project-范植鈞\\\\3D Chess\\\\3DCharactor\")",
       "Bash(Select-Object FullName, PSIsContainer)",
-      "Bash(Format-Table -AutoSize)"
+      "Bash(Format-Table -AutoSize)",
+      "Bash(Copy-Item *)"
     ]
   }
 }

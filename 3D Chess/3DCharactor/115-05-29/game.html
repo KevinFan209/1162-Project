@@ -153,7 +153,7 @@
 
 <div class="menu-overlay" id="overlay" onclick="toggleMenu()"></div>
 <div class="side-menu" id="sideMenu">
-    <a href="lobby.html" class="menu-item">🏠 返回大廳</a>
+    <a href="javascript:void(0)" onclick="returnToLobby()" class="menu-item">🏠 返回大廳</a>
     <a href="javascript:void(0)" onclick="logout()" class="menu-item danger">🚪 登出遊戲</a>
 </div>
 
@@ -218,7 +218,7 @@
 
 <script>
 	// 1. 最優先：定義基礎常數 (例如 API 路徑)
-	const API_URL = "http://10.178.72.76:8000";
+	const API_URL = window.location.protocol !== 'file:' ? window.location.origin : 'http://localhost:8000';
 	const DICE_DIR = "dice_faces/"; 
 	const OUTLINE_DIR = "outlines/";
 
@@ -394,13 +394,13 @@
 		renderer.setSize(window.innerWidth, window.innerHeight);
 		document.getElementById('threejs-container').appendChild(renderer.domElement);
 
-		const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-		scene.add(ambientLight);
-		const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+		const hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x5d8a3c, 0.9);
+		scene.add(hemiLight);
+		const directionalLight = new THREE.DirectionalLight(0xfffde7, 0.9);
 		directionalLight.position.set(20, 40, 20);
 		scene.add(directionalLight);
 
-		create3DBoard();
+		preloadTileTextures(function() { create3DBoard(); });
 		createVisionScreen(); // 這裡會建立繪圖用的 Canvas
 
 		const playerGeo = new THREE.BoxGeometry(1, 2, 1);
@@ -415,9 +415,7 @@
 		animate();
 	}
 	
-	function create3DBoard() {
-		mapBlocks = [];
-
+	function getDefaultTileData() {
 		const topH  = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4];
 		const topT  = ['start','grass','stone','grass','event','stone','sand','grass','stone'];
 		const rightH = [4, 4, 4, 3.5, 3];
@@ -427,32 +425,45 @@
 		const leftH = [0, 0.5, 0.5, 0];
 		const leftT = ['ice','stone','event','grass'];
 
-		const tileData = [];
-		for (let i = 0; i < 9; i++) tileData.push({ x: -16 + i*4,  z: 10,       y: topH[i],    type: topT[i]    });
-		for (let i = 1; i < 6; i++) tileData.push({ x: 16,          z: 10 - i*4, y: rightH[i-1],type: rightT[i-1]});
-		for (let i = 1; i < 9; i++) tileData.push({ x: 16 - i*4,   z: -10,      y: botH[i-1],  type: botT[i-1]  });
-		for (let i = 1; i < 5; i++) tileData.push({ x: -16,         z: -10 + i*4,y: leftH[i-1], type: leftT[i-1] });
+		const tiles = [];
+		for (let i = 0; i < 9; i++) tiles.push({ x: -16 + i*4,  z: 10,       y: topH[i],    type: topT[i],    label: topT[i] === 'start' ? 'GO' : '' });
+		for (let i = 1; i < 6; i++) tiles.push({ x: 16,          z: 10 - i*4, y: rightH[i-1],type: rightT[i-1],label: '' });
+		for (let i = 1; i < 9; i++) tiles.push({ x: 16 - i*4,   z: -10,      y: botH[i-1],  type: botT[i-1],  label: '' });
+		for (let i = 1; i < 5; i++) tiles.push({ x: -16,         z: -10 + i*4,y: leftH[i-1], type: leftT[i-1], label: '' });
+		return tiles;
+	}
+
+	function create3DBoard() {
+		mapBlocks = [];
+
+		const savedConfig = localStorage.getItem('pypoly_board_config');
+		const tileData = savedConfig ? JSON.parse(savedConfig).tiles : getDefaultTileData();
 
 		const tileGeo = new THREE.BoxGeometry(3.5, 0.5, 3.5);
 
 		tileData.forEach((td, index) => {
 			const mat = new THREE.MeshStandardMaterial({
-				map: createTileTexture(td.type),
+				map: createTileTexture(td.type, td.label),
 				roughness: 0.8,
 				metalness: 0.05
 			});
 			const tile = new THREE.Mesh(tileGeo, mat);
+			const s = td.size ?? 1;
+			tile.scale.set(s, 1, s);
 			tile.position.set(td.x, td.y, td.z);
 			tile.userData.tileType = td.type;
 			scene.add(tile);
 			allTileMeshes.push(tile);
 			mapBlocks.push(tile.position);
+			addTileEdgeGlow(scene, td, s);
+			addTileProps(scene, td, s);
 
 			// Support pillar under elevated tiles
 			if (td.y > 0.4) {
 				const pillarGeo = new THREE.BoxGeometry(3.0, td.y, 3.0);
 				const pillarMat = new THREE.MeshStandardMaterial({ color: 0x78909c, roughness: 0.9 });
 				const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+				pillar.scale.set(s, 1, s);
 				pillar.position.set(td.x, td.y / 2 - 0.25, td.z);
 				scene.add(pillar);
 			}
@@ -475,6 +486,7 @@
 				scene.add(sp);
 			}
 		});
+		buildTileConnectors(scene, tileData);
 
 		// Ground plane
 		const groundGeo = new THREE.PlaneGeometry(60, 34);
@@ -483,9 +495,51 @@
 		ground.rotation.x = -Math.PI / 2;
 		ground.position.y = -0.3;
 		scene.add(ground);
+		createEnvironment(scene);
 	}
 
-	function createTileTexture(type) {
+	// ── Tile image cache ─────────────────────────────────────────────────────
+	const tileImgCache = {};
+	let   tileImgCacheReady = false;
+
+	function preloadTileTextures(onReady) {
+		if (tileImgCacheReady) { onReady(); return; }
+		const types = ['start','grass','stone','sand','ice','lava','event'];
+		let pending = types.length;
+		function done() { if (--pending === 0) { tileImgCacheReady = true; onReady(); } }
+		types.forEach(t => {
+			const img = new Image();
+			img.onload = () => {
+				// Test origin-clean before handing image to WebGL.
+				// On file:// protocol, drawImage taints the canvas and toDataURL throws —
+				// we catch that and fall back to procedural generation instead of
+				// passing a cross-origin image to texImage2D (which would corrupt the GL context).
+				try {
+					const test = document.createElement('canvas');
+					test.width = test.height = 1;
+					test.getContext('2d').drawImage(img, 0, 0, 1, 1);
+					test.toDataURL(); // throws SecurityError if cross-origin
+					const tex = new THREE.Texture(img);
+					tex.needsUpdate = true;
+					tileImgCache[t] = tex;
+				} catch(e) { /* cross-origin (file://) — procedural fallback will be used */ }
+				done();
+			};
+			img.onerror = () => done();
+			img.src = `img/tiles/${t}.png`;
+		});
+	}
+
+	function createTileTexture(type, label) {
+		const defaultLabel = type === 'start' ? 'GO' : type === 'event' ? '?' : null;
+		const hasCustomLabel = label != null && label !== '' && label !== defaultLabel;
+
+		// Return cached THREE.Texture directly — avoids canvas-taint on file:// protocol
+		if (tileImgCache[type] && !hasCustomLabel) {
+			return tileImgCache[type];
+		}
+
+		// Procedural canvas for custom label or when image unavailable (no drawImage)
 		const c = document.createElement('canvas');
 		c.width = c.height = 128;
 		const ctx = c.getContext('2d');
@@ -499,11 +553,10 @@
 			lava:  ['#ff7043', '#bf360c'],
 			event: ['#ce93d8', '#7b1fa2']
 		};
-
 		const [light, dark] = palette[type] || ['#e0e0e0', '#9e9e9e'];
+
 		ctx.fillStyle = light;
 		ctx.fillRect(0, 0, 128, 128);
-
 		if (type === 'grass') {
 			ctx.fillStyle = dark;
 			for (let r = 0; r < 12; r++)
@@ -529,8 +582,7 @@
 			ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 2;
 			for (let a = 0; a < 6; a++) {
 				const angle = (a * Math.PI) / 3;
-				ctx.beginPath();
-				ctx.moveTo(64, 64);
+				ctx.beginPath(); ctx.moveTo(64, 64);
 				ctx.lineTo(64 + Math.cos(angle) * 44, 64 + Math.sin(angle) * 44);
 				ctx.stroke();
 			}
@@ -538,14 +590,14 @@
 			ctx.strokeStyle = '#ffcc02'; ctx.lineWidth = 3;
 			ctx.beginPath(); ctx.moveTo(18, 22); ctx.lineTo(58, 58); ctx.lineTo(30, 108); ctx.stroke();
 			ctx.beginPath(); ctx.moveTo(88, 18); ctx.lineTo(106, 68); ctx.lineTo(68, 108); ctx.stroke();
-		} else if (type === 'event') {
-			ctx.fillStyle = dark; ctx.font = 'bold 80px Arial';
+		}
+
+		const text = hasCustomLabel ? label : defaultLabel;
+		if (text) {
+			const fs = text.length > 3 ? 34 : text.length > 2 ? 44 : 52;
+			ctx.fillStyle = dark; ctx.font = `bold ${fs}px Arial`;
 			ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-			ctx.fillText('?', 64, 68);
-		} else if (type === 'start') {
-			ctx.fillStyle = dark; ctx.font = 'bold 52px Arial';
-			ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-			ctx.fillText('GO', 64, 64);
+			ctx.fillText(text, 64, 65);
 		}
 
 		ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 4;
@@ -553,6 +605,146 @@
 		return new THREE.CanvasTexture(c);
 	}
 
+	// ── Plan C: 格子邊緣發光 ───────────────────────────────────────────────────
+	function addTileEdgeGlow(scene, td, s) {
+		const glowColors = {
+			start: 0x00cdac, grass: 0x4caf50, stone: 0x78909c,
+			sand:  0xffd740, ice:   0x40c4ff, lava:  0xff6e40, event: 0xce93d8
+		};
+		const color = glowColors[td.type] || 0xffffff;
+		const edgeLine = new THREE.LineSegments(
+			new THREE.EdgesGeometry(new THREE.BoxGeometry(3.5, 0.5, 3.5)),
+			new THREE.LineBasicMaterial({ color })
+		);
+		edgeLine.scale.set(s, 1, s);
+		edgeLine.position.set(td.x, td.y, td.z);
+		scene.add(edgeLine);
+	}
+
+	// ── Plan A: 格子裝飾物件 ───────────────────────────────────────────────────
+	function addTileProps(scene, td, s) {
+		const bx = td.x, top = td.y + 0.25, bz = td.z;
+		if (td.type === 'grass') {
+			const tMat = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 1 });
+			const cMat = new THREE.MeshStandardMaterial({ color: 0x2e7d32, roughness: 0.9 });
+			[[-0.65 * s, -0.55 * s], [0.55 * s, 0.50 * s]].forEach(([ox, oz]) => {
+				const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.10, 0.44, 6), tMat);
+				trunk.position.set(bx + ox, top + 0.22, bz + oz);
+				scene.add(trunk);
+				const crown = new THREE.Mesh(new THREE.SphereGeometry(0.29, 7, 5), cMat);
+				crown.position.set(bx + ox, top + 0.60, bz + oz);
+				scene.add(crown);
+			});
+		} else if (td.type === 'stone') {
+			const rMat = new THREE.MeshStandardMaterial({ color: 0x78909c, roughness: 1, flatShading: true });
+			const rots = [[0.6, 0.8, 0.4], [0.3, 2.1, 0.7], [1.1, 1.4, 0.2]];
+			[[0.55 * s, -0.40 * s, 0.19], [-0.50 * s, 0.40 * s, 0.16], [0.10 * s, 0.60 * s, 0.13]].forEach(([ox, oz, rs], ri) => {
+				const rock = new THREE.Mesh(new THREE.OctahedronGeometry(rs, 0), rMat);
+				rock.rotation.set(rots[ri][0], rots[ri][1], rots[ri][2]);
+				rock.position.set(bx + ox, top + rs * 0.6, bz + oz);
+				scene.add(rock);
+			});
+		} else if (td.type === 'sand') {
+			const cMat = new THREE.MeshStandardMaterial({ color: 0x558b2f, roughness: 0.9 });
+			const body = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.65, 8), cMat);
+			body.position.set(bx, top + 0.325, bz);
+			scene.add(body);
+			const armL = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.28, 7), cMat);
+			armL.rotation.z = Math.PI / 2.2;
+			armL.position.set(bx - 0.22, top + 0.46, bz);
+			scene.add(armL);
+			const armR = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.24, 7), cMat);
+			armR.rotation.z = -Math.PI / 2.4;
+			armR.position.set(bx + 0.20, top + 0.40, bz);
+			scene.add(armR);
+		} else if (td.type === 'ice') {
+			const iMat = new THREE.MeshStandardMaterial({
+				color: 0xb3e5fc, transparent: true, opacity: 0.82, roughness: 0.1, metalness: 0.3
+			});
+			[[-0.45 * s, -0.35 * s, 0.60], [0.35 * s, 0.40 * s, 0.45], [0.05 * s, -0.55 * s, 0.72]].forEach(([ox, oz, ch]) => {
+				const crystal = new THREE.Mesh(new THREE.ConeGeometry(0.10, ch, 4), iMat);
+				crystal.position.set(bx + ox, top + ch / 2, bz + oz);
+				scene.add(crystal);
+			});
+		} else if (td.type === 'lava') {
+			const outerFlame = new THREE.Mesh(
+				new THREE.ConeGeometry(0.28, 0.80, 6),
+				new THREE.MeshStandardMaterial({ color: 0xff6d00, emissive: 0xff3d00, emissiveIntensity: 0.9, roughness: 0.6 })
+			);
+			outerFlame.position.set(bx, top + 0.40, bz);
+			scene.add(outerFlame);
+			const innerFlame = new THREE.Mesh(
+				new THREE.ConeGeometry(0.14, 0.60, 6),
+				new THREE.MeshStandardMaterial({ color: 0xffff00, emissive: 0xffcc00, emissiveIntensity: 1.2, roughness: 0.5 })
+			);
+			innerFlame.position.set(bx, top + 0.44, bz);
+			scene.add(innerFlame);
+		}
+	}
+
+	// ── Plan E: 環境（水面 + 遠山） ────────────────────────────────────────────
+	function createEnvironment(scene) {
+		const water = new THREE.Mesh(
+			new THREE.PlaneGeometry(220, 220),
+			new THREE.MeshStandardMaterial({ color: 0x1976d2, transparent: true, opacity: 0.72, roughness: 0.05, metalness: 0.15 })
+		);
+		water.rotation.x = -Math.PI / 2;
+		water.position.y = -0.55;
+		scene.add(water);
+
+		const mtnData = [
+			[-62, -52, 14, 12, 6], [-35, -58, 11, 10, 5], [  5, -60,  9, 14, 7],
+			[ 45, -54, 12, 10, 5], [ 68, -46, 15, 13, 6], [-68,  24, 10, 15, 5],
+			[ 62,  22, 13, 11, 6], [-52,  50,  8, 10, 4], [ 50,  48, 10, 12, 5],
+			[-18, -57,  7,  9, 4], [ 26, -55,  9,  8, 5], [  0, -62, 11, 11, 6],
+		];
+		const mColors = [0x4a6741, 0x556b2f, 0x3d5c34, 0x4e6b45, 0x607d5a];
+		mtnData.forEach(([mx, mz, r, h, segs], i) => {
+			const mtn = new THREE.Mesh(
+				new THREE.ConeGeometry(r, h, segs),
+				new THREE.MeshStandardMaterial({ color: mColors[i % 5], roughness: 1, flatShading: true })
+			);
+			mtn.position.set(mx, h / 2 - 0.5, mz);
+			scene.add(mtn);
+		});
+	}
+
+	// ── Plan D: 路徑橋接 ──────────────────────────────────────────────────────
+	function buildTileConnectors(scene, tiles) {
+		const mat = new THREE.MeshStandardMaterial({ color: 0x8d9eab, roughness: 0.85, metalness: 0.05 });
+		const SLAB_H  = 0.22;
+		const OVERLAP = 0.15;  // 插入格子邊緣的深度，讓連接看起來無縫
+
+		for (let i = 0; i < tiles.length; i++) {
+			const a  = tiles[i];
+			const b  = tiles[(i + 1) % tiles.length];
+			const sa = a.size ?? 1;
+			const sb = b.size ?? 1;
+
+			const dx = b.x - a.x, dz = b.z - a.z;
+			const hd = Math.sqrt(dx * dx + dz * dz);
+			if (hd < 0.01) continue;
+			const nx = dx / hd, nz = dz / hd;
+
+			// 從 tile A 頂面邊緣出發、到 tile B 頂面邊緣結束（帶 overlap）
+			const sx = a.x + nx * (1.75 * sa - OVERLAP), sy = a.y + 0.25, sz = a.z + nz * (1.75 * sa - OVERLAP);
+			const ex = b.x - nx * (1.75 * sb - OVERLAP), ey = b.y + 0.25, ez = b.z - nz * (1.75 * sb - OVERLAP);
+
+			const len = Math.sqrt((ex - sx) ** 2 + (ey - sy) ** 2 + (ez - sz) ** 2);
+			if (len < 0.05) continue;
+
+			const connW = Math.min(sa, sb) * 1.8;
+			const conn = new THREE.Mesh(new THREE.BoxGeometry(len, SLAB_H, connW), mat);
+			conn.position.set((sx + ex) / 2, (sy + ey) / 2, (sz + ez) / 2);
+			conn.setRotationFromQuaternion(
+				new THREE.Quaternion().setFromUnitVectors(
+					new THREE.Vector3(1, 0, 0),
+					new THREE.Vector3(ex - sx, ey - sy, ez - sz).normalize()
+				)
+			);
+			scene.add(conn);
+		}
+	}
 
 	function createVisionScreen() {
 		// 🏆 將布幕比例稍微縮小 (原 16:9 保持，但大小從 16 降到 14)
@@ -1968,8 +2160,30 @@ function showGameNotice(msg, duration = 3000) {
 		document.getElementById('overlay').classList.toggle('open');
 	}
 	
+	async function leaveCurrentRoom() {
+		const activeRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
+		const username   = localStorage.getItem('username');
+		if (!activeRoom || !username) return;
+		const code   = activeRoom.code;
+		const isHost = activeRoom.hostId === username;
+		try {
+			if (isHost) {
+				await fetch(`${API_URL}/rooms/delete/${code}`, { method: 'DELETE' });
+			} else {
+				await fetch(`${API_URL}/rooms/leave/${code}?username=${encodeURIComponent(username)}`, { method: 'POST' });
+			}
+		} catch(e) {}
+		localStorage.removeItem('pypoly_active_room');
+	}
+
+	async function returnToLobby() {
+		await leaveCurrentRoom();
+		window.location.href = 'lobby.html';
+	}
+
 	async function logout() {
 		if (syncTimer) clearInterval(syncTimer);
+		await leaveCurrentRoom();
 		const username = localStorage.getItem('username');
 		await fetch(`${API_URL}/auth/logout?username=${username}&confirm=true`, { method: 'POST' });
 		localStorage.clear();
