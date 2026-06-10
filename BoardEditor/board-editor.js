@@ -1,414 +1,3 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>棋盤編輯器</title>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-
-        body {
-            font-family: 'Segoe UI', sans-serif;
-            background: #0d1117;
-            color: #c9d1d9;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        /* ── Header ── */
-        header {
-            background: #161b22;
-            border-bottom: 1px solid #30363d;
-            padding: 10px 16px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            flex-shrink: 0;
-        }
-        header h1 { font-size: 1rem; color: #58a6ff; white-space: nowrap; letter-spacing: 1px; }
-
-        #boardName {
-            background: #0d1117;
-            border: 1px solid #30363d;
-            color: #c9d1d9;
-            padding: 5px 10px;
-            border-radius: 6px;
-            font-size: 0.85rem;
-            width: 160px;
-        }
-        #boardName:focus { outline: none; border-color: #58a6ff; }
-
-        .toolbar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; flex: 1; }
-
-        btn, button {
-            padding: 6px 12px;
-            border: 1px solid #30363d;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.8rem;
-            background: #21262d;
-            color: #c9d1d9;
-            transition: background 0.15s, border-color 0.15s;
-        }
-        button:hover { background: #30363d; border-color: #58a6ff; }
-        button.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
-        button.primary:hover { background: #388bfd; }
-        button.danger  { background: #b91c1c; border-color: #b91c1c; color: #fff; }
-        button.danger:hover  { background: #dc2626; }
-
-        /* ── Main layout ── */
-        #main {
-            display: flex;
-            flex: 1;
-            overflow: hidden;
-        }
-
-        /* ── Canvas area ── */
-        #canvas-area {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            background: #0d1117;
-            padding: 12px;
-            gap: 10px;
-            overflow: hidden;
-        }
-
-        #boardCanvas {
-            background: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 8px;
-            cursor: crosshair;
-            display: block;
-            touch-action: none;
-        }
-
-        #canvas-controls {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            font-size: 0.78rem;
-            color: #8b949e;
-        }
-        #canvas-controls label {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            cursor: pointer;
-            user-select: none;
-        }
-        #canvas-controls input[type=checkbox] { accent-color: #58a6ff; width: 14px; height: 14px; }
-        #drag-hint { color: #8b949e; font-size: 0.72rem; }
-
-        #canvas-legend {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 0.72rem;
-            color: #8b949e;
-        }
-        .legend-swatch {
-            width: 12px; height: 12px;
-            border-radius: 3px;
-            border: 1px solid rgba(255,255,255,0.2);
-        }
-
-        /* ── Properties panel ── */
-        #props-panel {
-            width: 250px;
-            background: #161b22;
-            border-left: 1px solid #30363d;
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
-            flex-shrink: 0;
-        }
-        #props-header {
-            padding: 12px 14px 8px;
-            border-bottom: 1px solid #30363d;
-            color: #58a6ff;
-            font-size: 0.9rem;
-            font-weight: bold;
-            flex-shrink: 0;
-        }
-        #props-body { padding: 12px 14px; flex: 1; overflow-y: auto; }
-
-        #no-selection { color: #8b949e; font-size: 0.85rem; }
-
-        .prop-group { margin-bottom: 12px; }
-        .prop-group label {
-            display: block;
-            font-size: 0.75rem;
-            color: #8b949e;
-            margin-bottom: 4px;
-        }
-        .prop-group input[type=text],
-        .prop-group input[type=number] {
-            width: 100%;
-            background: #0d1117;
-            border: 1px solid #30363d;
-            color: #c9d1d9;
-            padding: 5px 8px;
-            border-radius: 6px;
-            font-size: 0.85rem;
-        }
-        .prop-group input:focus { outline: none; border-color: #58a6ff; }
-        .prop-group input[type=range] { width: 100%; accent-color: #58a6ff; }
-
-        .prop-row { display: flex; gap: 8px; }
-        .prop-row .prop-group { flex: 1; }
-
-        .height-row { display: flex; align-items: center; gap: 8px; }
-        .height-row input[type=range] { flex: 1; }
-        .height-row input[type=number] { width: 62px; }
-
-        .tile-idx-badge {
-            display: inline-block;
-            background: #1f6feb;
-            color: #fff;
-            font-size: 0.75rem;
-            font-weight: bold;
-            padding: 2px 8px;
-            border-radius: 12px;
-            margin-bottom: 10px;
-        }
-
-        /* Type selector */
-        .type-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 5px;
-        }
-        .type-btn {
-            padding: 6px 2px;
-            border-radius: 5px;
-            font-size: 0.68rem;
-            text-align: center;
-            cursor: pointer;
-            border: 2px solid transparent;
-            transition: border-color 0.15s;
-            user-select: none;
-        }
-        .type-btn.selected { border-color: #fff; box-shadow: 0 0 0 1px rgba(255,255,255,0.3); }
-        .type-btn:hover { border-color: rgba(255,255,255,0.5); }
-
-        /* ── Tile list ── */
-        #tile-list-wrap {
-            background: #161b22;
-            border-top: 1px solid #30363d;
-            padding: 8px 12px;
-            flex-shrink: 0;
-            height: 76px;
-            overflow-x: auto;
-            overflow-y: hidden;
-        }
-        #tile-list-inner {
-            display: flex;
-            gap: 5px;
-            align-items: center;
-            height: 100%;
-        }
-        .tile-chip {
-            min-width: 46px;
-            height: 52px;
-            border-radius: 6px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            font-size: 0.65rem;
-            border: 2px solid transparent;
-            flex-shrink: 0;
-            transition: border-color 0.15s;
-            user-select: none;
-        }
-        .tile-chip.selected { border-color: #fff; }
-        .tile-chip:hover { border-color: rgba(255,255,255,0.4); }
-        .tile-chip-num { font-weight: bold; font-size: 0.8rem; }
-        .tile-chip-type { font-size: 0.6rem; opacity: 0.85; }
-
-        /* ── View toggle ── */
-        .view-toggle {
-            display: flex;
-            border: 1px solid #30363d;
-            border-radius: 6px;
-            overflow: hidden;
-        }
-        .view-btn {
-            border: none !important;
-            border-radius: 0 !important;
-            padding: 6px 16px;
-            font-size: 0.82rem;
-        }
-        .view-btn + .view-btn { border-left: 1px solid #30363d !important; }
-        .view-btn.active { background: #1f6feb !important; color: #fff !important; }
-        .view-btn.active:hover { background: #388bfd !important; }
-
-        /* ── 3D preview area ── */
-        #view3d-area {
-            flex: 1;
-            flex-direction: column;
-            background: #0d1117;
-            overflow: hidden;
-        }
-        #threejs-mount {
-            flex: 1;
-            overflow: hidden;
-            min-height: 0;
-        }
-        #threejs-mount canvas { display: block; }
-
-        #view3d-controls {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            padding: 8px 16px;
-            background: #161b22;
-            border-top: 1px solid #30363d;
-            font-size: 0.78rem;
-            color: #8b949e;
-            flex-shrink: 0;
-        }
-        #view3d-controls label {
-            display: flex; align-items: center; gap: 6px;
-            cursor: pointer; user-select: none;
-        }
-        #view3d-controls input[type=checkbox] { accent-color: #58a6ff; }
-        #view3d-hint { margin-left: auto; font-size: 0.72rem; opacity: 0.6; }
-
-        /* Scrollbar */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #0d1117; }
-        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
-    </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-</head>
-<body>
-
-<header>
-    <h1>⬡ 棋盤編輯器</h1>
-    <input id="boardName" type="text" placeholder="棋盤名稱" value="Custom Board">
-    <div class="toolbar">
-        <div class="view-toggle">
-            <button id="btn2d" class="view-btn active" onclick="switchView('2d')">2D 編輯</button>
-            <button id="btn3d" class="view-btn"        onclick="switchView('3d')">3D 預覽</button>
-        </div>
-        <div id="edit-tools" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-            <button onclick="addTile()">＋ 新增格子</button>
-            <button onclick="resetToDefault()">↺ 重設預設</button>
-            <button onclick="showImportDialog()">📥 匯入 JSON</button>
-            <button onclick="exportJSON()">📤 匯出 JSON</button>
-            <button class="primary" onclick="applyToGame()">💾 套用到遊戲</button>
-        </div>
-    </div>
-</header>
-
-<div id="main">
-    <!-- 2D Canvas -->
-    <div id="canvas-area">
-        <canvas id="boardCanvas"></canvas>
-        <div id="canvas-controls">
-            <label>
-                <input type="checkbox" id="snapGrid" checked>
-                吸附到格線（0.5 單位）
-            </label>
-            <span id="drag-hint">拖曳格子可移動位置</span>
-        </div>
-        <div id="canvas-legend"></div>
-    </div>
-
-    <!-- 3D Preview -->
-    <div id="view3d-area" style="display:none">
-        <div id="threejs-mount"></div>
-        <div id="view3d-controls">
-            <label>
-                <input type="checkbox" id="autoRotate"> 自動旋轉
-            </label>
-            <span id="view3d-hint">滾輪縮放・拖曳旋轉・右鍵平移</span>
-        </div>
-    </div>
-
-    <!-- Properties panel -->
-    <div id="props-panel">
-        <div id="props-header">格子屬性</div>
-        <div id="props-body">
-            <div id="no-selection">← 點擊格子以編輯</div>
-
-            <div id="tile-props" style="display:none">
-                <div class="tile-idx-badge">格子 #<span id="tileIdxLabel"></span></div>
-
-                <div class="prop-row">
-                    <div class="prop-group">
-                        <label>X 座標</label>
-                        <input type="number" id="propX" step="0.5"
-                               oninput="updateProp('x', parseFloat(this.value))">
-                    </div>
-                    <div class="prop-group">
-                        <label>Z 座標</label>
-                        <input type="number" id="propZ" step="0.5"
-                               oninput="updateProp('z', parseFloat(this.value))">
-                    </div>
-                </div>
-
-                <div class="prop-group">
-                    <label>高度 Y</label>
-                    <div class="height-row">
-                        <input type="range" id="propY" min="0" max="8" step="0.5"
-                               oninput="syncHeight(this.value)">
-                        <input type="number" id="propYNum" min="0" max="8" step="0.5"
-                               oninput="syncHeight(this.value)">
-                    </div>
-                </div>
-
-                <div class="prop-group">
-                    <label>格子大小（倍率）</label>
-                    <div class="height-row">
-                        <input type="range" id="propSize" min="0.5" max="2" step="0.1"
-                               oninput="syncSize(this.value)">
-                        <input type="number" id="propSizeNum" min="0.5" max="2" step="0.1"
-                               oninput="syncSize(this.value)">
-                    </div>
-                </div>
-
-                <div class="prop-group">
-                    <label>格子類型</label>
-                    <div class="type-grid" id="typeGrid"></div>
-                </div>
-
-                <div class="prop-group">
-                    <label>標籤文字（顯示在格子上）</label>
-                    <input type="text" id="propLabel" placeholder="（空白）"
-                           oninput="updateProp('label', this.value)" maxlength="6">
-                </div>
-
-                <button class="danger" style="width:100%;margin-top:4px"
-                        onclick="deleteSelectedTile()">🗑 刪除此格</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Tile sequence bar -->
-<div id="tile-list-wrap">
-    <div id="tile-list-inner"></div>
-</div>
-
-<input type="file" id="fileInput" accept=".json" style="display:none"
-       onchange="handleFileImport(event)">
-
-<script>
 // ── Tile type definitions ─────────────────────────────────────────────────────
 const TILE_TYPES = {
     start: { label: '起點', color: '#00cdac' },
@@ -443,14 +32,82 @@ function getDefaultTiles() {
 let boardConfig = { version: 1, boardName: 'Custom Board', tiles: getDefaultTiles() };
 let selectedIndex = null;
 
+// ── Undo / Redo history ─────────────────────────────────────────────────────────
+const HISTORY_MAX = 100;
+let history    = [];   // stack of pre-change snapshots
+let redoStack  = [];
+let pendingSnapshot = null;   // snapshot captured at focus, committed on first edit
+
+function snapshot() { return JSON.parse(JSON.stringify(boardConfig)); }
+
+// Record a pre-change snapshot. Call BEFORE mutating boardConfig.
+function recordHistory(state) {
+    history.push(state || snapshot());
+    if (history.length > HISTORY_MAX) history.shift();
+    redoStack = [];
+    updateUndoButtons();
+}
+function pushHistory() { recordHistory(snapshot()); }
+
+function updateUndoButtons() {
+    const u = document.getElementById('btnUndo');
+    const r = document.getElementById('btnRedo');
+    if (u) u.disabled = history.length === 0;
+    if (r) r.disabled = redoStack.length === 0;
+}
+
+function undo() {
+    if (!history.length) return;
+    redoStack.push(snapshot());
+    boardConfig = history.pop();
+    afterHistoryChange();
+}
+function redo() {
+    if (!redoStack.length) return;
+    history.push(snapshot());
+    boardConfig = redoStack.pop();
+    afterHistoryChange();
+}
+
+// Refresh all UI from boardConfig after an undo/redo restore.
+function afterHistoryChange() {
+    document.getElementById('boardName').value = boardConfig.boardName || 'Custom Board';
+    if (selectedIndex !== null && selectedIndex >= boardConfig.tiles.length) selectedIndex = null;
+    if (selectedIndex !== null) {
+        selectTile(selectedIndex);   // also redraws + re-renders list
+    } else {
+        document.getElementById('no-selection').style.display = 'block';
+        document.getElementById('tile-props').style.display   = 'none';
+        drawBoard();
+        renderTileList();
+    }
+    updateUndoButtons();
+}
+
 // ── Canvas setup ──────────────────────────────────────────────────────────────
 const canvas  = document.getElementById('boardCanvas');
 const ctx     = canvas.getContext('2d');
 
-// World viewport (with margin around the default board)
-const WX_MIN = -22, WX_MAX = 22;
-const WZ_MIN = -14, WZ_MAX = 14;
+// World viewport (with margin around the default board) — auto-fit to content
+let WX_MIN = -22, WX_MAX = 22;
+let WZ_MIN = -14, WZ_MAX = 14;
 const TILE_HALF = 1.75;   // half of tile 3D width 3.5
+
+// Recompute the 2D viewport so it frames every tile. Call on wholesale board
+// changes (generate / import / reset / load) — not during drag, to avoid jitter.
+function fitViewport() {
+    const tiles = boardConfig.tiles;
+    if (!tiles.length) return;
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    tiles.forEach(o => {
+        const h = TILE_HALF * (o.size ?? 1);
+        minX = Math.min(minX, o.x - h); maxX = Math.max(maxX, o.x + h);
+        minZ = Math.min(minZ, o.z - h); maxZ = Math.max(maxZ, o.z + h);
+    });
+    const pad = 4;
+    WX_MIN = minX - pad; WX_MAX = maxX + pad;
+    WZ_MIN = minZ - pad; WZ_MAX = maxZ + pad;
+}
 
 function resizeCanvas() {
     const area  = document.getElementById('canvas-area');
@@ -484,11 +141,11 @@ function drawBoard() {
     // Faint grid
     ctx.strokeStyle = 'rgba(255,255,255,0.04)';
     ctx.lineWidth = 1;
-    for (let x = -20; x <= 20; x += 4) {
+    for (let x = Math.ceil(WX_MIN / 4) * 4; x <= WX_MAX; x += 4) {
         const cx = wx2cx(x);
         ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, H); ctx.stroke();
     }
-    for (let z = -12; z <= 12; z += 4) {
+    for (let z = Math.ceil(WZ_MIN / 4) * 4; z <= WZ_MAX; z += 4) {
         const cy = wz2cy(z);
         ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(W, cy); ctx.stroke();
     }
@@ -621,8 +278,15 @@ let drag = {
     offWX:    0,
     offWZ:    0,
     startCX:  0,
-    startCY:  0
+    startCY:  0,
+    preState: null    // snapshot taken at drag start, committed to history if moved
 };
+
+// Commit (or discard) the snapshot taken when a drag began.
+function commitDragHistory(moved) {
+    if (drag.preState && moved) recordHistory(drag.preState);
+    drag.preState = null;
+}
 
 function getCanvasPt(e) {
     const rect   = canvas.getBoundingClientRect();
@@ -679,6 +343,7 @@ function onPointerDown(e) {
         const t = boardConfig.tiles[hit];
         drag.offWX = cx2wx(cx) - t.x;
         drag.offWZ = cy2wz(cy) - t.z;
+        drag.preState = snapshot();   // captured now; committed on pointer-up only if moved
         canvas.style.cursor = 'grabbing';
     }
 }
@@ -730,6 +395,8 @@ function onPointerUp(e) {
     const wasDrag = drag.hasMoved;
     const idx     = drag.index;
 
+    commitDragHistory(wasDrag);
+
     drag.active   = false;
     drag.hasMoved = false;
 
@@ -754,6 +421,7 @@ function onPointerUp(e) {
 function onPointerLeave() {
     if (drag.active && drag.hasMoved) {
         // Finalize drag when mouse leaves canvas mid-drag
+        commitDragHistory(true);
         drag.active = false;
         drag.hasMoved = false;
         if (drag.index !== null) selectTile(drag.index);
@@ -781,6 +449,42 @@ function renderTileList() {
         chip.style.color = isLight(color) ? '#111' : '#fff';
         chip.innerHTML = `<span class="tile-chip-num">${idx}</span><span class="tile-chip-type">${TILE_TYPES[tile.type]?.label || tile.type}</span>`;
         chip.onclick = () => selectTile(idx);
+
+        // Drag-to-reorder
+        chip.draggable = true;
+        chip.title = '拖曳可調整順序';
+        chip.addEventListener('dragstart', e => {
+            chipDrag.from = idx;
+            chip.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', String(idx));   // Firefox needs payload
+        });
+        chip.addEventListener('dragend', () => {
+            chip.classList.remove('dragging');
+            chipDrag.from = null;
+            clearChipDropMarkers();
+        });
+        chip.addEventListener('dragover', e => {
+            if (chipDrag.from === null) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            const rect  = chip.getBoundingClientRect();
+            const after = (e.clientX - rect.left) > rect.width / 2;
+            clearChipDropMarkers();
+            chip.classList.add(after ? 'drop-after' : 'drop-before');
+        });
+        chip.addEventListener('dragleave', () => {
+            chip.classList.remove('drop-before', 'drop-after');
+        });
+        chip.addEventListener('drop', e => {
+            if (chipDrag.from === null) return;
+            e.preventDefault();
+            const rect  = chip.getBoundingClientRect();
+            const after = (e.clientX - rect.left) > rect.width / 2;
+            clearChipDropMarkers();
+            moveTile(chipDrag.from, after ? idx + 1 : idx);
+        });
+
         list.appendChild(chip);
     });
     // scroll selected chip into view
@@ -793,6 +497,26 @@ function renderTileList() {
 function isLight(hex) {
     const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
     return (r*299 + g*587 + b*114) / 1000 > 155;
+}
+
+// ── Reorder tiles (drag chips in the bottom bar) ──────────────────────────────
+let chipDrag = { from: null };
+
+function clearChipDropMarkers() {
+    document.querySelectorAll('.tile-chip.drop-before, .tile-chip.drop-after')
+        .forEach(c => c.classList.remove('drop-before', 'drop-after'));
+}
+
+// Move the tile at index `from` to insertion position `target` (0..length).
+function moveTile(from, target) {
+    const tiles = boardConfig.tiles;
+    let dest = target > from ? target - 1 : target;   // removal shifts later indices
+    dest = Math.max(0, Math.min(tiles.length - 1, dest));
+    if (dest === from) return;                         // no-op, skip history
+    pushHistory();
+    const [moved] = tiles.splice(from, 1);
+    tiles.splice(dest, 0, moved);
+    selectTile(dest);
 }
 
 // ── Legend ────────────────────────────────────────────────────────────────────
@@ -836,7 +560,12 @@ function renderTypeGrid(current) {
         btn.style.background = val.color;
         btn.style.color = isLight(val.color) ? '#111' : '#fff';
         btn.textContent = val.label;
-        btn.onclick = () => { updateProp('type', key); renderTypeGrid(key); };
+        btn.onclick = () => {
+            if (boardConfig.tiles[selectedIndex]?.type === key) return;
+            pushHistory();
+            updateProp('type', key);
+            renderTypeGrid(key);
+        };
         grid.appendChild(btn);
     });
 }
@@ -865,20 +594,71 @@ function syncSize(val) {
     updateProp('size', v);
 }
 
-// ── Add / Delete tiles ────────────────────────────────────────────────────────
+// ── Overlap helpers ───────────────────────────────────────────────────────────
+// True if a tile of the given size placed at (nx,nz) would overlap any existing
+// tile (ignoreIdx is skipped; pass -1 to test against all tiles).
+function overlapsAny(nx, nz, size, ignoreIdx) {
+    const hd    = TILE_HALF * (size ?? 1);
+    const tiles = boardConfig.tiles;
+    for (let i = 0; i < tiles.length; i++) {
+        if (i === ignoreIdx) continue;
+        const t  = tiles[i];
+        const hj = TILE_HALF * (t.size ?? 1);
+        const minDist = hd + hj;
+        if (Math.abs(nx - t.x) < minDist && Math.abs(nz - t.z) < minDist) return true;
+    }
+    return false;
+}
+
+// Find the nearest free spot to (nx,nz) for a tile of the given size, spiralling out.
+function findFreeSpot(nx, nz, size) {
+    if (!overlapsAny(nx, nz, size, -1)) return { x: nx, z: nz };
+    for (let r = 0.5; r <= 12; r += 0.5) {
+        for (let a = 0; a < 360; a += 45) {
+            const rad = a * Math.PI / 180;
+            const tx = Math.round((nx + Math.cos(rad) * r) / 0.5) * 0.5;
+            const tz = Math.round((nz + Math.sin(rad) * r) / 0.5) * 0.5;
+            if (!overlapsAny(tx, tz, size, -1)) return { x: tx, z: tz };
+        }
+    }
+    return { x: nx, z: nz };
+}
+
+// ── Add / Insert / Delete tiles ───────────────────────────────────────────────────────────────
 function addTile() {
+    pushHistory();
     const tiles = boardConfig.tiles;
     const last  = tiles[tiles.length - 1] || { x: 0, z: 0 };
-    tiles.push({ x: last.x + 4, z: last.z, y: 0, type: 'grass', label: '', size: 1 });
+    const spot  = findFreeSpot(last.x + 4, last.z, 1);
+    tiles.push({ x: spot.x, z: spot.z, y: 0, type: 'grass', label: '', size: 1 });
     drawBoard();
     renderTileList();
     selectTile(tiles.length - 1);
+}
+
+// Insert a new tile into the path right after the selected one (between it and the
+// next tile). With no selection, falls back to appending at the end.
+function insertTileAfter() {
+    const tiles = boardConfig.tiles;
+    if (selectedIndex === null) { addTile(); return; }
+    pushHistory();
+    const cur  = tiles[selectedIndex];
+    const next = tiles[(selectedIndex + 1) % tiles.length];
+    const midX = (cur.x + next.x) / 2;
+    const midZ = (cur.z + next.z) / 2;
+    const midY = Math.round(((cur.y + next.y) / 2) / 0.5) * 0.5;
+    const spot = findFreeSpot(midX, midZ, 1);
+    tiles.splice(selectedIndex + 1, 0, {
+        x: spot.x, z: spot.z, y: midY, type: 'grass', label: '', size: 1
+    });
+    selectTile(selectedIndex + 1);   // selects the newly inserted tile
 }
 
 function deleteSelectedTile() {
     if (selectedIndex === null) return;
     if (boardConfig.tiles.length <= 2) { alert('至少需要 2 個格子'); return; }
     if (!confirm(`確定刪除格子 #${selectedIndex}？`)) return;
+    pushHistory();
     boardConfig.tiles.splice(selectedIndex, 1);
     selectedIndex = null;
     document.getElementById('no-selection').style.display = 'block';
@@ -890,15 +670,112 @@ function deleteSelectedTile() {
 // ── Reset ─────────────────────────────────────────────────────────────────────
 function resetToDefault() {
     if (!confirm('確定重設為預設棋盤？目前修改將遺失。')) return;
+    pushHistory();
     boardConfig.tiles     = getDefaultTiles();
     boardConfig.boardName = 'Custom Board';
     document.getElementById('boardName').value = 'Custom Board';
     selectedIndex = null;
     document.getElementById('no-selection').style.display = 'block';
     document.getElementById('tile-props').style.display   = 'none';
-    drawBoard();
+    fitViewport();
+    resizeCanvas();   // re-fit canvas to new viewport + redraw
     renderTileList();
     saveToGame();
+}
+
+// ── Auto-layout generator ─────────────────────────────────────────────────────
+let genShape = 'rect';
+
+const snap05 = v => Math.round(v / 0.5) * 0.5;
+
+function openGenModal()  { document.getElementById('gen-modal').style.display = 'flex'; }
+function closeGenModal() { document.getElementById('gen-modal').style.display = 'none'; }
+
+function selectGenShape(s) {
+    genShape = s;
+    document.querySelectorAll('#gen-shape-grid .gen-shape-btn')
+        .forEach(b => b.classList.toggle('selected', b.dataset.shape === s));
+}
+
+// Rectangle loop (Monopoly style). Perimeter is always even, so N rounds up to even.
+function genRect(N, d) {
+    if (N % 2) N++;
+    const half = N / 2;                       // = a + b (tiles per width + height)
+    let a = Math.max(1, Math.round(half * 1.6 / 2.6));
+    let b = half - a;
+    if (b < 1) { b = 1; a = half - 1; }
+    const ox = a * d / 2, oz = b * d / 2;
+    const pts = [];
+    for (let i = 0; i < a; i++) pts.push([i, 0]);   // top
+    for (let j = 0; j < b; j++) pts.push([a, j]);   // right
+    for (let i = a; i > 0; i--) pts.push([i, b]);   // bottom
+    for (let j = b; j > 0; j--) pts.push([0, j]);   // left
+    return pts.map(([gx, gy]) => ({
+        x: snap05(gx * d - ox), z: snap05(gy * d - oz),
+        y: 0, type: 'grass', label: '', size: 1
+    }));
+}
+
+// Evenly spaced ring of N tiles.
+function genCircle(N, d) {
+    const r = d / (2 * Math.sin(Math.PI / N));
+    const out = [];
+    for (let i = 0; i < N; i++) {
+        const th = (2 * Math.PI * i) / N - Math.PI / 2;   // start at top
+        out.push({ x: snap05(r * Math.cos(th)), z: snap05(r * Math.sin(th)),
+                   y: 0, type: 'grass', label: '', size: 1 });
+    }
+    return out;
+}
+
+// Archimedean spiral with ~constant tile spacing, centred on its centroid.
+function genSpiral(N, d) {
+    const turnGap = Math.max(d, 4);            // radial gap between successive loops
+    const b  = turnGap / (2 * Math.PI);
+    const r0 = turnGap;
+    const out = [];
+    let th = 0;
+    for (let i = 0; i < N; i++) {
+        const r = r0 + b * th;
+        out.push({ x: r * Math.cos(th), z: r * Math.sin(th),
+                   y: 0, type: 'grass', label: '', size: 1 });
+        th += d / Math.max(r, d);
+    }
+    const cx = out.reduce((s, o) => s + o.x, 0) / out.length;
+    const cz = out.reduce((s, o) => s + o.z, 0) / out.length;
+    out.forEach(o => { o.x = snap05(o.x - cx); o.z = snap05(o.z - cz); });
+    return out;
+}
+
+function applyHeights(tiles, mode) {
+    if (mode === 'random') tiles.forEach(t => t.y = snap05(Math.random() * 3));
+    else                   tiles.forEach(t => t.y = 0);
+}
+
+function generateLayout() {
+    let count = parseInt(document.getElementById('genCount').value, 10);
+    let d     = parseFloat(document.getElementById('genSpacing').value);
+    if (isNaN(count) || count < 4) count = 4;
+    if (count > 60) count = 60;
+    if (isNaN(d) || d < 2) d = 2;
+    const heightMode = document.getElementById('genHeight').value;
+
+    let tiles = genShape === 'circle' ? genCircle(count, d)
+              : genShape === 'spiral' ? genSpiral(count, d)
+              :                         genRect(count, d);
+
+    applyHeights(tiles, heightMode);
+    tiles[0].type = 'start'; tiles[0].label = 'GO'; tiles[0].y = 0;   // tag the GO tile
+
+    pushHistory();
+    boardConfig.tiles = tiles;
+    selectedIndex = null;
+    document.getElementById('no-selection').style.display = 'block';
+    document.getElementById('tile-props').style.display   = 'none';
+    fitViewport();
+    resizeCanvas();   // re-fit canvas + redraw
+    renderTileList();
+    closeGenModal();
 }
 
 // ── BoardStyle directory handle (session-level) ──────────────────────────────
@@ -970,12 +847,14 @@ function closeImportModal() {
 }
 
 function applyImportData(data) {
+    pushHistory();
     boardConfig = data;
     document.getElementById('boardName').value = data.boardName || 'Custom Board';
     selectedIndex = null;
     document.getElementById('no-selection').style.display = 'block';
     document.getElementById('tile-props').style.display   = 'none';
-    drawBoard();
+    fitViewport();
+    resizeCanvas();
     renderTileList();
     saveToGame();
     alert(`✅ 已匯入「${data.boardName || '未命名'}」（${data.tiles.length} 個格子）`);
@@ -1026,7 +905,7 @@ function handleFileImport(e) {
     e.target.value = '';
 }
 
-// ── Save to game (silent) ─────────────────────────────────────────────────────
+// ── Save to game (silent) ──────────────────────────────────────────────────────────
 function saveToGame() {
     boardConfig.boardName = document.getElementById('boardName').value.trim() || 'Custom Board';
     localStorage.setItem('pypoly_board_config', JSON.stringify(boardConfig));
@@ -1050,15 +929,11 @@ function preloadTileTextures(onReady) {
     types.forEach(t => {
         const img = new Image();
         img.onload = () => {
-            // Test origin-clean before handing image to WebGL.
-            // On file:// protocol, drawImage taints the canvas and toDataURL throws —
-            // we catch that and fall back to procedural generation instead of
-            // passing a cross-origin image to texImage2D (which would corrupt the GL context).
             try {
                 const test = document.createElement('canvas');
                 test.width = test.height = 1;
                 test.getContext('2d').drawImage(img, 0, 0, 1, 1);
-                test.toDataURL(); // throws SecurityError if cross-origin
+                test.toDataURL();
                 const tex = new THREE.Texture(img);
                 tex.needsUpdate = true;
                 tileImgCache[t] = tex;
@@ -1218,7 +1093,7 @@ function addTileProps(scene, td, s) {
     }
 }
 
-// ── Plan E: 環境（水面 + 遠山） ────────────────────────────────────────────────
+// ── Plan E: 環境（水面 + 遠山） ───────────────────────────────────────────────────────
 function createEnvironment(scene) {
     const water = new THREE.Mesh(
         new THREE.PlaneGeometry(220, 220),
@@ -1245,7 +1120,7 @@ function createEnvironment(scene) {
     });
 }
 
-// ── Plan D: 路徑橋接 ──────────────────────────────────────────────────────────
+// ── Plan D: 路徑橋接 ───────────────────────────────────────────────────────────────
 function buildTileConnectors(scene, tiles) {
     const mat = new THREE.MeshStandardMaterial({ color: 0x8d9eab, roughness: 0.85, metalness: 0.05 });
     const SLAB_H  = 0.22;
@@ -1281,7 +1156,7 @@ function buildTileConnectors(scene, tiles) {
     }
 }
 
-// ── 3D Preview ────────────────────────────────────────────────────────────────
+// ── 3D Preview ───────────────────────────────────────────────────────────────
 let viewMode   = '2d';
 let threeState = null;
 
@@ -1358,7 +1233,6 @@ function build3DBoard(scene) {
     const tileGeo = new THREE.BoxGeometry(3.5, 0.5, 3.5);
 
     boardConfig.tiles.forEach((td, idx) => {
-        // Tile mesh
         const mat = new THREE.MeshStandardMaterial({
             map: getTile3DTexture(td.type, td.label),
             roughness: 0.8, metalness: 0.05
@@ -1371,7 +1245,6 @@ function build3DBoard(scene) {
         addTileEdgeGlow(scene, td, s);
         addTileProps(scene, td, s);
 
-        // Support pillar
         if (td.y > 0.4) {
             const p = new THREE.Mesh(
                 new THREE.BoxGeometry(3.0, td.y, 3.0),
@@ -1382,7 +1255,6 @@ function build3DBoard(scene) {
             scene.add(p);
         }
 
-        // Floating ? for event tiles
         if (td.type === 'event') {
             const mc = document.createElement('canvas');
             mc.width = mc.height = 64;
@@ -1400,7 +1272,6 @@ function build3DBoard(scene) {
             scene.add(sp);
         }
 
-        // Tile index number label
         const nc = document.createElement('canvas');
         nc.width = nc.height = 64;
         const nctx = nc.getContext('2d');
@@ -1418,7 +1289,6 @@ function build3DBoard(scene) {
     });
     buildTileConnectors(scene, boardConfig.tiles);
 
-    // Ground plane
     const ground = new THREE.Mesh(
         new THREE.PlaneGeometry(60, 34),
         new THREE.MeshStandardMaterial({ color: 0x7cb342, roughness: 1.0 })
@@ -1450,7 +1320,6 @@ function on3DResize() {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-// Load from localStorage if available
 try {
     const saved = localStorage.getItem('pypoly_board_config');
     if (saved) {
@@ -1462,27 +1331,27 @@ try {
     }
 } catch(e) {}
 
+['propX','propZ','propY','propYNum','propSize','propSizeNum','propLabel'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('focus', () => { pendingSnapshot = snapshot(); });
+    el.addEventListener('input', () => {
+        if (pendingSnapshot) { recordHistory(pendingSnapshot); pendingSnapshot = null; }
+    });
+    el.addEventListener('blur',  () => { pendingSnapshot = null; });
+});
+
+window.addEventListener('keydown', e => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    if (e.target.matches && e.target.matches('input, textarea')) return;
+    const k = e.key.toLowerCase();
+    if (k === 'z' && !e.shiftKey)            { e.preventDefault(); undo(); }
+    else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
+});
+
 window.addEventListener('resize', resizeCanvas);
 renderLegend();
-resizeCanvas();    // also calls drawBoard()
+fitViewport();
+resizeCanvas();
 renderTileList();
-</script>
-
-<!-- ── Import file picker modal ── -->
-<div id="import-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:9999; align-items:center; justify-content:center;">
-    <div style="background:#161b22; border:1px solid #30363d; border-radius:12px; padding:24px; width:460px; max-height:75vh; display:flex; flex-direction:column; gap:14px; box-shadow:0 8px 32px rgba(0,0,0,0.5);">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <span style="color:#58a6ff; font-size:1rem; font-weight:700;">📂 選擇棋盤檔案</span>
-            <button onclick="closeImportModal()" style="background:none; border:none; color:#8b949e; font-size:1.1rem; cursor:pointer; padding:2px 8px; border-radius:4px;" onmouseover="this.style.color='#c9d1d9'" onmouseout="this.style.color='#8b949e'">✕</button>
-        </div>
-        <div style="font-size:0.78rem; color:#8b949e; background:#0d1117; padding:8px 12px; border-radius:6px; border:1px solid #21262d; display:flex; justify-content:space-between; align-items:center; gap:10px;">
-            <span id="import-dir-name" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">未選擇資料夾</span>
-            <button onclick="changeBoardStyleDir()" style="flex-shrink:0; font-size:0.75rem; padding:3px 10px; background:#21262d; border:1px solid #30363d; color:#8b949e; border-radius:5px; cursor:pointer; white-space:nowrap;" onmouseover="this.style.color='#c9d1d9'" onmouseout="this.style.color='#8b949e'">更換資料夾</button>
-        </div>
-        <div id="import-file-list" style="overflow-y:auto; display:flex; flex-direction:column; gap:6px; min-height:80px; max-height:50vh;">
-            <div style="color:#484f58; text-align:center; padding:24px; font-size:0.85rem;">請先選擇 BoardStyle 資料夾</div>
-        </div>
-    </div>
-</div>
-</body>
-</html>
+updateUndoButtons();
