@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PyPoly - 建立房間</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;900&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
+    <style>
+        :root {
+            --primary-blue: #4facfe;
+            --primary-yellow: #ffde59;
+            --yellow-shadow: #e6c543;
+            --success-green: #00cdac;
+            --bg-gray: #f1f5f9;
+            --text-dark: #2d3436;
+            --text-gray: #a2a8b9;
+            --border-color: #edf2f7;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
+
+        body {
+            background-color: var(--bg-gray);
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 🏆 核心面板：寬度縮小，增加大圓角 */
+        .modal-card {
+            background: white;
+            width: 420px; /* 寬度從 580 縮小至 420 */
+            border-radius: 32px; /* 更圓潤的設計 */
+            padding: 35px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.05);
+            border: 1px solid rgba(255,255,255,0.8);
+        }
+
+        .modal-header {
+            margin-bottom: 25px;
+            text-align: center;
+        }
+
+        .modal-header h2 {
+            font-size: 1.4rem;
+            font-weight: 900;
+            color: var(--text-dark);
+            letter-spacing: -0.5px;
+        }
+
+        .setting-group { margin-bottom: 20px; }
+
+        .setting-label {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--text-gray);
+            margin-bottom: 10px;
+            display: block;
+            padding-left: 5px;
+        }
+
+        /* 🏆 圓潤下拉選單與輸入框 */
+        .input-box {
+            width: 100%;
+            padding: 12px 18px;
+            border: 2px solid var(--border-color);
+            border-radius: 18px; /* 增加圓角 */
+            font-size: 0.95rem;
+            color: var(--text-dark);
+            outline: none;
+            transition: all 0.3s ease;
+            background: #fcfdfe;
+            appearance: none; /* 去除原生箭頭 */
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23a2a8b9' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 15px center;
+            background-size: 15px;
+        }
+
+        .input-box:focus {
+            border-color: var(--primary-blue);
+            background: white;
+            box-shadow: 0 5px 15px rgba(79, 172, 254, 0.1);
+        }
+
+        /* 文字輸入框不需要自定義箭頭 */
+        input.input-box { background-image: none; }
+
+        .flex-row { display: flex; gap: 15px; }
+        .flex-item { flex: 1; }
+
+        /* 🏆 遊戲化選項卡片 */
+        .version-box { display: flex; gap: 12px; }
+        .version-option {
+            flex: 1; padding: 15px 10px;
+            border: 2px solid var(--border-color);
+            border-radius: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: #ffffff;
+        }
+        .version-option.active {
+            border-color: var(--success-green);
+            background: rgba(0, 205, 172, 0.05);
+            transform: translateY(-2px);
+        }
+        .version-option h4 { font-size: 0.95rem; font-weight: 900; color: var(--text-dark); }
+        .version-option p { font-size: 0.75rem; color: var(--text-gray); margin-top: 2px; }
+        .version-option.active h4 { color: var(--success-green); }
+
+        /* 私人代碼區域 */
+        #codeArea {
+            display: none;
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8fbff;
+            border-radius: 20px;
+            text-align: center;
+            border: 2px dashed var(--primary-blue);
+        }
+        .code-text {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.6rem;
+            font-weight: 900;
+            letter-spacing: 5px;
+            color: var(--primary-blue);
+        }
+
+        /* 🏆 圓滾滾的大按鈕 */
+        .btn-stack { margin-top: 30px; display: flex; flex-direction: column; gap: 12px; }
+
+        .btn-submit {
+            background: linear-gradient(135deg, var(--primary-yellow) 0%, #f1c40f 100%);
+            color: #4a3d00;
+            border: none;
+            padding: 16px;
+            border-radius: 50px; /* 完全膠囊型按鈕 */
+            font-weight: 900;
+            font-size: 1.1rem;
+            cursor: pointer;
+            box-shadow: 0 6px 0 var(--yellow-shadow);
+            transition: all 0.1s;
+        }
+
+        .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 8px 0 var(--yellow-shadow); }
+        .btn-submit:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--yellow-shadow); }
+
+        .btn-cancel {
+            text-align: center;
+            color: var(--text-gray);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 600;
+            padding: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="modal-card">
+    <div class="modal-header">
+        <h2>建立冒險</h2>
+    </div>
+
+    <div class="setting-group">
+        <label class="setting-label">冒險教室名稱</label>
+        <input type="text" id="roomName" class="input-box" placeholder="輸入名稱...">
+    </div>
+
+    <div class="setting-group">
+        <label class="setting-label">挑戰模式</label>
+        <div class="version-box">
+            <div id="modeBasic" class="version-option active" onclick="selectMode('基礎填空')">
+                <h4>基礎填空</h4>
+                <p>概念與邏輯</p>
+            </div>
+            <div id="modeAdvanced" class="version-option" onclick="selectMode('進階代碼')">
+                <h4>進階代碼</h4>
+                <p>手寫挑戰</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="flex-row">
+        <div class="setting-group flex-item">
+            <label class="setting-label">題目難度</label>
+            <select id="difficulty" class="input-box">
+                <option value="easy">簡單</option>
+                <option value="normal" selected>普通</option>
+                <option value="hard">困難</option>
+            </select>
+        </div>
+        <div class="setting-group flex-item">
+            <label class="setting-label">遊玩回合</label>
+            <select id="winLaps" class="input-box">
+                <option value="10">10 回合</option>
+                <option value="15" selected>15 回合</option>
+                <option value="20">20 回合</option>
+				<option value="20">25 回合</option>
+				<option value="20">30 回合</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="flex-row">
+        <div class="setting-group flex-item">
+            <label class="setting-label">最大人數</label>
+            <select id="maxPlayers" class="input-box" onchange="checkAI()">
+                <option value="1">1 人 (AI)</option>
+                <option value="2" selected>2 人</option>
+            </select>
+        </div>
+        <div class="setting-group flex-item">
+            <label class="setting-label">房間類型</label>
+            <select id="typeSelect" class="input-box" onchange="onRoomTypeChange()">
+                <option value="public">公開</option>
+                <option value="private">私有</option>
+            </select>
+        </div>
+    </div>
+
+    <div id="codeArea">
+        <div class="setting-label" style="margin-bottom:2px; color: var(--primary-blue);">專屬邀請代碼</div>
+        <div id="roomCodeDisplay" class="code-text">------</div>
+    </div>
+
+    <div class="btn-stack">
+        <button class="btn-submit" onclick="createAndGo()">建立房間</button>
+        <a href="lobby.html" class="btn-cancel">返回大廳</a>
+    </div>
+</div>
+
+<script>
+    // 🏆 使用 var 或更改名稱避免初始化錯誤
+    let roomConfig = {
+        name: "", mode: "基礎填空", difficulty: "normal",
+        winLaps: 3, players: 2, type: "public", code: "", vsAI: false
+    };
+	
+	function generateRoomCode() {
+		const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 排除易混淆字元
+		let result = '';
+		for (let i = 0; i < 6; i++) {
+			result += chars.charAt(Math.floor(Math.random() * chars.length));
+		}
+		roomConfig.code = result;
+		console.log("產生的房間代碼為:", roomConfig.code);
+	}
+
+	// 初始化代碼
+	generateRoomCode();
+
+    function selectMode(val) {
+        document.getElementById('modeBasic').classList.toggle('active', val === '基礎填空');
+        document.getElementById('modeAdvanced').classList.toggle('active', val === '進階代碼');
+        roomConfig.mode = val;
+    }
+
+    function onRoomTypeChange() {
+        const type = document.getElementById('typeSelect').value;
+        const codeArea = document.getElementById('codeArea');
+        roomConfig.type = type;
+
+        if (type === 'private') {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            let result = '';
+            for (let i = 0; i < 6; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
+            roomConfig.code = result; // 🏆 這裡正確寫入隨機碼
+            document.getElementById('roomCodeDisplay').innerText = result;
+            codeArea.style.display = 'block';
+            gsap.from(codeArea, { scale: 0.8, opacity: 0, duration: 0.3 });
+        } else {
+            roomConfig.code = "";
+            codeArea.style.display = 'none';
+        }
+    }
+
+    function checkAI() {
+        roomConfig.players = document.getElementById('maxPlayers').value;
+        roomConfig.vsAI = (roomConfig.players === "1");
+    }
+
+	// 修改後的 createAndGo
+	async function createAndGo() {
+		const activeRoom = localStorage.getItem('pypoly_active_room');
+		
+		// 如果本地有舊資料，直接彈窗問使用者要不要清除
+		if (activeRoom) {
+			const reset = confirm("偵測到舊對局資料，是否強制清除並建立新房間？");
+			if (!reset) return;
+			localStorage.removeItem('pypoly_active_room');
+		}
+
+		// 取得表單資料 (確保這些 ID 都對應正確)
+		const newRoomData = {
+			hostId: localStorage.getItem('username'),
+			name: document.getElementById('roomName').value || "冒險教室",
+			mode: document.querySelector('.version-option.active h4').innerText,
+			difficulty: document.getElementById('difficulty').value,
+			winLaps: document.getElementById('winLaps').value,
+			type: document.getElementById('typeSelect').value,
+			code: roomConfig.code // 🔍 檢查這裡
+		};
+
+		console.log("準備傳送給後端的資料:", newRoomData);
+
+		if (!newRoomData.code) {
+			alert("錯誤：房間代碼未產生，請重新整理頁面！");
+			generateRoomCode(); // 補救措施
+			return;
+		}
+
+		try {
+			const response = await fetch(`${API_URL}/rooms/create`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(newRoomData)
+			});
+
+			if (response.ok) {
+				localStorage.setItem('pypoly_active_room', JSON.stringify(newRoomData));
+				localStorage.setItem('is_host', 'true');
+				window.location.href = 'WaitingRoom.html';
+			} else {
+				const err = await response.json();
+				alert("建立失敗：" + (err.detail || "未知錯誤"));
+			}
+		} catch (err) {
+			alert("無法連線至伺服器");
+		}
+	}
+	
+    window.onload = () => {
+        gsap.from(".modal-card", { y: 20, opacity: 0, duration: 0.6, ease: "power2.out" });
+    };
+	
+    const API_URL = "http://10.178.72.76:8000";
+    let syncTimer = null; // 🏆 用於維持在線狀態
+
+    // --- 1. 選單與導航 ---
+    function toggleMenu() {
+        const sideMenu = document.getElementById('sideMenu');
+        const overlay = document.getElementById('overlay');
+        sideMenu.classList.toggle('open');
+        overlay.classList.toggle('open');
+    }
+
+    // --- 2. 頁面初始化：驗證、復活與保活 ---
+    window.onload = async () => {
+        const username = localStorage.getItem('username');
+        const token = localStorage.getItem('token');
+
+        if (!username || !token) {
+            window.location.href = 'login.html';
+            return;
+        }
+
+        try {
+            // 🏆 核心：老師的邏輯 - 進場立刻復活
+            const res = await fetch(`${API_URL}/auth/verify_and_refresh?username=${encodeURIComponent(username)}`, {
+                method: "POST",
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+
+            if (data.status === "success") {
+                console.log("說明頁面：狀態已復活");
+                // 🏆 啟動心跳監控，防止看說明看太久被踢
+                startSyncLoop(username, token);
+            } else {
+                localStorage.clear();
+                window.location.href = "login.html";
+            }
+        } catch (err) {
+            console.error("驗證失敗:", err);
+            // 如果後端沒反應，建議先留在頁面但顯示錯誤，或跳回登入
+        }
+    };
+
+    // --- 3. 監控循環 ---
+    function startSyncLoop(username, token) {
+        if (syncTimer) clearInterval(syncTimer);
+        syncTimer = setInterval(async () => {
+            try {
+                // 發送心跳更新時間
+                fetch(`${API_URL}/auth/heartbeat?username=${encodeURIComponent(username)}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                // 同步檢查是否被登出
+                const res = await fetch(`${API_URL}/auth/me?username=${encodeURIComponent(username)}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.is_online === 0 || data.role === 'banned') {
+                        clearInterval(syncTimer);
+                        localStorage.clear();
+                        window.location.href = 'login.html';
+                    }
+                }
+            } catch (err) {}
+        }, 5000);
+    }
+
+    // --- 4. 手動登出 ---
+	async function logout() {
+		// 🏆 1. 第一步：立刻停止心跳，防止登出後被「自動復活」
+		if (typeof syncTimer !== 'undefined' && syncTimer) {
+			clearInterval(syncTimer);
+		}
+
+		const username = localStorage.getItem('username');
+		if (!username) return;
+
+		// 🏆 2. 第二步：關鍵修正！網址尾巴必須加上 &confirm=true
+		// 這樣後端 main.py 才會看到 confirm，並執行 db_user.is_online = 0
+		const url = `${API_URL}/auth/logout?username=${encodeURIComponent(username)}&confirm=true`;
+		
+		try {
+			const response = await fetch(url, { method: 'POST' });
+			const result = await response.json();
+			console.log("後端回應：", result.message);
+		} catch (err) {
+			console.error("登出連線失敗", err);
+		}
+
+		// 🏆 3. 第三步：清理本地資料並跳轉
+		localStorage.clear();
+		window.location.href = 'login.html';
+	}
+    // 🏆 確保沒有 window.addEventListener('beforeunload')！
+</script>
+
+</body>
+</html>
