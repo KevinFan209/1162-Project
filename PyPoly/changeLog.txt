@@ -42,3 +42,17 @@ PyPoly 變更紀錄 (changeLog)
       * GET /game/results/{room_code}：回傳 leaderboard(排行榜) 與 report(整體報表：
         最常語法/答對率/平均用時/答錯題回顧)。
   驗證：python -m py_compile main.py 通過。
+
+[2026-07-03] #4 需求⑨ 前端結算接線
+  檔案：static/game.html
+    - 新增 logAnswerToServer(isCorrect, chosen)：POST /game/answer_log 寫作答明細。
+    - 題目顯示時記錄 window.questionShownAt，供計算 answer_sec。
+    - 答對(約 line 3061)與答錯(約 line 3103)處各呼叫 logAnswerToServer。
+    - triggerGameOver 佔位改為：權威端(最後一位玩家)蒐集各玩家 balance 與回合數
+      → POST /game/settle → 跳轉 results.html?room=CODE；非權威端稍等後跳轉。
+  檔案：static/results.html
+    - 移除原本誤植的 admin 心跳/權限腳本。
+    - 由 ?room= 取代碼，GET /game/results/{room}（404 時重試最多 10 次）。
+    - 動態渲染排行榜(rankingList)與報表(dataBox)；含 escapeHtml。
+    - 「再挑戰」死連結 battle.html 改為 lobby.html。
+  驗證：靜態檔，無法 py_compile；後端串接於整場流程驗證(見計劃 Verification)。

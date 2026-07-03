@@ -120,42 +120,18 @@
 <div class="results-main">
     <section class="leaderboard-card">
         <div class="section-title">🏆 誰是 Python 大富翁？</div>
-        <div class="ranking-list">
-            <div class="ranking-item winner">
-                <div class="rank-info"><div class="rank-num">1</div><div class="player-meta"><h4>Sandy (P1)</h4></div></div>
-                <div class="rank-score"><span class="score-val">4,250</span><span style="color:var(--success-green); font-weight:800; font-size:0.9rem;">答對率 92%</span></div>
-            </div>
-            <div class="ranking-item">
-                <div class="rank-info"><div class="rank-num">2</div><div class="player-meta"><h4>AI Bot (P2)</h4></div></div>
-                <div class="rank-score"><span class="score-val">1,800</span><span style="color:var(--text-gray); font-weight:800; font-size:0.9rem;">答對率 65%</span></div>
-            </div>
+        <div class="ranking-list" id="rankingList">
+            <div style="text-align:center; color:#94a3b8; font-weight:800; padding:40px;">載入結算資料中...</div>
         </div>
     </section>
 
     <section class="report-card">
         <div class="report-header">本局整體答題數據</div>
-        <div class="data-box">
-            <div class="data-item">
-                <div class="data-label">最常出現語法</div>
-                <div class="data-value">if-else 條件判斷 <span>5 次</span></div>
-            </div>
-            <div class="data-item">
-                <div class="data-label">變數宣告次數</div>
-                <div class="data-value">Variables <span>3 次</span></div>
-            </div>
-            <div class="data-item">
-                <div class="data-label">答題平均用時</div>
-                <div class="data-value">12.5 <span>秒</span></div>
-            </div>
-            <div class="data-item">
-                <div class="data-label">實體動作達成</div>
-                <div class="data-value">開合跳 <span>100%</span></div>
-            </div>
-        </div>
+        <div class="data-box" id="dataBox"></div>
         
         <div class="btn-group">
             <button class="btn-3d btn-home" onclick="location.href='lobby.html'">回大廳</button>
-            <button class="btn-3d btn-again" onclick="location.href='battle.html'">再挑戰</button>
+            <button class="btn-3d btn-again" onclick="location.href='lobby.html'">再玩一場</button>
         </div>
     </section>
 </div>
@@ -167,83 +143,82 @@
     }
 	
     const API_URL = "http://10.178.72.76:8000";
-    let syncTimer = null;
 
-    // --- 1. 頁面初始化：驗證身分與狀態復活 ---
-    window.onload = async () => {
-        const username = localStorage.getItem('username');
-        const token = localStorage.getItem('token');
-        const role = localStorage.getItem('role');
+    // 由 game.html 跳轉時帶入 ?room=CODE
+    const roomCode = new URLSearchParams(window.location.search).get('room');
 
-        // 🏆 權限檢查：確保只有 admin 能待在這裡
-        if (!token || !username || role !== 'admin') {
-            window.location.href = 'login.html';
+    // --- 頁面初始化：讀取該局結算資料 (含重試，避免比結算寫入更早抵達) ---
+    window.onload = () => {
+        if (!roomCode) {
+            document.getElementById('rankingList').innerHTML =
+                `<div style="text-align:center;color:#ef4444;font-weight:800;padding:40px;">缺少房間代碼，無法顯示結算</div>`;
             return;
         }
-
-        try {
-            // 🏆 核心：執行復活機制，告訴後端管理員現在在 camera 頁面
-            const res = await fetch(`${API_URL}/auth/verify_and_refresh?username=${encodeURIComponent(username)}`, {
-                method: "POST",
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await res.json();
-
-            if (data.status === "success") {
-                console.log("管理者相機頁面：驗證成功並續期");
-                // 啟動心跳監控
-                startSyncLoop(username, token);
-            } else {
-                localStorage.clear();
-                window.location.href = "login.html";
-            }
-        } catch (err) {
-            console.error("連線異常:", err);
-        }
+        loadResults(0);
     };
 
-    // --- 2. 核心監控循環：維持管理員在線狀態 ---
-    function startSyncLoop(username, token) {
-        if (syncTimer) clearInterval(syncTimer);
-        syncTimer = setInterval(async () => {
-            try {
-                // 發送心跳
-                fetch(`${API_URL}/auth/heartbeat?username=${encodeURIComponent(username)}`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-
-                // 校對狀態 (確保沒有被重複登入踢掉)
-                const res = await fetch(`${API_URL}/auth/me?username=${encodeURIComponent(username)}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.is_online === 0) {
-                        clearInterval(syncTimer);
-                        localStorage.clear();
-                        window.location.href = 'login.html';
-                    }
-                }
-            } catch (err) {}
-        }, 5000); // 5秒一聲平安
-    }
-
-    // --- 3. 手動登出：繞過跳轉攔截 ---
-    async function logout() {
-        if (syncTimer) clearInterval(syncTimer);
-        const username = localStorage.getItem('username');
-        if (username) {
-            // 🏆 帶上 confirm=true 確保後端執行正式登出
-            await fetch(`${API_URL}/auth/logout?username=${encodeURIComponent(username)}&confirm=true`, { 
-                method: 'POST' 
-            });
+    async function loadResults(attempt) {
+        const MAX_RETRY = 10; // 最多重試 10 次 (約 10 秒)
+        try {
+            const res = await fetch(`${API_URL}/game/results/${encodeURIComponent(roomCode)}`);
+            if (res.status === 404) {
+                // 結算尚未寫入，稍後重試
+                if (attempt < MAX_RETRY) return setTimeout(() => loadResults(attempt + 1), 1000);
+                throw new Error('結算資料尚未產生');
+            }
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const data = await res.json();
+            renderLeaderboard(data.leaderboard || []);
+            renderReport(data.report || {});
+        } catch (err) {
+            console.error('讀取結算失敗:', err);
+            document.getElementById('rankingList').innerHTML =
+                `<div style="text-align:center;color:#ef4444;font-weight:800;padding:40px;">讀取結算資料失敗<br><span style="font-size:0.85rem;color:#94a3b8;">${err.message}</span></div>`;
         }
-        localStorage.clear();
-        window.location.href = 'login.html';
     }
 
-    // 🏆 其他選單邏輯 (如果有的話)
+    function renderLeaderboard(list) {
+        const box = document.getElementById('rankingList');
+        if (!list.length) {
+            box.innerHTML = `<div style="text-align:center;color:#94a3b8;font-weight:800;padding:40px;">本局無結算資料</div>`;
+            return;
+        }
+        box.innerHTML = list.map(p => {
+            const accColor = p.is_winner ? 'var(--success-green)' : 'var(--text-gray)';
+            return `
+            <div class="ranking-item ${p.is_winner ? 'winner' : ''}">
+                <div class="rank-info">
+                    <div class="rank-num">${p.rank}</div>
+                    <div class="player-meta"><h4>${escapeHtml(p.username)}</h4></div>
+                </div>
+                <div class="rank-score">
+                    <span class="score-val">${Number(p.final_money).toLocaleString()}</span>
+                    <span style="color:${accColor}; font-weight:800; font-size:0.9rem;">答對率 ${p.accuracy}%</span>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    function renderReport(report) {
+        const box = document.getElementById('dataBox');
+        const item = (label, value, unit) =>
+            `<div class="data-item">
+                <div class="data-label">${label}</div>
+                <div class="data-value">${value} ${unit ? `<span>${unit}</span>` : ''}</div>
+            </div>`;
+        box.innerHTML = [
+            item('最常出現語法', escapeHtml(report.top_category || '—'), ''),
+            item('本局答題總數', report.total_questions ?? 0, '題'),
+            item('整體答對率', report.overall_accuracy ?? 0, '%'),
+            item('答題平均用時', report.avg_answer_sec ?? 0, '秒')
+        ].join('');
+    }
+
+    function escapeHtml(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c =>
+            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
     function toggleMenu() {
         document.getElementById('sideMenu').classList.toggle('open');
         document.getElementById('overlay').classList.toggle('open');

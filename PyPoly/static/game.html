@@ -1120,6 +1120,7 @@ function startAdventureRecognition(questionObj) {
     // 🏆 4. 延遲 2.5 秒後，切換為正式題目內容
     setTimeout(() => {
         questionText.innerHTML = `【挑戰題目】${questionObj.content}`;
+        window.questionShownAt = Date.now(); // 🏆 需求⑨：記錄題目出現時間，供計算作答用時
         // 顯示選項按鈕 (主角看得到內容)
         optionsArea.innerHTML = questionObj.options.map((opt, idx) => 
             `<div class="opt-pill">(${idx + 1}) ${opt}</div>`
@@ -3064,6 +3065,7 @@ async function initCameraAndStartVision() {
 							const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
 
 							socket.emit('sync_adventure_choice', { room: roomCode, choice: playerGesture });
+							logAnswerToServer(true, playerGesture); // 🏆 需求⑨：寫入作答明細
 							showGameNotice("✅ 回答正確，進入下一階段", 2500);
 
 							setTimeout(async () => {
@@ -3106,7 +3108,7 @@ async function initCameraAndStartVision() {
 							}, 2000);
 						} else {
 							markQuestionAsUsed(currentAdventureQuestion.content);
-							showGameNotice(`❌ 回答錯誤，正確答案是 ${correctAnswer}，詳細部分可以在遊戲之後到遊戲結算查看`, 4000);
+							logAnswerToServer(false, playerGesture); showGameNotice(`❌ 回答錯誤，正確答案是 ${correctAnswer}，詳細部分可以在遊戲之後到遊戲結算查看`, 4000);
 							
 							const myName = localStorage.getItem('username');
                             const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
@@ -6436,7 +6438,32 @@ function triggerGameOver() {
     
     setTimeout(() => {
         // 🌟 這裡暫時先用黑底大字卡擋住畫面，之後你寫好結算畫面，把這裡換成 window.location.href = "result.html"
-        showCustomNotice("💰 正在結算總資產...<br><span style='font-size: 1.5rem;'>等待轉跳結算畫面</span>", "center", 0);
+        showCustomNotice("💰 正在結算總資產...<br><span style='font-size: 1.5rem;'>即將進入結算畫面</span>", "center", 0);
+        // 🏆 需求⑨：權威端(最後一位玩家)送出結算，雙方都跳轉 results.html；results 端會自行重試
+        (function () {
+            const gs = JSON.parse(localStorage.getItem('pypoly_game_snapshot')) || {};
+            const players = gs.players || [];
+            const rd = JSON.parse(localStorage.getItem('pypoly_active_room'));
+            const rc = rd ? rd.code : localStorage.getItem('room_code');
+            const myName = localStorage.getItem('username');
+            const finalRound = parseInt(localStorage.getItem('pypoly_current_round')) || 0;
+            const go = () => { window.location.href = `results.html?room=${encodeURIComponent(rc)}`; };
+            const isSettler = players.length ? (myName === players[players.length - 1]) : true;
+            if (isSettler) {
+                const payloadPlayers = players.map(p => {
+                    const el = document.getElementById(`balance-${p}`);
+                    const money = el ? (parseInt(el.innerText.replace(/,/g, '')) || 0) : 0;
+                    return { username: p, final_money: money, laps: finalRound };
+                });
+                fetch(`${API_URL}/game/settle`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ room_code: rc, players: payloadPlayers })
+                }).then(go).catch(err => { console.error('❌ 結算送出失敗', err); go(); });
+            } else {
+                setTimeout(go, 1500); // 非權威端稍等結算寫入再跳轉
+            }
+        })();
     }, 4000);
 }
 
@@ -7181,6 +7208,34 @@ socket.on('adventure_choice_broadcast', (data) => {
 
 	
 // game.html 修正版
+// 🏆 需求⑨：將一題作答結果寫入後端 (game_answer_logs)。失敗僅警告，不影響遊戲。
+function logAnswerToServer(isCorrect, chosenVal) {
+    try {
+        const myName = localStorage.getItem('username');
+        const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+        const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
+        const q = currentAdventureQuestion || {};
+        const answerSec = window.questionShownAt ? (Date.now() - window.questionShownAt) / 1000 : 0;
+        fetch(`${API_URL}/game/answer_log`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                room_code: roomCode,
+                username: myName,
+                question_id: q.id || null,
+                category: q.category || null,
+                question_text: q.content || null,
+                chosen_answer: chosenVal,
+                correct_answer: parseInt(q.answer),
+                is_correct: !!isCorrect,
+                answer_sec: answerSec
+            })
+        }).catch(err => console.warn('⚠️ answer_log 送出失敗', err));
+    } catch (e) {
+        console.warn('⚠️ logAnswerToServer 例外', e);
+    }
+}
+
 function updateMoneyUI(playerName, amount) {
     // 🏆 核心修正：ID 必須與 window.onload 裡面生成的 balance- 一致
     const cashElement = document.getElementById(`balance-${playerName}`); 
