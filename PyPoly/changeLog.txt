@@ -77,3 +77,12 @@ PyPoly 變更紀錄 (changeLog)
   檔案：static/outlines/README_789.txt（新增）
     - 說明需補 7.png/8.png/9.png，風格對齊 1~6；後端已能辨識 7/8/9。
   驗證：放入 7/8/9.png 後比對應手勢應顯示輪廓；未放時僅 console 警告、不中斷。
+
+[2026-07-03] #7 需求④ 題目階段虛擬人物顯示修正
+  檔案：static/game.html
+    - 新增 showAdventureCharacter()：把自己的 playerModels[myName] 設為可見，
+      移到相機前方(距離3.2)、下移1.6置於題目螢幕下方，水平面向玩家。
+    - startAdventureRecognition 尾端呼叫 showAdventureCharacter()。
+    - 防禦：無模型即 return，不影響答題；離開冒險由 resetToGodViewState 歸位(可逆)。
+  ⚠️ 此為行為性修正，位置常數(3.2/1.6)為初值；需在有攝影機的實機/瀏覽器測試後微調。
+  驗證：需實機——踩冒險格答題時，畫面應出現自己的 3D 人物且未擋住題目。

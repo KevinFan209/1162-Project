@@ -1106,6 +1106,31 @@ async function testAdventureView(countryName, scenario, skyboxUrl, questionObj) 
 let currentAdventureQuestion = null;
 
 // game.html 修正版
+// 🏆 需求④：答題階段顯示並定位「自己」的 3D 虛擬人物。
+//   冒險時 setBoardVisibility(false) 會把所有人物藏起來，導致題目階段看不到虛擬人物。
+//   這裡把自己的 model 移到相機前方、略低於題目螢幕並面向玩家。
+//   ⚠️ 位置常數(距離 3.2 / 下移 1.6)為初值，實機/瀏覽器測試後可再微調。
+//   離開冒險回上帝視角時 resetToGodViewState 會把人物歸位，故此處移動為可逆、安全。
+function showAdventureCharacter() {
+    const myName = localStorage.getItem('username');
+    const myModel = playerModels && playerModels[myName];
+    if (!myModel) return; // 沒有模型就跳過，不影響答題流程
+
+    myModel.visible = true;
+    const head = myModel.getObjectByName("head");
+    if (head) head.visible = true;
+    myModel.traverse(c => { if (c.isMesh) c.visible = true; });
+
+    // 置於相機前方、略低於題目螢幕
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+    const charPos = new THREE.Vector3().copy(camera.position).addScaledVector(forward, 3.2);
+    const objMinY = myModel.userData.objMinY || 0;
+    charPos.y = camera.position.y - 1.6 - objMinY; // 站在題目螢幕下方
+    myModel.position.copy(charPos);
+    // 只做水平面向玩家，避免人物前傾
+    myModel.lookAt(camera.position.x, myModel.position.y, camera.position.z);
+}
+
 function startAdventureRecognition(questionObj) {
     // 🏆 1. 解決變數作用域問題：重新獲取 roomCode 與 myName
     const myName = localStorage.getItem('username');
@@ -1156,10 +1181,13 @@ function startAdventureRecognition(questionObj) {
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
     const screenPos = new THREE.Vector3().copy(camera.position).addScaledVector(forward, 2.8); 
     virtualScreen.position.copy(screenPos);
-    virtualScreen.position.y -= 0.48; 
-    virtualScreen.quaternion.copy(camera.quaternion); 
+    virtualScreen.position.y -= 0.48;
+    virtualScreen.quaternion.copy(camera.quaternion);
     virtualScreen.scale.set(1.0, 1.0, 1.0);
     virtualScreen.visible = true;
+
+    // 🏆 需求④：讓自己的虛擬人物在題目階段出現
+    showAdventureCharacter();
 }
 
 // 🏆 修正版：徹底解決內容亂碼與多重執行問題
