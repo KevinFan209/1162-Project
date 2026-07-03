@@ -30,3 +30,15 @@ PyPoly 變更紀錄 (changeLog)
     - .opt-pill 改 flex:0 0 calc(50%-6px)、置中、移除 min-width:260px，使四選項平均分兩欄。
   說明：後台 question.html 為靜態範本、無 CRUD，本次未動；題目以 seed_data/DB 為準。
   驗證：python -m py_compile seed_data.py main.py 通過。
+
+[2026-07-03] #3 需求⑨ 後端結算 API (存 DB)
+  檔案：main.py
+    - import 增加 from collections import Counter。
+    - 檔尾新增 3 個路由：
+      * POST /game/answer_log：寫入一筆 GameAnswerLog（每題作答明細）。
+      * POST /game/settle：body {room_code, players:[{username,final_money,laps,jump_count}]}；
+        清舊結算(冪等)→依 final_money 排名→聚合該房 answer_logs
+        (correct_count/total/avg_answer_sec/top_category)→寫入 GameRecord，回傳排名結果。
+      * GET /game/results/{room_code}：回傳 leaderboard(排行榜) 與 report(整體報表：
+        最常語法/答對率/平均用時/答錯題回顧)。
+  驗證：python -m py_compile main.py 通過。

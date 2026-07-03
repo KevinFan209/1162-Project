@@ -15,6 +15,7 @@ import socketio
 from fastapi import Query
 import game_start # 🏆 關鍵新增：把整個模組抓進來，準備竄改它的全域變數
 from sqlalchemy import func
+from collections import Counter  # 🏆 需求⑨：統計最常出現語法
 # main.py
 import os
 import base64
@@ -931,3 +932,139 @@ async def handle_update_pose_count(sid, data):
         # 發送 'update_pose_count_broadcast' 給房間內的所有人
         # skip_sid=sid 確保這個更新不會重複發給正在跳躍的玩家自己
         await sio.emit('update_pose_count_broadcast', data, room=room, skip_sid=sid)
+
+
+# ==========================================================
+# 🏆 需求⑨：遊戲結算 API (存 DB + 提供結算畫面資料)
+# ==========================================================
+
+# 1. 作答紀錄：每答一題寫入一筆明細 (game_answer_logs)
+@app.post("/game/answer_log")
+def log_answer(data: dict, db: Session = Depends(database.get_db)):
+    log = models.GameAnswerLog(
+        room_code=data.get("room_code"),
+        username=data.get("username"),
+        question_id=data.get("question_id"),
+        category=data.get("category"),
+        question_text=data.get("question_text"),
+        chosen_answer=data.get("chosen_answer"),
+        correct_answer=data.get("correct_answer"),
+        is_correct=bool(data.get("is_correct")),
+        answer_sec=float(data.get("answer_sec") or 0),
+    )
+    db.add(log)
+    db.commit()
+    return {"status": "success"}
+
+
+# 2. 遊戲結算：依各玩家金錢排名，聚合作答明細寫入 game_records
+#    body: { room_code, players: [ {username, final_money, laps, jump_count} ] }
+@app.post("/game/settle")
+def settle_game(data: dict, db: Session = Depends(database.get_db)):
+    room_code = data.get("room_code")
+    players = data.get("players", [])
+    if not room_code or not players:
+        raise HTTPException(status_code=400, detail="缺少 room_code 或 players")
+
+    # 冪等：先清掉此房間的舊結算，避免重複送出造成重複列
+    db.query(models.GameRecord).filter(
+        models.GameRecord.room_code == room_code
+    ).delete()
+
+    # 依最終金錢由高到低排名
+    ranked = sorted(players, key=lambda p: p.get("final_money", 0), reverse=True)
+    top_money = ranked[0].get("final_money", 0) if ranked else 0
+
+    results = []
+    for idx, p in enumerate(ranked):
+        username = p.get("username")
+        final_money = int(p.get("final_money", 0) or 0)
+        laps = int(p.get("laps", 0) or 0)
+        jump_count = int(p.get("jump_count", 0) or 0)
+
+        # 從作答明細聚合該玩家統計
+        logs = db.query(models.GameAnswerLog).filter(
+            models.GameAnswerLog.room_code == room_code,
+            models.GameAnswerLog.username == username
+        ).all()
+        total_q = len(logs)
+        correct = sum(1 for l in logs if l.is_correct)
+        avg_sec = round(sum((l.answer_sec or 0) for l in logs) / total_q, 1) if total_q else 0
+        cats = [l.category for l in logs if l.category]
+        top_category = Counter(cats).most_common(1)[0][0] if cats else None
+
+        rec = models.GameRecord(
+            room_code=room_code,
+            username=username,
+            final_money=final_money,
+            rank=idx + 1,
+            is_winner=(final_money == top_money),
+            total_questions=total_q,
+            correct_count=correct,
+            avg_answer_sec=avg_sec,
+            top_category=top_category,
+            jump_count=jump_count,
+            laps=laps,
+        )
+        db.add(rec)
+        results.append({
+            "rank": idx + 1,
+            "username": username,
+            "final_money": final_money,
+            "is_winner": (final_money == top_money),
+            "accuracy": round(correct / total_q * 100) if total_q else 0,
+        })
+
+    db.commit()
+    return {"status": "success", "results": results}
+
+
+# 3. 取得結算資料：供 results.html 顯示排行榜與整體報表
+@app.get("/game/results/{room_code}")
+def get_results(room_code: str, db: Session = Depends(database.get_db)):
+    records = db.query(models.GameRecord).filter(
+        models.GameRecord.room_code == room_code
+    ).order_by(models.GameRecord.rank.asc()).all()
+    if not records:
+        raise HTTPException(status_code=404, detail="找不到該局結算資料")
+
+    leaderboard = [{
+        "rank": r.rank,
+        "username": r.username,
+        "final_money": r.final_money,
+        "is_winner": bool(r.is_winner),
+        "accuracy": round(r.correct_count / r.total_questions * 100) if r.total_questions else 0,
+        "correct_count": r.correct_count,
+        "total_questions": r.total_questions,
+        "avg_answer_sec": r.avg_answer_sec,
+        "top_category": r.top_category,
+        "jump_count": r.jump_count,
+        "laps": r.laps,
+    } for r in records]
+
+    # 整體報表：彙整全房作答明細
+    logs = db.query(models.GameAnswerLog).filter(
+        models.GameAnswerLog.room_code == room_code
+    ).all()
+    cat_counter = Counter([l.category for l in logs if l.category])
+    total_logs = len(logs)
+    total_correct = sum(1 for l in logs if l.is_correct)
+    avg_all = round(sum((l.answer_sec or 0) for l in logs) / total_logs, 1) if total_logs else 0
+
+    report = {
+        "top_category": cat_counter.most_common(1)[0][0] if cat_counter else "—",
+        "category_counts": dict(cat_counter),
+        "total_questions": total_logs,
+        "overall_accuracy": round(total_correct / total_logs * 100) if total_logs else 0,
+        "avg_answer_sec": avg_all,
+        # 答錯題回顧
+        "wrong_questions": [{
+            "username": l.username,
+            "question_text": l.question_text,
+            "chosen": l.chosen_answer,
+            "correct": l.correct_answer,
+            "category": l.category,
+        } for l in logs if not l.is_correct],
+    }
+
+    return {"room_code": room_code, "leaderboard": leaderboard, "report": report}
