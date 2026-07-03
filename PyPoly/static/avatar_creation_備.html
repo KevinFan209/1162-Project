@@ -68,7 +68,7 @@
 </div>
 
 <script>
-const API_URL = "http://10.178.72.76:8000";
+const API_URL = `http://${location.hostname}:8000`;
 const video = document.getElementById('webcam');
 const canvas = document.getElementById('cam-canvas');
 const ctx = canvas.getContext('2d');

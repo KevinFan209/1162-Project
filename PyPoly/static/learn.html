@@ -215,14 +215,14 @@
         if (!username || !token) return;
 
         // 🏆 進場報到，確保在看學習統計時不會被當作斷線
-        fetch(`http://localhost:8000/auth/verify_and_refresh?username=${username}`, {
+        fetch(`http://${location.hostname}:8000/auth/verify_and_refresh?username=${username}`, {
             method: "POST",
             headers: { 'Authorization': `Bearer ${token}` }
         });
 
         // 啟動一個簡單的心跳
         setInterval(() => {
-            fetch(`http://localhost:8000/auth/heartbeat?username=${username}`, {
+            fetch(`http://${location.hostname}:8000/auth/heartbeat?username=${username}`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -232,7 +232,7 @@
     // 🏆 修正登出按鈕 (如果有)
     async function logout() {
         const username = localStorage.getItem('username');
-        await fetch(`http://localhost:8000/auth/logout?username=${username}&confirm=true`, { method: 'POST' });
+        await fetch(`http://${location.hostname}:8000/auth/logout?username=${username}&confirm=true`, { method: 'POST' });
         localStorage.clear();
         window.location.href = 'login.html';
     }

@@ -220,7 +220,7 @@
 </div>
 
 <script>
-    const API_URL = "http://10.178.72.76:8000";
+    const API_URL = `http://${location.hostname}:8000`;
     let syncTimer = null; // 用於維持在線狀態
 	let refreshTimer = null;
 
@@ -471,7 +471,7 @@ async function kickGuest(guestName) {
     
     const rawData = localStorage.getItem('pypoly_active_room');
     const roomData = JSON.parse(rawData);
-    const API_URL = "http://10.178.72.76:8000"; // 確保 API 網址正確
+    const API_URL = `http://${location.hostname}:8000`; // 確保 API 網址正確
 
     console.log(`🚀 發送踢人請求: 房間 ${roomData.code}, 玩家 ${guestName}`);
 

@@ -202,7 +202,7 @@
             document.querySelector('.task-overlay').style.display = 'none';
         }
 		
-		const API_URL = "http://10.178.72.76:8000";
+		const API_URL = `http://${location.hostname}:8000`;
     let syncTimer = null;
 
     // --- 1. 頁面初始化：驗證身分與狀態復活 ---

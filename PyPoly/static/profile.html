@@ -213,7 +213,7 @@
 </div>
 
 <script>
-    const API_URL = "http://10.178.72.76:8000";
+    const API_URL = `http://${location.hostname}:8000`;
     let syncTimer = null; // 用於儲存心跳計時器
 
     // --- 1. 頁面初始化：驗證、復活與資料載入 ---

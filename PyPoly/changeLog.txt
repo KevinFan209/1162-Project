@@ -101,3 +101,16 @@ PyPoly 變更紀錄 (changeLog)
         會在請求觸發時丟 UnicodeEncodeError 導致該請求 500。
   驗證：於 cp950 管線下(未設 PYTHONUTF8)以 uvicorn 啟動，
         register→login→logout 皆 200，日誌正常印出「🚪 [正式登出成功]」無 traceback。
+
+[2026-07-03] #10 前端 API_URL 統一改為動態(依 location.hostname)
+  檔案：static/ 下 17 個 .html（共 20 處）
+    - 將寫死的後端網址改為 `http://${location.hostname}:8000`：
+      * "http://10.178.72.76:8000" → 動態（game/lobby/results/WaitingRoom(x2)/profile/
+        modal/character/basic/hard/guide/forgot/game data/admin/camera/avatar_creation_備）
+      * login.html 的 "http://127.0.0.1:8000" → 動態
+      * learn.html 內嵌的 http://localhost:8000（x3）→ 動態
+  原因：原本寫死某台區網 IP，換環境就連不上；改 127.0.0.1 僅限同機。
+        用 location.hostname 可自動對應「載入頁面的位址」，本機與區網(平板/手機)皆通。
+        game.html 的 WebSocket 由 API_URL 組出，一併涵蓋。
+  驗證：grep 確認無殘留 10.178.72.76 / 127.0.0.1:8000 / localhost:8000；
+        17 檔已採用動態 API_URL。後端未動。
