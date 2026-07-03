@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>PyPoly - 建立虛擬角色</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <style>
+        body { margin: 0; background: #1e293b; color: white; text-align: center; font-family: '微軟正黑體', sans-serif; overflow: hidden; }
+        #container { display: flex; flex-direction: column; align-items: center; padding: 20px; height: 100vh; }
+        
+        /* 相機框 */
+        #camera-box { position: relative; width: 640px; height: 480px; border: 5px solid #4facfe; border-radius: 24px; overflow: hidden; background: #000; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        #countdown { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 10rem; font-weight: 900; color: #ffde59; text-shadow: 0 0 30px rgba(0,0,0,0.8); display: none; }
+        
+        /* 🏆 生成中遮罩 */
+        #loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.95); z-index: 2000; flex-direction: column; justify-content: center; align-items: center; }
+        .loader { width: 100px; height: 100px; border: 10px solid #334155; border-top: 10px solid #ffde59; border-radius: 50%; animation: spin 1s linear infinite; }
+        
+        /* 🏆 3D 預覽區塊 */
+        #preview-section { display: none; width: 100%; flex-direction: column; align-items: center; }
+        #three-canvas-container { width: 640px; height: 480px; background: radial-gradient(#334155, #0f172a); border-radius: 24px; border: 5px solid #00cdac; box-shadow: 0 0 40px rgba(0,205,172,0.3); }
+
+        .btn-main { margin-top: 25px; padding: 15px 45px; font-size: 1.2rem; font-weight: 900; border-radius: 15px; border: none; cursor: pointer; transition: 0.2s; }
+        .btn-confirm { background: #00cdac; color: white; }
+        .btn-home { background: #4facfe; color: white; }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div id="container">
+    <h1 id="title-text">✨ 建立你的 Q 版虛擬人物</h1>
+    
+    <div id="capture-ui">
+        <p style="font-size: 1.2rem; color: #94a3b8; margin-bottom: 20px;">請比出手勢「2」進行拍照自動生成</p>
+        <div id="camera-box">
+            <video id="webcam" style="display:none;"></video>
+            <canvas id="cam-canvas" width="640" height="480"></canvas>
+            <div id="countdown">3</div>
+        </div>
+    </div>
+
+    <div id="preview-section">
+        <p style="font-size: 1.2rem; color: #00cdac; margin-bottom: 20px;">生成成功！這是你的專屬虛擬人物</p>
+        <div id="three-canvas-container"></div>
+        <button class="btn-main btn-home" onclick="location.href='lobby.html'">🏠 返回大廳</button>
+    </div>
+</div>
+
+<div id="loading-overlay">
+    <div class="loader"></div>
+    <h2 style="color: #ffde59; margin-top: 30px; letter-spacing: 2px;">AI 正在分析特徵並轉化為 Q 版造型...</h2>
+</div>
+
+<div id="confirm-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:1500; align-items:center; justify-content:center;">
+    <div style="background:white; padding:30px; border-radius:25px; text-align:center;">
+        <h2 style="color:#1e293b; margin-bottom:20px;">確認使用這張照片嗎？</h2>
+        <img id="shot-preview" style="width:320px; border-radius:15px; border:4px solid #f1f5f9;">
+        <div style="margin-top:25px; display:flex; gap:15px; justify-content:center;">
+            <button class="btn-main btn-confirm" onclick="startGenerating()">✅ 確認生成</button>
+            <button class="btn-main" style="background:#ff4757; color:white;" onclick="retake()">❌ 重拍</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const API_URL = "http://10.178.72.76:8000";
+const video = document.getElementById('webcam');
+const canvas = document.getElementById('cam-canvas');
+const ctx = canvas.getContext('2d');
+let isFrozen = false;
+let cameraTool = null;
+
+// --- 🏆 核心修正 1：獨立繪圖迴圈，解決「相機亮燈沒畫面」 ---
+function captureRenderLoop() {
+    if (!isFrozen && video.readyState >= 2) {
+        ctx.save();
+        ctx.scale(-1, 1);
+        ctx.translate(-640, 0);
+        ctx.drawImage(video, 0, 0, 640, 480);
+        ctx.restore();
+    }
+    requestAnimationFrame(captureRenderLoop);
+}
+captureRenderLoop(); // 立即啟動，確保一開相機就有畫面
+
+// --- 🏆 核心修正 2：手勢偵測只負責「算數」，不負責「畫圖」 ---
+const hands = new Hands({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
+hands.setOptions({ maxNumHands: 1, modelComplexity: 0, minDetectionConfidence: 0.7 });
+hands.onResults((results) => {
+    if (isFrozen) return;
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        if (checkGesture2(results.multiHandLandmarks[0])) startCountdown();
+    }
+});
+
+cameraTool = new Camera(video, { 
+    onFrame: async () => { await hands.send({image: video}); }, 
+    width: 640, height: 480 
+});
+cameraTool.start();
+
+function checkGesture2(lm) { return (lm[8].y < lm[6].y && lm[12].y < lm[10].y && lm[16].y > lm[14].y); }
+
+function startCountdown() {
+    if (window.isCounting) return; 
+    window.isCounting = true;
+    let count = 3;
+    const el = document.getElementById('countdown');
+    el.style.display = 'block';
+    const timer = setInterval(() => {
+        el.innerText = count--;
+        if (count < 0) { clearInterval(timer); showConfirm(); }
+    }, 1000);
+}
+
+function showConfirm() {
+    isFrozen = true; // 拍照瞬間凍結畫布
+    document.getElementById('countdown').style.display = 'none';
+    document.getElementById('shot-preview').src = canvas.toDataURL('image/png');
+    document.getElementById('confirm-modal').style.display = 'flex';
+}
+
+function retake() { 
+    document.getElementById('confirm-modal').style.display = 'none'; 
+    isFrozen = false; window.isCounting = false; 
+}
+
+async function startGenerating() {
+    const username = localStorage.getItem('username') || "player";
+    const imgData = document.getElementById('shot-preview').src;
+
+    document.getElementById('confirm-modal').style.display = 'none';
+    document.getElementById('loading-overlay').style.display = 'flex';
+    
+    if (cameraTool) await cameraTool.stop();
+
+    try {
+        const res = await fetch(`${API_URL}/avatar/upload`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, image: imgData })
+        });
+
+        const result = await res.json();
+        if (result.status === "success") {
+            setTimeout(() => {
+                document.getElementById('loading-overlay').style.display = 'none';
+                document.getElementById('capture-ui').style.display = 'none';
+                document.getElementById('preview-section').style.display = 'flex';
+                // 🏆 將 AI 提取的特徵傳入預覽
+                init3DPreview(username, result.features);
+            }, 2500);
+        }
+    } catch (e) { alert("生成失敗"); }
+}
+
+function init3DPreview(username, features) {
+    const container = document.getElementById('three-canvas-container');
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, 640 / 480, 0.1, 2000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(640, 480);
+    container.innerHTML = ""; 
+    container.appendChild(renderer.domElement);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 2.5));
+    const light = new THREE.DirectionalLight(0xffffff, 1.2);
+    light.position.set(5, 10, 10);
+    scene.add(light);
+
+    const loader = new THREE.GLTFLoader();
+    const texLoader = new THREE.TextureLoader();
+
+    // 🏆 重點 1：載入「根據 AI 判斷」出的 Q 版五官貼圖
+    // 您需要在 static 資料夾準備幾張可愛的眼睛圖，例如 eyes_round.png, eyes_sharp.png
+    const faceUrl = `${API_URL}/static/assets/eyes_${features.eye_id}.png`;
+    const faceTex = texLoader.load(faceUrl);
+    faceTex.flipY = false;
+
+    loader.load('models/base_character.glb', (gltf) => {
+        const model = gltf.scene;
+
+        // 自動縮放邏輯 ...
+        const box = new THREE.Box3().setFromObject(model);
+        const size = box.getSize(new THREE.Vector3());
+        const scaleFactor = 4.8 / size.y;
+        model.scale.set(scaleFactor, scaleFactor, scaleFactor);
+        model.position.y = -2.5;
+
+        // 🏆 重點 2：將特徵疊加到模型上
+        model.traverse((child) => {
+            if (child.isMesh) {
+                const n = child.name;
+                
+                // 全身套用玩家的真實膚色
+                child.material.color.set(features.skin);
+
+                // 針對臉部組件 (之前偵測出的 0_1)，貼上 AI 選定的 Q 版五官
+                if (n.includes("_0_1")) {
+                    child.material.map = faceTex;
+                    child.material.transparent = true; // 讓 Q 版五官背景透明，透出膚色
+                    child.material.needsUpdate = true;
+                }
+                
+                // 如果是身體零件，套用玩家照片中的衣服顏色
+                if (n.includes("body") || n.includes("_0")) {
+                    child.material.color.set(features.cloth);
+                }
+            }
+        });
+        
+        scene.add(model);
+        function rotate() { requestAnimationFrame(rotate); model.rotation.y += 0.015; renderer.render(scene, camera); }
+        rotate();
+    });
+
+    camera.position.set(0, 0, 8);
+}
+</script>
+</body>
+</html>
