@@ -1,0 +1,19 @@
+========================================================================
+PyPoly 變更紀錄 (changeLog)
+說明：本檔由上到下依時間順序記錄每一步變更（在哪個檔案做了什麼）。
+========================================================================
+
+[2026-07-03] #1 新增遊戲結算/選項四所需的 SQLAlchemy 資料表類別
+  檔案：models.py
+  內容：
+    - import 增加 Float, Boolean。
+    - Question 類別新增 opt4 欄位（需求①：題目第四選項）；answer 註解更新為 1~4。
+    - 新增 GameRecord 類別（資料表 game_records）：每人每局結算摘要，
+      欄位 room_code / username / final_money / rank / is_winner /
+      total_questions / correct_count / avg_answer_sec / top_category /
+      jump_count / laps / created_at。（需求⑨）
+    - 新增 GameAnswerLog 類別（資料表 game_answer_logs）：每題作答明細，
+      供計算答對率/最常出現語法/平均用時/答錯回顧；question_id 不設外鍵，
+      改存 category / question_text 快照。（需求⑨）
+  對應：與 pypoly_db_update.sql 的資料表結構一致。
+  驗證：python -m py_compile models.py 通過。
