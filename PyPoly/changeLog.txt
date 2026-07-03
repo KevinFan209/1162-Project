@@ -68,3 +68,12 @@ PyPoly 變更紀錄 (changeLog)
   檔案：static/sounds/README.txt（新增）
     - 說明需放入的 4 個音檔檔名：buy_success/jail_drop/bird_fly/steal_coin.mp3。
   驗證：缺檔時 try/catch 靜默；放入音檔後於對應事件應發聲(整場流程驗證)。
+
+[2026-07-03] #6 需求③ 手勢輪廓圖擴充至 7/8/9 (接線，圖檔由使用者提供)
+  檔案：static/game.html
+    - preloadAssets 迴圈 i<=6 改 i<=9；輪廓圖載入至 9。
+    - 骰子圖以 if(i<=6) 保護，避免 dice_faces/7~9 的 404 噪音。
+    - 保留 o.onerror 缺圖提示。
+  檔案：static/outlines/README_789.txt（新增）
+    - 說明需補 7.png/8.png/9.png，風格對齊 1~6；後端已能辨識 7/8/9。
+  驗證：放入 7/8/9.png 後比對應手勢應顯示輪廓；未放時僅 console 警告、不中斷。

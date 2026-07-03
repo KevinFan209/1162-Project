@@ -2355,16 +2355,18 @@ function create3DBoard() {
 	
 
 	function preloadAssets() {
-		for (let i = 1; i <= 6; i++) {
-			const d = new Image();
-			d.src = `${DICE_DIR}${i}.png`; // 修正路徑為 dice_faces/1.png
-			diceImages[i] = d;
+		// 🏆 需求③：輪廓圖擴充至 9（7/8/9 手勢）；骰子圖仍只有 1~6
+		for (let i = 1; i <= 9; i++) {
+			if (i <= 6) {
+				const d = new Image();
+				d.src = `${DICE_DIR}${i}.png`; // dice_faces/1.png ~ 6.png
+				diceImages[i] = d;
+				d.onerror = () => console.error("找不到骰子圖:", d.src);
+			}
 
 			const o = new Image();
-			o.src = `${OUTLINE_DIR}${i}.png`; // 修正路徑為 outlines/1.png
+			o.src = `${OUTLINE_DIR}${i}.png`; // outlines/1.png ~ 9.png
 			outlineImages[i] = o;
-			
-			d.onerror = () => console.error("找不到骰子圖:", d.src);
 			o.onerror = () => console.error("找不到輪廓圖:", o.src);
 		}
 	}
