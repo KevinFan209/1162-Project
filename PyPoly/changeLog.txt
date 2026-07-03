@@ -86,3 +86,10 @@ PyPoly 變更紀錄 (changeLog)
     - 防禦：無模型即 return，不影響答題；離開冒險由 resetToGodViewState 歸位(可逆)。
   ⚠️ 此為行為性修正，位置常數(3.2/1.6)為初值；需在有攝影機的實機/瀏覽器測試後微調。
   驗證：需實機——踩冒險格答題時，畫面應出現自己的 3D 人物且未擋住題目。
+
+[2026-07-03] #8 補上缺漏的相依套件 pymysql
+  檔案：requirements.txt
+    - 於 sqlalchemy 後加入 pymysql。
+  原因：database.py 連線字串為 mysql+pymysql://，需 PyMySQL 驅動；
+        原 requirements 漏列，導致 fastapi dev main.py 報 ModuleNotFoundError: pymysql。
+  驗證：pip install pymysql 後可正常啟動；cryptography 已由 python-jose[cryptography] 間接提供。
