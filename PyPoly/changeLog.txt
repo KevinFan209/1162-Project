@@ -93,3 +93,11 @@ PyPoly 變更紀錄 (changeLog)
   原因：database.py 連線字串為 mysql+pymysql://，需 PyMySQL 驅動；
         原 requirements 漏列，導致 fastapi dev main.py 報 ModuleNotFoundError: pymysql。
   驗證：pip install pymysql 後可正常啟動；cryptography 已由 python-jose[cryptography] 間接提供。
+
+[2026-07-03] #9 UTF-8 輸出保險（修正 cp950 主控台下 emoji print 崩潰）
+  檔案：main.py
+    - 檔首加入：對 sys.stdout / sys.stderr 呼叫 reconfigure(encoding="utf-8")（try/except 保護）。
+  原因：繁中 Windows 主控台為 cp950，main.py 內含 emoji 的 print（如登出的 🚪）
+        會在請求觸發時丟 UnicodeEncodeError 導致該請求 500。
+  驗證：於 cp950 管線下(未設 PYTHONUTF8)以 uvicorn 啟動，
+        register→login→logout 皆 200，日誌正常印出「🚪 [正式登出成功]」無 traceback。

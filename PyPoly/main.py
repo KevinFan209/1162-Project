@@ -1,3 +1,11 @@
+# 🏆 UTF-8 輸出保險：避免在 cp950(繁中) 主控台下，含 emoji 的 print 造成 UnicodeEncodeError 讓請求崩潰
+import sys
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
