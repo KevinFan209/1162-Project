@@ -14,23 +14,24 @@ def seed_data():
     for i in range(1, 21):
         diff = "easy" if i <= 7 else "normal" if i <= 14 else "hard"
         
-        # 🏆 基礎版題目：選項分開存放
+        # 🏆 基礎版題目：選項分開存放 (需求①：新增第四選項 opt4)
         db.add(models.Question(
-            category="basic", 
-            difficulty=diff, 
-            content=f"基礎題 {i}: {i}+{i}=?", 
+            category="basic",
+            difficulty=diff,
+            content=f"基礎題 {i}: {i}+{i}=?",
             opt1=f"{i*2}",    # 選項 1 的純內容
             opt2=f"{i+5}",    # 選項 2 的純內容
             opt3=f"{i-1}",    # 選項 3 的純內容
+            opt4=f"{i*i}",    # 選項 4 的純內容
             answer=1          # 正確答案直接是數字 1
         ))
 
         # 進階版題目 (如果是簡答題，選項留空)
         db.add(models.Question(
-            category="advanced", 
-            difficulty=diff, 
-            content=f"進階題 {i}: 請輸入數字 {i} 的英文：", 
-            opt1=None, opt2=None, opt3=None,
+            category="advanced",
+            difficulty=diff,
+            content=f"進階題 {i}: 請輸入數字 {i} 的英文：",
+            opt1=None, opt2=None, opt3=None, opt4=None,
             answer=i # 假設進階題答案是數字本身
         ))
 

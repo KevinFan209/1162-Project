@@ -17,3 +17,16 @@ PyPoly 變更紀錄 (changeLog)
       改存 category / question_text 快照。（需求⑨）
   對應：與 pypoly_db_update.sql 的資料表結構一致。
   驗證：python -m py_compile models.py 通過。
+
+[2026-07-03] #2 需求① 題目第四選項 (opt4) 串接
+  檔案：seed_data.py
+    - basic 題新增 opt4=f"{i*i}"；advanced 題補 opt4=None。
+  檔案：main.py
+    - /game/map_config 的 question dict：options 改為
+      [o for o in [opt1,opt2,opt3,opt4] if o]（含 opt4 並濾掉 None）；
+      另補 "id": q.id 與 "category": q.category（供需求⑨作答紀錄）。
+  檔案：static/game.html
+    - .task-options 由直向單欄改為橫向 wrap（2x2），加 width:560px。
+    - .opt-pill 改 flex:0 0 calc(50%-6px)、置中、移除 min-width:260px，使四選項平均分兩欄。
+  說明：後台 question.html 為靜態範本、無 CRUD，本次未動；題目以 seed_data/DB 為準。
+  驗證：python -m py_compile seed_data.py main.py 通過。

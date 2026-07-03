@@ -734,8 +734,11 @@ async def get_map_config(mode: str, difficulty: str, db: Session = Depends(datab
                     "base_price": c.base_price,  # 🏆 補上收購價
                     "base_toll": c.base_toll,    # 🏆 補上過路費
                     "question": {
+                        "id": q.id,                # 🏆 需求⑨：作答紀錄用
+                        "category": q.category,    # 🏆 需求⑨：最常出現語法統計用
                         "content": q.content,
-                        "options": [q.opt1, q.opt2, q.opt3], 
+                        # 🏆 需求①：加入 opt4，並濾掉 None（進階題無選項時才不會出現空泡泡）
+                        "options": [o for o in [q.opt1, q.opt2, q.opt3, q.opt4] if o],
                         "answer": q.answer
                     }
                 }

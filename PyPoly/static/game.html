@@ -225,26 +225,32 @@
 
 .task-options {
     position: absolute;
-    top: 60%; 
+    top: 60%;
     left: 31%;                 /* 稍微向右微調，使其看起來更靠近視訊中心 */
     transform: translateY(-50%);
     display: flex !important;
-    flex-direction: column !important;
+    flex-direction: row !important;   /* 🏆 需求①：改橫向 */
+    flex-wrap: wrap !important;        /* 🏆 需求①：允許換行，四選項排成 2x2 */
     gap: 12px;                 /* 間距縮小 */
+    width: 560px;              /* 🏆 需求①：限制寬度使每列容納 2 顆 */
+    max-width: 90vw;
     pointer-events: auto;
 }
 
 .opt-pill {
     background: white;
     color: #1e293b;
-    padding: 12px 30px;        /* 內距從 18/45 縮小 */
+    padding: 12px 24px;        /* 內距從 18/45 縮小 */
     border-radius: 12px;
     font-size: 1.4rem;         /* 字體從 2.0 降到 1.4 */
     font-weight: 900;
     border: 4px solid #ffde59; /* 邊框從 6px 降到 4px */
     box-shadow: 0 8px 20px rgba(0,0,0,0.2);
-    text-align: left;
-    min-width: 260px;          /* 🏆 寬度縮小，減少畫面遮擋 */
+    text-align: center;
+    /* 🏆 需求①：每顆佔一半寬度，形成 2 欄 (搭配 gap 12px) */
+    flex: 0 0 calc(50% - 6px);
+    box-sizing: border-box;
+    min-width: 0;
     transition: transform 0.2s;
 }
 
