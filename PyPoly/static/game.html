@@ -778,6 +778,22 @@
 	const DICE_DIR = "dice_faces/"; 
 	const OUTLINE_DIR = "outlines/";
 
+	// 🏆 需求⑥：音效系統。音檔由使用者放入 static/sounds/（缺檔或被瀏覽器擋下時靜默，不影響遊戲）。
+	const SFX = {
+		buy:   'static/sounds/buy_success.mp3', // 收購成功：歡呼聲
+		jail:  'static/sounds/jail_drop.mp3',   // 監獄：砸下來的聲音
+		bird:  'static/sounds/bird_fly.mp3',    // 小鳥飛：輕快
+		steal: 'static/sounds/steal_coin.mp3'   // 搶錢：敲金幣聲
+	};
+	function playSfx(key) {
+		try {
+			const src = SFX[key];
+			if (!src) return;
+			const a = new Audio(src);
+			a.play().catch(() => {}); // 忽略自動播放限制/缺檔
+		} catch (e) {}
+	}
+
 	// 2. 其次：初始化 Socket 連線 (現在它能抓到 API_URL 了)
 	const socket = io(API_URL); 
 	
@@ -3260,6 +3276,7 @@ async function executeStealAnimation(attackerName) {
     // 2. 動畫結束後，扣除金錢並廣播
     updateMoneyUI(victimName, -300);
     updateMoneyUI(attackerName, 300);
+    playSfx('steal'); // 🏆 需求⑥：搶錢（敲金幣聲）
 
     // 扣除背包道具 (用掉一次)
     deductItemFromInventory(attackerName, "item_steal"); // 🏆 使用道具，即時更新 UI
@@ -3769,7 +3786,8 @@ async function executePurchase(isBuying) {
             socket.emit('next_turn_trigger', { room: roomCode, next_player: nextP });
         } else {
             updateMoneyUI(myName, -finalPrice);
-			
+            playSfx('buy'); // 🏆 需求⑥：收購成功音效
+
             setBoardVisibility(true);
 			
             const scenarioText = window.currentAdventureTile?.data?.scenario || "";
@@ -4514,6 +4532,7 @@ function createJailCage() {
 async function playJailAnimationCore(playerName, tileIdx) {
     const model = playerModels[playerName];
     if (!model) return;
+    playSfx('jail'); // 🏆 需求⑥：監獄鐵籠砸下音效
 
     // 1. 場景清理：顯示亮色背景，隱藏除了此格以外的物件
     scene.background = new THREE.Color(0xf1f5f9); 
@@ -4651,6 +4670,7 @@ let birdData = { y: 240, pipes: [], coins: 0 };
 // 🏆 修正版：小鳥飛前置作業 (發送全網廣播，觀戰者將自動被拉入觀看情境)
 async function startBirdGameView() {
     console.log("🐦 進入獎勵遊戲：小鳥飛！");
+    playSfx('bird'); // 🏆 需求⑥：小鳥飛（輕快）音效
     scene.background = null; 
     setBoardVisibility(false);
 

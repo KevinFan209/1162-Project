@@ -56,3 +56,15 @@ PyPoly 變更紀錄 (changeLog)
     - 動態渲染排行榜(rankingList)與報表(dataBox)；含 escapeHtml。
     - 「再挑戰」死連結 battle.html 改為 lobby.html。
   驗證：靜態檔，無法 py_compile；後端串接於整場流程驗證(見計劃 Verification)。
+
+[2026-07-03] #5 需求⑥ 音效系統 (接線，音檔由使用者提供)
+  檔案：static/game.html
+    - 新增全域 SFX 物件與 playSfx(key)：new Audio(...).play()，缺檔/被擋下時靜默。
+    - 掛載事件：
+      * 收購成功 → executePurchase 成功分支 updateMoneyUI 後 playSfx('buy')。
+      * 搶錢     → 偷取動畫後 updateMoneyUI 後 playSfx('steal')。
+      * 監獄     → playJailAnimationCore 開頭 playSfx('jail')。
+      * 小鳥飛   → startBirdGameView 開頭 playSfx('bird')。
+  檔案：static/sounds/README.txt（新增）
+    - 說明需放入的 4 個音檔檔名：buy_success/jail_drop/bird_fly/steal_coin.mp3。
+  驗證：缺檔時 try/catch 靜默；放入音檔後於對應事件應發聲(整場流程驗證)。
