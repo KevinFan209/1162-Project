@@ -1,7 +1,9 @@
 fastapi
 uvicorn[standard]
+python-socketio
 sqlalchemy
 pymysql
+Pillow
 google-auth
 google-auth-oauthlib
 python-multipart

@@ -6,7 +6,7 @@ for _stream in (sys.stdout, sys.stderr):
     except Exception:
         pass
 
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect, Header
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -30,6 +30,10 @@ import base64
 from fastapi.staticfiles import StaticFiles
 from PIL import Image # 需安裝 pillow: pip install Pillow
 import io
+from dotenv import load_dotenv
+
+# 🏆 讀取 PyPoly/.env（機敏設定：SENDER_EMAIL / SENDER_PASSWORD / SECRET_KEY 等）
+load_dotenv()
 
 
 
@@ -54,6 +58,13 @@ app.mount("/models", StaticFiles(directory="models"), name="models")
 active_rooms = {}
 
 land_ownership = {}
+
+# 🏆 刪房時一併清掉該房的擲骰暫存（dice_order_results / room_dice_data 於檔案下方定義，
+#    此函式在請求時才執行，屆時兩個全域字典已存在）。同時清 code 與其大寫版以防鍵不一致。
+def _clear_room_dice_state(code: str):
+    for key in {code, code.upper()}:
+        dice_order_results.pop(key, None)
+        room_dice_data.pop(key, None)
 
 # 定義接收的資料結構
 class RoomSchema(BaseModel):
@@ -95,9 +106,10 @@ app.add_middleware(
 GOOGLE_CLIENT_ID = "111298973031-n8e4s6353pgiqpc74p5hl4vul2j6c7pt.apps.googleusercontent.com"
 ADMIN_EMAILS = ["admin@gmail.com"]
 
-# 📧 Gmail SMTP 設定
-SENDER_EMAIL = "pypoly.service@gmail.com" 
-SENDER_PASSWORD = "qfdi cvye mwdu xbyh" 
+# 📧 Gmail SMTP 設定（改由環境變數提供；請於 PyPoly/.env 填入，切勿寫死於程式碼）
+#    ⚠️ 原先寫死的應用程式密碼已移除，請至 Google 帳戶撤銷該密碼並重新產生。
+SENDER_EMAIL = os.getenv("SENDER_EMAIL", "")
+SENDER_PASSWORD = os.getenv("SENDER_PASSWORD", "")
 
 # 暫存驗證碼
 otp_storage: Dict[str, str] = {}
@@ -117,10 +129,10 @@ class UserCreate(BaseModel):
 
 # --- 核心清理邏輯 (全自動打掃) ---
 def perform_auto_cleanup(db: Session):
-    # 🏆 設定 30 秒為判定標準
+    # 🏆 設定 60 秒為判定標準（先前被改為 600000000 秒的 debug hack 已還原）
     threshold = datetime.utcnow() - timedelta(seconds=60)
-    
-    # 找出那些「在線中」但「超過 30 秒沒說話」的人
+
+    # 找出那些「在線中」但「超過 60 秒沒說話」的人
     offline_users = db.query(models.User).filter(
         models.User.is_online == 1, 
         models.User.last_active < threshold
@@ -132,13 +144,14 @@ def perform_auto_cleanup(db: Session):
             print(f"🧹 [自動清理] 偵測到使用者 {u.username} 超時，已強制登出。")
         db.commit()
 
-def clear_old_room(username):
-    # 找到該用戶創立的舊房間
-    old_room_code = find_room_by_host(username)
-    if old_room_code:
-        # 🏆 不要只刪除引用，要徹底清空數據
-        rooms_data[old_room_code]['players'] = []
-        del rooms_data[old_room_code]
+# 🏆 供 BackgroundTasks 使用：自帶 DB session，避免沿用 request-scoped session
+#    （FastAPI 0.106+ 會在背景任務執行前就關閉 Depends(get_db) 的 session）
+def perform_auto_cleanup_bg():
+    db = database.SessionLocal()
+    try:
+        perform_auto_cleanup(db)
+    finally:
+        db.close()
 
 # --- API 路由 ---
 
@@ -174,7 +187,7 @@ def login(user: UserLogin, background_tasks: BackgroundTasks, db: Session = Depe
 # 2. Google 登入 (整合封鎖邏輯)
 @app.post("/auth/google_v2")
 def google_login_v2(data: GoogleTokenRequest, background_tasks: BackgroundTasks, db: Session = Depends(database.get_db)):
-    background_tasks.add_task(perform_auto_cleanup, db)
+    background_tasks.add_task(perform_auto_cleanup_bg)
     
     google_res = requests.get(f"https://www.googleapis.com/oauth2/v3/userinfo?access_token={data.access_token}")
     if google_res.status_code != 200:
@@ -217,7 +230,7 @@ def heartbeat(username: str, db: Session = Depends(database.get_db)):
 # 4. 取得我的狀態 (刷新同步 & 封鎖踢出校對)
 @app.get("/auth/me")
 def get_me(username: str, background_tasks: BackgroundTasks, db: Session = Depends(database.get_db)):
-    background_tasks.add_task(perform_auto_cleanup, db)
+    background_tasks.add_task(perform_auto_cleanup_bg)
     user = db.query(models.User).filter(models.User.username == username).first()
     if not user:
         raise HTTPException(status_code=404, detail="找不到使用者")
@@ -259,10 +272,18 @@ def verify_and_refresh(username: str, db: Session = Depends(database.get_db)):
     db.commit()
     return {"status": "success"}
 
+# 🏆 管理員權限守衛：解出 JWT 的 username 後，查 DB 確認 role == admin 才放行
+def require_admin(authorization: str = Header(None), db: Session = Depends(database.get_db)):
+    username = auth_utils.get_current_user(authorization)  # 未帶/無效 token 會拋 401
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user or user.role != "admin":
+        raise HTTPException(status_code=403, detail="需要管理員權限")
+    return user
+
 # 6. 管理員：獲取所有用戶 (加權排序)
 @app.get("/admin/users")
-def get_all_users(db: Session = Depends(database.get_db)):
-    perform_auto_cleanup(db) 
+def get_all_users(db: Session = Depends(database.get_db), admin: models.User = Depends(require_admin)):
+    perform_auto_cleanup(db)
     
     # 🏆 admin 優先級高，排最前
     admin_priority = case(
@@ -287,7 +308,7 @@ def get_all_users(db: Session = Depends(database.get_db)):
 
 # 🏆 新增：管理員變更用戶角色 (封鎖/解封)
 @app.put("/admin/users/{target_username}/role")
-def update_user_role(target_username: str, data: dict, db: Session = Depends(database.get_db)):
+def update_user_role(target_username: str, data: dict, db: Session = Depends(database.get_db), admin: models.User = Depends(require_admin)):
     user = db.query(models.User).filter(models.User.username == target_username).first()
     if not user:
         raise HTTPException(status_code=404, detail="找不到該用戶")
@@ -328,6 +349,29 @@ def register(user: UserCreate, db: Session = Depends(database.get_db)):
     db.commit()
     return {"message": "success"}
 
+# 📧 寄送 OTP 驗證碼到指定信箱（Gmail SMTP, STARTTLS）
+def send_otp_email(to_email: str, otp: str):
+    if not SENDER_EMAIL or not SENDER_PASSWORD:
+        raise HTTPException(status_code=500, detail="郵件服務未設定（請於 .env 填入 SENDER_EMAIL / SENDER_PASSWORD）")
+    msg = MIMEText(
+        f"您的 PyPoly 密碼重設驗證碼為：{otp}\n\n此驗證碼供重設密碼使用，若非本人操作請忽略本信。",
+        "plain", "utf-8"
+    )
+    msg["Subject"] = "PyPoly 密碼重設驗證碼"
+    msg["From"] = SENDER_EMAIL
+    msg["To"] = to_email
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login(SENDER_EMAIL, SENDER_PASSWORD)
+            server.sendmail(SENDER_EMAIL, [to_email], msg.as_string())
+        print(f"📧 已寄送驗證碼至 {to_email}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 寄送驗證碼失敗: {e}")
+        raise HTTPException(status_code=500, detail="驗證碼寄送失敗，請稍後再試")
+
 # 9. 忘記密碼邏輯
 @app.post("/auth/forgot-password")
 def forgot_password(req: dict, db: Session = Depends(database.get_db)):
@@ -338,6 +382,26 @@ def forgot_password(req: dict, db: Session = Depends(database.get_db)):
     otp_storage[email] = otp
     send_otp_email(email, otp)
     return {"message": "sent"}
+
+# 10. 重設密碼：驗證 OTP 後更新密碼（前端 forgot.html 送 {email, code, new_password}）
+@app.post("/auth/reset-password")
+def reset_password(req: dict, db: Session = Depends(database.get_db)):
+    email = req.get("email")
+    code = req.get("code")
+    new_password = req.get("new_password")
+    if not email or not code or not new_password:
+        raise HTTPException(status_code=400, detail="缺少必要欄位")
+    saved = otp_storage.get(email)
+    if not saved or saved != code:
+        raise HTTPException(status_code=400, detail="驗證碼錯誤或已失效")
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="找不到使用者")
+    user.hashed_password = auth_utils.get_password_hash(new_password)
+    db.commit()
+    otp_storage.pop(email, None)  # 用過即失效
+    print(f"🔑 使用者 {user.username} 已重設密碼")
+    return {"message": "success"}
 
 
 
@@ -448,6 +512,7 @@ async def get_public_rooms():
 async def delete_room(code: str):
     if code in active_rooms:
         del active_rooms[code]
+        _clear_room_dice_state(code)  # 🏆 一併清掉擲骰暫存，避免同房號重開有殘留
         print(f"🔥 房間 {code} 已被刪除")
         return {"status": "success"}
     raise HTTPException(status_code=404, detail="房間不存在")
@@ -478,6 +543,7 @@ async def leave_room(code: str, username: str):
             # 🏆 額外邏輯 1：如果房間沒人了，徹底刪除
             if not room['players']:
                 del active_rooms[code]
+                _clear_room_dice_state(code)  # 🏆 一併清掉擲骰暫存
                 print(f"🧹 房間 {code} 已空，自動清理完成")
             
             # 🏆 額外邏輯 2：如果是房主離開，也可以選擇解散 (選用)
@@ -509,29 +575,9 @@ async def kick_player(code: str, username: str = Query(...)): # 🏆 強制指�
     print(f"❌ 失敗: 伺服器找不到房間 {code}")
     raise HTTPException(status_code=404, detail="找不到房間")
 
-@app.route('/rooms', methods=['GET'])
-def get_rooms():
-    active_rooms = []
-    for name, data in rooms_data.items():
-        active_rooms.append({
-            'name': name,
-            'mode': data.get('mode'),
-            'laps': data.get('laps'),
-            'difficulty': data.get('difficulty'), # 🚀 確保有傳出難度
-            'max_players': data.get('max_players', 2),
-            'players': data.get('players', []) # 🚀 傳出目前玩家清單以計算人數
-        })
-    return jsonify(active_rooms)
-
-# 在 main.py 的獲取房間路由中加入過濾
-@app.route('/rooms/public', methods=['GET'])
-def get_public_rooms():
-    active_rooms = []
-    for code, room in rooms_data.items():
-        # 🏆 增加條件：只有人數 > 0 且房主在線的房間才顯示
-        if len(room.get('players', [])) > 0:
-            active_rooms.append(room)
-    return jsonify(active_rooms)
+# 🏆 已移除兩個 Flask 風格殘留死碼（/rooms、/rooms/public 的 @app.route 版本）：
+#    它們引用未定義的 rooms_data / jsonify，一被呼叫即 NameError；
+#    公開房間清單以上方 FastAPI 版 @app.get("/rooms/public") 為準。
 
 # 🏆 修改後的驗證路由：支援同步狀態，讓平板知道何時跳轉
 # main.py 約 Line 331
@@ -850,12 +896,16 @@ async def handle_buy_land(sid, data):
     user = data['user']
     tile_index = data['tileIndex']
     price = data.get('price', 500)
-    
-    # 🏆 根據房內順序分配顏色，或者簡單區分
-    # 這裡建議使用亮眼的顏色
-    color = "#4facfe" if "1" in sid else "#ffde59" # 範例邏輯
-    
-    # 如果您有存玩家列表，可以更精確分配
+
+    # 🏆 依房內玩家索引分配固定色盤，避免以隨機 sid 字串判斷造成兩人同色
+    palette = ["#4facfe", "#ffde59", "#ff6b6b", "#51cf66"]
+    players = active_rooms.get(room, {}).get('players', [])
+    try:
+        idx = players.index(user)
+    except ValueError:
+        idx = 0
+    color = palette[idx % len(palette)]
+
     await sio.emit('land_bought_sync', {
         'user': user,
         'tileIndex': tile_index,
