@@ -196,11 +196,31 @@ PyPoly 變更紀錄 (changeLog)
       並記錄安裝、.env、種子資料執行順序(seed_data → init_adventure_data → create_admin)。
   驗證：python -m py_compile main.py 通過。
 
+[2026-07-17] #21 需求⑨延伸：topic 語法主題 + 正式題庫 + 種子腳本去衝突 (計畫 3-B1/3-B2/3-B3)
+  檔案：models.py
+    - Question 新增 topic 欄位（語法主題：變數/迴圈/條件判斷/函式…）。
+  檔案：seed_data.py（改寫為正式 Python 題庫）
+    - 基礎題(basic)：四選一，answer 為正確選項編號 1~4；共 18 題(easy/normal/hard 各 6)。
+    - 進階題(advanced)：手勢直接比答案，answer 皆為 1~9（因手勢僅支援 1~9）；共 18 題。
+    - 每題帶 topic；移除原本 i+i 假題與「請輸入英文」等無法用手勢作答的題目。
+    - 3-B2 去衝突：seed_data 不再刪除/寫入 scenarios，情境改由 init_adventure_data.py 專責，
+      兩支腳本不再互相覆蓋。
+  檔案：main.py
+    - /game/map_config 的 question dict 加入 "topic": q.topic。
+  檔案：static/game.html
+    - logAnswerToServer 的 category 欄位改記 q.topic（回退 q.category），
+      使結算報表「最常出現語法」顯示真正語法主題，而非永遠 basic。
+  檔案：gitignore/claude-workspace/pypoly_db_update.sql
+    - questions 表 CREATE 補 topic / opt4；新增 ALTER 為既有表補 topic 欄位。
+  驗證：python -m py_compile main.py models.py seed_data.py 通過；
+        資料檢查——進階題答案全部 1~9、基礎題答案 1~4 且選項數=4，共 36 題。
+  ⚠️ 套用步驟：先跑 pypoly_db_update.sql（新增 topic 欄位）→ 再 python seed_data.py 重灌題庫
+        → python init_adventure_data.py 灌情境。未先 ALTER 直接重灌會因缺 topic 欄位報錯。
+
 ------------------------------------------------------------------------
-本輪未處理（需資產 / 需實機視覺調參 / 需題庫內容與 DB 遷移），留待後續：
+本輪仍未處理（需資產 / 需實機視覺調參 / 需大量資產下載），留待後續：
   - 需求③ 手勢輪廓圖 7/8/9.png、需求⑥ 4 個音檔：程式已就緒，缺資產（放檔即生效）。
   - 需求② / ⑤ / ⑦ / ⑧ / ⑩：鏡頭、收購構圖、轉彎 slerp、資訊欄、地圖美化——皆需在
     有攝影機的瀏覽器實機調參，非純程式可完成。
-  - 計畫 3-B1 topic 欄位、3-B2/3-B3 種子腳本去衝突與正式題庫、3-D1 CDN 本地化：
-    涉及題庫內容決策與 DB 遷移/大量資產下載，另行規劃。
+  - 計畫 3-D1 CDN 本地化：需下載 three.js/GSAP/MediaPipe 等至 static/vendor/，另行規劃。
 ========================================================================

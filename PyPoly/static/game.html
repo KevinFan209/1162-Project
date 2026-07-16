@@ -7273,7 +7273,7 @@ function logAnswerToServer(isCorrect, chosenVal) {
                 room_code: roomCode,
                 username: myName,
                 question_id: q.id || null,
-                category: q.category || null,
+                category: q.topic || q.category || null, // 🏆 需求⑨：改記語法主題(topic)，讓「最常出現語法」有意義
                 question_text: q.content || null,
                 chosen_answer: chosenVal,
                 correct_answer: parseInt(q.answer),

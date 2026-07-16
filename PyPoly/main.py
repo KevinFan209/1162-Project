@@ -790,7 +790,8 @@ async def get_map_config(mode: str, difficulty: str, db: Session = Depends(datab
                     "base_toll": c.base_toll,    # 🏆 補上過路費
                     "question": {
                         "id": q.id,                # 🏆 需求⑨：作答紀錄用
-                        "category": q.category,    # 🏆 需求⑨：最常出現語法統計用
+                        "category": q.category,    # basic / advanced（模式）
+                        "topic": q.topic,          # 🏆 需求⑨：真正的語法主題，供結算「最常出現語法」統計
                         "content": q.content,
                         # 🏆 需求①：加入 opt4，並濾掉 None（進階題無選項時才不會出現空泡泡）
                         "options": [o for o in [q.opt1, q.opt2, q.opt3, q.opt4] if o],

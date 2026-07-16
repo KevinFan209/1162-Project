@@ -21,7 +21,8 @@ class User(Base):
 class Question(Base):
     __tablename__ = "questions"
     id = Column(Integer, primary_key=True, index=True)
-    category = Column(String(50))    # basic / advanced
+    category = Column(String(50))    # basic / advanced（遊戲模式）
+    topic = Column(String(50))       # 語法主題（變數/迴圈/條件判斷/函式…）需求⑨結算統計用
     difficulty = Column(String(50))  # easy / normal / hard
     content = Column(String(500))    # 題目內容
     opt1 = Column(String(200))       # 選項 1
