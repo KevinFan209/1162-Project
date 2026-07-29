@@ -106,7 +106,7 @@
 </div>
 
 <script>
-    const API_URL = `http://${location.hostname}:8000`;
+    const API_URL = location.origin;
 
     function showModal(title, message, isSuccess = true, callback = null) {
         const modal = document.getElementById('statusModal');

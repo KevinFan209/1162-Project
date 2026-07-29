@@ -288,7 +288,7 @@
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
-    const API_URL = `http://${location.hostname}:8000`;
+    const API_URL = location.origin;
 
     // --- 0. 頁面初始化：狀態校對與封鎖偵測 ---
     document.addEventListener('DOMContentLoaded', async () => {

@@ -774,7 +774,7 @@
 
 <script>
 	// 1. 最優先：定義基礎常數 (例如 API 路徑)
-	const API_URL = `http://${location.hostname}:8000`; 
+	const API_URL = location.origin; 
 	const DICE_DIR = "dice_faces/"; 
 	const OUTLINE_DIR = "outlines/";
 
@@ -4342,8 +4342,9 @@ async function initPoseAndStartVision() {
     
     socket.emit('start_pose_sync', { room: roomData.code, user: myName, type: "START" });
 
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsHost = API_URL.replace('http://', '').replace('https://', '');
-    visionSocket = new WebSocket(`ws://${wsHost}/ws/vision/jumping`);
+    visionSocket = new WebSocket(`${wsProtocol}//${wsHost}/ws/vision/jumping`);
 	
 	// ==========================================
     // 🏆 修正一：刪除原本的 new Pose 與 new Hands，改用全域共用模型防止卡頓

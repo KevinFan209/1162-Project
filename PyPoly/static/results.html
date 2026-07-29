@@ -142,7 +142,7 @@
         document.getElementById('overlay').classList.toggle('open');
     }
 	
-    const API_URL = `http://${location.hostname}:8000`;
+    const API_URL = location.origin;
 
     // 由 game.html 跳轉時帶入 ?room=CODE
     const roomCode = new URLSearchParams(window.location.search).get('room');

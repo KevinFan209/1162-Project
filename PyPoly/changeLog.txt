@@ -224,3 +224,89 @@ PyPoly 變更紀錄 (changeLog)
     有攝影機的瀏覽器實機調參，非純程式可完成。
   - 計畫 3-D1 CDN 本地化：需下載 three.js/GSAP/MediaPipe 等至 static/vendor/，另行規劃。
 ========================================================================
+
+
+[2026-07-29] #22 全流程整合測試（無瀏覽器，以程式扮演兩位玩家跑完整局）
+  方式：以 requests + socketio.Client 依前端實際送出的參數與順序，完整走過
+        登入→建房→加入→開局→抓地圖→決定先後手→擲骰移動→冒險答題→購地→
+        開合跳→換回合→結算→結果頁→離開登出。共 69 項斷言。
+  結果：69 PASS / 0 FAIL，伺服器全程未拋例外。
+  同時另跑邊界情境測試（斷線、重整、背景清理），發現下列問題（本輪未修）：
+
+  【阻斷級】
+  1. game.html:7355 定義了 startSyncLoop() 卻從未被呼叫 → 進遊戲後全程零心跳，
+     後端 60 秒無心跳的背景清理會把玩家判定離線（實測 t=50s 即 is_online=0）。
+     後果：管理員後台顯示遊玩中玩家為離線；重複登入防護失效（實測對局中可用
+     同帳號再次登入成功）。lobby.html / WaitingRoom.html 皆有正確呼叫，可對照。
+  2. 完全沒有斷線處理：main.py 無 sio disconnect handler，前端亦無「對手離線」
+     監聽。玩家關分頁後仍留在 room['players']；決定先後手階段對手一斷線，
+     handle_order_dice 永遠湊不滿 2 人 → 遊戲死鎖。另 triggerGameOver 只由
+     players[1] 送結算，該玩家離線則整局永不產生結算資料。
+  3. 殭屍房間永久累積：active_rooms 只有明確 leave/delete 才清除，無逾時回收。
+     實測有房間在客戶端崩潰後以 status=gaming 存活整輪測試，新玩家加入回
+     400「房間已滿」。大廳會逐漸堆滿進不去的滿員房。
+
+  【中等】
+  4. game.html:6443 用 myName === players[1] 判定大回合結束，但 players 是
+     加入順序，finalizeGameStart 決定先後手時不重排該陣列 → 客人擲骰贏得先手時，
+     房主的最後一回合會被吃掉，每局 50% 機率不公平。
+  5. game.html:6506 的 settle payload 只送 {username, final_money, laps}，
+     未送 jump_count → 結算報表的開合跳次數永遠是 0。
+  6. profile.html 呼叫兩個不存在的 API（實測皆 404）：
+     POST /auth/update-profile、POST /auth/send-otp-new-email。
+  7. modal.html:199-203「25 回合」「30 回合」兩個 option 的 value 都誤植為 20。
+  8. /rooms/create 未將房號正規化為大寫，但 verify/join/leave/kick/start 都有
+     .upper()，'abc123' 與 'ABC123' 會被當成兩間不同的房。
+  澄清：main.py 的 func.random() 沒有問題，SQLAlchemy 2.0 的 MySQL dialect 會
+        編譯成 rand()，在 MariaDB 10.4.32 上實測正常。
+
+[2026-07-29] #23 遠端協作測試環境（一）：前端位址改為協定/主機自適應
+  背景：四人團隊不在同一區網，無法一起測雙人連線的可玩性。決定用 Cloudflare
+        Quick Tunnel 開成公開 HTTPS 網址。但前端有寫死的位址，不修就無法穿隧道。
+  檔案：static/*.html（16 個檔案、17 行）
+    - const API_URL = `http://${location.hostname}:8000` 改為 const API_URL = location.origin。
+      涉及 WaitingRoom(兩處) / admin / avatar_creation_備 / basic / camera / character /
+      forgot / game data / game / guide / hard / lobby / login / modal / profile / results。
+      learn / question / settings 未定義 API_URL，不需改動。
+  原因：透過 HTTPS 隧道時原寫法會組出 http://xxxx.trycloudflare.com:8000
+        —— 埠號錯、協定錯，被瀏覽器以 mixed content 擋掉，登入/房間/Socket.IO 全滅。
+        改用 location.origin 對本機、區網、隧道三種情況都正確。
+  檔案：static/game.html:4345-4347
+    - 寫死的 new WebSocket(`ws://${wsHost}/ws/vision/jumping`) 改為沿用同檔 2882 行
+      既有的 wsProtocol 判斷（location.protocol 為 https: 時用 wss:）。
+  原因：HTTPS 頁面連 ws:// 會被 mixed content 擋掉，開合跳格子的辨識連線會直接失效。
+  驗證：git diff 確認僅動 17 行；隧道實測 login.html / socket.io 握手 / map_config
+        皆回 200，頁面實際取得的 API_URL 為 location.origin。
+
+[2026-07-29] #24 遠端協作測試環境（二）：.env 與 ops/ 隧道工具
+  檔案：PyPoly/.env（新增，已被 .gitignore 忽略、不進版控）
+    - 以 secrets.token_urlsafe(48) 產生隨機 SECRET_KEY。
+  原因：先前 .env 不存在，auth_utils.py:18 會退回程式碼裡寫死的預設值，
+        而該預設值在 GitHub 上是公開的。服務要放上公開網址前必須先換掉。
+  檔案：ops/scripts/dev-tunnel.ps1（新增）
+    - 一鍵啟動：切到 PyPoly/ → uvicorn main:sio_app → cloudflared quick tunnel
+      → 從 cloudflared 輸出擷取網址、印出並複製到剪貼簿；Ctrl+C 一併收掉兩個行程。
+    - 前置檢查：cloudflared 是否存在、.env 是否存在、port 8000 是否被占用。
+    - ⚠️ 本檔必須存成 UTF-8 with BOM，否則 Windows PowerShell 5.1 會以 ANSI 讀取，
+      中文字串會讓解析器報錯。
+  檔案：ops/README.md（新增）
+    - 主持者的操作步驟、組員的連線說明、已知問題清單（避免重複回報）。
+  檔案：ops/.gitignore（新增）
+    - 忽略 bin/（cloudflared.exe 約 52 MB，各自下載，不進版控）。
+  備註：cloudflared 改用 GitHub release 的獨立執行檔（2026.7.3）放在 ops/bin/。
+        winget install --id Cloudflare.cloudflared 實測在非互動終端機下會卡住不動。
+  重要發現：getUserMedia 要求 secure context，瀏覽器只信任 localhost / 127.0.0.1，
+        http://192.168.x.x 不算 —— 組員先前連區網 IP 時，手勢與姿勢辨識（核心玩法）
+        在他們機器上根本無法啟動。隧道帶來的真 HTTPS 讓組員第一次能真的測到這些功能。
+  驗證：以真實帳號將 #22 的 69 項測試整套從 HTTPS 隧道再跑一次，
+        結果 69 PASS / 0 FAIL，與本機一致。
+
+------------------------------------------------------------------------
+本輪（#22~#24）仍未處理，留待後續：
+  - #22 列出的 8 個問題全部未修。建議修復順序 1 → 2 → 3 → 4；其中 1~3 為阻斷級，
+    且問題 2（無斷線處理）在公網環境會比區網嚴重許多，會直接干擾遠端可玩性測試。
+  - create_admin.py:19 的 admin 預設密碼仍是 123，服務已可公開存取，建議儘快更換。
+  - Discord bot（讓組員自行 /start 開伺服器、/url 查網址）設計已完成但尚未實作。
+    核心原則：執行路徑與 LLM 路徑完全隔離——slash 指令走固定白名單動作，
+    接 llama.cpp 的問答功能只回文字、無任何執行權限。
+========================================================================

@@ -179,7 +179,7 @@
 </div>
 
 <script>
-    const API_URL = `http://${location.hostname}:8000`;
+    const API_URL = location.origin;
     let syncTimer = null;
 
     // --- 1. 頁面初始化：驗證身分與狀態復活 ---

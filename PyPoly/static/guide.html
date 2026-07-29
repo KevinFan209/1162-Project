@@ -202,7 +202,7 @@
 </div>
 
 <script>
-    const API_URL = `http://${location.hostname}:8000`;
+    const API_URL = location.origin;
     let syncTimer = null; // 🏆 用於維持在線狀態
 
     // --- 1. 選單與導航 ---

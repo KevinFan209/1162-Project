@@ -191,7 +191,7 @@
 </div>
 
 <script>
-    const API_URL = `http://${location.hostname}:8000`;
+    const API_URL = location.origin;
     let syncTimer = null; // 用於儲存心跳與列表刷新的計時器
 
     // --- 1. 跨分頁監聽 (防止手動刪除 token) ---
