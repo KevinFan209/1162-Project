@@ -391,3 +391,69 @@ PyPoly 變更紀錄 (changeLog)
       改 ID 後舊的對局紀錄不會跟著更新，歷史排行榜會對不上；
       若在房間內改 ID 亦會使該房的 players 名單失效。建議日後改以 user_id 關聯。
 ========================================================================
+
+
+[2026-07-29] #27 階段一驗收通過：組員實機確認 HTTPS 下相機可用
+  以真實瀏覽器從 Cloudflare 隧道網址測試，攝影機權限可正常取得、
+  MediaPipe 辨識可啟動。這是先前用區網 IP 做不到的事
+  （http://192.168.x.x 非 secure context，getUserMedia 會被瀏覽器直接禁用）。
+  至此遠端協作測試環境正式可用，階段二（Discord bot）的前提條件成立。
+
+[2026-07-29] #28 新增 Discord ops bot（階段二）
+  目的：組員不必每次都等專案擁有者手動開伺服器，在 Discord 打指令即可。
+  位置：ops/（與 PyPoly/ 平行，營運工具與遊戲程式分離；不影響遊戲本體）
+
+  檔案：ops/config.py（新增）
+    - 集中讀取 ops/.env，避免 os.getenv 散落各處。
+    - cloudflared 優先用 ops/bin 下的獨立執行檔，找不到才退回 PATH。
+    - missing() 回傳缺少的必要設定，供啟動時給出明確錯誤而非堆疊追蹤。
+
+  檔案：ops/services/server_manager.py（新增）
+    - 以固定字串陣列啟動 uvicorn（cwd=PyPoly/、進入點 sio_app），不經過 shell。
+    - is_up() 以 socket.io 握手判定；owned() 區分是否由 bot 啟動——
+      若伺服器是 dev-tunnel.ps1 或其他方式啟動的，/stop 會明確拒絕而非誤殺。
+    - start() 具冪等性：已在執行中則不會開第二個。
+
+  檔案：ops/services/tunnel_manager.py（新增）
+    - 同樣以固定指令啟動 cloudflared quick tunnel，從輸出解析 *.trycloudflare.com。
+    - 取得網址後會等到該網域真的連得上才回傳（新網域 DNS 生效需數秒，
+      否則 bot 貼出網址時組員點開會連不上——實測確實會發生 getaddrinfo failed）。
+
+  檔案：ops/cogs/ops_cog.py（新增）
+    - /start  啟動伺服器 + 隧道，回覆可直接點的遊戲網址
+    - /url    只查目前網址，不改變狀態
+    - /status 伺服器狀態、啟動來源、房間內玩家數、目前網址
+    - /stop   關閉隧道與伺服器
+    - /start 與 /status 會先 defer，否則建隧道超過 3 秒 Discord 會判定逾時。
+
+  檔案：ops/bot.py（新增）
+    - 進入點；沿用 main.py 的 UTF-8 輸出保險（cp950 主控台印 emoji 會崩潰）。
+    - 只用 default intents（純 slash command，不需 message_content 特權 intent）。
+    - 有設 GUILD_ID 則指令即時生效，否則註冊為全域指令（最久 1 小時）。
+    - close() 會一併收掉自己啟動的子行程，避免留下孤兒 uvicorn / cloudflared。
+
+  檔案：ops/requirements.txt、ops/.env.example（新增）
+  檔案：ops/.gitignore（更新）—— 追加 .env、logs/、__pycache__
+  檔案：ops/README.md（更新）—— 補上 Discord application 建立步驟、
+        指令說明、檔案結構、設計說明。
+
+  安全性設計（因權限開放給頻道內所有人，這是主要防護）：
+    四個指令皆不接受任何自由文字參數，services 層的子行程指令是寫死的
+    字串陣列、不經過 shell、不接受任何來自 Discord 的字串拼接。
+    因此可觸發的行為侷限在「啟動 / 停止 / 查狀態 / 查網址」四件事。
+    ⚠️ 但隧道網址等同存取憑證，該 Discord 頻道務必設為私有。
+
+  驗證：以不需 Discord token 的方式對 services 層寫 22 項測試，全數通過——
+        設定定位、指令白名單、正確拒絕停止非自己啟動的伺服器、啟停冪等性、
+        在線人數查詢、隧道網址取得與重複啟動去重、
+        端到端（從隧道打回 login.html 與 socket.io 皆 200）、
+        關閉後狀態歸零、重複關閉不會拋例外。
+        另確認四個 slash command 皆正確註冊且參數皆為空。
+
+  ⚠️ 尚未驗證：需要 Discord bot token 才能實測真實的指令互動，
+     token 需由專案擁有者於 Discord Developer Portal 建立。
+
+  尚未實作：階段三 llama.cpp 問答（ops/cogs/ask_cog.py）。
+     屆時該 cog 不得 import services/，也不得有任何 function calling——
+     LLM 的輸出只能是貼回 Discord 的文字。
+========================================================================

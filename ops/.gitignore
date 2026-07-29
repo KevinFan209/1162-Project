@@ -1,2 +1,11 @@
 # cloudflared 獨立執行檔（約 52 MB，不進版控，各自下載）
 bin/
+
+# 機敏設定（Discord token）
+.env
+
+# 子行程記錄檔
+logs/
+
+__pycache__/
+*.pyc

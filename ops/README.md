@@ -75,8 +75,85 @@ https://xxxx-xxxx-xxxx.trycloudflare.com/static/login.html
 
 ---
 
-## 之後要加的東西（尚未實作）
+---
 
-Discord bot，讓組員自己用 `/start` 開伺服器、`/url` 查網址，不必每次都等主持人。
-設計已完成，見專案計劃書。核心原則是**執行路徑與 LLM 路徑完全隔離**：
-slash 指令走固定白名單動作，接 llama.cpp 的問答功能只回文字、沒有任何執行權限。
+## Discord bot（讓組員自己開伺服器）
+
+不必每次都等主持人開機器，組員在 Discord 打 `/start` 就能開，`/url` 查網址。
+
+### 指令
+
+| 指令 | 行為 |
+|---|---|
+| `/start` | 啟動伺服器 + 建立隧道，回覆可直接點的遊戲網址 |
+| `/url` | 只查目前網址，不改變任何狀態 |
+| `/status` | 伺服器是否執行中、由誰啟動、房間內玩家數、目前網址 |
+| `/stop` | 關掉隧道與伺服器 |
+
+四個指令**都不接受任何自由文字參數**。
+
+### 一次性設定
+
+1. 到 https://discord.com/developers/applications → **New Application**
+2. 左側 **Bot** → **Reset Token** → 複製 token
+3. 左側 **OAuth2 → URL Generator**：
+   - Scopes 勾 `bot` 和 `applications.commands`
+   - Bot Permissions 勾 `Send Messages`、`Embed Links`
+   - 用產生的網址把 bot 邀進你們的伺服器
+4. 在 Discord 設定裡開啟「進階 → 開發者模式」，對伺服器按右鍵複製伺服器 ID
+5. 建立設定檔：
+
+```powershell
+Copy-Item .\ops\.env.example .\ops\.env
+```
+
+編輯 `ops\.env`，填入 `DISCORD_TOKEN` 與 `GUILD_ID`。
+
+6. 安裝相依套件：
+
+```powershell
+python -m pip install -r .\ops\requirements.txt
+```
+
+### 啟動 bot
+
+```powershell
+cd ops
+python bot.py
+```
+
+bot 必須跑在**裝有 MySQL 的那台機器**上（遊戲伺服器與資料庫綁在一起）。
+它是主動對外連 Discord，**不需要開放任何對內的連接埠**。
+
+關掉 bot（Ctrl+C）時會一併收掉它啟動的伺服器與隧道。
+
+### 設計說明
+
+**執行路徑與 LLM 路徑完全隔離。** slash 指令只能觸發四個寫死的動作，
+`services/` 裡的子行程指令是固定字串陣列、不經過 shell、不接受任何來自 Discord
+的字串拼接。因此即使頻道內所有人都能使用，能觸發的行為仍侷限在那四件事。
+
+**權限取捨**：目前設定為頻道內所有人皆可使用，所以隧道網址等同於存取憑證。
+請把該頻道設為私有，不要邀請組員以外的人。
+
+### 檔案結構
+
+```
+ops/
+├─ bot.py                     進入點：載入 cog、同步 slash commands
+├─ config.py                  集中讀取 .env
+├─ requirements.txt
+├─ .env.example
+├─ cogs/ops_cog.py            /start /stop /status /url
+├─ services/
+│  ├─ server_manager.py       uvicorn 子行程（固定指令）
+│  └─ tunnel_manager.py       cloudflared 子行程 + 網址解析
+├─ scripts/dev-tunnel.ps1     不透過 bot 的手動啟動方式
+├─ bin/                       cloudflared.exe（gitignore）
+└─ logs/                      子行程記錄（gitignore）
+```
+
+### 尚未實作
+
+llama.cpp 問答功能（階段三）。屆時 `cogs/ask_cog.py` 只回文字、
+不得 import `services/`，也不會有任何 function calling。
