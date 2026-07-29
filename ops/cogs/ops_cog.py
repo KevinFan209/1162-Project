@@ -25,33 +25,53 @@ class OpsCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    # ── /start ───────────────────────────────────────────
-    @app_commands.command(name="start", description="啟動 PyPoly 伺服器並建立公開網址")
-    async def start(self, interaction: discord.Interaction):
-        # 建隧道與等 DNS 可能要 30 秒以上，必須先 defer 否則 Discord 會判定逾時
-        await interaction.response.defer(thinking=True)
-
+    async def _bring_up(self, title: str) -> discord.Embed:
+        """啟動伺服器與隧道，回傳要貼回 Discord 的 embed。/start 與 /restart 共用。"""
         ok, msg = await server_manager.start()
         if not ok:
-            await interaction.followup.send(embed=_embed("❌ 伺服器啟動失敗", msg, RED))
-            return
+            return _embed("❌ 伺服器啟動失敗", msg, RED)
 
         ok, result = await tunnel_manager.start()
         if not ok:
-            await interaction.followup.send(embed=_embed("❌ 隧道建立失敗", result, RED))
-            return
+            return _embed("❌ 隧道建立失敗", result, RED)
 
-        login = f"{result}/static/login.html"
         e = _embed(
-            "🎮 PyPoly 已上線",
-            f"**點這裡開始玩**\n{login}\n\n"
+            title,
+            f"**點這裡開始玩**\n{result}/static/login.html\n\n"
             "· 第一次進去請允許相機權限\n"
             "· 帳號是學號，密碼同帳號\n"
             "· 建議用 Chrome 或 Edge",
             GREEN,
         )
         e.set_footer(text="網址每次重新啟動都會變，請以最新一則為準")
-        await interaction.followup.send(embed=e)
+        return e
+
+    # ── /start ───────────────────────────────────────────
+    @app_commands.command(name="start", description="啟動 PyPoly 伺服器並建立公開網址")
+    async def start(self, interaction: discord.Interaction):
+        # 建隧道與等 DNS 可能要 30 秒以上，必須先 defer 否則 Discord 會判定逾時
+        await interaction.response.defer(thinking=True)
+        await interaction.followup.send(embed=await self._bring_up("🎮 PyPoly 已上線"))
+
+    # ── /restart ─────────────────────────────────────────
+    @app_commands.command(name="restart", description="重新啟動伺服器與網址（網址會更換）")
+    async def restart(self, interaction: discord.Interaction):
+        await interaction.response.defer(thinking=True)
+
+        tunnel_manager.stop()
+        server_manager.stop()
+
+        # 若停不掉又還活著，代表伺服器是別的方式啟動的（例如 dev-tunnel.ps1），
+        # 這時硬啟第二個只會撞埠，明講比裝作成功好
+        if await server_manager.is_up():
+            await interaction.followup.send(embed=_embed(
+                "⚠️ 無法重啟",
+                "伺服器不是由 bot 啟動的，bot 不會去關別人的行程。\n"
+                "請在原本啟動它的視窗按 Ctrl+C 之後，再執行 `/start`。",
+                RED))
+            return
+
+        await interaction.followup.send(embed=await self._bring_up("🔄 PyPoly 已重新啟動"))
 
     # ── /url ─────────────────────────────────────────────
     @app_commands.command(name="url", description="查詢目前的遊戲網址（不會改變任何狀態）")
