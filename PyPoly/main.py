@@ -414,6 +414,96 @@ def reset_password(req: dict, db: Session = Depends(database.get_db)):
     return {"message": "success"}
 
 
+# ==========================================================
+# 個人資料修改（供 static/profile.html 使用）
+# ==========================================================
+
+class ProfileUpdate(BaseModel):
+    new_username: str
+    new_email: Optional[str] = None
+    email_otp: Optional[str] = None
+    old_password: Optional[str] = None
+    new_password: Optional[str] = None
+
+
+# 11. 寄驗證碼到「新信箱」（換 email 前先證明本人收得到該信箱）
+@app.post("/auth/send-otp-new-email")
+def send_otp_new_email(req: dict, db: Session = Depends(database.get_db)):
+    email = (req.get("email") or "").strip()
+    if not email:
+        raise HTTPException(status_code=400, detail="請先輸入新的 Email")
+    # email 於 models.User 有 unique 約束，先擋掉才不會等到 update 時才失敗
+    if db.query(models.User).filter(models.User.email == email).first():
+        raise HTTPException(status_code=400, detail="此信箱已被其他帳號使用")
+    otp = str(random.randint(100000, 999999))
+    otp_storage[email] = otp
+    send_otp_email(email, otp)   # 未設定 SENDER_* 時會回 500 並附上提示訊息
+    return {"message": "sent"}
+
+
+# 12. 更新個人資料：ID / Email(需 OTP) / 密碼(需舊密碼)
+#     前端 profile.html 以 PUT 呼叫，成功後用回傳的 access_token 與 username 覆蓋 localStorage
+@app.put("/auth/update-profile")
+def update_profile(
+    data: ProfileUpdate,
+    authorization: str = Header(None),
+    db: Session = Depends(database.get_db),
+):
+    current_username = auth_utils.get_current_user(authorization)  # 無效 token 會拋 401
+    user = db.query(models.User).filter(models.User.username == current_username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="找不到使用者")
+
+    new_username = (data.new_username or "").strip()
+    new_email = (data.new_email or "").strip()
+    new_password = data.new_password or ""
+
+    username_changed = bool(new_username) and new_username != user.username
+    email_changed = bool(new_email) and new_email != user.email
+
+    # ---- 先全部驗證，任何一項不過就不寫入，避免只改到一半 ----
+    if not new_username:
+        raise HTTPException(status_code=400, detail="使用者 ID 不能為空")
+
+    if username_changed:
+        if db.query(models.User).filter(models.User.username == new_username).first():
+            raise HTTPException(status_code=400, detail="此 ID 已被使用")
+
+    if email_changed:
+        if db.query(models.User).filter(models.User.email == new_email).first():
+            raise HTTPException(status_code=400, detail="此信箱已被其他帳號使用")
+        saved = otp_storage.get(new_email)
+        if not saved or not data.email_otp or saved != data.email_otp.strip():
+            raise HTTPException(status_code=400, detail="信箱驗證碼錯誤或已失效")
+
+    if new_password:
+        if user.hashed_password == "google_linked":
+            raise HTTPException(status_code=400, detail="Google 登入的帳號請由 Google 管理密碼")
+        if not data.old_password or not auth_utils.verify_password(data.old_password, user.hashed_password):
+            raise HTTPException(status_code=400, detail="目前密碼不正確")
+
+    # ---- 驗證全過，才實際寫入 ----
+    if username_changed:
+        user.username = new_username
+    if email_changed:
+        user.email = new_email
+        otp_storage.pop(new_email, None)  # 用過即失效
+    if new_password:
+        user.hashed_password = auth_utils.get_password_hash(new_password)
+    user.last_active = datetime.utcnow()
+
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="ID 或信箱已被使用")
+
+    print(f"✏️ 使用者 {current_username} 已更新個人資料 -> {user.username}")
+    # username 可能已變更，必須重新簽發 token（sub 帶的是 username）
+    token = auth_utils.create_access_token(data={"sub": user.username, "role": user.role})
+    return {"access_token": token, "username": user.username, "role": user.role}
+
+
 
 
 class AvatarUpload(BaseModel):

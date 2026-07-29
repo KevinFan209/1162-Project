@@ -347,3 +347,47 @@ PyPoly 變更紀錄 (changeLog)
   備註：s112213070@ncnu.edu.tw 等四組信箱已被既有學號帳號使用，
         建立新測試帳號時需改用其他信箱。
 ========================================================================
+
+
+[2026-07-29] #26 補上 profile.html 缺少的兩個後端 API（修 #22 問題 6）
+  背景：個人資料頁的「修改」功能長期無反應，因為它呼叫的兩個端點後端從未實作，
+        實測皆回 404。本次依前端 static/profile.html 既有的呼叫契約補上。
+
+  檔案：main.py
+    - 新增 Pydantic 模型 ProfileUpdate(new_username, new_email, email_otp,
+      old_password, new_password)，對應 profile.html saveChanges() 送出的欄位。
+
+    - 新增 POST /auth/send-otp-new-email
+        body: {email}
+        先擋掉已被其他帳號使用的信箱（email 有 unique 約束），
+        再產生 6 碼 OTP 存入 otp_storage 並寄至該信箱（沿用既有 send_otp_email）。
+        用途是換信箱前先證明本人收得到新信箱。
+
+    - 新增 PUT /auth/update-profile（注意是 PUT，前端即以 PUT 呼叫）
+        需 Authorization: Bearer <token>，以 auth_utils.get_current_user 解出當前身分。
+        三項可獨立變更，各有前置條件：
+          * ID：不可空白；與現有 ID 重複則回 400。
+          * Email：需附上寄到「新信箱」的 OTP；信箱被佔用或 OTP 錯誤/失效皆回 400；
+                   成功後該 OTP 立即失效。
+          * 密碼：需通過舊密碼驗證；google_linked 帳號拒絕於此變更密碼。
+        設計要點：**先全部驗證通過才寫入**，避免「ID 改成功但密碼驗證失敗」
+        這類部分寫入。commit 另包 try/except IntegrityError 作為併發保險。
+        因 JWT 的 sub 帶的是 username，改 ID 後必須重新簽發 token，
+        故回傳 {access_token, username, role}，前端會用它覆蓋 localStorage。
+
+  驗證：python -m py_compile main.py 通過；路由清單確認
+        POST /auth/send-otp-new-email 與 PUT /auth/update-profile 皆已註冊；
+        另以 TestClient 寫 22 項測試全數通過，涵蓋：
+          未帶/無效 token 回 401、空白 ID、ID 重複、改 ID 成功並換發可用的新 token、
+          未附舊密碼/舊密碼錯誤被擋、改密碼後新密碼可登入且舊密碼失效、
+          空 email、信箱已被他人使用、未附 OTP、OTP 錯誤、OTP 正確時改 email 成功、
+          OTP 用過即失效、DB 實際內容正確、密碼驗證失敗時 ID 不會被部分寫入。
+
+  ⚠️ 已知限制（本次未處理）：
+    - 寄信需 .env 設定 SENDER_EMAIL / SENDER_PASSWORD，未設定時
+      send-otp-new-email 會回 500 並附提示；換信箱功能因此在本機尚無法端到端使用。
+    - otp_storage[email] 是在寄信「之前」寫入，寄信失敗時該 OTP 會殘留在記憶體中。
+    - username 目前是 game_records / game_answer_logs / active_rooms 的關聯鍵（字串），
+      改 ID 後舊的對局紀錄不會跟著更新，歷史排行榜會對不上；
+      若在房間內改 ID 亦會使該房的 players 名單失效。建議日後改以 user_id 關聯。
+========================================================================
