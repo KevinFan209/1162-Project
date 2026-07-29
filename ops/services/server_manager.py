@@ -25,6 +25,7 @@ _OUT_LOG = config.LOG_DIR / "uvicorn.out.log"
 _ERR_LOG = config.LOG_DIR / "uvicorn.err.log"
 
 _proc: subprocess.Popen | None = None
+_logs: list = []   # 子行程的記錄檔控制代碼，stop() 時要一併關閉
 
 
 async def is_up(timeout: float = 3.0) -> bool:
@@ -44,7 +45,7 @@ def owned() -> bool:
 
 async def start(ready_timeout: float = 30.0) -> tuple[bool, str]:
     """啟動伺服器。回傳 (成功, 訊息)。"""
-    global _proc
+    global _proc, _logs
 
     if await is_up():
         who = "由 bot 啟動" if owned() else "由其他方式啟動（例如 dev-tunnel.ps1）"
@@ -53,11 +54,13 @@ async def start(ready_timeout: float = 30.0) -> tuple[bool, str]:
     _OUT_LOG.write_text("", encoding="utf-8")
     _ERR_LOG.write_text("", encoding="utf-8")
 
+    # 記錄檔控制代碼要留著，否則每次 start 都會洩漏一組檔案描述子
+    _logs = [_OUT_LOG.open("a", encoding="utf-8"), _ERR_LOG.open("a", encoding="utf-8")]
     _proc = subprocess.Popen(
         _CMD,
         cwd=str(config.PYPOLY_DIR),
-        stdout=_OUT_LOG.open("a", encoding="utf-8"),
-        stderr=_ERR_LOG.open("a", encoding="utf-8"),
+        stdout=_logs[0],
+        stderr=_logs[1],
     )
 
     deadline = asyncio.get_event_loop().time() + ready_timeout
@@ -78,6 +81,7 @@ def stop() -> tuple[bool, str]:
 
     if _proc is None or _proc.poll() is not None:
         _proc = None
+        _close_logs()
         return False, "伺服器不是由 bot 啟動的，請在原本啟動它的視窗按 Ctrl+C"
 
     _proc.terminate()
@@ -86,7 +90,18 @@ def stop() -> tuple[bool, str]:
     except subprocess.TimeoutExpired:
         _proc.kill()
     _proc = None
+    _close_logs()
     return True, "伺服器已停止"
+
+
+def _close_logs():
+    global _logs
+    for f in _logs:
+        try:
+            f.close()
+        except Exception:
+            pass
+    _logs = []
 
 
 async def online_players() -> int | None:

@@ -24,6 +24,7 @@ _URL_RE = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com")
 
 _proc: subprocess.Popen | None = None
 _url: str | None = None
+_logs: list = []   # 子行程的記錄檔控制代碼，stop() 時要一併關閉
 
 
 def current_url() -> str | None:
@@ -39,7 +40,7 @@ def is_up() -> bool:
 
 async def start(url_timeout: float = 40.0) -> tuple[bool, str]:
     """啟動隧道並解析出公開網址。回傳 (成功, 網址或錯誤訊息)。"""
-    global _proc, _url
+    global _proc, _url, _logs
 
     if is_up() and _url:
         return True, _url
@@ -48,11 +49,9 @@ async def start(url_timeout: float = 40.0) -> tuple[bool, str]:
     _ERR_LOG.write_text("", encoding="utf-8")
 
     try:
-        _proc = subprocess.Popen(
-            _CMD,
-            stdout=_OUT_LOG.open("a", encoding="utf-8"),
-            stderr=_ERR_LOG.open("a", encoding="utf-8"),
-        )
+        # 記錄檔控制代碼要留著，否則每次 start 都會洩漏一組檔案描述子
+        _logs = [_OUT_LOG.open("a", encoding="utf-8"), _ERR_LOG.open("a", encoding="utf-8")]
+        _proc = subprocess.Popen(_CMD, stdout=_logs[0], stderr=_logs[1])
     except FileNotFoundError:
         return False, ("找不到 cloudflared。請下載獨立執行檔到 ops/bin/：\n"
                        "https://github.com/cloudflare/cloudflared/releases/latest/"
@@ -78,10 +77,11 @@ async def start(url_timeout: float = 40.0) -> tuple[bool, str]:
 
 
 def stop() -> tuple[bool, str]:
-    global _proc, _url
+    global _proc, _url, _logs
 
     if _proc is None or _proc.poll() is not None:
         _proc, _url = None, None
+        _close_logs()
         return False, "隧道未在執行中"
 
     _proc.terminate()
@@ -90,7 +90,18 @@ def stop() -> tuple[bool, str]:
     except subprocess.TimeoutExpired:
         _proc.kill()
     _proc, _url = None, None
+    _close_logs()
     return True, "隧道已關閉"
+
+
+def _close_logs():
+    global _logs
+    for f in _logs:
+        try:
+            f.close()
+        except Exception:
+            pass
+    _logs = []
 
 
 async def _wait_reachable(url: str, timeout: float = 30.0) -> bool:

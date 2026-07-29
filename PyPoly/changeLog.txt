@@ -457,3 +457,32 @@ PyPoly 變更紀錄 (changeLog)
      屆時該 cog 不得 import services/，也不得有任何 function calling——
      LLM 的輸出只能是貼回 Discord 的文字。
 ========================================================================
+
+
+[2026-07-29] #29 Discord bot 實測通過 + 修正子行程記錄檔控制代碼洩漏
+  實測：於實際 Discord 伺服器完成 bot 部署與四個指令的操作驗證。
+    - bot 登入為 Bot4BeeRich#4477，4 個 slash 指令同步至指定 guild 後立即生效。
+    - /start /url /status /stop 皆運作正常；/start 產生的隧道網址實測可開啟遊戲。
+    至此 #28 標註的「尚未驗證：需要 Discord bot token 才能實測」已解除。
+
+  檔案：ops/services/server_manager.py、ops/services/tunnel_manager.py
+    - 修正：原本以 Path.open() 直接把檔案物件傳進 subprocess.Popen 的
+      stdout/stderr，但從未保留參考也未關閉，導致每呼叫一次 start() 就洩漏
+      兩個檔案描述子；長時間執行且反覆 /start /stop 會累積。
+    - 改為將控制代碼存於模組層級的 _logs，並於 stop() 呼叫 _close_logs() 關閉。
+    - 兩個模組的失敗分支（未執行中就呼叫 stop）也會一併清理，避免殘留。
+
+  驗證：services 層 22 項測試重跑全數通過（含端到端從隧道打回 login.html
+        與 socket.io 皆 200、啟停冪等性、關閉後狀態歸零、重複操作不拋例外）。
+
+  ⚠️ 設定檔安全注意（本次實際發生，記錄以免重蹈）：
+     token 一度被填入 ops/.env.example —— 該檔是進版控的範本，
+     若就此提交會把 Discord token 公開到 GitHub。
+     已於提交前發現並處理：確認遠端該檔仍為空值（未外洩）、
+     將設定移至 ops/.env（已 gitignore）、還原範本檔。
+     務必區分：.env.example = 範本、進版控；.env = 實際值、不進版控。
+
+  已知行為（非缺陷）：uvicorn 子行程的輸出因區塊緩衝不會即時寫入
+     ops/logs/uvicorn.*.log；行程異常結束時 Python 會 flush，
+     故錯誤追蹤仍能正常顯示於 /start 的失敗訊息中。
+========================================================================
