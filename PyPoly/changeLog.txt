@@ -310,3 +310,40 @@ PyPoly 變更紀錄 (changeLog)
     核心原則：執行路徑與 LLM 路徑完全隔離——slash 指令走固定白名單動作，
     接 llama.cpp 的問答功能只回文字、無任何執行權限。
 ========================================================================
+
+
+[2026-07-29] #25 修正註冊重複 email 造成 500，以及錯誤訊息被誤顯示為「連線失敗」
+  現象：用新帳號註冊時畫面顯示「⚠️ 連線失敗 / 伺服器連線失敗」，但既有帳號登入正常。
+  追查：伺服器記錄顯示 POST /auth/register 連續回 500，例外為
+        pymysql.err.IntegrityError (1062, "Duplicate entry 's112213070@ncnu.edu.tw'
+        for key 'uq_users_email'")。與前端 POST 寫法無關，請求有正確送達。
+
+  成因（兩層）：
+    1. main.py 的 register 只檢查 username 是否重複，未檢查 email；
+       但 models.User.email 有 unique=True 約束，填入已被使用的信箱時
+       由 DB 丟出 IntegrityError，該例外未被接住 → FastAPI 回 500。
+    2. FastAPI 未處理例外時回傳的 body 是純文字 "Internal Server Error"
+       (content-type: text/plain)。login.html 的失敗分支直接 await res.json()，
+       解析純文字時拋 SyntaxError，被外層 catch(err) 接走，
+       於是顯示成「伺服器連線失敗」——訊息與真正原因完全無關。
+       這會讓「任何 5xx」都偽裝成連線問題，後續除錯會一直被誤導。
+
+  檔案：main.py
+    - import 增加 from sqlalchemy.exc import IntegrityError。
+    - register 新增 email 重複檢查，回 400「此信箱已被註冊」。
+    - db.commit() 包 try/except IntegrityError → rollback 後回 400
+      「帳號或信箱已被使用」（保險：兩個請求同時通過前置檢查時仍由唯一鍵擋下）。
+  檔案：static/login.html（約 line 399）
+    - const errData = await res.json();
+      改為 await res.json().catch(() => ({}))，
+      訊息改為 errData.detail || `伺服器錯誤 (${res.status})`，
+      使非 JSON 的錯誤回應不再讓成功/失敗分支崩進 catch。
+
+  驗證：python -m py_compile main.py 通過；重啟伺服器後從 HTTPS 隧道實測四種情境——
+        重複 email → 400「此信箱已被註冊」（原本 500）
+        重複 username → 400「ID 已被使用」
+        全新帳號 → 200 註冊成功
+        新帳號登入 → 200 正常簽發 JWT
+  備註：s112213070@ncnu.edu.tw 等四組信箱已被既有學號帳號使用，
+        建立新測試帳號時需改用其他信箱。
+========================================================================

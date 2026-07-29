@@ -23,6 +23,7 @@ import socketio
 from fastapi import Query
 import game_start # 🏆 關鍵新增：把整個模組抓進來，準備竄改它的全域變數
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError  # 🏆 註冊時攔截 email/username 唯一鍵衝突
 from collections import Counter  # 🏆 需求⑨：統計最常出現語法
 # main.py
 import os
@@ -337,6 +338,10 @@ def check_id(username: str, db: Session = Depends(database.get_db)):
 def register(user: UserCreate, db: Session = Depends(database.get_db)):
     if db.query(models.User).filter(models.User.username == user.username).first():
         raise HTTPException(status_code=400, detail="ID 已被使用")
+    # 🏆 email 在 models.User 有 unique 約束，若不先檢查，重複時會由 DB 丟
+    #    IntegrityError 而變成 500（前端會誤顯示為「伺服器連線失敗」）
+    if db.query(models.User).filter(models.User.email == user.email).first():
+        raise HTTPException(status_code=400, detail="此信箱已被註冊")
     user_role = "admin" if user.email in ADMIN_EMAILS else "player"
     new_user = models.User(
         username=user.username,
@@ -346,7 +351,12 @@ def register(user: UserCreate, db: Session = Depends(database.get_db)):
         is_online=0
     )
     db.add(new_user)
-    db.commit()
+    # 🏆 保險：兩個請求同時通過上面的檢查時，仍由唯一鍵擋下，轉成 400 而非 500
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="帳號或信箱已被使用")
     return {"message": "success"}
 
 # 📧 寄送 OTP 驗證碼到指定信箱（Gmail SMTP, STARTTLS）

@@ -396,8 +396,10 @@
                         toggle('login');
                         document.getElementById('loginUser').value = u;
                     } else {
-                        const errData = await res.json();
-                        showModal("❌ 註冊失敗", errData.detail || "註冊資訊有誤", false);
+                        // 🏆 5xx 的 body 是純文字而非 JSON，直接 res.json() 會拋錯並被
+                        //    外層 catch 接走，害真正的錯誤被誤顯示成「伺服器連線失敗」
+                        const errData = await res.json().catch(() => ({}));
+                        showModal("❌ 註冊失敗", errData.detail || `伺服器錯誤 (${res.status})`, false);
                     }
                 } catch (err) {
                     showModal("⚠️ 連線失敗", "伺服器連線失敗", false);
