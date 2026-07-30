@@ -35,14 +35,25 @@ class OpsCog(commands.Cog):
         if not ok:
             return _embed("❌ 隧道建立失敗", result, RED)
 
+        verified = tunnel_manager.url_verified()
         e = _embed(
             title,
             f"**點這裡開始玩**\n{result}/static/login.html\n\n"
             "· 第一次進去請允許相機權限\n"
             "· 帳號是學號，密碼同帳號\n"
             "· 建議用 Chrome 或 Edge",
-            GREEN,
+            GREEN if verified else 0xFFA502,
         )
+        if not verified:
+            # 網址已產生但本機連不上，最常見原因是新網域的 DNS 還在傳播。
+            # 對 DNS 已更新的人往往是好的，所以照樣貼出網址，但要說清楚。
+            e.add_field(
+                name="⚠️ 尚未驗證連線",
+                value=("網址已建立，但這台主機目前連不上它。\n"
+                       "通常是新網域的 DNS 還在傳播，**等 1～2 分鐘再試**即可；\n"
+                       "也可能是主機端的 DNS 只回 IPv6 而 IPv6 不通。\n"
+                       "其他人的網路可能已經通了，可以先試著開看看。"),
+                inline=False)
         e.set_footer(text="網址每次重新啟動都會變，請以最新一則為準")
         return e
 

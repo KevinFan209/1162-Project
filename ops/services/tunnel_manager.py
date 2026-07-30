@@ -24,7 +24,19 @@ _URL_RE = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com")
 
 _proc: subprocess.Popen | None = None
 _url: str | None = None
-_logs: list = []   # 子行程的記錄檔控制代碼，stop() 時要一併關閉
+_logs: list = []       # 子行程的記錄檔控制代碼，stop() 時要一併關閉
+_verified: bool = False  # 上次啟動時是否真的驗證到網址可連線
+
+
+def url_verified() -> bool:
+    """上次 start() 是否成功驗證網址可連線。
+
+    False 代表網址已產生但本機連不上——最常見的原因是新網域的 DNS 還在傳播
+    （此時本機可能只拿到 AAAA 記錄，若本機 IPv6 不通就會連不上），
+    但對 DNS 已更新的組員而言網址往往是好的。呼叫端應據此提示使用者，
+    而不是把網址當成無效。
+    """
+    return _verified
 
 
 def current_url() -> str | None:
@@ -40,10 +52,12 @@ def is_up() -> bool:
 
 async def start(url_timeout: float = 40.0) -> tuple[bool, str]:
     """啟動隧道並解析出公開網址。回傳 (成功, 網址或錯誤訊息)。"""
-    global _proc, _url, _logs
+    global _proc, _url, _logs, _verified
 
     if is_up() and _url:
         return True, _url
+
+    _verified = False
 
     _OUT_LOG.write_text("", encoding="utf-8")
     _ERR_LOG.write_text("", encoding="utf-8")
@@ -66,9 +80,11 @@ async def start(url_timeout: float = 40.0) -> tuple[bool, str]:
         m = _URL_RE.search(text)
         if m:
             _url = m.group(0)
-            # 新網域的 DNS 需要幾秒才會生效，等到真的連得上再回傳，
-            # 免得 bot 貼出網址後組員立刻點開卻連不上
-            await _wait_reachable(_url)
+            # 新網域的 DNS 傳播要時間（cloudflared 自己也提示
+            # "it may take some time to be reachable"），等到真的連得上再回傳。
+            # 驗證結果記在 _verified，呼叫端要據此提示使用者——
+            # 先前這裡的回傳值被忽略，導致明知連不上卻照樣貼出網址。
+            _verified = await _wait_reachable(_url)
             return True, _url
         await asyncio.sleep(0.5)
 
@@ -104,8 +120,12 @@ def _close_logs():
     _logs = []
 
 
-async def _wait_reachable(url: str, timeout: float = 30.0) -> bool:
-    """等待新網域可解析且能連通。逾時不視為失敗，只是可能要多等幾秒。"""
+async def _wait_reachable(url: str, timeout: float = 90.0) -> bool:
+    """等待新網域可解析且能連通。回傳是否驗證成功（逾時回 False，由呼叫端決定如何提示）。
+
+    90 秒是實測後放寬的：30 秒對 quick tunnel 的 DNS 傳播偏短，
+    曾出現逾時後 bot 貼出當下確實連不上的網址。
+    """
     deadline = asyncio.get_event_loop().time() + timeout
     while asyncio.get_event_loop().time() < deadline:
         try:
