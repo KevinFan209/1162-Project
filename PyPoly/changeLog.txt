@@ -562,3 +562,62 @@ PyPoly 變更紀錄 (changeLog)
   備註：llama.cpp 在內網（預設 192.168.137.35:8080），
         bot 必須跑在連得到那台機器的網路環境下。
 ========================================================================
+
+
+[2026-07-30] #32 /ask 加入程式碼地圖與 changeLog 脈絡（方案 A+B）
+  背景：原本 /ask 的專案知識只來自 llm_client.py 裡 1109 字元的 SYSTEM_PROMPT，
+        問到程式碼細節（某功能在哪、最近改了什麼）只能回「不確定」。
+        曾評估「每次都讀入全部程式碼」，實測後否決——理由見下。
+
+  為什麼不全量餵入（用 llama.cpp 自己的 tokenizer 實測）：
+    - 每 token 約 3.13 字元；game.html 單一檔案約 102,000 token，
+      PyPoly/ 全部程式約 247,000 token，整個工作區約 722,000 token。
+    - prefill 速度實測穩定約 340 tok/s（10,000 字元→13.6s、40,000→43.6s、
+      100,000 字元→104.7s），故 PyPoly/ 全量約需 12 分鐘，
+      而 Discord 的 followup 額度只有 15 分鐘，等於必定逼近或超時。
+    - 長脈絡下問題會被淹沒（lost-in-the-middle），且 game.html 是
+      HTML/CSS/JS 混雜、訊號雜訊比很差，回答品質反而會比精簡摘要更差。
+    - 另有 context window 與 KV cache 記憶體的硬限制（router 不回報 n_ctx）。
+
+  檔案：ops/services/project_context.py（新增）
+    - A. 程式碼地圖：用 ast 解析 PyPoly/*.py，抽出 REST 路由（含真實行號）、
+      Socket.IO handler、SQLAlchemy 資料表與欄位、其他函式；
+      用 regex 解析 static/*.html，抽出各頁呼叫的 API、socket.on/emit、函式名。
+      **只有結構索引，不含任何原始碼內容。**
+    - B. changeLog 尾段：帶最後 4500 字元（約 3 個條目），
+      並從第一個完整條目切齊，避免從半句話中間開始。
+    - 以所有來源檔的 (路徑, mtime, 大小) 作為快取指紋，任一檔案變動才重建。
+
+  檔案：ops/services/llm_client.py
+    - system 訊息改為 SYSTEM_PROMPT + project_context.build()，
+      兩者放在同一則且順序固定，讓請求前綴一致以命中 llama.cpp 的
+      prompt prefix 快取。
+    - 地圖產生失敗時退回只用 SYSTEM_PROMPT，不讓 /ask 整體失效。
+    - SYSTEM_PROMPT 更新：說明有一份地圖可用、地圖不含完整原始碼；
+      明訂「寫死的已知問題清單可能過期，與 changeLog 段落衝突時一律以
+      changeLog 為準」——這解決了系統提示會隨修 bug 而過期的維護問題。
+    - 回答規則新增：被問「某功能在哪」要附檔名行號；
+      地圖沒有的實作細節要明說看不到並指出該去看哪個檔案，不得編造。
+
+  成本：地圖 13,220 字元 / 5,102 token；產生耗時首次 0.6 秒、命中快取 0.001 秒；
+        新增 prefill 約 15 秒。實測回應時間簡單問題 17 秒、複雜問題 49~53 秒。
+        相較全量餵入的 247,000 token / 12 分鐘，用約 2% 的 token 取得主要效益。
+
+  驗證：14 項測試全數通過，另做前後對照實測——
+    加地圖前答不出來、加地圖後正確回答的：
+      「結算的答對率在哪算的」→ main.py settle_game() 第 1122 行，
+        並指出用 correct_count / total_questions 欄位；
+      「後端有哪些 Socket.IO 事件」→ 完整列出 13 個；
+      「最近做了什麼改動」→ 正確摘要 #31 / #30 / #29。
+    未因脈絡變多而開始編造的：
+      「game.html 第 4346 行寫了什麼」→ 仍明確回答看不到原始碼、
+        請直接開檔案；「答對率在哪一行算」→ 主動說明看不到函式內部，
+        只給函式起始行號。
+    隔離約束對三個檔案重新驗證：皆未 import server_manager / tunnel_manager /
+      subprocess，無 Popen/exec 類呼叫，payload 仍無 tools/functions，
+      仍使用 AllowedMentions.none()；6 個 slash 指令皆正常註冊。
+
+  備註：project_context 只讀取專案自己的檔案、不執行任何東西；
+        脈絡是在送出請求「之前」由程式決定的，LLM 無法要求讀取任何檔案，
+        隔離原則未被削弱。
+========================================================================

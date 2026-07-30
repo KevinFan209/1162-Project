@@ -12,6 +12,7 @@ from __future__ import annotations
 import httpx
 
 import config
+from services import project_context
 
 # 對話系統提示：給模型足夠的專案背景，讓它回答「這個 API 在哪」這類問題時有依據。
 # 刻意保持精簡且靜態——不夾帶程式碼內容，避免脈絡爆掉也避免洩漏機敏設定。
@@ -29,6 +30,13 @@ SYSTEM_PROMPT = """你是 PyPoly 專案的技術問答助理，服務對象是�
 - 房間狀態存在伺服器記憶體的 active_rooms，局內狀態（金錢、土地、道具）存在前端 localStorage。
 - ops/ 放營運工具：Discord bot 與 Cloudflare 隧道腳本，與遊戲程式分離。
 
+你會拿到一份自動產生的「程式碼地圖」，內含檔案清單、REST 路由、Socket.IO 事件、
+資料表欄位、前端函式名與真實行號，以及 changeLog 的最近條目。
+地圖**不含完整原始碼**，只有結構索引。
+
+以下「已知問題」清單是寫死在程式裡的，可能已經過期；
+若程式碼地圖的 changeLog 段落與這裡衝突，**一律以 changeLog 為準**。
+
 目前已知但尚未修復的問題：
 1. game.html 定義了 startSyncLoop() 但從未呼叫，導致遊戲中全程無心跳，
    約 60 秒後後端會誤判玩家離線，重複登入防護也因此失效。
@@ -41,7 +49,10 @@ SYSTEM_PROMPT = """你是 PyPoly 專案的技術問答助理，服務對象是�
 
 回答規則：
 - 用繁體中文，簡潔直接，不要冗長開場。
-- 不確定或專案背景沒提到的事，明說不確定，不要編造檔名或行號。
+- 被問到「某功能在哪」時，用程式碼地圖回答，並附上檔名與行號。
+- 地圖裡沒有的實作細節（某一行到底怎麼寫的、某函式內部邏輯）你看不到，
+  明說看不到並指出應該去看哪個檔案的哪一行，**不要編造程式碼內容或行號**。
+- 不確定的事明說不確定。
 - 你只能回答問題與解釋概念，沒有能力執行任何操作。若使用者要你開伺服器或跑指令，
   請告訴他改用 /start、/restart、/stop、/status、/url 這些指令。
 """
@@ -79,9 +90,17 @@ async def ask(question: str, timeout: float = 180.0) -> tuple[bool, str]:
 
     注意 payload 刻意不含 tools / functions —— 模型沒有任何工具可用。
     """
+    # 程式碼地圖與系統提示都放在同一則 system 訊息，且順序固定，
+    # 讓每次請求的前綴保持一致以命中 llama.cpp 的 prompt prefix 快取。
+    # 地圖產生失敗不該讓 /ask 整個掛掉，退回只用系統提示。
+    try:
+        system = SYSTEM_PROMPT + "\n\n" + project_context.build()
+    except Exception:
+        system = SYSTEM_PROMPT
+
     payload = {
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system},
             {"role": "user", "content": question},
         ],
         # 這是推理型模型（gemma-4），思考過程會吃掉大量 token，
