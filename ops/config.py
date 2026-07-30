@@ -30,8 +30,10 @@ CLOUDFLARED = str(_bundled) if _bundled.exists() else "cloudflared"
 LOG_DIR = OPS_DIR / "logs"
 LOG_DIR.mkdir(exist_ok=True)
 
-# ── 階段三才會用到 ──
+# ── llama.cpp（/ask 問答用）──
 LLAMA_BASE_URL = os.getenv("LLAMA_BASE_URL", "http://192.168.137.35:8080").rstrip("/")
+# 留空則自動偵測目前已載入的模型（模型別名很長，寫死容易過時）
+LLAMA_MODEL = os.getenv("LLAMA_MODEL", "").strip()
 
 
 def missing() -> list[str]:

@@ -35,6 +35,7 @@ class OpsBot(commands.Bot):
 
     async def setup_hook(self):
         await self.load_extension("cogs.ops_cog")
+        await self.load_extension("cogs.ask_cog")
 
         if config.GUILD_ID:
             guild = discord.Object(id=config.GUILD_ID)

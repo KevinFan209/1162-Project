@@ -512,3 +512,53 @@ PyPoly 變更紀錄 (changeLog)
         空狀態下重複 stop 不拋例外且 restart 等同 start。
         bot 重啟後日誌顯示「已同步 5 個指令」。
 ========================================================================
+
+
+[2026-07-30] #31 階段三：Discord bot 新增 /ask（接內網 llama.cpp 的唯讀問答）
+  目的：讓組員能直接問專案相關問題（某個計算在哪、錯誤訊息代表什麼），
+        不必每次都翻程式碼或等人回答。
+
+  檔案：ops/services/llm_client.py（新增）
+    - 呼叫 llama.cpp 的 OpenAI 相容端點 /v1/chat/completions。
+    - SYSTEM_PROMPT 內含精簡的專案背景（架構、進入點、資料表、
+      以及目前 7 個未修問題），讓回答有依據而非憑空編造；
+      刻意不夾帶程式碼內容，避免脈絡爆掉也避免洩漏機敏設定。
+    - 模型 id 自動偵測目前 loaded 的那個並快取（別名很長，寫死容易過時）；
+      可用 .env 的 LLAMA_MODEL 覆寫。
+    - health() 供診斷用。
+
+  檔案：ops/cogs/ask_cog.py（新增）
+    - /ask <question>：先 defer（推理型模型單題常超過 30 秒）再回覆 embed。
+
+  檔案：ops/bot.py、ops/config.py、ops/README.md（更新）
+    - bot 載入 cogs.ask_cog；config 增加 LLAMA_MODEL。
+
+  安全性設計（階段三的核心，與計劃書一致）：
+    - ask_cog **不 import** server_manager / tunnel_manager，
+      llm_client 也不 import subprocess——LLM 路徑與執行路徑完全隔離。
+    - 請求 payload 不含 tools / functions 欄位，模型沒有任何工具可用。
+    - LLM 輸出一律以 discord.AllowedMentions.none() 送出，
+      避免模型輸出 @everyone 時真的通知全體成員。
+    - 理由：Discord 頻道人人可打字，若讓 LLM 決定執行什麼，
+      該頻道等同一個公開的遠端 shell。
+    - README 已明文寫下「請不要在 ask_cog 加上讓 AI 執行指令的功能」。
+
+  實作上踩到的模型特性（記錄以免日後誤判為 bug）：
+    gemma-4-26B 是推理型模型，回應分成 content 與 reasoning_content 兩個欄位。
+    思考過程會吃掉大量 token——實測 max_tokens=100 時，361 token 的思考尚未
+    收尾就被截斷，content 回空字串，看起來像模型壞了。
+    故 max_tokens 設為 2048，且只取 content
+    （reasoning_content 是英文思考草稿，不該貼給使用者）。
+    content 仍為空時會明確提示「請把問題問得更具體」而非送出空訊息。
+
+  驗證：20 項測試全數通過——
+    靜態解析（不執行程式）確認 ask_cog 的 import 清單不含執行類模組、
+    payload 無 tools/functions、有處理 reasoning_content、有 AllowedMentions.none()；
+    6 個指令皆註冊且僅 /ask 有參數、其餘五個控制指令仍為零參數；
+    llama.cpp /health 可達、模型自動偵測成功、
+    實際問答正確引用 sio_app（確認系統提示生效）且未夾帶思考草稿；
+    要求它「幫我啟動伺服器」時回覆「我無法直接執行操作，請改用 /start 指令」。
+
+  備註：llama.cpp 在內網（預設 192.168.137.35:8080），
+        bot 必須跑在連得到那台機器的網路環境下。
+========================================================================

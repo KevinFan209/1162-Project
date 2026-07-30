@@ -90,8 +90,10 @@ https://xxxx-xxxx-xxxx.trycloudflare.com/static/login.html
 | `/url` | 只查目前網址，不改變任何狀態 |
 | `/status` | 伺服器是否執行中、由誰啟動、房間內玩家數、目前網址 |
 | `/stop` | 關掉隧道與伺服器 |
+| `/ask <問題>` | 問 AI 關於這個專案的問題，**只回文字** |
 
-五個指令**都不接受任何自由文字參數**。
+前五個控制指令**都不接受任何自由文字參數**。`/ask` 是唯一吃文字的指令，
+因為它本質就是文字進、文字出，沒有任何副作用。
 
 > `/restart` 之後網址一定會變（Quick Tunnel 特性），bot 會把新網址貼出來，
 > 請組員以最新一則為準。若伺服器不是 bot 啟動的，`/restart` 會明確拒絕而
@@ -149,16 +151,37 @@ ops/
 ├─ config.py                  集中讀取 .env
 ├─ requirements.txt
 ├─ .env.example
-├─ cogs/ops_cog.py            /start /stop /status /url
+├─ cogs/
+│  ├─ ops_cog.py              /start /restart /stop /status /url
+│  └─ ask_cog.py              /ask（純文字，無執行權限）
 ├─ services/
 │  ├─ server_manager.py       uvicorn 子行程（固定指令）
-│  └─ tunnel_manager.py       cloudflared 子行程 + 網址解析
+│  ├─ tunnel_manager.py       cloudflared 子行程 + 網址解析
+│  └─ llm_client.py           llama.cpp 唯讀呼叫
 ├─ scripts/dev-tunnel.ps1     不透過 bot 的手動啟動方式
 ├─ bin/                       cloudflared.exe（gitignore）
 └─ logs/                      子行程記錄（gitignore）
 ```
 
-### 尚未實作
+### `/ask` 的問答功能
 
-llama.cpp 問答功能（階段三）。屆時 `cogs/ask_cog.py` 只回文字、
-不得 import `services/`，也不會有任何 function calling。
+接內網的 llama.cpp（`ops/.env` 的 `LLAMA_BASE_URL`），跑 gemma-4-26B。
+適合問「結算的答對率在哪裡算的」「這個錯誤訊息是什麼意思」這類問題。
+
+**它不能做任何事，只能回答。** `cogs/ask_cog.py` 刻意不 import
+`server_manager` / `tunnel_manager`，請求 payload 也不含 `tools` / `functions`，
+所以模型沒有任何工具可用。要它開伺服器，它會叫你改用 `/start`。
+
+**請不要在 ask_cog 裡加上「讓 AI 幫你執行指令」的功能。** Discord 頻道人人可
+打字，若讓 LLM 決定執行什麼，那個頻道就等同一個公開的遠端 shell。
+
+幾個實務注意事項：
+
+- 這是**推理型模型**，思考過程會吃掉大量 token，所以 `max_tokens` 設為 2048。
+  設太小會讓思考階段就用完額度、`content` 回空字串（實測 100 就會如此）。
+- 回答只取 `content`；`reasoning_content` 是英文思考草稿，不會貼出來。
+- 單題可能要 30 秒以上，指令會先 defer 再回覆。
+- LLM 輸出一律以 `AllowedMentions.none()` 送出，避免模型輸出 `@everyone`
+  時真的通知全體成員。
+- 模型 id 會自動偵測目前已載入的那個；要固定的話在 `.env` 設 `LLAMA_MODEL`。
+- llama.cpp 在**內網**，所以 bot 必須跑在連得到那台機器的網路環境下。
