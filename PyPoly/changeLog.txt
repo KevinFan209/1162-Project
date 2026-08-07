@@ -799,3 +799,41 @@ PyPoly 變更紀錄 (changeLog)
   ⚠️ 尚待瀏覽器實測（自動化測不到）：冒險格不再卡死、故意改名 skybox 時
      會改用替代背景而非停住、打完整局後結算頁的開合跳次數不再是 0。
 ========================================================================
+
+
+[2026-08-07] #37 修正開發者後台在答題與收購決策階段無法操作
+  現象：無法開啟相機時，開發者後台只有「決定先後手」與「擲骰移動」有效，
+        一到答題階段按執行就沒有任何反應。
+
+  根因（兩層，第一層就足以讓它完全失效）：
+    1. executeDebugAction 先呼叫 stopAllVision()，該函式會把
+       visionSocket.onmessage 設為 null 再把 visionSocket 設為 null；
+       緊接著的 if (visionSocket && visionSocket.onmessage) 因此必定為 false，
+       答案被靜默丟棄，連錯誤訊息都沒有。
+    2. 即使順序正確，該路徑仍是「偽造一則 WebSocket 訊息餵給 onmessage」，
+       依賴視覺 WebSocket 存在；而沒有相機時 visionSocket 根本不會被建立，
+       這條路從設計上就走不通。
+
+  檔案：static/game.html
+    - 新增 submitQuizAnswer(chosen)：把原本內嵌在 visionSocket.onmessage 裡的
+      答題邏輯（判分、寫作答明細、廣播、進入收購決策或換人）抽成獨立函式。
+      手勢辨識與開發者後台現在走同一套流程，不再有兩份會分歧的實作。
+      另加 uiState === "FINISHED" 的防重複送出，
+      以及進入收購決策失敗時的 try/catch → endMyTurn（不讓例外卡住回合）。
+    - executeDebugAction 改為依 uiState 分派，且完全不依賴 visionSocket：
+      * 答題階段（1~4）→ 直接呼叫 submitQuizAnswer
+      * 收購決策階段（1=收購 2=放棄）→ 直接呼叫既有的 executePurchase
+      * 擲骰移動（1~6）→ 維持原本的 player_move_sync_request
+      輸入值不合該階段時給出明確提示，而非靜默失敗。
+    - 補上收購決策階段的支援。先前 executeDebugAction 只認 READY/ROLLING/
+      GESTURE 三種狀態，PURCHASE_DECISION 不在其中，代表答對題目後
+      會永遠卡在收購畫面——沒有相機就無法完成一局。
+    - 新增 updateDebugHint()（每 0.5 秒更新）顯示目前階段與可輸入的值。
+      原本 hintEl 被取出卻從未使用，提示永遠停在「偵測中...」。
+
+  驗證：以會略過字串與註解的括號平衡檢查確認 script 區塊結構完整
+        （並以刻意插入一個左大括號的版本反證該檢查確實能偵測到不平衡）；
+        確認舊的 visionSocket.onmessage 直接注入寫法已完全移除、
+        submitQuizAnswer 由辨識路徑與後台路徑各呼叫一次。
+  ⚠️ 需瀏覽器實測：無相機情況下用後台走完「答題 → 收購決策 → 換人」整段。
+========================================================================

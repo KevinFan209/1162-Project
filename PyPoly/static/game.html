@@ -1146,6 +1146,93 @@ async function testAdventureView(countryName, scenario, skyboxUrl, questionObj) 
 
 let currentAdventureQuestion = null;
 
+// =========================================================
+// 🏆 送出答題結果
+// 原本這段邏輯內嵌在視覺 WebSocket 的 onmessage 裡，導致沒有相機時
+// （visionSocket 根本不存在）開發者後台無法觸發答題，一局就卡在題目畫面。
+// 抽成獨立函式後，手勢辨識與開發者後台走的是同一套流程。
+// chosen：玩家選的選項編號 1~4
+// =========================================================
+async function submitQuizAnswer(chosen) {
+    if (window.uiState === "FINISHED") return;   // 防重複送出
+    window.uiState = "FINISHED";
+    if (visionSocket) { visionSocket.close(); visionSocket = null; }
+
+    const correctAnswer = window.lockedDiceVal;
+    const myName = localStorage.getItem('username');
+    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
+
+    if (currentAdventureQuestion) markQuestionAsUsed(currentAdventureQuestion.content);
+
+    if (chosen === correctAnswer) {
+        socket.emit('sync_adventure_choice', { room: roomCode, choice: chosen });
+        logAnswerToServer(true, chosen);          // 需求⑨：寫入作答明細
+        showGameNotice("✅ 回答正確，進入下一階段", 2500);
+
+        setTimeout(async () => {
+            try {
+                const targetLandId = window.currentAdventureTile?.id;
+                if (!targetLandId) { endMyTurn(); return; }
+
+                const res = await fetch(`${API_URL}/game/adventure_analysis/${targetLandId}`);
+                const analysisData = await res.json();
+
+                socket.emit('sync_adventure_phase', {
+                    room: roomCode, user: myName, phase: 'DECISION', payload: analysisData
+                });
+
+                document.getElementById('adventure-task-ui').style.display = 'none';
+                document.getElementById('adventure-decision-ui').style.display = 'flex';
+
+                if (panoSphere) {
+                    panoSphere.visible = true;
+                    panoSphere.material.opacity = 1;
+                    panoSphere.position.copy(camera.position);
+                }
+
+                fillDecisionUI(analysisData, myName);
+
+                const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+                const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+                const screenPos = new THREE.Vector3().copy(camera.position)
+                    .addScaledVector(forward, 2.8)
+                    .addScaledVector(right, 0.5);
+
+                virtualScreen.position.copy(screenPos);
+                virtualScreen.quaternion.copy(camera.quaternion);
+                virtualScreen.scale.set(0.75, 0.75, 0.75);
+                virtualScreen.visible = true;
+
+                window.uiState = "PURCHASE_DECISION";
+                window.uiTimer = Date.now();
+
+                initCameraAndStartVision();
+            } catch (err) {
+                // 不能讓例外把回合卡住
+                console.error("🚨 進入收購決策失敗，強制換人：", err);
+                endMyTurn();
+            }
+        }, 2000);
+
+    } else {
+        logAnswerToServer(false, chosen);
+        showGameNotice(`❌ 回答錯誤，正確答案是 ${correctAnswer}，詳細部分可以在遊戲之後到遊戲結算查看`, 4000);
+
+        // 通知觀戰者該玩家答錯了
+        socket.emit('broadcast_dice_event', {
+            room: roomCode, user: myName, type: "QUIZ_WRONG", point: correctAnswer
+        });
+
+        setTimeout(() => {
+            stopAllVision();
+            if (virtualScreen) virtualScreen.visible = false;
+            document.getElementById('adventure-task-ui').style.display = 'none';
+            endMyTurn();
+        }, 3500);
+    }
+}
+
 // game.html 修正版
 // 🏆 需求④：答題階段顯示並定位「自己」的 3D 虛擬人物。
 //   冒險時 setBoardVisibility(false) 會把所有人物藏起來，導致題目階段看不到虛擬人物。
@@ -3154,86 +3241,12 @@ async function initCameraAndStartVision() {
 					if (isAdventure) {
 						if (![1, 2, 3, 4].includes(data.dice_val)) {
 							console.log(`⚠️ 偵測到非選項手勢 (${data.dice_val})，已自動忽略。`);
-							return; 
+							return;
 						}
-
-						window.uiState = "FINISHED";
-						if (visionSocket) { visionSocket.close(); visionSocket = null; }
-
-						const playerGesture = data.dice_val;        
-						const correctAnswer = window.lockedDiceVal; 
-
-						if (playerGesture === correctAnswer) {
-							markQuestionAsUsed(currentAdventureQuestion.content);
-							
-							const myName = localStorage.getItem('username');
-							const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
-							const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
-
-							socket.emit('sync_adventure_choice', { room: roomCode, choice: playerGesture });
-							logAnswerToServer(true, playerGesture); // 🏆 需求⑨：寫入作答明細
-							showGameNotice("✅ 回答正確，進入下一階段", 2500);
-
-							setTimeout(async () => {
-								const targetLandId = window.currentAdventureTile?.id;
-								if (!targetLandId) return;
-								
-								const res = await fetch(`${API_URL}/game/adventure_analysis/${targetLandId}`);
-								const analysisData = await res.json();
-								
-								socket.emit('sync_adventure_phase', { 
-									room: roomCode, user: myName, phase: 'DECISION', payload: analysisData 
-								});
-
-								document.getElementById('adventure-task-ui').style.display = 'none';
-								document.getElementById('adventure-decision-ui').style.display = 'flex';
-								
-								if (panoSphere) {
-									panoSphere.visible = true;
-									panoSphere.material.opacity = 1;
-									panoSphere.position.copy(camera.position);
-								}
-
-								fillDecisionUI(analysisData, myName);
-
-								const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-								const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion); 
-								const screenPos = new THREE.Vector3().copy(camera.position)
-									.addScaledVector(forward, 2.8) 
-									.addScaledVector(right, 0.5); 
-								
-								virtualScreen.position.copy(screenPos);
-								virtualScreen.quaternion.copy(camera.quaternion); 
-								virtualScreen.scale.set(0.75, 0.75, 0.75);
-								virtualScreen.visible = true;
-
-								window.uiState = "PURCHASE_DECISION";
-								window.uiTimer = Date.now();
-								
-								initCameraAndStartVision(); 
-							}, 2000);
-						} else {
-							markQuestionAsUsed(currentAdventureQuestion.content);
-							logAnswerToServer(false, playerGesture); showGameNotice(`❌ 回答錯誤，正確答案是 ${correctAnswer}，詳細部分可以在遊戲之後到遊戲結算查看`, 4000);
-							
-							const myName = localStorage.getItem('username');
-                            const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
-                            const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
-
-                            // 🏆 修正三(A)：發送廣播通知觀戰者該玩家答錯了
-                            socket.emit('broadcast_dice_event', {
-                                room: roomCode, user: myName, type: "QUIZ_WRONG", point: correctAnswer
-                            });
-							
-							setTimeout(() => {
-								stopAllVision();
-								if (virtualScreen) virtualScreen.visible = false;
-								document.getElementById('adventure-task-ui').style.display = 'none';
-								const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
-								const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
-								endMyTurn();
-							}, 3500);
-						}
+						// 🏆 答題邏輯已抽成 submitQuizAnswer()，讓開發者後台在
+						//    沒有相機（無 visionSocket）時也能直接觸發同一套流程
+						submitQuizAnswer(data.dice_val);
+						return;
 
 					} else {
                         // 這裡原本寫的 if (data.dice_val === 7) {...} 整段刪掉！
@@ -7649,13 +7662,35 @@ function showTileInfo(idx, tile) {
 	}
 
 // game.html 腳本末端修正版 (確保括號完美閉合)
+// 🏆 即時顯示目前階段與可輸入的值。
+//    原本 hintEl 被取出卻從未使用，提示永遠停在「偵測中」，
+//    使用者無從得知當下該輸入什麼。
+function updateDebugHint() {
+    const hintEl = document.getElementById('debug-hint-text');
+    if (!hintEl) return;
+
+    let text;
+    if (!isOrderDecided) {
+        text = "決定先後手：輸入 1~6 擲骰";
+    } else if (window.uiState === "PURCHASE_DECISION") {
+        text = "收購決策：1 = 收購　2 = 放棄";
+    } else if (document.getElementById('adventure-task-ui')?.style.display === 'block') {
+        text = "答題中：輸入 1~4 選項編號";
+    } else if (["READY", "ROLLING", "GESTURE"].includes(window.uiState)) {
+        text = "擲骰移動：輸入 1~6 步數";
+    } else {
+        text = `目前階段（${window.uiState || '等待中'}）不需輸入`;
+    }
+    if (hintEl.innerText !== text) hintEl.innerText = text;
+}
+setInterval(updateDebugHint, 500);
+
 function executeDebugAction() {
     const inputEl = document.getElementById('debug-input-val');
     const val = parseInt(inputEl.value);
-    const hintEl = document.getElementById('debug-hint-text');
 
     if (isNaN(val) || val < 1 || val > 100) {
-        alert("請輸入 1-6 之間的數字！");
+        alert("請輸入數字！");
         return;
     }
 
@@ -7664,24 +7699,41 @@ function executeDebugAction() {
     const myName = localStorage.getItem('username');
 
     if (isOrderDecided) {
-        if (window.uiState === "READY" || window.uiState === "ROLLING" || window.uiState === "GESTURE") {
-            console.log(`🛠️ [測試] 強制執行點數：${val}`);
-            
+        // 🏆 收購決策：1 = 收購(LIKE)，2 = 放棄(DISLIKE)
+        //    先前沒有涵蓋這個階段，答對題目後就會永遠卡在收購畫面。
+        if (window.uiState === "PURCHASE_DECISION") {
+            if (val !== 1 && val !== 2) {
+                alert("收購決策階段：請輸入 1 = 收購，2 = 放棄");
+                return;
+            }
+            console.log(`🛠️ [測試] 收購決策：${val === 1 ? '收購' : '放棄'}`);
+            window.uiState = "FINISHED";
             stopAllVision();
             if (virtualScreen) virtualScreen.visible = false;
-            
+            executePurchase(val === 1);
+            return;
+        }
+
+        if (window.uiState === "READY" || window.uiState === "ROLLING" || window.uiState === "GESTURE") {
             const isAdventure = document.getElementById('adventure-task-ui').style.display === 'block';
-            
+
             if (isAdventure) {
-                console.log(`🛠️ [測試] 冒險回答：選擇選項 (${val})`);
-                if (visionSocket && visionSocket.onmessage) {
-                    visionSocket.onmessage({ data: JSON.stringify({
-                        status: "SUCCESS",
-                        dice_val: val,
-                        done: true
-                    })});
+                // 🏆 直接呼叫 submitQuizAnswer，不再依賴 visionSocket。
+                //    先前是先 stopAllVision()（其中會把 visionSocket 與其 onmessage 設為 null）
+                //    再去用 visionSocket.onmessage，條件必定為 false，答案被靜默丟棄；
+                //    而且沒有相機時本來就不存在 visionSocket，這條路走不通。
+                if (![1, 2, 3, 4].includes(val)) {
+                    alert("答題階段：請輸入 1~4 的選項編號");
+                    return;
                 }
+                console.log(`🛠️ [測試] 冒險答題：選擇選項 (${val})`);
+                stopAllVision();
+                if (virtualScreen) virtualScreen.visible = false;
+                submitQuizAnswer(val);
             } else {
+                console.log(`🛠️ [測試] 強制執行點數：${val}`);
+                stopAllVision();
+                if (virtualScreen) virtualScreen.visible = false;
                 window.lockedDiceVal = val;
                 window.uiState = "SUCCESS";
                 socket.emit('player_move_sync_request', {
@@ -7692,6 +7744,10 @@ function executeDebugAction() {
             }
             return;
         }
+
+        alert(`目前階段（${window.uiState || '未知'}）無法用開發者後台操作。\n`
+            + "可操作的階段：擲骰移動、答題(1~4)、收購決策(1=收購 2=放棄)。");
+        return;
     } else {
         console.log(`🛠️ [測試] 強制決定順序點數：${val}`);
         
