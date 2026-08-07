@@ -38,7 +38,10 @@ class CountryScenario(Base):
     name = Column(String(50))           # 地名 (如：中興新村)
     township = Column(String(20))       # 行政區 (如：南投市)
     scenario = Column(Text)             # 故事敘事文字
-    skybox_url = Column(String(100))    # 360度圖片檔名
+    # ⚠️ 原本這裡有 skybox_url 欄位，已移除。
+    #    存檔名容易與實際檔案脫節（實測 5 筆全部指向不存在的檔案，導致整局卡死），
+    #    現改由 /game/map_config 依 id 推導出 "scenarios/{id}.jpg"，
+    #    圖檔放 static/assets/skyboxes/scenarios/ 底下，資料庫不再持有檔名。
     
     # 💰 基礎經濟數值
     base_price = Column(Integer, default=1000) # 基本收購價

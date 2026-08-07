@@ -804,6 +804,42 @@
 	
 let gameMap = []; // 存放 26 格資料
 
+// =========================================================
+// 🏆 貼圖載入保險
+// THREE.TextureLoader 若不傳第三個(錯誤)參數，載入失敗時「成功回呼」永遠不會觸發，
+// 呼叫端的流程就會永遠停住——冒險格正是如此：題目不出現、回合不結束、整局卡死。
+// 這裡統一改走 loadTextureSafe：失敗時退回一張一定存在的替代圖，
+// 連替代圖都失敗就用純色貼圖，確保後續流程「一定」會被執行。
+// =========================================================
+const FALLBACK_SKYBOX = 'assets/skyboxes/sky_reward.jpg';
+
+function makeSolidTexture(color = '#1e293b') {
+    const c = document.createElement('canvas');
+    c.width = c.height = 4;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, 4, 4);
+    return new THREE.CanvasTexture(c);
+}
+
+// fallbackPath 傳 null 代表「不要用天空圖當替身」（例如人臉貼圖），直接退純色
+function loadTextureSafe(path, onLoad, fallbackPath = FALLBACK_SKYBOX) {
+    const loader = new THREE.TextureLoader();
+    loader.load(path, onLoad, undefined, () => {
+        console.warn(`⚠️ 貼圖載入失敗：${path}`);
+        if (fallbackPath && fallbackPath !== path) {
+            console.warn(`   → 改用替代背景 ${fallbackPath}，流程繼續`);
+            loader.load(fallbackPath, onLoad, undefined, () => {
+                console.warn(`   → 替代背景也失敗，改用純色，流程繼續`);
+                onLoad(makeSolidTexture());
+            });
+        } else {
+            console.warn(`   → 改用純色，流程繼續`);
+            onLoad(makeSolidTexture());
+        }
+    });
+}
+
 async function fetchMapConfig(mode, difficulty) {
     const activeRoom = JSON.parse(localStorage.getItem('pypoly_active_room')) || {};
     const roomCode = activeRoom.code || localStorage.getItem('room_code');
@@ -822,7 +858,11 @@ async function fetchMapConfig(mode, difficulty) {
     }
 
     try {
-        const response = await fetch(`${API_URL}/game/map_config?mode=${mode}&difficulty=${difficulty}`);
+        // 🏆 測試模式：房間資料帶 testMode 時，向後端要一張含 BLANK 空白格的地圖，
+        //    讓一局能快速跑完以驗證結算頁。由後端決定，雙方才會拿到同一張地圖。
+        const testFlag = activeRoom.testMode ? '&test=1' : '';
+        const response = await fetch(
+            `${API_URL}/game/map_config?mode=${mode}&difficulty=${difficulty}${testFlag}`);
         gameMap = await response.json();
         window.mapBlocks = gameMap.blocks || gameMap;
         
@@ -1045,12 +1085,13 @@ async function testAdventureView(countryName, scenario, skyboxUrl, questionObj) 
 
     console.log(`🗺️ 進入冒險：${countryName}`);
     
-    scene.background = null; 
-    const loader = new THREE.TextureLoader();
+    scene.background = null;
     const imgPath = `assets/skyboxes/${skyboxUrl}`;
 
     // 🏆 修正 1：先載入圖片，載入完畢後才正式開始冒險並同步時間
-    loader.load(imgPath, async (texture) => {
+    // ⚠️ 必須用 loadTextureSafe：圖片缺檔時原本的 loader.load 不會觸發回呼，
+    //    整個冒險流程（題目、換回合）就永遠停住——這是先前整局卡死的根因。
+    loadTextureSafe(imgPath, async (texture) => {
         const startTime = Date.now(); // 🌟 此時才是打字機真正開始的精準時間點
 
         // 🏆 修正 2：在圖片就緒後才廣播 NARRATIVE 階段與 startTime
@@ -1263,6 +1304,9 @@ async function triggerTask() {
 
     console.log(`🚀 抵達第 ${currentIndex} 格，類型: ${tile.type}`);
 
+    // 🏆 第二層保險：任何一格的處理若拋出例外，都不能讓回合永遠懸著。
+    //    沒有這層的話，一個未預期的錯誤就等同整局卡死（先前實測就是這樣）。
+    try {
     switch (tile.type) {
 		case 'ADVENTURE':
             window.currentAdventureTile = tile;
@@ -1320,9 +1364,23 @@ async function triggerTask() {
 		case 'REWARD':
 			await startBirdGameView(); // 呼叫獎勵遊戲
 			break;
-        default:
-            showGameNotice(`抵達了 ${tile.name || '神祕地點'}`);
+        case 'BLANK':
+            // 🏆 測試模式專用的空白格：不做任何事，直接換下一個人。
+            //    正式對局的地圖不會產生這種格子（由後端 map_config?test=1 控制）。
+            showGameNotice("⬜ 空白格，直接換下一位", 1500);
+            setTimeout(() => endMyTurn(), 1500);
             break;
+        default:
+            // 未知型別也必須結束回合，否則遊戲會停在這裡不動
+            console.warn(`⚠️ 未知的格子型別「${tile.type}」，直接換人`);
+            showGameNotice(`抵達了 ${tile.name || '神祕地點'}`);
+            setTimeout(() => endMyTurn(), 1500);
+            break;
+    }
+    } catch (err) {
+        console.error(`🚨 第 ${currentIndex} 格（${tile.type}）處理失敗，強制換人以免卡住：`, err);
+        showGameNotice("⚠️ 此格發生錯誤，已跳過", 2500);
+        setTimeout(() => endMyTurn(), 2500);
     }
 }
 	
@@ -1438,9 +1496,8 @@ async function startShopView() {
     setBoardVisibility(false);
     scene.background = null; 
 
-    const loader = new THREE.TextureLoader();
     // 這裡我們暫時借用 workout_park 或是 sky_reward 的背景
-    loader.load(`assets/skyboxes/sky_reward.jpg`, async (texture) => {
+    loadTextureSafe(`assets/skyboxes/sky_reward.jpg`, async (texture) => {
         panoSphere.material.map = texture;
         panoSphere.material.opacity = 0;
         panoSphere.material.needsUpdate = true;
@@ -1926,6 +1983,11 @@ socket.on('dice_event_sync', (data) => {
         }
         else if (data.type === "PUNISH_DONE") {
             showGameNotice(`🎉 玩家 ${data.user} 完成了體能挑戰！`, 3000);
+            // 🏆 對手完成挑戰，把本次峰值併入總數並歸零，供結算報表使用。
+            //    權威端必須同時掌握雙方的次數，才能在 settle 時一起送出。
+            const peak = opponentJumpPeak[data.user] || 10;
+            addJumpCount(data.user, peak);
+            opponentJumpPeak[data.user] = 0;
         }
 		// 🏆 修正三(B)：接收玩家答錯的廣播，並讓觀戰者顯示提示
         else if (data.type === "QUIZ_WRONG") {
@@ -2432,8 +2494,8 @@ function create3DBoard() {
 function updateMeshFaceTexture(mesh, faceDataUrl, skinColor) {
     if (!mesh || !faceDataUrl) return;
 
-    const loader = new THREE.TextureLoader();
-    loader.load(faceDataUrl, (texture) => {
+    // 人臉貼圖失敗時不該退回天空圖，第三參數傳 null 直接改用純色
+    loadTextureSafe(faceDataUrl, (texture) => {
         texture.wrapS = THREE.ClampToEdgeWrapping;
         texture.wrapT = THREE.ClampToEdgeWrapping;
         texture.minFilter = THREE.LinearFilter;
@@ -2447,9 +2509,7 @@ function updateMeshFaceTexture(mesh, faceDataUrl, skinColor) {
         mesh.material = [skinMat, skinMat, skinMat, skinMat, faceMat, skinMat];
         mesh.material.forEach(m => m.needsUpdate = true);
         console.log(`🎯 3D 角色面部貼圖渲染更新成功！`);
-    }, undefined, (err) => {
-        console.error("🚨 載入解碼自定義人臉貼圖失敗:", err);
-    });
+    }, null);   // null = 不用天空圖當替身，失敗時退純色
 }
 
 // 🏆 3. 網絡收到對手廣播時，深度清洗全身顏色與臉部的函式
@@ -3908,8 +3968,8 @@ function showAdventureTaskUI_Spectator(questionObj) {
 
 
 async function setupSpectatorEnvironment(skyboxUrl) {
-    const loader = new THREE.TextureLoader();
-    loader.load(`assets/skyboxes/${skyboxUrl}`, (texture) => {
+    // 觀戰者用的是同一批 skybox 檔名，若不防護會跟著一起卡住
+    loadTextureSafe(`assets/skyboxes/${skyboxUrl}`, (texture) => {
         panoSphere.material.map = texture;
         panoSphere.material.opacity = 1; // 觀戰者直接顯示，不需淡入
         panoSphere.material.needsUpdate = true;
@@ -4157,6 +4217,51 @@ function animate() {
 
 let currentJumpingCount = 0;
 
+// =========================================================
+// 🏆 開合跳次數累計（結算報表用）
+// 後端 /game/settle 早就有 jump_count 欄位，但前端從未送出，
+// 導致結算報表的「實體動作次數」永遠是 0。
+// 每位玩家各自累計；對手的數字由 update_pose_count_broadcast 記錄，
+// 因為結算是由單一權威端送出，需要同時掌握雙方的數字。
+// =========================================================
+function getJumpCount(playerName) {
+    return parseInt(localStorage.getItem(`pypoly_jumps_${playerName}`)) || 0;
+}
+
+function addJumpCount(playerName, n) {
+    const total = getJumpCount(playerName) + (parseInt(n) || 0);
+    localStorage.setItem(`pypoly_jumps_${playerName}`, total);
+    console.log(`🏃 ${playerName} 開合跳累計：${total} 次`);
+    return total;
+}
+
+// 觀戰端：記錄對手「本次」跳到的最高數字，待其完成時併入總數
+const opponentJumpPeak = {};
+
+// =========================================================
+// 🏆 實際行動順序
+// gameSnapshot.players 是「加入順序」，但先後手由擲骰決定，
+// 而 finalizeGameStart 不會重排該陣列。先前 endMyTurn 用 players[1] 判定
+// 大回合結束，導致客人擲骰贏得先手時，房主的最後一回合會被吃掉、遊戲提前結束。
+// 這裡在先後手確定的當下寫入真正的順序，供 endMyTurn 與結算權威端使用。
+// 兩端各自算出的順序必然一致（平手會重擲，不存在相等情況）。
+// =========================================================
+function setTurnOrder(firstName, secondName) {
+    const order = [firstName, secondName];
+    localStorage.setItem('pypoly_turn_order', JSON.stringify(order));
+    console.log(`🔢 本局行動順序：${order.join(' → ')}`);
+    return order;
+}
+
+function getTurnOrder() {
+    try {
+        const saved = JSON.parse(localStorage.getItem('pypoly_turn_order'));
+        if (Array.isArray(saved) && saved.length) return saved;
+    } catch (e) { /* 落到下面的退路 */ }
+    // 退路：沒記錄到就沿用加入順序，行為與修正前相同，不會更糟
+    return JSON.parse(localStorage.getItem('pypoly_game_snapshot'))?.players || [];
+}
+
 // 🏆 修正 1：開合跳視角同步打字機與階段拆分
 async function startJumpingJackView() {
     console.log("🤸 進入開合跳格：準備鍛鍊！");
@@ -4168,10 +4273,9 @@ async function startJumpingJackView() {
     setBoardVisibility(false);
     scene.background = null; 
 
-    const loader = new THREE.TextureLoader();
     const imgPath = `assets/skyboxes/workout_park.jpg`;
 
-    loader.load(imgPath, async (texture) => {
+    loadTextureSafe(imgPath, async (texture) => {
         panoSphere.material.map = texture;
         panoSphere.material.opacity = 0;
         panoSphere.material.needsUpdate = true;
@@ -4217,6 +4321,11 @@ async function startJumpingJackView() {
 socket.on('update_pose_count_broadcast', (data) => {
     const myName = localStorage.getItem('username');
     if (data.user === myName) return;
+
+    // 🏆 記錄對手本次跳到的最高值，待其完成時併入總數（結算報表用）。
+    //    只記峰值不即時累加，避免同一次挑戰的多筆廣播被重複計算。
+    const c = parseInt(data.count) || 0;
+    if (c > (opponentJumpPeak[data.user] || 0)) opponentJumpPeak[data.user] = c;
 
     // 1. 更新上帝視角面板的文字
     const descEl = document.getElementById('god-status-desc');
@@ -4455,6 +4564,8 @@ async function initPoseAndStartVision() {
             // 動作 C：檢查是否已達成 10 次目標
             if (data.done) {
                 window.uiState = "FINISHED";
+                // 🏆 累計開合跳次數，結算時要送給後端（先前前端沒送，報表永遠是 0）
+                addJumpCount(myName, currentJumpingCount || 10);
                 const dashboard = document.getElementById('jumping-jack-dashboard');
                 if (dashboard) dashboard.style.display = 'none';
 				
@@ -4709,15 +4820,14 @@ async function startBirdGameView() {
     const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
 
-    const loader = new THREE.TextureLoader();
-    const imgPath = `assets/skyboxes/sky_reward.jpg`; 
+    const imgPath = `assets/skyboxes/sky_reward.jpg`;
     
     if (panoSphere) {
         panoSphere.rotation.y = -Math.PI / 2;       
         panoSphere.scale.set(-1, 1, 1);
     }
 
-    loader.load(imgPath, async (texture) => {
+    loadTextureSafe(imgPath, async (texture) => {
         panoSphere.material.map = texture;
         panoSphere.material.opacity = 0;
         panoSphere.material.needsUpdate = true;
@@ -5653,6 +5763,9 @@ socket.on('dice_order_final', (results) => {
             setTimeout(() => { showDecideOrderUI(); }, 4000);
         } else {
             const iAmFirst = myPoint > opponentPoint;
+            // 🏆 記錄真正的行動順序，供 endMyTurn 與結算權威端判定使用
+            setTurnOrder(iAmFirst ? myName : opponentName,
+                         iAmFirst ? opponentName : myName);
             // 🏆 修正點：移除手部的 content.style.opacity = "0"，交給函式處理
             const turnMsg = iAmFirst ? "🎲 你先開始！" : `⚔️ ${opponentName} 先開始！`;
             
@@ -6437,12 +6550,15 @@ function endMyTurn() {
     const nextP = getNextPlayerName();
     
     const gameSnapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot'));
-    const players = gameSnapshot.players;
-    const maxTurns = gameSnapshot.winLaps || 10; 
+    const maxTurns = gameSnapshot.winLaps || 10;
     let currentRound = parseInt(localStorage.getItem('pypoly_current_round')) || 1;
 
-    // 🏆 核心邏輯：如果是我 (玩家二，陣列的第 2 個) 結束回合，代表「這一個大回合結束了」！
-    if (myName === players[1]) {
+    // 🏆 核心邏輯：由「本回合最後行動的人」結束時，才算一個大回合結束。
+    //    必須用實際行動順序而非加入順序——先前用 players[1]（加入順序），
+    //    客人擲骰贏得先手時會在他的回合就判定結束，害房主少打一回合。
+    const turnOrder = getTurnOrder();
+    const lastMover = turnOrder[turnOrder.length - 1];
+    if (myName === lastMover) {
         if (currentRound >= maxTurns) {
             // 🚀 達到最大回合數，遊戲強制結束！
             console.log("🏆 達到設定回合數，遊戲結束！");
@@ -6499,12 +6615,17 @@ function triggerGameOver() {
             const myName = localStorage.getItem('username');
             const finalRound = parseInt(localStorage.getItem('pypoly_current_round')) || 0;
             const go = () => { window.location.href = `results.html?room=${encodeURIComponent(rc)}`; };
-            const isSettler = players.length ? (myName === players[players.length - 1]) : true;
+            // 🏆 權威端改以「實際行動順序」的最後一位為準，與 endMyTurn 的判定一致。
+            //    用加入順序會在客人先手時選錯人。
+            const order = getTurnOrder();
+            const isSettler = order.length ? (myName === order[order.length - 1]) : true;
             if (isSettler) {
                 const payloadPlayers = players.map(p => {
                     const el = document.getElementById(`balance-${p}`);
                     const money = el ? (parseInt(el.innerText.replace(/,/g, '')) || 0) : 0;
-                    return { username: p, final_money: money, laps: finalRound };
+                    // 🏆 補上 jump_count：後端早就有接，前端沒送導致報表永遠是 0
+                    return { username: p, final_money: money, laps: finalRound,
+                             jump_count: getJumpCount(p) };
                 });
                 fetch(`${API_URL}/game/settle`, {
                     method: 'POST',
@@ -6800,8 +6921,7 @@ async function enterSpectatorMode_Internal(data, isManual = false) {
 // 🏆 修正版：純化載入職責
 function loadSpectatorBackground(data) {
     if (data.payload && data.payload.skybox) {
-        const loader = new THREE.TextureLoader();
-        loader.load(`assets/skyboxes/${data.payload.skybox}`, (texture) => {
+        loadTextureSafe(`assets/skyboxes/${data.payload.skybox}`, (texture) => {
             if (panoSphere) {
                 panoSphere.material.map = texture;
                 panoSphere.material.opacity = 1;

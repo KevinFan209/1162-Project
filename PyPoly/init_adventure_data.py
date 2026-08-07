@@ -1,4 +1,14 @@
 # init_adventure_data.py
+# 🏆 UTF-8 輸出保險：cp950(繁中) 主控台印 emoji 會拋 UnicodeEncodeError。
+# 本檔的成功訊息在 try 區塊內，一旦 print 失敗會被 except 誤判為「初始化失敗」，
+# 明明資料已寫入卻顯示錯誤並噴 traceback（與 main.py 開頭相同的處理）。
+import sys
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 import models
 from database import SessionLocal, engine
 
@@ -13,48 +23,52 @@ def seed_data():
         db.query(models.CountryScenario).delete()
         
         # 2. 定義冒險格資料 (結合南投特色、情境敘事、與 Open Data 關聯)
+        # ⚠️ id 必須明確寫死：上面用的是 delete() 而非 TRUNCATE，
+        #    MySQL 不會重設 AUTO_INCREMENT，不指定的話重跑一次 id 就會變 6~10。
+        #    而 360 度背景圖是以 id 命名（static/assets/skyboxes/scenarios/{id}.jpg），
+        #    id 一漂移圖片就全部對不上。
         grids = [
             models.CountryScenario(
+                id=1,
                 name="中興新村 - 世界茶業博覽會",
                 township="南投市",
                 scenario="秋風微涼，你走進綠意盎然的中興新村，空氣中隱約飄來陣陣清幽的茶香。每年秋季，這裡匯聚了全南投的茶職人，是國際級的茶文化盛事。茶農正向你介紹今年得獎的烏龍茶，並邀請你一同體驗焙茶的樂趣。",
-                skybox_url="nantou_tea_expo.jpg",
                 base_price=1200,
                 base_toll=240,
                 api_station_name="南投"
             ),
             models.CountryScenario(
+                id=2,
                 name="埔里酒廠",
                 township="埔里鎮",
                 scenario="你漫步在埔里街道，感受小鎮水源充足帶來的涼意。歷史悠久的酒廠飄出濃郁酒糟香氣，老長輩說，這裡的甘露水才是釀造頂級紹興酒的秘密。看著夕陽映在水圳上，你彷彿能看見這座小鎮百年來的酒香歲月。",
-                skybox_url="puli_winery.jpg",
                 base_price=1000,
                 base_toll=200,
                 api_station_name="埔里"
             ),
             models.CountryScenario(
+                id=3,
                 name="魚池 - 日月潭",
                 township="魚池鄉",
                 scenario="清晨的薄霧籠罩著潭面，邵族長老的歌聲在湖面迴盪。這裡是全台人氣最高的景點，藍綠色的湖水映照著四周的山巒。微風吹過，你感受到大自然的洗禮，這塊土地蘊含著豐富的文化與生命力。",
-                skybox_url="sun_moon_lake.jpg",
                 base_price=2500,
                 base_toll=500,
                 api_station_name="日月潭"
             ),
             models.CountryScenario(
+                id=4,
                 name="中寮土窯",
                 township="中寮鄉",
                 scenario="走進中寮的山區，你注意到不少農舍上方正冒著淡淡青煙。那是老農正用龍眼木慢火烘焙龍眼乾，這股柴火氣息與果甜的交織，是中寮傳承百年的記憶。老農遞給你一顆果肉飽滿的龍眼乾，笑著說：『這是時間換來的味道。』",
-                skybox_url="zhongliao_longan.jpg",
                 base_price=800,
                 base_toll=160,
                 api_station_name="南投"
             ),
             models.CountryScenario(
+                id=5,
                 name="竹山天梯",
                 township="竹山鎮",
                 scenario="橫跨深谷的天梯，挑戰著你的膽量。站在橋上向下望去，是深不見底的太極峽谷。這裡的山風冷冽而清新，每一口呼吸引領著你深入體驗竹山的壯闊景觀。職人告訴你，只有尊重土地的人，才能領略這片美景。",
-                skybox_url="zhushan_bridge.jpg",
                 base_price=1500,
                 base_toll=300,
                 api_station_name="竹山"

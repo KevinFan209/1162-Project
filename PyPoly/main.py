@@ -76,6 +76,10 @@ class RoomSchema(BaseModel):
     winLaps: str
     type: str
     code: str
+    # 🏆 測試模式：地圖大部分冒險格改為 BLANK，讓一局能快速跑完以驗證結算頁。
+    #    存在房間資料裡，客人加入時會從 /rooms/join 回傳的房間 dict 一併取得，
+    #    雙方因此拿到同一張地圖。
+    testMode: bool = False
 
 @app.on_event("startup")
 async def start_cleanup_task():
@@ -858,7 +862,18 @@ async def handle_move_finished(sid, data):
     await sio.emit('player_move_finished', data, room=room)
 
 @app.get("/game/map_config")
-async def get_map_config(mode: str, difficulty: str, db: Session = Depends(database.get_db)):
+async def get_map_config(
+    mode: str,
+    difficulty: str,
+    test: bool = False,
+    db: Session = Depends(database.get_db),
+):
+    """組出 26 格地圖。
+
+    test=1 為測試模式：把大部分冒險格換成 BLANK（踩到直接換人），
+    只留少數幾格保留答題流程，讓一局能快速跑完以驗證結算頁。
+    地圖由後端產生，雙方才保證拿到同一張；前端各自切換會導致兩人地圖不一致。
+    """
     try:
         # 修正中文模式轉為資料庫 Key
         db_mode = "basic" if "基礎" in mode else "advanced"
@@ -885,7 +900,11 @@ async def get_map_config(mode: str, difficulty: str, db: Session = Depends(datab
                 "data": { 
                     "name": c.name,
                     "scenario": c.scenario,
-                    "skybox_url": c.skybox_url,
+                    # 🏆 由 id 推導而非讀資料庫欄位：資料庫存檔名容易與實際檔案脫節
+                    #    （實測 5 筆全指向不存在的圖，導致冒險格整局卡死）。
+                    #    放 scenarios/ 子目錄是為了與現有的 24.jpg~107.jpg 隔離，
+                    #    否則情境數成長到 24 以上會撞名且不會報錯。
+                    "skybox_url": f"scenarios/{c.id}.jpg",
                     "base_price": c.base_price,  # 🏆 補上收購價
                     "base_toll": c.base_toll,    # 🏆 補上過路費
                     "question": {
@@ -907,6 +926,14 @@ async def get_map_config(mode: str, difficulty: str, db: Session = Depends(datab
         full_map[19] = {"type": "REWARD", "name": "獎勵遊戲"}
         full_map[3] = {"type": "SHOP", "name": "道具店"}
         full_map[16] = {"type": "SHOP", "name": "道具店"}
+
+        # 🏆 測試模式：只保留前 KEEP 格冒險格，其餘換成 BLANK。
+        #    保留幾格是為了仍能驗證答題→作答紀錄→結算報表這條資料鏈，
+        #    全部換成 BLANK 的話結算頁會沒有答題數據可看。
+        TEST_KEEP_ADVENTURE = 4
+        if test:
+            for idx in range(TEST_KEEP_ADVENTURE, len(adventure_tiles)):
+                adventure_tiles[idx] = {"type": "BLANK", "name": "空白格"}
 
         adv_idx = 0
         for i in range(26):

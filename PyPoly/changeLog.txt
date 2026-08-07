@@ -708,3 +708,94 @@ PyPoly 變更紀錄 (changeLog)
         角色框本身沒有反應。加上點擊後，直接點角色框也能進入，
         與該按鈕導向同一頁。純前端導覽改動，不涉及後端或資料。
 ========================================================================
+
+
+[2026-08-07] #36 修復整局卡死（貼圖載入無錯誤回呼）並讓一局能跑到結算頁
+  現象：與組員實測三次，遊戲都在第一回合卡死；只有開合跳格能正常運作，
+        程式題（冒險格）完全跑不起來。結算頁因此從未取得過任何資料。
+
+  根因：game.html 的 THREE.TextureLoader.load() 只傳了成功回呼，
+        未傳第三個(錯誤)參數。圖片載入失敗時成功回呼永遠不觸發，
+        冒險流程就停在原地——題目不出現、回合不結束、整局卡死。
+        而 scenarios 表的 5 筆 skybox_url（nantou_tea_expo.jpg 等）
+        在 static/assets/skyboxes/ 底下一個都不存在。症狀完全對應：
+          PUNISH  → workout_park.jpg（存在）→ 能跑
+          REWARD  → sky_reward.jpg  （存在）→ 能跑
+          ADVENTURE → DB 那 5 個    （不存在）→ 卡死
+        全檔 7 處 loader.load 皆無錯誤回呼；其中觀戰者用的兩處
+        （setupSpectatorEnvironment、loadSpectatorBackground）
+        用同一批檔名，故對手畫面會一起卡住。
+
+  一、根因修復（static/game.html）
+    - 新增 loadTextureSafe(path, onLoad, fallbackPath)：載入失敗時
+      退回 sky_reward.jpg，連替代圖也失敗則用 CanvasTexture 純色，
+      確保 onLoad「一定」會被呼叫、後續流程必定往下走。
+      7 處 loader.load 全部改走此函式；人臉貼圖傳 fallbackPath=null
+      （不該用天空圖當替身）。
+    - triggerTask() 整個 switch 包 try/catch，例外時提示並 endMyTurn()。
+    - default 分支原本只 showGameNotice 而未結束回合，補上 endMyTurn()。
+      未知格子型別不該讓遊戲停住。
+
+  二、skybox 改以 scenario id 命名，資料庫不再存檔名
+    - models.py：CountryScenario 移除 skybox_url 欄位。
+    - main.py /game/map_config：改回傳 f"scenarios/{c.id}.jpg"。
+      API 欄位名保留，前端 tile.data.skybox_url 不需改動。
+    - init_adventure_data.py：5 筆明確寫死 id=1~5。原本用 delete()
+      不會重設 AUTO_INCREMENT（當時 next id 已是 6），不寫死的話
+      重跑一次 id 就變 6~10、圖片全部對不上。已實測重跑兩次 id 固定。
+    - 新增 static/assets/skyboxes/scenarios/（含 README 說明對應關係）。
+      放子目錄是為了與現有 24.jpg~107.jpg 共 84 張圖隔離，
+      否則情境數成長到 24 以上會撞名，且不會報錯只會默默顯示錯的地方。
+    - DB 遷移：ALTER TABLE scenarios DROP COLUMN skybox_url（已執行）。
+    ⚠️ scenarios/1.jpg~5.jpg 尚未放入，在補圖之前冒險格會走上述 fallback，
+       流程正常但風景不是正確的地點。
+
+  三、測試模式 BLANK 空白格
+    - main.py /game/map_config 新增 test 參數；test=1 時 20 格冒險格
+      只保留前 4 格，其餘換成 {"type":"BLANK"}。保留 4 格是為了仍能
+      驗證答題→作答紀錄→結算報表這條資料鏈。特殊格不受影響。
+    - RoomSchema 新增 testMode（預設 False）；modal.html 加勾選框。
+      存在房間資料中，客人加入時由 /rooms/join 的回傳一併取得，
+      雙方因此拿到同一張地圖。
+    - game.html fetchMapConfig 依 activeRoom.testMode 帶上 test=1；
+      triggerTask 新增 case 'BLANK'（提示後直接換人）。
+    - 由後端產生而非前端切換，是因為前端各自切換會導致兩人地圖不一致。
+
+  四、jump_count 接線（static/game.html）
+    - 新增 getJumpCount / addJumpCount，以 localStorage 累計每位玩家次數。
+    - 自己完成開合跳時累加；對手的數字由 update_pose_count_broadcast
+      記錄「本次峰值」，待收到 PUNISH_DONE 再併入總數
+      （只記峰值不即時累加，避免同一次挑戰的多筆廣播被重複計算）。
+      權威端需同時掌握雙方數字才能在 settle 時一起送出。
+    - triggerGameOver 的 settle payload 補上 jump_count。
+      後端 /game/settle 早就有接此欄位，是前端沒送才永遠是 0。
+
+  五、回合結束改綁「實際行動順序」（static/game.html）
+    - 新增 setTurnOrder / getTurnOrder，於 dice_order_final 判定先後手的
+      當下寫入 localStorage['pypoly_turn_order']。
+    - endMyTurn 改以 turnOrder 的最後一位判定大回合結束；
+      triggerGameOver 的結算權威端同步改用此判定。
+    - 原本用 gameSnapshot.players[1]（加入順序），但 finalizeGameStart
+      不會重排該陣列，客人擲骰贏得先手時會在他的回合就判定結束，
+      害房主少打一回合、遊戲提前結束。
+    - getTurnOrder 沒讀到記錄時退回加入順序，行為與修正前相同。
+
+  六、順帶修復：種子腳本在 cp950 主控台會假性失敗
+    - init_adventure_data.py / seed_data.py 加上 UTF-8 輸出保險。
+    - 原本成功訊息 print("✅ ...") 位於 try 區塊內，在繁中主控台會拋
+      UnicodeEncodeError，被 except 接住後印出「❌ 初始化失敗」，
+      該行又再炸一次。結果是資料其實已 commit 成功，畫面卻顯示失敗
+      並噴出 traceback，照 README 執行的人會誤以為沒灌進去。
+
+  驗證：17 項針對本次改動的測試全數通過——
+        正式模式六種模式難度組合皆 26 格、0 個 BLANK、20 冒險格、特殊格定位正確；
+        測試模式 26 格中 4 冒險格 + 16 BLANK 且特殊格不受影響；
+        資料庫確認已無 skybox_url 欄位、id 固定 1~5、
+        每格 skybox_url 與該格 scenario id 對應正確；
+        settle 帶 jump_count 後雙方數字都正確寫入報表。
+        另跑先前的 69 項整合測試確認無回歸（69 PASS / 0 FAIL）。
+        種子腳本已在未設定編碼的主控台重跑兩次，皆正常顯示成功訊息。
+
+  ⚠️ 尚待瀏覽器實測（自動化測不到）：冒險格不再卡死、故意改名 skybox 時
+     會改用替代背景而非停住、打完整局後結算頁的開合跳次數不再是 0。
+========================================================================

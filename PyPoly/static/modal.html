@@ -222,6 +222,15 @@
         </div>
     </div>
 
+    <!-- 🏆 測試模式：大部分冒險格改為空白格（踩到直接換人），只保留 4 格答題，
+         讓一局能快速跑完以驗證結算頁。正式對局請勿勾選。 -->
+    <div class="setting-group">
+        <label class="setting-label" style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+            <input type="checkbox" id="testMode" style="width:18px; height:18px; cursor:pointer;">
+            <span>🧪 測試模式（多數格子改為空白，快速跑完一局）</span>
+        </label>
+    </div>
+
     <div id="codeArea">
         <div class="setting-label" style="margin-bottom:2px; color: var(--primary-blue);">專屬邀請代碼</div>
         <div id="roomCodeDisplay" class="code-text">------</div>
@@ -302,7 +311,9 @@
 			difficulty: document.getElementById('difficulty').value,
 			winLaps: document.getElementById('winLaps').value,
 			type: document.getElementById('typeSelect').value,
-			code: roomConfig.code // 🔍 檢查這裡
+			code: roomConfig.code, // 🔍 檢查這裡
+			// 存進房間資料後，客人加入時會從 /rooms/join 的回傳一併取得，雙方地圖才一致
+			testMode: document.getElementById('testMode')?.checked || false
 		};
 
 		console.log("準備傳送給後端的資料:", newRoomData);

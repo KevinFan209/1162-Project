@@ -1,3 +1,13 @@
+# 🏆 UTF-8 輸出保險：cp950(繁中) 主控台印 emoji 會拋 UnicodeEncodeError。
+# 本檔的成功訊息在 try 區塊內，一旦 print 失敗會被 except 誤判為「初始化失敗」，
+# 明明資料已寫入卻顯示錯誤並噴 traceback（與 main.py 開頭相同的處理）。
+import sys
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 from database import SessionLocal, engine
 import models
 
