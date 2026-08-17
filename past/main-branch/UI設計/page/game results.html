@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>PyPoly - 遊戲結算</title>
+    <link rel="stylesheet" href="./css/game results.css">
+</head>
+<body>
+
+    <div class="results-container">
+        <div class="leaderboard-card">
+            <div class="winner-crown">👑</div>
+            <div style="font-size: 14px; opacity: 0.6; letter-spacing: 3px;">VICTORY</div>
+            <div class="winner-name">Sandy</div>
+            
+            <div class="rank-item">
+                <div class="rank-info">
+                    <div style="font-size: 12px; opacity: 0.5;">總資產</div>
+                    <div class="rank-val">$5,400</div>
+                </div>
+                <div style="font-size: 12px; text-align: right;">
+                    答對率: 92%<br>
+                    繞行: 3 圈
+                </div>
+            </div>
+
+            <div class="rank-item" style="border-color: #555; opacity: 0.7;">
+                <div class="rank-info">
+                    <div style="font-size: 12px; opacity: 0.5;">對手 (P2)</div>
+                    <div class="rank-val" style="color: #888;">$2,100</div>
+                </div>
+                <div style="font-size: 12px; text-align: right;">
+                    答對率: 65%<br>
+                    繞行: 2 圈
+                </div>
+            </div>
+        </div>
+
+        <div class="stats-card">
+            <div class="stats-header">
+                <h2 style="margin: 0; font-size: 24px; color: var(--accent-cyan);">個人學習報告</h2>
+                <p style="font-size: 12px; opacity: 0.5; margin-top: 5px;">ANALYTICS: SESSION #116</p>
+            </div>
+
+            <div style="margin-bottom: 25px;">
+                <div style="display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px;">
+                    <span>整體解題準確率</span>
+                    <span style="color: var(--accent-cyan);">85%</span>
+                </div>
+                <div class="accuracy-chart"><div class="accuracy-fill"></div></div>
+            </div>
+
+            <p style="font-size: 14px; margin-bottom: 15px;">本局最高頻使用語法：</p>
+            <div class="syntax-report">
+                <div class="syntax-item">
+                    <div style="font-size: 12px; opacity: 0.6; margin-bottom: 5px;">If-Else 判斷</div>
+                    <div class="syntax-count">8</div>
+                </div>
+                <div class="syntax-item">
+                    <div style="font-size: 12px; opacity: 0.6; margin-bottom: 5px;">For 迴圈</div>
+                    <div class="syntax-count">5</div>
+                </div>
+                <div class="syntax-item">
+                    <div style="font-size: 12px; opacity: 0.6; margin-bottom: 5px;">變數定義</div>
+                    <div class="syntax-count">12</div>
+                </div>
+                <div class="syntax-item">
+                    <div style="font-size: 12px; opacity: 0.6; margin-bottom: 5px;">List 操作</div>
+                    <div class="syntax-count">3</div>
+                </div>
+            </div>
+
+            <div style="margin-top: 30px; background: rgba(0, 210, 255, 0.1); padding: 15px; border-radius: 12px; font-size: 13px; line-height: 1.5;">
+                <strong style="color: var(--accent-cyan);">💡 系統建議：</strong><br>
+                你在 <code>List 操作</code> 上的出錯率較高，建議下一局可以嘗試多購買相關地產進行練習喔！
+            </div>
+        </div>
+
+        <div class="footer-btns">
+            <button class="btn btn-again">再戰一局</button>
+            <button class="btn btn-lobby" onclick="location.href='lobby.html'">返回大廳</button>
+        </div>
+    </div>
+
+</body>
+</html>

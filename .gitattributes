@@ -1,0 +1,29 @@
+# 統一換行處理
+#
+# 為什麼需要這個檔案：
+#   先前 main 與 Fan 分支在 影像辨識/ 底下有 8 個檔案被 git 判定為衝突，
+#   但逐位元組比對後發現差異純粹是 CRLF vs LF——忽略 \r 後內容完全相同，
+#   位元組差正好等於行數。這類「幽靈衝突」讓人誤以為兩個分支無法自動合併。
+#   加上 text=auto 之後，git 在入庫時一律正規化為 LF，取出時依平台轉換，
+#   跨機器協作就不會再出現同樣的誤判。
+
+* text=auto
+
+# 二進位檔不可做換行轉換，否則會損壞內容
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.JPG  binary
+*.gif  binary
+*.ico  binary
+*.glb  binary
+*.gltf binary
+*.mp3  binary
+*.wav  binary
+*.pptx binary
+*.xlsx binary
+*.pdf  binary
+*.exe  binary
+*.ttf  binary
+*.woff binary
+*.woff2 binary

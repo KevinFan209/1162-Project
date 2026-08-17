@@ -14,6 +14,28 @@
 git clone https://github.com/KevinFan209/1162-Project.git
 cd 1162-Project
 ```
+
+## 目前的專案結構（2026-08 整併後）
+
+小組決議以原 `Fan` 分支為主要專案，並把散在根目錄的早期原型集中封存，
+根目錄現在只保留實際在開發的東西：
+
+| 位置 | 說明 |
+|---|---|
+| **`PyPoly/`** | **實際的遊戲專案**（FastAPI + Socket.IO 後端、Three.js 前端）。啟動方式見 `PyPoly/README.md` |
+| `ops/` | 營運工具：Cloudflare 隧道腳本、Discord 控制 bot |
+| `past/` | 已不再維護的早期原型封存，說明見 `past/README.md` |
+
+啟動遊戲（詳細步驟與注意事項見 `PyPoly/README.md`）：
+
+```bash
+cd PyPoly
+uvicorn main:sio_app --host 0.0.0.0 --port 8000   # 進入點必須是 sio_app
+```
+
+> ⚠️ 以下章節是專題初期的規劃文件，部分技術選擇與最終實作不同
+> （例如後端最終採用 Python FastAPI 而非 Node.js/Express）。
+> 實際的系統架構請以 `PyPoly/` 的程式碼與 `PyPoly/changeLog.txt` 為準。
 ## 系統概述
 本專題旨在開發一套結合遊戲化學習與影像辨識技術的Python程式語言教育系統。透過大富翁（Monopoly）遊戲形式，讓學習者在遊戲過程中透過實體互動（擲骰子、手勢辨識）與程式題目作答，達到寓教於樂的學習效果。
 ## 目標

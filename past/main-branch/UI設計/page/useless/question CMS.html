@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>PyPoly 後台管理 - 題目列表</title>
+    <link rel="stylesheet" href="./css/question CMS.css">
+</head>
+<body>
+
+    <div class="sidebar">
+        <h2 style="color: white; margin-bottom: 30px;">PyPoly Admin</h2>
+        <div class="nav-item active">題目管理</div>
+        <div class="nav-item">玩家數據</div>
+        <div class="nav-item">遊戲參數設定</div>
+    </div>
+
+    <div class="main-content">
+        <div class="header-box">
+            <h1>題目庫管理</h1>
+            <button class="btn-add" onclick="location.href='#edit'">＋ 新增題目</button>
+        </div>
+
+        <div class="filter-bar">
+            <input type="text" class="input-dark" style="flex: 1;" placeholder="關鍵字搜尋題目...">
+            <select class="input-dark">
+                <option>所有分類</option>
+                <option>變數定義</option>
+                <option>條件判斷 (if)</option>
+                <option>迴圈 (for/while)</option>
+            </select>
+            <select class="input-dark">
+                <option>所有難度</option>
+                <option>基礎</option>
+                <option>進階</option>
+            </select>
+        </div>
+
+        <table class="q-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>題目名稱</th>
+                    <th>分類</th>
+                    <th>難度</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>#101</td>
+                    <td>整數變數賦值</td>
+                    <td><span class="badge bg-blue">變數定義</span></td>
+                    <td>基礎</td>
+                    <td><a href="#" style="color: var(--accent-cyan);">編輯</a></td>
+                </tr>
+                <tr>
+                    <td>#204</td>
+                    <td>if-else 判斷分數</td>
+                    <td><span class="badge bg-purple">條件判斷</span></td>
+                    <td>進階</td>
+                    <td><a href="#" style="color: var(--accent-cyan);">編輯</a></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BeeRich - 角色自定義（方案B：網路圖片表情）</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
+    <style>
+        :root {
+            --primary-blue: #4facfe;
+            --success-green: #00cdac;
+            --primary-yellow: #ffde59;
+            --bg-gray: #f1f5f9;
+            --text-dark: #000000;
+            --text-gray: #64748b;
+            --border-light: #e2e8f0;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
+        body { background: var(--bg-gray); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        header {
+            background: linear-gradient(to bottom, #ffffff, #fcfcfc);
+            padding: 0 40px; display: flex; justify-content: space-between; align-items: center;
+            height: 85px; border-bottom: 1.5px solid var(--border-light);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.04); z-index: 100; flex-shrink: 0;
+        }
+        .header-left h1 { font-size: 2.5rem; font-weight: 900; cursor: pointer; color: var(--text-dark); }
+        .header-right { display: flex; align-items: center; gap: 20px; }
+        .page-tag { font-weight: 800; color: var(--text-gray); background: #f1f5f9; padding: 10px 22px; border-radius: 12px; font-size: 0.95rem; }
+        .menu-btn { background: transparent; border: none; cursor: pointer; display: flex; flex-direction: column; gap: 5px; padding: 10px; transition: 0.2s; }
+        .menu-btn:hover { opacity: 0.6; }
+        .menu-btn span { display: block; width: 24px; height: 3px; background: #333; border-radius: 2px; }
+
+        .menu-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.15); display: none; z-index: 999; backdrop-filter: blur(2px); }
+        .menu-overlay.open { display: block; }
+        .side-menu { position: fixed; top: 0; right: -320px; width: 320px; height: 100%; background: white; box-shadow: -10px 0 30px rgba(0,0,0,0.05); z-index: 1000; transition: 0.4s cubic-bezier(0.165,0.84,0.44,1); padding: 100px 30px 40px; display: flex; flex-direction: column; gap: 15px; }
+        .side-menu.open { right: 0; }
+        .menu-item { padding: 18px 25px; border-radius: 15px; font-weight: 800; color: var(--text-gray); text-decoration: none; display: flex; align-items: center; gap: 12px; transition: 0.2s; background: #f8fafc; cursor: pointer; }
+        .menu-item:hover { background: var(--bg-gray); color: var(--text-dark); }
+        .menu-item.danger { margin-top: auto; color: #ff4757; }
+
+        main { flex: 1; display: flex; justify-content: center; align-items: center; padding: 20px; overflow: hidden; }
+        .container { display: flex; gap: 20px; width: 100%; max-width: 1150px; height: calc(100vh - 125px); }
+
+        .model-panel {
+            flex: 1; background: white; border-radius: 30px;
+            border: 1.5px solid var(--border-light);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            display: flex; flex-direction: column; overflow: hidden; position: relative;
+        }
+        .panel-header { padding: 22px 28px 8px; }
+        .panel-title { font-weight: 900; font-size: 1.1rem; color: var(--text-dark); }
+        .panel-sub { font-size: 0.8rem; color: var(--text-gray); font-weight: 600; margin-top: 3px; }
+        #model-canvas { flex: 1; width: 100%; display: block; }
+
+        .right-panel { width: 360px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
+        .right-panel::-webkit-scrollbar { width: 0; }
+
+        .card {
+            background: white; border-radius: 26px;
+            border: 1.5px solid var(--border-light);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.05);
+            padding: 22px; flex-shrink: 0;
+        }
+        .card-title { font-weight: 900; font-size: 1rem; color: var(--text-dark); margin-bottom: 14px; }
+
+        /* ── 顏色編輯 ── */
+        .color-section { display: flex; flex-direction: column; gap: 8px; }
+        .color-row { display: flex; align-items: center; gap: 10px; background: #f8fafc; padding: 10px 12px; border-radius: 12px; border: 1.5px solid transparent; transition: 0.15s; cursor: pointer; }
+        .color-row:hover { border-color: var(--border-light); }
+        .color-swatch { width: 30px; height: 30px; border-radius: 8px; border: 2px solid rgba(0,0,0,0.12); flex-shrink: 0; position: relative; overflow: hidden; cursor: pointer; }
+        .color-swatch input[type="color"] { position: absolute; inset: -4px; width: calc(100% + 8px); height: calc(100% + 8px); opacity: 0; cursor: pointer; border: none; padding: 0; }
+        .color-label-text { flex: 1; font-weight: 800; font-size: 0.85rem; color: var(--text-dark); }
+        .color-hex { font-size: 0.72rem; font-weight: 700; color: var(--text-gray); font-family: monospace; letter-spacing: 0.02em; }
+        .section-label { font-size: 0.73rem; font-weight: 800; color: var(--text-gray); text-transform: uppercase; letter-spacing: 0.06em; margin: 12px 0 8px; }
+        .preset-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+        .preset-btn { padding: 7px 4px; border: 1.5px solid var(--border-light); border-radius: 10px; background: white; cursor: pointer; font-size: 0.72rem; font-weight: 800; color: var(--text-gray); transition: 0.15s; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .preset-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); background: #eff8ff; }
+        .preset-dots { display: flex; gap: 2px; }
+        .preset-dot { width: 7px; height: 7px; border-radius: 50%; }
+
+        /* ── 表情圖片 ── */
+        .face-preview-wrap {
+            width: 100%; background: #f5c18a; border-radius: 14px;
+            overflow: hidden; border: 1.5px solid var(--border-light);
+            margin-bottom: 14px; line-height: 0;
+        }
+        .face-preview-wrap canvas { display: block; width: 100%; height: auto; }
+
+        .emoji-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+        .emoji-opt {
+            display: flex; flex-direction: column; align-items: center; gap: 4px;
+            border: 2px solid var(--border-light); border-radius: 12px;
+            padding: 8px 4px 6px; cursor: pointer; background: white; transition: 0.15s;
+        }
+        .emoji-opt:hover { border-color: var(--primary-blue); background: #eff8ff; }
+        .emoji-opt.selected { border-color: var(--primary-blue); background: #eff8ff; }
+        .emoji-opt img { width: 40px; height: 40px; display: block; }
+        .emoji-opt-label { font-size: 0.60rem; font-weight: 800; color: var(--text-gray); white-space: nowrap; }
+        .emoji-opt.selected .emoji-opt-label { color: var(--primary-blue); }
+
+        .file-pick-label { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 14px; background: var(--primary-blue); color: white; border-radius: 10px; font-weight: 800; font-size: 0.82rem; cursor: pointer; transition: 0.15s; margin-top: 4px; }
+        .file-pick-label:hover { filter: brightness(1.08); }
+        .crop-wrap { position: relative; margin-top: 8px; border-radius: 10px; overflow: hidden; border: 1.5px solid var(--border-light); background: #111; display: none; touch-action: none; }
+        .crop-canvas { display: block; width: 100%; aspect-ratio: 1/1; cursor: grab; user-select: none; }
+        .crop-canvas.dragging { cursor: grabbing; }
+        .zoom-row { display: none; align-items: center; gap: 8px; margin-top: 6px; }
+        .zoom-label { font-size: 0.75rem; font-weight: 700; color: var(--text-gray); white-space: nowrap; }
+        .zoom-slider { flex: 1; accent-color: var(--primary-blue); }
+        .apply-crop-btn { display: none; width: 100%; padding: 10px; background: #22c55e; color: white; border: none; border-radius: 10px; font-weight: 800; font-size: 0.84rem; cursor: pointer; margin-top: 6px; transition: 0.15s; }
+        .apply-crop-btn:hover { filter: brightness(1.08); }
+
+        .img-status { padding: 8px 12px; border-radius: 10px; font-size: 0.78rem; font-weight: 700; margin-top: 8px; text-align: center; display: none; }
+        .img-status.loading { display: block; background: #f1f5f9; color: var(--text-gray); }
+        .img-status.success { display: block; background: #dcfce7; color: #16a34a; }
+        .img-status.error   { display: block; background: #fff0f0; color: #e53e3e; }
+
+        /* ── 相機 ── */
+        .cam-preview { width: 100%; aspect-ratio: 4/3; background: #0d0d0d; border-radius: 14px; overflow: hidden; position: relative; display: flex; align-items: center; justify-content: center; }
+        .cam-preview video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: none; }
+        .face-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; transform: scaleX(-1); }
+        .cam-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: #666; }
+        .cam-placeholder svg { opacity: 0.35; }
+        .cam-placeholder p { font-size: 0.78rem; font-weight: 700; opacity: 0.5; }
+
+        .btn { width: 100%; padding: 13px; border: none; border-radius: 13px; font-size: 0.9rem; font-weight: 900; cursor: pointer; transition: 0.18s; margin-top: 8px; }
+        .btn:active { transform: scale(0.97); }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+        .btn-blue { background: var(--primary-blue); color: white; }
+        .btn-blue:not(:disabled):hover { filter: brightness(1.08); }
+        .btn-green { background: var(--success-green); color: white; }
+        .btn-green:not(:disabled):hover { filter: brightness(1.08); }
+        .btn-red { background: #fff0f0; color: #e53e3e; border: 1.5px solid #ffd5d5; }
+        .btn-red:not(:disabled):hover { background: #ffe0e0; }
+
+        .badge { display: block; text-align: center; padding: 8px 14px; border-radius: 10px; font-size: 0.78rem; font-weight: 800; margin: 8px 0; }
+        .badge.idle     { background: #f1f5f9; color: var(--text-gray); }
+        .badge.live     { background: #dcfce7; color: #16a34a; }
+        .badge.captured { background: #dbeafe; color: #1d4ed8; }
+
+        .divider { height: 1px; background: var(--border-light); margin: 10px 0; }
+
+        .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: none; align-items: center; justify-content: center; z-index: 9999; }
+        .modal-bg.show { display: flex; }
+        .modal-box { background: white; border-radius: 24px; padding: 36px; max-width: 340px; width: 90%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.15); }
+        .modal-box h3 { font-size: 1.2rem; font-weight: 900; margin-bottom: 10px; }
+        .modal-box p  { color: var(--text-gray); font-size: 0.88rem; margin-bottom: 22px; line-height: 1.6; }
+        .modal-box button { padding: 13px 32px; border: none; border-radius: 14px; background: var(--primary-blue); color: white; font-weight: 900; font-size: 0.95rem; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="header-left">
+        <h1 onclick="window.location.href='../../static/lobby.html'">BeeRich</h1>
+    </div>
+    <div class="header-right">
+        <span class="page-tag">角色自定義</span>
+        <button class="menu-btn" onclick="toggleMenu()">
+            <span></span><span></span><span></span>
+        </button>
+    </div>
+</header>
+
+<div class="menu-overlay" id="menuOverlay" onclick="toggleMenu()"></div>
+<div class="side-menu" id="sideMenu">
+    <a href="../../static/lobby.html"   class="menu-item"><span>🏠</span> 返回大廳</a>
+    <a href="../../static/profile.html" class="menu-item"><span>👤</span> 個人主頁</a>
+    <a href="../../static/guide.html"   class="menu-item"><span>📖</span> 遊戲說明</a>
+    <div class="divider"></div>
+    <div class="menu-item danger" onclick="logout()"><span>🚪</span> 登出</div>
+</div>
+
+<main>
+    <div class="container">
+
+        <!-- 左：3D 模型預覽 -->
+        <div class="model-panel">
+            <div class="panel-header">
+                <div class="panel-title">角色預覽</div>
+                <div class="panel-sub">拖曳旋轉・滾輪縮放</div>
+            </div>
+            <canvas id="model-canvas"></canvas>
+        </div>
+
+        <!-- 右：操作面板 -->
+        <div class="right-panel">
+
+            <!-- ① 顏色編輯卡 -->
+            <div class="card">
+                <div class="card-title">外觀顏色編輯</div>
+                <div class="color-section">
+                    <div class="color-row" onclick="document.getElementById('color-head').click()">
+                        <div class="color-swatch" id="swatch-head" style="background:#f5c18a">
+                            <input type="color" id="color-head" value="#f5c18a" oninput="onColorInput('head',this.value)">
+                        </div>
+                        <span class="color-label-text">頭部 / 皮膚</span>
+                        <span class="color-hex" id="hex-head">#f5c18a</span>
+                    </div>
+                    <div class="color-row" onclick="document.getElementById('color-arm').click()">
+                        <div class="color-swatch" id="swatch-arm" style="background:#5cbaee">
+                            <input type="color" id="color-arm" value="#5cbaee" oninput="onColorInput('arm',this.value)">
+                        </div>
+                        <span class="color-label-text">手臂</span>
+                        <span class="color-hex" id="hex-arm">#5cbaee</span>
+                    </div>
+                    <div class="color-row" onclick="document.getElementById('color-body').click()">
+                        <div class="color-swatch" id="swatch-body" style="background:#4a90d9">
+                            <input type="color" id="color-body" value="#4a90d9" oninput="onColorInput('body',this.value)">
+                        </div>
+                        <span class="color-label-text">上衣</span>
+                        <span class="color-hex" id="hex-body">#4a90d9</span>
+                    </div>
+                    <div class="color-row" onclick="document.getElementById('color-legs').click()">
+                        <div class="color-swatch" id="swatch-legs" style="background:#2c4a8c">
+                            <input type="color" id="color-legs" value="#2c4a8c" oninput="onColorInput('legs',this.value)">
+                        </div>
+                        <span class="color-label-text">褲子</span>
+                        <span class="color-hex" id="hex-legs">#2c4a8c</span>
+                    </div>
+                    <div class="color-row" onclick="document.getElementById('color-feet').click()">
+                        <div class="color-swatch" id="swatch-feet" style="background:#2c1f14">
+                            <input type="color" id="color-feet" value="#2c1f14" oninput="onColorInput('feet',this.value)">
+                        </div>
+                        <span class="color-label-text">鞋子</span>
+                        <span class="color-hex" id="hex-feet">#2c1f14</span>
+                    </div>
+                </div>
+                <div class="section-label">快速套色</div>
+                <div class="preset-grid">
+                    <button class="preset-btn" onclick="applyPreset('default')"><div class="preset-dots"><div class="preset-dot" style="background:#f5c18a"></div><div class="preset-dot" style="background:#5cbaee"></div><div class="preset-dot" style="background:#4a90d9"></div><div class="preset-dot" style="background:#2c4a8c"></div><div class="preset-dot" style="background:#2c1f14"></div></div>預設</button>
+                    <button class="preset-btn" onclick="applyPreset('cool')"><div class="preset-dots"><div class="preset-dot" style="background:#c8e6f5"></div><div class="preset-dot" style="background:#4a8cbe"></div><div class="preset-dot" style="background:#2c6e9e"></div><div class="preset-dot" style="background:#1a3a5c"></div><div class="preset-dot" style="background:#0f2035"></div></div>冷色</button>
+                    <button class="preset-btn" onclick="applyPreset('warm')"><div class="preset-dots"><div class="preset-dot" style="background:#f5c18a"></div><div class="preset-dot" style="background:#e06050"></div><div class="preset-dot" style="background:#c94040"></div><div class="preset-dot" style="background:#8c3030"></div><div class="preset-dot" style="background:#4a1a1a"></div></div>暖色</button>
+                    <button class="preset-btn" onclick="applyPreset('dark')"><div class="preset-dots"><div class="preset-dot" style="background:#9e7a5c"></div><div class="preset-dot" style="background:#484848"></div><div class="preset-dot" style="background:#2c2c2c"></div><div class="preset-dot" style="background:#1a1a1a"></div><div class="preset-dot" style="background:#0f0f0f"></div></div>暗色</button>
+                    <button class="preset-btn" onclick="applyPreset('forest')"><div class="preset-dots"><div class="preset-dot" style="background:#c8a87a"></div><div class="preset-dot" style="background:#5a8b55"></div><div class="preset-dot" style="background:#3a6b35"></div><div class="preset-dot" style="background:#2a4a28"></div><div class="preset-dot" style="background:#1a2a18"></div></div>森林</button>
+                    <button class="preset-btn" onclick="applyPreset('fire')"><div class="preset-dots"><div class="preset-dot" style="background:#f5c18a"></div><div class="preset-dot" style="background:#f86030"></div><div class="preset-dot" style="background:#e84012"></div><div class="preset-dot" style="background:#a02808"></div><div class="preset-dot" style="background:#400000"></div></div>火焰</button>
+                    <button class="preset-btn" onclick="applyPreset('ocean')"><div class="preset-dots"><div class="preset-dot" style="background:#a8d8f0"></div><div class="preset-dot" style="background:#2897d6"></div><div class="preset-dot" style="background:#0077b6"></div><div class="preset-dot" style="background:#005588"></div><div class="preset-dot" style="background:#002244"></div></div>海洋</button>
+                    <button class="preset-btn" onclick="applyPreset('purple')"><div class="preset-dots"><div class="preset-dot" style="background:#e8b4f0"></div><div class="preset-dot" style="background:#aa66ee"></div><div class="preset-dot" style="background:#8844cc"></div><div class="preset-dot" style="background:#5522aa"></div><div class="preset-dot" style="background:#2a1066"></div></div>神秘</button>
+                </div>
+                <button class="btn btn-green" onclick="saveColors()">儲存到遊戲</button>
+                <button class="btn btn-red"   onclick="resetColors()">還原預設顏色</button>
+            </div>
+
+            <!-- ② 表情圖片貼圖卡（方案B） -->
+            <div class="card">
+                <div class="card-title">表情圖片貼圖</div>
+
+                <!-- 2D 臉部預覽 -->
+                <div class="face-preview-wrap">
+                    <canvas id="face-img-preview" width="512" height="512"></canvas>
+                </div>
+
+                <div class="section-label">Twemoji 表情套裝</div>
+                <div class="emoji-grid" id="emoji-grid"></div>
+
+                <div class="divider"></div>
+                <div class="section-label">從本機匯入圖片</div>
+                <label class="file-pick-label" for="local-file-input">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    選擇圖片檔案
+                </label>
+                <input type="file" id="local-file-input" accept="image/*" style="display:none" onchange="handleLocalFile(event)">
+                <div class="crop-wrap" id="crop-wrap">
+                    <canvas id="crop-canvas" class="crop-canvas" width="512" height="512"></canvas>
+                </div>
+                <div class="zoom-row" id="zoom-row">
+                    <span class="zoom-label">縮放</span>
+                    <input type="range" class="zoom-slider" id="zoom-slider" min="0.1" max="10" step="0.01" value="1" oninput="onZoomChange()">
+                </div>
+                <button class="apply-crop-btn" id="apply-crop-btn" onclick="applyCrop()">套用裁切</button>
+                <div class="img-status" id="img-status"></div>
+
+                <button class="btn btn-green" onclick="saveFaceImage()" style="margin-top:12px">儲存到遊戲</button>
+                <button class="btn btn-red"   onclick="clearFaceImage()">清除表情圖片</button>
+            </div>
+
+            <!-- ③ 相機人臉貼圖卡 -->
+            <div class="card">
+                <div class="card-title">相機人臉貼圖</div>
+                <div class="cam-preview" id="camPreview">
+                    <video id="camVideo" autoplay playsinline muted></video>
+                    <canvas id="faceOverlay" class="face-overlay"></canvas>
+                    <div class="cam-placeholder" id="camPlaceholder">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+                            <circle cx="12" cy="13" r="4"/>
+                        </svg>
+                        <p>開啟後自動偵測人臉</p>
+                    </div>
+                </div>
+                <span class="badge idle" id="statusBadge">等待開啟相機</span>
+                <button class="btn btn-blue"  id="camToggleBtn" onclick="toggleCamera()">開啟相機</button>
+                <button class="btn btn-green" id="applyFaceBtn" onclick="applyFaceToModel()" disabled>套用人臉到角色臉部</button>
+                <button class="btn btn-red"   id="clearFaceBtn" onclick="clearFace()" disabled>清除人臉</button>
+            </div>
+
+        </div><!-- /right-panel -->
+    </div><!-- /container -->
+</main>
+
+<div class="modal-bg" id="modal">
+    <div class="modal-box">
+        <h3 id="modalTitle"></h3>
+        <p  id="modalMsg"></p>
+        <button onclick="document.getElementById('modal').classList.remove('show')">確定</button>
+    </div>
+</div>
+
+<script>
+// =====================================================
+//  路徑設定（此頁在 Facial_features/方案B/ 底下）
+// =====================================================
+const API_URL = window.location.protocol !== 'file:'
+    ? window.location.origin
+    : 'http://localhost:8000';
+
+const MODEL_PATH = '../../static/models/minecraft_-_steve.glb';
+
+const username = localStorage.getItem('username');
+const token    = localStorage.getItem('token');
+if (!username || !token) window.location.href = '../../static/login.html';
+
+(async () => {
+    try { await fetch(`${API_URL}/auth/verify_and_refresh?username=${encodeURIComponent(username)}`, { method: 'POST' }); } catch(e) {}
+})();
+setInterval(() => {
+    fetch(`${API_URL}/auth/heartbeat?username=${encodeURIComponent(username)}`, { method: 'POST' }).catch(() => {});
+}, 20000);
+
+// =====================================================
+//  Three.js Scene
+// =====================================================
+const canvas = document.getElementById('model-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0xf1f5f9, 1);
+
+const scene       = new THREE.Scene();
+const threeCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
+threeCamera.position.set(0, 3, 12);
+
+const grid = new THREE.GridHelper(30, 20, 0xdde3eb, 0xdde3eb);
+grid.position.y = -0.05;
+scene.add(grid);
+
+const controls = new THREE.OrbitControls(threeCamera, renderer.domElement);
+controls.enableDamping   = true;
+controls.dampingFactor   = 0.08;
+controls.autoRotate      = true;
+controls.autoRotateSpeed = 1.8;
+controls.minDistance     = 4;
+controls.maxDistance     = 20;
+controls.target.set(0, 1.5, 0);
+
+function resizeRenderer() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    threeCamera.aspect = w / h;
+    threeCamera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resizeRenderer);
+window.addEventListener('load',   resizeRenderer);
+
+let stream       = null;
+let faceDetector = null;
+let lastFaceBox  = null;
+const videoEl    = document.getElementById('camVideo');
+let lastDetectTime = 0;
+
+function animateLoop(now) {
+    requestAnimationFrame(animateLoop);
+    resizeRenderer();
+    controls.update();
+    renderer.render(scene, threeCamera);
+    if (faceDetector && stream && videoEl.readyState >= 2 && (now - lastDetectTime) > 100) {
+        lastDetectTime = now;
+        faceDetector.send({ image: videoEl }).catch(() => {});
+    }
+}
+animateLoop(0);
+
+// =====================================================
+//  Color System
+// =====================================================
+const partColors = {
+    head: '#f5c18a', arm: '#5cbaee', body: '#4a90d9', legs: '#2c4a8c', feet: '#2c1f14'
+};
+
+(function applyStoredColors() {
+    const raw = localStorage.getItem('beerich_char_colors');
+    if (!raw) return;
+    try {
+        const saved = JSON.parse(raw);
+        Object.keys(saved).forEach(k => { if (k in partColors) partColors[k] = saved[k]; });
+        Object.entries(partColors).forEach(([g, hex]) => {
+            const inp    = document.getElementById('color-'  + g);
+            const swatch = document.getElementById('swatch-' + g);
+            const hexEl  = document.getElementById('hex-'    + g);
+            if (inp)    inp.value              = hex;
+            if (swatch) swatch.style.background = hex;
+            if (hexEl)  hexEl.textContent       = hex;
+        });
+    } catch(e) {}
+})();
+
+const PRESETS = {
+    default: { head:'#f5c18a', arm:'#5cbaee', body:'#4a90d9', legs:'#2c4a8c', feet:'#2c1f14' },
+    cool:    { head:'#c8e6f5', arm:'#4a8cbe', body:'#2c6e9e', legs:'#1a3a5c', feet:'#0f2035' },
+    warm:    { head:'#f5c18a', arm:'#e06050', body:'#c94040', legs:'#8c3030', feet:'#4a1a1a' },
+    dark:    { head:'#9e7a5c', arm:'#484848', body:'#2c2c2c', legs:'#1a1a1a', feet:'#0f0f0f' },
+    forest:  { head:'#c8a87a', arm:'#5a8b55', body:'#3a6b35', legs:'#2a4a28', feet:'#1a2a18' },
+    fire:    { head:'#f5c18a', arm:'#f86030', body:'#e84012', legs:'#a02808', feet:'#400000' },
+    ocean:   { head:'#a8d8f0', arm:'#2897d6', body:'#0077b6', legs:'#005588', feet:'#002244' },
+    purple:  { head:'#e8b4f0', arm:'#aa66ee', body:'#8844cc', legs:'#5522aa', feet:'#2a1066' }
+};
+
+// =====================================================
+//  Shader
+// =====================================================
+let shaderMat = null;
+
+const VERT = `
+    varying vec3 vWorldPos;
+    varying vec3 vNorm;
+    void main() {
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        vNorm = normalize(mat3(modelMatrix) * normal);
+        gl_Position = projectionMatrix * viewMatrix * wp;
+    }
+`;
+const FRAG = `
+    uniform vec3      colorHead;
+    uniform vec3      colorArm;
+    uniform vec3      colorBody;
+    uniform vec3      colorLegs;
+    uniform vec3      colorFeet;
+    uniform float     worldMinY;
+    uniform float     worldMaxY;
+    uniform float     armThreshX;
+    uniform sampler2D faceTex;
+    uniform float     hasFace;
+    uniform float     headMinX;
+    uniform float     headMaxX;
+    uniform float     headMinY;
+    uniform float     headMaxY;
+    varying vec3      vWorldPos;
+    varying vec3      vNorm;
+    void main() {
+        float t    = clamp((vWorldPos.y - worldMinY) / (worldMaxY - worldMinY), 0.0, 1.0);
+        float absX = abs(vWorldPos.x);
+        vec3 base;
+        if (absX > armThreshX && t > 0.245 && t < 0.755) {
+            base = (t > 0.50) ? colorArm : colorHead;
+        } else {
+            if (t > 0.75) {
+                base = colorHead;
+                if (hasFace > 0.5 && vNorm.z > 0.3) {
+                    float fu = clamp((vWorldPos.x - headMinX) / (headMaxX - headMinX), 0.0, 1.0);
+                    float fv = clamp((vWorldPos.y - headMinY) / (headMaxY - headMinY), 0.0, 1.0);
+                    vec4 fc = texture2D(faceTex, vec2(fu, fv));
+                    base = fc.rgb;
+                }
+            }
+            else if (t > 0.375) base = colorBody;
+            else if (t > 0.10)  base = colorLegs;
+            else                base = colorFeet;
+        }
+        vec3 n = normalize(vNorm);
+        float d  = max(dot(n, normalize(vec3(5.0, 12.0, 8.0))), 0.0);
+        float f  = max(dot(n, normalize(vec3(-5.0, 3.0, -5.0))), 0.0) * 0.4;
+        float ambient = (hasFace > 0.5 && t > 0.75 && vNorm.z > 0.3) ? 0.95 : 0.85;
+        vec3 lit = base * (ambient + 0.5 * d + 0.15 * f);
+        gl_FragColor = vec4(clamp(lit, 0.0, 1.0), 1.0);
+    }
+`;
+
+function makeDummyTexture() {
+    const c = document.createElement('canvas'); c.width = c.height = 1;
+    c.getContext('2d').fillStyle = '#f5c18a'; c.getContext('2d').fillRect(0,0,1,1);
+    return new THREE.CanvasTexture(c);
+}
+function buildShaderMat(minY, maxY, armThreshX, headMinX, headMaxX, headMinY, headMaxY) {
+    return new THREE.ShaderMaterial({
+        uniforms: {
+            colorHead:  { value: new THREE.Color(partColors.head) },
+            colorArm:   { value: new THREE.Color(partColors.arm)  },
+            colorBody:  { value: new THREE.Color(partColors.body) },
+            colorLegs:  { value: new THREE.Color(partColors.legs) },
+            colorFeet:  { value: new THREE.Color(partColors.feet) },
+            worldMinY:  { value: minY }, worldMaxY: { value: maxY },
+            armThreshX: { value: armThreshX },
+            faceTex:    { value: makeDummyTexture() }, hasFace: { value: 0.0 },
+            headMinX:   { value: headMinX }, headMaxX: { value: headMaxX },
+            headMinY:   { value: headMinY }, headMaxY: { value: headMaxY }
+        },
+        vertexShader: VERT, fragmentShader: FRAG
+    });
+}
+function updateShaderColors() {
+    if (!shaderMat) return;
+    shaderMat.uniforms.colorHead.value.set(partColors.head);
+    shaderMat.uniforms.colorArm.value.set(partColors.arm);
+    shaderMat.uniforms.colorBody.value.set(partColors.body);
+    shaderMat.uniforms.colorLegs.value.set(partColors.legs);
+    shaderMat.uniforms.colorFeet.value.set(partColors.feet);
+}
+function onColorInput(group, hex) {
+    partColors[group] = hex;
+    document.getElementById('swatch-' + group).style.background = hex;
+    document.getElementById('hex-'    + group).textContent       = hex;
+    updateShaderColors();
+}
+function applyPreset(name) {
+    const p = PRESETS[name]; if (!p) return;
+    Object.entries(p).forEach(([g, hex]) => {
+        partColors[g] = hex;
+        const inp = document.getElementById('color-' + g);
+        if (inp) inp.value = hex;
+        document.getElementById('swatch-' + g).style.background = hex;
+        document.getElementById('hex-'    + g).textContent       = hex;
+    });
+    updateShaderColors();
+}
+function saveColors() {
+    localStorage.setItem('beerich_char_colors', JSON.stringify(partColors));
+    showModal('儲存成功', '角色外觀顏色已儲存！');
+}
+function resetColors() {
+    localStorage.removeItem('beerich_char_colors');
+    applyPreset('default');
+    showModal('已重置', '已還原角色預設顏色。');
+}
+function loadSavedColors() {
+    const raw = localStorage.getItem('beerich_char_colors');
+    if (!raw) { updateShaderColors(); return; }
+    try {
+        const saved = JSON.parse(raw).colors || JSON.parse(raw);
+        Object.entries(saved).forEach(([g, hex]) => {
+            if (!(g in partColors)) return;
+            partColors[g] = hex;
+            const inp = document.getElementById('color-' + g);
+            if (inp) inp.value = hex;
+            document.getElementById('swatch-' + g).style.background = hex;
+            document.getElementById('hex-'    + g).textContent       = hex;
+        });
+        updateShaderColors();
+    } catch(e) { updateShaderColors(); }
+}
+
+// =====================================================
+//  Model Loader
+// =====================================================
+const loader = new THREE.GLTFLoader();
+loader.load(MODEL_PATH, (gltf) => {
+    const model = gltf.scene;
+    const box0  = new THREE.Box3().setFromObject(model);
+    const size0 = box0.getSize(new THREE.Vector3());
+    const center0 = box0.getCenter(new THREE.Vector3());
+    const autoScale = 3 / size0.y;
+    model.scale.setScalar(autoScale);
+    model.position.set(-center0.x * autoScale, -box0.min.y * autoScale, -center0.z * autoScale);
+    scene.add(model);
+    const fbox = new THREE.Box3().setFromObject(model);
+    const armThreshX = (fbox.max.x - fbox.min.x) * 0.25;
+    const headMinY = fbox.min.y + 0.75 * (fbox.max.y - fbox.min.y);
+    const headMaxY = fbox.max.y;
+    const headMinX = -armThreshX, headMaxX = armThreshX;
+    shaderMat = buildShaderMat(fbox.min.y, fbox.max.y, armThreshX, headMinX, headMaxX, headMinY, headMaxY);
+    model.traverse(child => { if (child.isMesh) child.material = shaderMat; });
+
+    const fsize   = fbox.getSize(new THREE.Vector3());
+    const fcenter = fbox.getCenter(new THREE.Vector3());
+    const maxDim  = Math.max(fsize.x, fsize.y, fsize.z);
+    const fovR    = threeCamera.fov * (Math.PI / 180);
+    const dist    = (maxDim / 2) / Math.tan(fovR / 2) * 2.2;
+    threeCamera.position.set(fcenter.x, fcenter.y, fcenter.z + dist);
+    controls.target.copy(fcenter);
+    controls.minDistance = dist * 0.4;
+    controls.maxDistance = dist * 4;
+    controls.update();
+
+    loadSavedColors();
+    loadSavedFace();
+}, undefined, () => {
+    showModal('模型載入失敗', '找不到角色模型，請確認路徑正確。');
+});
+
+// =====================================================
+//  Face Image System (方案 B — 網路圖片)
+// =====================================================
+
+const TWEMOJI_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/';
+
+const EMOJI_PRESETS = [
+    { label:'😀 開心', codepoint:'1f600' },
+    { label:'😎 酷',   codepoint:'1f60e' },
+    { label:'😠 生氣', codepoint:'1f620' },
+    { label:'😮 驚訝', codepoint:'1f62e' },
+    { label:'😢 悲傷', codepoint:'1f622' },
+    { label:'😺 貓咪', codepoint:'1f63a' },
+    { label:'😜 眨眼', codepoint:'1f61c' },
+    { label:'😴 睡意', codepoint:'1f634' },
+];
+
+let currentFaceCanvas = null;
+let selectedCpEl = null;
+
+// crop state
+let cropImage = null;
+let cropScale = 1;
+let cropOffX = 0, cropOffY = 0;
+let cropDragging = false;
+let cropDragStartX = 0, cropDragStartY = 0;
+let cropDragOffX = 0, cropDragOffY = 0;
+
+// ── 建立 Emoji 選項格 ──
+function buildEmojiGrid() {
+    const grid = document.getElementById('emoji-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    EMOJI_PRESETS.forEach(preset => {
+        const div = document.createElement('div');
+        div.className = 'emoji-opt';
+        div.dataset.cp = preset.codepoint;
+
+        const img = document.createElement('img');
+        img.src = `${TWEMOJI_BASE}${preset.codepoint}.svg`;
+        img.alt = preset.label;
+        img.width = 40; img.height = 40;
+        img.crossOrigin = 'anonymous';
+
+        const label = document.createElement('span');
+        label.className = 'emoji-opt-label';
+        label.textContent = preset.label.split(' ')[1];
+
+        div.appendChild(img);
+        div.appendChild(label);
+        div.onclick = () => applyTwemojiPreset(preset.codepoint, div);
+        grid.appendChild(div);
+    });
+}
+
+// ── 從 URL 非同步載入 Image 元素 ──
+function fetchImageToCanvas(url) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload  = () => resolve(img);
+        img.onerror = () => reject(new Error('載入失敗'));
+        img.src = url;
+    });
+}
+
+// ── 將圖片繪至 512×128 臉部 canvas（置中 128×128 區域） ──
+function applyImageToFace(imgEl) {
+    const W = 512, H = 512;
+    const fc = document.createElement('canvas');
+    fc.width = W; fc.height = H;
+    const ctx = fc.getContext('2d');
+
+    // 皮膚底色
+    ctx.fillStyle = partColors.head || '#f5c18a';
+    ctx.fillRect(0, 0, W, H);
+
+    // 圖片置中於 128×128 的方形區域（橫向居中，縱向撐滿）
+    const drawW = H, drawH = H;
+    const drawX = (W - drawW) / 2;
+    ctx.drawImage(imgEl, drawX, 0, drawW, drawH);
+
+    // 更新 2D 預覽
+    const prev = document.getElementById('face-img-preview');
+    if (prev) {
+        const pc = prev.getContext('2d');
+        pc.clearRect(0, 0, W, H);
+        pc.drawImage(fc, 0, 0);
+    }
+
+    // 推入 3D shader
+    if (shaderMat) {
+        const prevTex = shaderMat.uniforms.faceTex.value;
+        if (prevTex) prevTex.dispose();
+        const tex = new THREE.CanvasTexture(fc);
+        tex.needsUpdate = true;
+        shaderMat.uniforms.faceTex.value = tex;
+        shaderMat.uniforms.hasFace.value = 1.0;
+        shaderMat.needsUpdate = true;
+    }
+    return fc;
+}
+
+// ── 套用 Twemoji 表情 ──
+async function applyTwemojiPreset(codepoint, el) {
+    setImgStatus('loading', '載入 Twemoji 圖示中...');
+    resetCropUI();
+    // 更新選取樣式
+    if (selectedCpEl) selectedCpEl.classList.remove('selected');
+    if (el) { el.classList.add('selected'); selectedCpEl = el; }
+    try {
+        const img = await fetchImageToCanvas(`${TWEMOJI_BASE}${codepoint}.svg`);
+        currentFaceCanvas = applyImageToFace(img);
+        setImgStatus('success', '已套用 Twemoji 表情！');
+    } catch(e) {
+        setImgStatus('error', '載入失敗，請確認網路連線後重試。');
+        if (selectedCpEl) { selectedCpEl.classList.remove('selected'); selectedCpEl = null; }
+    }
+}
+
+// ── 本機圖片裁切 ──
+function handleLocalFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => {
+            cropImage = img;
+            // 初始縮放：讓最短邊填滿裁切框
+            const shortest = Math.min(img.width, img.height);
+            cropScale = 512 / shortest;
+            cropOffX = (img.width - shortest) / 2;
+            cropOffY = (img.height - shortest) / 2;
+            const slider = document.getElementById('zoom-slider');
+            slider.min  = cropScale * 0.2;
+            slider.max  = cropScale * 10;
+            slider.step = cropScale * 0.01;
+            slider.value = cropScale;
+            drawCropCanvas();
+            document.getElementById('crop-wrap').style.display = '';
+            document.getElementById('zoom-row').style.display = 'flex';
+            document.getElementById('apply-crop-btn').style.display = '';
+            // 取消 emoji 選取
+            if (selectedCpEl) { selectedCpEl.classList.remove('selected'); selectedCpEl = null; }
+            setImgStatus('success', '已載入圖片，可拖曳或縮放來調整裁切範圍，完成後點「套用裁切」');
+        };
+        img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function onZoomChange() {
+    cropScale = parseFloat(document.getElementById('zoom-slider').value);
+    clampCrop();
+    drawCropCanvas();
+}
+
+function clampCrop() {
+    if (!cropImage) return;
+    const srcSize = 512 / cropScale;
+    cropOffX = Math.max(0, Math.min(cropOffX, Math.max(0, cropImage.width  - srcSize)));
+    cropOffY = Math.max(0, Math.min(cropOffY, Math.max(0, cropImage.height - srcSize)));
+}
+
+function drawCropCanvas() {
+    if (!cropImage) return;
+    const cc  = document.getElementById('crop-canvas');
+    const ctx = cc.getContext('2d');
+    const srcSize = 512 / cropScale;
+    ctx.fillStyle = '#111';
+    ctx.fillRect(0, 0, 512, 512);
+    ctx.drawImage(cropImage, cropOffX, cropOffY, srcSize, srcSize, 0, 0, 512, 512);
+}
+
+function applyCrop() {
+    if (!cropImage) return;
+    const out = document.createElement('canvas');
+    out.width = 512; out.height = 512;
+    const srcSize = 512 / cropScale;
+    out.getContext('2d').drawImage(cropImage, cropOffX, cropOffY, srcSize, srcSize, 0, 0, 512, 512);
+    currentFaceCanvas = applyImageToFace(out);
+    setImgStatus('success', '已套用裁切圖片！');
+}
+
+function resetCropUI() {
+    cropImage = null; cropScale = 1; cropOffX = 0; cropOffY = 0;
+    document.getElementById('crop-wrap').style.display = 'none';
+    document.getElementById('zoom-row').style.display = 'none';
+    document.getElementById('apply-crop-btn').style.display = 'none';
+    document.getElementById('local-file-input').value = '';
+}
+
+function initCropDragListeners() {
+    const cc = document.getElementById('crop-canvas');
+    cc.addEventListener('mousedown', (e) => {
+        if (!cropImage) return;
+        cropDragging = true;
+        cropDragStartX = e.clientX; cropDragStartY = e.clientY;
+        cropDragOffX = cropOffX; cropDragOffY = cropOffY;
+        cc.classList.add('dragging');
+        e.preventDefault();
+    });
+    window.addEventListener('mousemove', (e) => {
+        if (!cropDragging) return;
+        const rect = cc.getBoundingClientRect();
+        const cssToSrc = (512 / cropScale) / rect.width;
+        cropOffX = cropDragOffX - (e.clientX - cropDragStartX) * cssToSrc;
+        cropOffY = cropDragOffY - (e.clientY - cropDragStartY) * cssToSrc;
+        clampCrop();
+        drawCropCanvas();
+    });
+    window.addEventListener('mouseup', () => {
+        cropDragging = false;
+        cc.classList.remove('dragging');
+    });
+    cc.addEventListener('touchstart', (e) => {
+        if (!cropImage || e.touches.length !== 1) return;
+        cropDragging = true;
+        cropDragStartX = e.touches[0].clientX; cropDragStartY = e.touches[0].clientY;
+        cropDragOffX = cropOffX; cropDragOffY = cropOffY;
+        e.preventDefault();
+    }, { passive: false });
+    cc.addEventListener('touchmove', (e) => {
+        if (!cropDragging || e.touches.length !== 1) return;
+        const rect = cc.getBoundingClientRect();
+        const cssToSrc = (512 / cropScale) / rect.width;
+        cropOffX = cropDragOffX - (e.touches[0].clientX - cropDragStartX) * cssToSrc;
+        cropOffY = cropDragOffY - (e.touches[0].clientY - cropDragStartY) * cssToSrc;
+        clampCrop();
+        drawCropCanvas();
+        e.preventDefault();
+    }, { passive: false });
+    cc.addEventListener('touchend', () => { cropDragging = false; });
+}
+
+// ── 儲存 ──
+function saveFaceImage() {
+    if (!currentFaceCanvas) {
+        showModal('尚未選擇圖片', '請先選擇 Twemoji 表情或輸入圖片網址後再儲存。');
+        return;
+    }
+    localStorage.setItem('beerich_char_face', currentFaceCanvas.toDataURL('image/png'));
+    localStorage.removeItem('beerich_char_features');
+    if (selectedCpEl) {
+        localStorage.setItem('beerich_char_emoji', selectedCpEl.dataset.cp);
+    } else {
+        localStorage.removeItem('beerich_char_emoji');
+    }
+    showModal('儲存成功', '表情圖片已儲存！進入遊戲後將自動套用。');
+}
+
+// ── 清除 ──
+function clearFaceImage() {
+    currentFaceCanvas = null;
+    localStorage.removeItem('beerich_char_face');
+    localStorage.removeItem('beerich_char_features');
+    localStorage.removeItem('beerich_char_emoji');
+    if (shaderMat) {
+        const prevTex = shaderMat.uniforms.faceTex.value;
+        if (prevTex) prevTex.dispose();
+        shaderMat.uniforms.faceTex.value = makeDummyTexture();
+        shaderMat.uniforms.hasFace.value = 0.0;
+        shaderMat.needsUpdate = true;
+    }
+    // 清空 2D 預覽
+    const prev = document.getElementById('face-img-preview');
+    if (prev) {
+        const ctx = prev.getContext('2d');
+        ctx.fillStyle = partColors.head || '#f5c18a';
+        ctx.fillRect(0, 0, 512, 512);
+    }
+    if (selectedCpEl) { selectedCpEl.classList.remove('selected'); selectedCpEl = null; }
+    resetCropUI();
+    setImgStatus('idle', '');
+    showModal('已清除', '表情圖片已清除。');
+}
+
+// ── 載入儲存的臉部貼圖 ──
+function loadSavedFace() {
+    const dataUrl = localStorage.getItem('beerich_char_face');
+    if (!dataUrl || !shaderMat) return;
+    const img = new Image();
+    img.onload = () => {
+        const fc = document.createElement('canvas');
+        fc.width = 512; fc.height = 512;
+        fc.getContext('2d').drawImage(img, 0, 0, 512, 512);
+        currentFaceCanvas = fc;
+        // 更新 2D 預覽
+        const prev = document.getElementById('face-img-preview');
+        if (prev) {
+            const pc = prev.getContext('2d');
+            pc.clearRect(0, 0, 512, 512);
+            pc.drawImage(fc, 0, 0);
+        }
+        // 推入 shader
+        const prevTex = shaderMat.uniforms.faceTex.value;
+        if (prevTex) prevTex.dispose();
+        const tex = new THREE.CanvasTexture(fc);
+        tex.needsUpdate = true;
+        shaderMat.uniforms.faceTex.value = tex;
+        shaderMat.uniforms.hasFace.value = 1.0;
+        shaderMat.needsUpdate = true;
+        const savedCp = localStorage.getItem('beerich_char_emoji');
+        if (savedCp) {
+            const el = document.querySelector(`.emoji-opt[data-cp="${savedCp}"]`);
+            if (el) { if (selectedCpEl) selectedCpEl.classList.remove('selected'); el.classList.add('selected'); selectedCpEl = el; }
+            setImgStatus('success', '已載入儲存的表情圖片');
+        } else {
+            document.getElementById('clearFaceBtn').disabled = false;
+            setBadge('captured', '已載入儲存的臉部貼圖');
+        }
+    };
+    img.src = dataUrl;
+}
+
+// ── UI Helpers ──
+function setImgStatus(type, text) {
+    const el = document.getElementById('img-status');
+    el.className = `img-status ${type}`;
+    el.textContent = text;
+}
+
+// 初始化 emoji 格
+buildEmojiGrid();
+// 初始化 2D 預覽底色
+(function initPreview() {
+    const prev = document.getElementById('face-img-preview');
+    if (!prev) return;
+    const ctx = prev.getContext('2d');
+    ctx.fillStyle = partColors.head || '#f5c18a';
+    ctx.fillRect(0, 0, 512, 512);
+})();
+// 初始化裁切拖曳事件
+initCropDragListeners();
+
+// =====================================================
+//  Camera & Face Detection
+// =====================================================
+function initFaceDetector() {
+    if (typeof FaceDetection === 'undefined' || faceDetector) return;
+    faceDetector = new FaceDetection({
+        locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${f}`
+    });
+    faceDetector.setOptions({ model: 'short', minDetectionConfidence: 0.5 });
+    faceDetector.onResults(results => {
+        const dets = results.detections || [];
+        lastFaceBox = dets.length ? dets[0].boundingBox : null;
+        drawFaceOverlay(dets);
+        if (lastFaceBox) {
+            document.getElementById('applyFaceBtn').disabled = false;
+            setBadge('live', '偵測到人臉，可貼至角色臉部');
+        } else {
+            document.getElementById('applyFaceBtn').disabled = true;
+            setBadge('live', '相機運作中，請對準臉部');
+        }
+    });
+}
+
+function drawFaceOverlay(detections) {
+    const oc = document.getElementById('faceOverlay');
+    if (!oc) return;
+    if (oc.width !== oc.clientWidth || oc.height !== oc.clientHeight) {
+        oc.width = oc.clientWidth || 320; oc.height = oc.clientHeight || 240;
+    }
+    const ctx = oc.getContext('2d');
+    ctx.clearRect(0, 0, oc.width, oc.height);
+    if (!detections.length) return;
+    const bb = detections[0].boundingBox;
+    const x = (bb.xCenter - bb.width/2) * oc.width;
+    const y = (bb.yCenter - bb.height/2) * oc.height;
+    const w = bb.width * oc.width, h = bb.height * oc.height;
+    ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 3; ctx.lineJoin = 'round';
+    ctx.strokeRect(x, y, w, h);
+    ctx.fillStyle = '#00ff88';
+    ctx.font = `bold ${Math.max(11, oc.height*0.05)}px sans-serif`;
+    ctx.fillText('偵測到人臉', x, y > 18 ? y-5 : y+h+16);
+}
+
+async function toggleCamera() {
+    if (stream) stopCamera(); else await startCamera();
+}
+async function startCamera() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+        showModal('無法開啟相機', '請透過 https:// 連線或使用 localhost。'); return;
+    }
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { width:{ideal:640}, height:{ideal:480}, facingMode:'user' } });
+        videoEl.srcObject = stream; videoEl.style.display = 'block';
+        await videoEl.play();
+        document.getElementById('camPlaceholder').style.display = 'none';
+        document.getElementById('camToggleBtn').textContent = '關閉相機';
+        setBadge('live', '相機運作中，請對準臉部');
+        initFaceDetector();
+    } catch(e) {
+        showModal('無法開啟相機', '請確認已授予相機權限，且透過安全連線存取。');
+    }
+}
+function stopCamera() {
+    if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+    videoEl.srcObject = null; videoEl.style.display = 'none';
+    document.getElementById('camPlaceholder').style.display = 'flex';
+    document.getElementById('camToggleBtn').textContent = '開啟相機';
+    document.getElementById('applyFaceBtn').disabled = true;
+    lastFaceBox = null;
+    const oc = document.getElementById('faceOverlay');
+    if (oc) oc.getContext('2d').clearRect(0, 0, oc.width, oc.height);
+    setBadge('idle', '等待開啟相機');
+}
+
+function applyFaceToModel() {
+    if (!lastFaceBox || !stream || videoEl.readyState < 2 || !shaderMat) return;
+    const vw = videoEl.videoWidth || 640, vh = videoEl.videoHeight || 480;
+    const cap = document.createElement('canvas'); cap.width = vw; cap.height = vh;
+    cap.getContext('2d').drawImage(videoEl, 0, 0);
+    const bb = lastFaceBox;
+    const sx = Math.max(0, Math.floor((bb.xCenter - bb.width*0.45) * vw));
+    const sy = Math.max(0, Math.floor((bb.yCenter - bb.height*0.45) * vh));
+    const ex = Math.min(vw, Math.floor((bb.xCenter + bb.width*0.45) * vw));
+    const ey = Math.min(vh, Math.floor((bb.yCenter + bb.height*0.45) * vh));
+    const sw = ex-sx, sh = ey-sy;
+    if (sw <= 0 || sh <= 0) return;
+    const faceCanvas = document.createElement('canvas'); faceCanvas.width = 512; faceCanvas.height = 512;
+    const fCtx = faceCanvas.getContext('2d');
+    fCtx.save(); fCtx.scale(-1,1); fCtx.drawImage(cap, sx, sy, sw, sh, -512, 0, 512, 512); fCtx.restore();
+    const prevTex = shaderMat.uniforms.faceTex.value; if (prevTex) prevTex.dispose();
+    const tex = new THREE.CanvasTexture(faceCanvas); tex.needsUpdate = true;
+    shaderMat.uniforms.faceTex.value = tex;
+    shaderMat.uniforms.hasFace.value = 1.0;
+    shaderMat.needsUpdate = true;
+    currentFaceCanvas = faceCanvas;
+    localStorage.setItem('beerich_char_face', faceCanvas.toDataURL('image/jpeg', 0.85));
+    localStorage.removeItem('beerich_char_features');
+    if (selectedCpEl) { selectedCpEl.classList.remove('selected'); selectedCpEl = null; }
+    document.getElementById('clearFaceBtn').disabled = false;
+    setBadge('captured', '人臉已貼至角色臉部');
+}
+
+function clearFace() {
+    if (!shaderMat) return;
+    const prevTex = shaderMat.uniforms.faceTex.value; if (prevTex) prevTex.dispose();
+    shaderMat.uniforms.faceTex.value = makeDummyTexture();
+    shaderMat.uniforms.hasFace.value = 0.0;
+    shaderMat.needsUpdate = true;
+    localStorage.removeItem('beerich_char_face');
+    document.getElementById('clearFaceBtn').disabled = true;
+    setBadge('idle', '已清除人臉貼圖');
+}
+
+// =====================================================
+//  UI Helpers
+// =====================================================
+function setBadge(type, text) {
+    const b = document.getElementById('statusBadge');
+    b.className = `badge ${type}`; b.textContent = text;
+}
+function toggleMenu() {
+    document.getElementById('sideMenu').classList.toggle('open');
+    document.getElementById('menuOverlay').classList.toggle('open');
+}
+function showModal(title, msg) {
+    document.getElementById('modalTitle').textContent = title;
+    document.getElementById('modalMsg').textContent   = msg;
+    document.getElementById('modal').classList.add('show');
+}
+async function logout() {
+    try { await fetch(`${API_URL}/auth/logout?username=${encodeURIComponent(username)}&confirm=true`, { method:'POST' }); } catch(e) {}
+    localStorage.clear();
+    window.location.href = '../../static/login.html';
+}
+</script>
+</body>
+</html>

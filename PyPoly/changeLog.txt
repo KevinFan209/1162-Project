@@ -837,3 +837,88 @@ PyPoly 變更紀錄 (changeLog)
         submitQuizAnswer 由辨識路徑與後台路徑各呼叫一次。
   ⚠️ 需瀏覽器實測：無相機情況下用後台走完「答題 → 收購決策 → 換人」整段。
 ========================================================================
+
+
+[2026-08-17] #38 整併 main 分支、封存舊原型、移植環境部 AQI 功能
+  背景：小組決議以原 Fan 分支為主要專案。原先以為 main 距今久遠、改動多而
+        「無法自動 merge」，打算先把 main 的檔案搬進 past/ 再合併以迴避衝突。
+
+  查證結果推翻了前提：
+    - 相對於共同祖先 b1a3ad3，main 的淨變更只有「在 影像辨識/ 新增 29 檔」。
+      其中 21 檔與 Fan 完全相同；另外 8 檔的差異純粹是 CRLF vs LF——
+      逐位元組比對確認忽略  後 md5 一致，位元組差正好等於行數。
+    - 因此 git merge -Xrenormalize 可完全自動合併，實測零衝突。
+      先前的「無法 merge」是被這些換行造成的幽靈衝突誤導。
+    - past/ 於是不再是迴避手段而純屬整理，且改為「合併後才搬」
+      —— 若照原構想先在 main 上搬進 past/ 再合併，會觸發 git 的重命名偵測，
+      結果難以預測。順序是關鍵。
+
+  一、合併 main（root）
+    - git merge -Xrenormalize origin/main → 零衝突，產生 merge commit。
+    - ⚠️ 合併「不會」帶回 main 上那 93 個 Fan 沒有的檔案，因為 Fan 當初刻意
+      刪除或改名過它們（例如 83baf6f 把 TestCar 改名並演進為 3D Chess），
+      git 尊重 Fan 側的刪除。這是正確行為，非合併失敗。
+
+  二、新增 .gitattributes（root，治本）
+    - 專案原本沒有這個檔案，這正是換行幽靈衝突的根源。
+    - 加入 * text=auto 與各類二進位副檔名的 binary 標記，
+      日後跨機器協作不會再出現同類誤判。
+
+  三、目錄整理
+    - git mv 五個舊原型資料夾進 past/：
+      UI設計 / 影像辨識 / 登出、入UI / 3D Chess / BoardEditor。
+      搬移前已確認 PyPoly 與 ops 對這些名稱的引用皆為中文詞彙（UI 文字、註解），
+      無任何相對路徑依賴。
+    - 另建 past/main-branch/，明確保留 main 獨有的 93 個檔案
+      （TestCar 9 檔、新UI設計 56 檔、UI設計/page 28 檔），
+      避免這些內容只存在於歷史中。二進位檔（21.4MB 的 .glb）已比對 md5 確認未損壞。
+      因 blob 早已在物件庫中，repo 體積幾乎不增加。
+    - 新增 past/README.md 說明各目錄用途與 main-branch/ 的來由。
+    - 根目錄 README.md 前段補上目前的專案結構，並註明後段是初期規劃文件、
+      部分技術選擇與最終實作不同（後端最終是 FastAPI 而非 Node.js）。
+
+  四、移植 origin/vamos 的環境部 AQI 功能
+    - 來源：origin/vamos 的 990e880「接環境部API，特定格子有環境加成」，
+      原作者 specialstyle035@gmail.com。該 commit 基於舊目錄結構
+      （main.py 在根目錄、前端在 UI設計/page/），故未合併分支而是手動移植。
+    - 新增 PyPoly/air_quality.py：fetch_aqi_by_name() 依監測站名稱取即時 AQI。
+      加成規則沿用原版：AQI<=50 → ×1.15；>100 → ×0.85；51~100 → ×1.0。
+    - PyPoly/main.py get_adventure_analysis()：原本 real_aqi 是
+      random.randint(15,160) 的佔位，改為以 land.api_station_name 查真實 AQI，
+      並把倍率套用到 total_price 與 toll；另回傳 has_env_event / env_station /
+      env_status / env_multiplier 供前端顯示。
+    - static/game.html fillDecisionUI()：空地分支原本顯示固定的「-- 環境狀態 --」，
+      改為顯示測站名、AQI、狀態與加成倍率（依加成正負變色）。
+    - 未移植原版前端（alert 彈窗 + 寫死 127.0.0.1:8000）與其根目錄 main.py
+      （30 行獨立小伺服器，PyPoly 已有完整後端）。
+    - PyPoly/.env.example 補上 MOENV_API_KEY 欄位與申請說明。
+
+  ⚠️ 移植時發現的兩個問題（原版也有，但會被靜默吞掉）：
+    1. Python 3.13 起 ssl.create_default_context() 預設啟用 VERIFY_X509_STRICT，
+       而 data.moenv.gov.tw 的憑證缺少 Subject Key Identifier 擴充欄位，
+       requests 會直接拋 SSLCertVerificationError。實測 curl（走 schannel）
+       連得上，證明問題在 Python 端的嚴格檢查。
+       解法：自訂 HTTPAdapter 只關閉 VERIFY_X509_STRICT 這一項形式檢查，
+       CA 鏈／主機名／有效期的驗證全部保留（不是 verify=False）。
+       若不處理，API 呼叫永遠失敗、AQI 永遠是保底值 35，
+       看起來像功能正常但其實從未取得真實資料。
+    2. 原版在 API_KEY 為空時也會走進 try 並靜默 fallback。
+       改為先檢查並印出明確警告，避免誤以為功能已生效。
+
+  ⚠️ 安全性：origin/vamos 的 990e880 把含 MOENV_API_KEY 的 .env 提交進版控，
+     該金鑰已存在於 GitHub 歷史。本次未合併 vamos，故該檔案未進入本分支，
+     但請視舊金鑰為已洩漏並重新申請。
+     （另檢查到 3D Chess/.../my-work/.env 內容為 NGROK_AUTHTOKEN=your_ngrok_token_here，
+       是範本值非真金鑰，無外洩。）
+
+  驗證：
+    - 合併後 git status 乾淨、無衝突標記；main 的內容皆已納入（缺少的 93 檔
+      為 Fan 刻意刪除者，已另存於 past/main-branch/）。
+    - git ls-files 確認無任何 .env 被追蹤（僅 .env.example）。
+    - 搬移 past/ 後 PyPoly 仍可正常啟動（uvicorn main:sio_app）。
+    - AQI：五個情境的 /game/adventure_analysis 皆回 200；
+      日月潭（無對應測站）has_env_event=False、倍率 1.0、aqi=None 且價格照算不報錯；
+      有測站者價格確認等於 (base + 人流加成) × 倍率。共 14 項測試通過。
+    - 回歸：先前的 69 項整合測試與 17 項地圖/測試模式測試全數通過。
+    - game.html 以括號平衡檢查確認結構完整。
+========================================================================

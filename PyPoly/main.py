@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 import models, auth_utils, database
+import air_quality  # 🏆 環境部 AQI（移植自 origin/vamos 的 990e880）
 import smtplib, random, requests, base64, cv2
 import numpy as np
 from email.mime.text import MIMEText
@@ -1068,17 +1069,26 @@ async def get_adventure_analysis(land_id: int, db: Session = Depends(database.ge
 
     # 2. 抓取該地點的「即時人流」與「AQI」 [需求：根據實際人流計算]
     real_crowd = await fetch_nantou_live_data(land.name)
-    real_aqi = random.randint(15, 160) # 同理可串接環境監測 API
+
+    # 🏆 AQI 改接環境部真實資料（移植自 origin/vamos 的 990e880）。
+    #    api_station_name 不在 4 大監測站清單時（例如日月潭）回 None，
+    #    此時維持原本定價、不套加成，前端也不顯示環境事件。
+    aqi_info = air_quality.fetch_aqi_by_name(land.api_station_name)
+    has_env_event = aqi_info is not None
+    real_aqi = aqi_info["aqi"] if has_env_event else None
+    multiplier = aqi_info["multiplier"] if has_env_event else 1.0
 
     # 3. ⚖️ 重新定義收購價計算
-    # 總收購價 = 土地基本價 + (當下人流 * 加成權重)
+    # 總收購價 = 土地基本價 + (當下人流 * 加成權重)，再乘上空氣品質加成
     crowd_bonus = int(real_crowd * 0.8)
-    total_acquisition_price = land.base_price + crowd_bonus
+    total_acquisition_price = int((land.base_price + crowd_bonus) * multiplier)
 
     # 4. 🏆 [需求修正] 過路費邏輯：
     # 這裡回傳的是「保底過路費」，直接從資料庫讀取，不進行 15% 的計算。
     # 這讓玩家知道：「即使沒人流，我至少能收多少錢」。
-    display_base_toll = land.base_toll if hasattr(land, 'base_toll') else 200
+    # 空氣品質加成同樣套用於過路費。
+    base_toll = land.base_toll if land.base_toll else 200
+    display_base_toll = int(base_toll * multiplier)
 
     return {
         "name": land.name,
@@ -1088,7 +1098,12 @@ async def get_adventure_analysis(land_id: int, db: Session = Depends(database.ge
         "crowd_bonus": crowd_bonus,
         "total_price": total_acquisition_price,
         "toll": display_base_toll, # 顯示的是保底過路費
-        "aqi": real_aqi
+        "aqi": real_aqi,           # 無對應測站時為 None
+        # 🏆 環境事件資訊，供前端 fillDecisionUI 顯示加成
+        "has_env_event": has_env_event,
+        "env_station": aqi_info["station_name"] if has_env_event else None,
+        "env_status": aqi_info["status"] if has_env_event else None,
+        "env_multiplier": multiplier,
     }
 
 # main.py 確保包含這兩段 (刪除舊的 sync_adventure_start/state)

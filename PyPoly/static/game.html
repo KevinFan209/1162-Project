@@ -3598,9 +3598,20 @@ function fillDecisionUI(data, activePlayerName) {
     // 情境 C：空地 -> 一般收購
     else {
         if (aqiTag) {
-            aqiTag.innerText = `-- 環境狀態 --`;
-            aqiTag.style.background = "#f1f5f9";
-            aqiTag.style.color = "#64748b";
+            // 🏆 顯示環境部即時 AQI 與加成倍率（後端 has_env_event 為真時才有）。
+            //    非 4 大監測站的地點（例如日月潭）沒有環境事件，維持原本樣式。
+            if (data.has_env_event) {
+                const m = data.env_multiplier;
+                const good = m > 1;
+                aqiTag.innerText = `🍃 ${data.env_station}站 AQI ${data.aqi}（${data.env_status}）`
+                    + (m === 1 ? `　價格不變` : `　價格 ×${m}`);
+                aqiTag.style.background = good ? "#00cdac" : (m < 1 ? "#ff7675" : "#f1f5f9");
+                aqiTag.style.color = (m === 1) ? "#64748b" : "white";
+            } else {
+                aqiTag.innerText = `-- 環境狀態 --`;
+                aqiTag.style.background = "#f1f5f9";
+                aqiTag.style.color = "#64748b";
+            }
         }
         if (totalEl) totalEl.innerText = `$${data.total_price || 0}`;
         if (tollEl) tollEl.innerText = `$${data.toll || 0}`;

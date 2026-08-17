@@ -1,0 +1,430 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BeeRich - 個人主頁</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-blue: #4facfe;
+            --success-green: #00cdac;
+            --success-green-shadow: #00a88b;
+            --bg-gray: #f1f5f9;
+            --text-dark: #000000;
+            --text-gray: #64748b;
+            --sidebar-dark: #334155;
+            --sidebar-dark-shadow: #1e293b;
+            --border-light: #e2e8f0;
+            --google-red: #ea4335;
+            --primary-yellow: #ffde59;
+            --error-red: #ff7675;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
+        body { background-color: var(--bg-gray); height: 100%; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+
+        header {
+            background: linear-gradient(to bottom, #ffffff 0%, #fcfcfc 100%);
+            padding: 0 40px; display: flex; justify-content: space-between; align-items: center;
+            height: 85px; z-index: 100; border-bottom: 1.5px solid var(--border-light); 
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+        }
+        .header-left h1 { font-size: 2.5rem; font-weight: 900; margin-bottom: 10px; color: var(--text-dark); cursor: pointer; }
+        .header-right { display: flex; align-items: center; gap: 20px; }
+        .page-tag { font-weight: 800; color: var(--text-gray); background: #f1f5f9; padding: 10px 22px; border-radius: 12px; font-size: 0.95rem; }
+
+        .menu-btn { background: transparent; border: none; cursor: pointer; display: flex; flex-direction: column; justify-content: center; padding: 10px; transition: 0.2s; }
+        .menu-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.15); display: none; z-index: 999; backdrop-filter: blur(2px); }
+        .menu-overlay.open { display: block; }
+
+        .side-menu {
+            position: fixed; top: 0; right: -320px; width: 320px; height: 100%;
+            background: white; box-shadow: -10px 0 30px rgba(0,0,0,0.05);
+            z-index: 1000; transition: 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+            padding: 100px 30px 40px; display: flex; flex-direction: column; gap: 15px;
+        }
+        .side-menu.open { right: 0; }
+
+        .menu-item {
+            padding: 18px 25px; border-radius: 15px; font-weight: 800;
+            color: var(--text-gray); text-decoration: none; display: flex;
+            align-items: center; gap: 15px; transition: 0.2s; background: #f8fafc;
+        }
+        .menu-item:hover { background: var(--bg-gray); color: var(--text-dark); }
+        .menu-item.danger { margin-top: auto; color: #ff4757; cursor: pointer; }
+
+        .profile-main { flex: 1; display: flex; justify-content: center; align-items: center; padding: 25px; }
+        .profile-container { display: flex; gap: 30px; width: 95%; max-width: 1000px; height: 80vh; }
+
+        .profile-aside {
+            width: 320px; background: white; border-radius: 35px; padding: 40px 30px;
+            display: flex; flex-direction: column; align-items: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1.5px solid var(--border-light);
+        }
+        .avatar-box {
+            width: 100%; aspect-ratio: 1; background: #f8fafc;
+            border: 3px solid var(--primary-blue); border-radius: 30px;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            margin-bottom: 25px; color: var(--primary-blue); font-weight: 800;
+        }
+        .current-id { font-size: 1.5rem; font-weight: 900; color: var(--text-dark); margin-bottom: 5px; }
+        .current-email { font-size: 0.85rem; color: var(--text-gray); font-weight: 700; word-break: break-all; text-align: center;}
+
+        .profile-content {
+            flex: 1; background: white; border-radius: 35px; padding: 45px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1.5px solid var(--border-light);
+            overflow-y: auto;
+        }
+        .form-group { margin-bottom: 22px; position: relative; }
+        .label-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .form-label { font-weight: 900; color: var(--text-dark); font-size: 1rem; }
+        .forgot-link { font-size: 0.85rem; color: var(--primary-blue); text-decoration: none; font-weight: 800; }
+        
+        .form-input {
+            width: 100%; padding: 16px 20px; border-radius: 15px;
+            border: 2px solid var(--bg-gray); background: #f8fafc;
+            font-size: 1rem; font-weight: 700; transition: 0.2s;
+        }
+        .form-input:focus { outline: none; border-color: var(--primary-blue); background: white; }
+        .form-input:disabled { background: #f1f5f9; cursor: not-allowed; opacity: 0.7; }
+
+        .google-badge {
+            background: #fff5f5; color: var(--google-red); 
+            padding: 10px 15px; border-radius: 12px; font-weight: 800; font-size: 0.9rem;
+            display: flex; align-items: center; gap: 8px; margin-bottom: 20px;
+        }
+
+        .btn-group { display: flex; gap: 15px; margin-top: 20px; }
+        .btn-3d {
+            flex: 1; padding: 20px; border: none; border-radius: 18px;
+            font-size: 1.2rem; font-weight: 900; cursor: pointer; transition: 0.1s;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .btn-save { background: var(--success-green); color: white; box-shadow: 0 6px 0 var(--success-green-shadow); }
+        .btn-cancel { background: var(--sidebar-dark); color: white; box-shadow: 0 6px 0 var(--sidebar-dark-shadow); }
+        .btn-3d:active { transform: translateY(4px); box-shadow: none; }
+
+        .modal { z-index: 2000; }
+    </style>
+</head>
+<body>
+
+<div class="menu-overlay" id="overlay" onclick="toggleMenu()"></div>
+
+<div class="side-menu" id="sideMenu">
+    <a href="profile.html" class="menu-item"><span>👤</span> 個人主頁</a>
+    <a href="guide.html" class="menu-item"><span>📖</span> 遊戲說明</a>
+    <a href="learn.html" class="menu-item"><span>📊</span> 學習統計</a>
+    <a href="#" class="menu-item"><span>⚙️</span> 遊戲設定</a>
+    <a href="lobby.html" class="menu-item"><span>🏠</span> 返回大廳</a>
+    <a href="javascript:void(0)" onclick="logout()" class="menu-item danger"><span>🚪</span> 登出遊戲</a>
+</div>
+
+<header>
+    <div class="header-left" onclick="location.href='lobby.html'"><h1>BeeRich</h1></div>
+    <div class="header-right">
+        <div class="page-tag">個人主頁 👤</div>
+        <button class="menu-btn" onclick="toggleMenu()">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+        </button>
+    </div>
+</header>
+
+<div class="profile-main">
+    <div class="profile-container">
+        <aside class="profile-aside">
+            <div class="avatar-box">
+                <div style="font-size: 3rem;">👤</div>
+                <p style="margin-top:10px;">點擊更換頭像</p>
+            </div>
+            <div class="current-id" id="displayUsername">載入中...</div>
+            <div class="current-email" id="displayEmail">載入中...</div>
+        </aside>
+
+        <main class="profile-content">
+            <h2 style="font-weight: 900; margin-bottom: 25px;">編輯帳戶資訊</h2>
+
+            <div id="googleNotice" style="display: none;" class="google-badge">
+                <span>🌐</span> 您目前使用 Google 帳號登入，密碼由 Google 管理。
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">更改使用者 ID</label>
+                <input type="text" id="inputUsername" class="form-input">
+            </div>
+
+			<div class="form-group">
+				<label class="form-label">目前電子信箱 (Current Email)</label>
+				<input type="email" id="displayInputEmail" class="form-input" disabled style="background: #f1f5f9; cursor: not-allowed;">
+			</div>
+
+			<div id="emailChangeSection">
+				<div class="form-group">
+					<label class="form-label">新電子信箱 (New Email)</label>
+					<div style="display: flex; gap: 10px; align-items: stretch;">
+						<input type="email" id="newEmailInput" class="form-input" placeholder="請輸入新信箱" style="flex: 1;">
+						<button type="button" onclick="sendEmailOTP()" class="btn-3d" style="width: 100px; padding: 0; font-size: 0.9rem; background: var(--primary-blue); color: white; box-shadow: 0 4px 0 #3d8bcd; flex-shrink: 0;">驗證信箱</button>
+					</div>
+				</div>
+
+				<div id="emailOtpGroup" class="form-group" style="display: none; margin-top: 15px;">
+					<label class="form-label">新信箱驗證碼</label>
+					<input type="text" id="emailOtp" class="form-input" placeholder="請輸入 6 位數驗證碼">
+					<small style="color: var(--primary-blue); font-weight: 700;">* 請至新信箱查收驗證碼</small>
+				</div>
+			</div>
+
+            <div id="passwordEditSection">
+                <hr style="border: 0; border-top: 2px dashed var(--border-light); margin: 30px 0;">
+
+                <div class="form-group">
+                    <div class="label-row">
+                        <label class="form-label">原密碼 (Old Password)</label>
+                        <a href="forgot.html" class="forgot-link">忘記密碼？</a>
+                    </div>
+                    <input type="password" id="oldPassword" class="form-input" placeholder="請輸入當前密碼以進行修改">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">設定新密碼 (New Password)</label>
+                    <input type="password" id="newPassword" class="form-input" placeholder="請輸入新密碼">
+                </div>
+            </div>
+
+            <div class="btn-group">
+                <button class="btn-3d btn-cancel" onclick="location.href='lobby.html'">返回大廳</button>
+                <button class="btn-3d btn-save" onclick="saveChanges()">確認儲存</button>
+            </div>
+        </main>
+    </div>
+</div>
+
+<div id="statusModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); justify-content: center; align-items: center;">
+    <div class="modal-content" style="background: white; padding: 40px; border-radius: 40px; width: 380px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.15);">
+        <h3 id="modalTitle" style="font-weight: 900; margin-bottom: 15px; font-size: 1.5rem;">提示</h3>
+        <p id="modalMsg" style="margin-bottom: 25px; color: var(--text-gray); font-weight: 700; line-height: 1.5;"></p>
+        <button onclick="closeModal()" class="btn-3d" id="modalBtn" style="width: 100%; background: var(--primary-yellow); box-shadow: 0 6px 0 #e6c543; color: #574b10; border: none; padding: 15px; border-radius: 15px; font-weight: 900; cursor: pointer;">確定</button>
+    </div>
+</div>
+
+<script>
+    const API_URL = window.location.protocol !== 'file:' ? window.location.origin : 'http://localhost:8000';
+    let syncTimer = null; // 用於儲存心跳計時器
+
+    // --- 1. 頁面初始化：驗證、復活與資料載入 ---
+    // 這裡實作了老師要求的「驗證與自動續期」邏輯
+    window.onload = async function() {
+        const username = localStorage.getItem('username');
+        const token = localStorage.getItem('token');
+
+        if (!token || !username) {
+            window.location.href = 'login.html';
+            return;
+        }
+
+        try {
+            // =============================
+            // 🏆 核心：老師建議的驗證與續期 (對接 FastAPI)
+            // =============================
+            const verifyRes = await fetch(`${API_URL}/auth/verify_and_refresh?username=${encodeURIComponent(username)}`, {
+                method: "POST",
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const verifyData = await verifyRes.json();
+
+            if (verifyData.status !== "success") {
+                localStorage.clear();
+                window.location.href = "login.html";
+                return;
+            }
+
+            console.log("個人主頁驗證成功，狀態已復活");
+
+            // 啟動監控循環 (檢查是否被踢出)
+            startSyncLoop(username, token);
+
+            // 載入用戶資料顯示於頁面
+            const response = await fetch(`${API_URL}/auth/me?username=${encodeURIComponent(username)}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                document.getElementById('displayUsername').innerText = data.username;
+                document.getElementById('displayEmail').innerText = data.email;
+                document.getElementById('inputUsername').value = data.username;
+                
+                const currentEmailField = document.getElementById('displayInputEmail');
+                if (currentEmailField) {
+                    currentEmailField.value = data.email;
+                }
+
+                // 判斷是否為 Google 用戶
+                if (data.is_google_user === true) {
+                    document.getElementById('passwordEditSection').style.display = 'none';
+                    document.getElementById('emailChangeSection').style.display = 'none';
+                    document.getElementById('googleNotice').style.display = 'flex';
+                }
+            }
+        } catch (err) {
+            console.error("載入失敗:", err);
+        }
+    };
+
+    // --- 2. 核心監控循環 ---
+    function startSyncLoop(username, token) {
+        if (syncTimer) clearInterval(syncTimer);
+        syncTimer = setInterval(async () => {
+            try {
+                // 發送心跳 (確保 last_active 持續更新)
+                fetch(`${API_URL}/auth/heartbeat?username=${encodeURIComponent(username)}`, {
+                    method: 'POST', 
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                // 同步狀態校對 (防止重複登入或被封鎖)
+                const res = await fetch(`${API_URL}/auth/me?username=${encodeURIComponent(username)}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    // 如果被後端判定為離線，立刻跳轉回登入頁
+                    if (data.is_online === 0 || data.role === 'banned') {
+                        clearInterval(syncTimer);
+                        localStorage.clear();
+                        window.location.href = 'login.html';
+                    }
+                }
+            } catch (err) {}
+        }, 5000);
+    }
+
+    // --- 3. 導航與登出 ---
+    function toggleMenu() {
+        document.getElementById('sideMenu').classList.toggle('open');
+        document.getElementById('overlay').classList.toggle('open');
+    }
+
+		// 🏆 修正後的登出功能：帶上 confirm=true 參數繞過攔截
+		
+	async function logout() {
+		// 1. 停止心跳，防止登出後被「復活」
+		if (typeof syncTimer !== 'undefined' && syncTimer) {
+			clearInterval(syncTimer);
+		}
+
+		const username = localStorage.getItem('username');
+		if (!username) return;
+
+		// 🏆 暴力拼接網址，確保 confirm=true 一定會被帶過去
+		const url = API_URL + "/auth/logout?username=" + encodeURIComponent(username) + "&confirm=true";
+		
+		// 檢查點：請在 F12 控制台看看這行印出的網址尾巴有沒有 confirm=true
+		console.log("正在發送登出請求到:", url);
+
+		try {
+			const response = await fetch(url, { 
+				method: 'POST',
+				mode: 'cors', // 確保跨域正常
+				cache: 'no-cache' // 告訴瀏覽器不要用快取
+			});
+			const result = await response.json();
+			console.log("後端回應：", result);
+		} catch (err) {
+			console.error("登出連線失敗", err);
+		}
+
+		// 2. 清理本地端資料
+		localStorage.clear();
+		
+		// 3. 跳轉
+		window.location.href = 'login.html';
+	}
+
+    // --- 4. 修改資料邏輯 (保留你原本的功能) ---
+    async function sendEmailOTP() {
+        const newEmail = document.getElementById('newEmailInput').value.trim();
+        if (!newEmail) return showModal("⚠️ 提示", "請先輸入新的 Email 喔！", false);
+        
+        try {
+            const res = await fetch(`${API_URL}/auth/send-otp-new-email`, { 
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: newEmail })
+            });
+            
+            if (res.ok) {
+                showModal("📩 已發送", `驗證碼已發送到 ${newEmail}，請至該信箱查看。`, true);
+                document.getElementById('emailOtpGroup').style.display = 'block';
+            } else {
+                const result = await res.json();
+                showModal("❌ 錯誤", result.detail || "發送失敗", false);
+            }
+        } catch (err) {
+            showModal("⚠️ 失敗", "連線伺服器失敗", false);
+        }
+    }
+
+    async function saveChanges() {
+        const token = localStorage.getItem('token');
+        const newUsername = document.getElementById('inputUsername').value.trim();
+        const newEmail = document.getElementById('newEmailInput').value.trim();
+        const emailOtp = document.getElementById('emailOtp').value.trim();
+        const oldPassword = document.getElementById('oldPassword')?.value;
+        const newPassword = document.getElementById('newPassword')?.value;
+
+        if (!newUsername) return showModal("⚠️ 提示", "使用者 ID 不能為空喔！", false);
+
+        try {
+            const response = await fetch(`${API_URL}/auth/update-profile`, {
+                method: 'PUT',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ 
+                    new_username: newUsername,
+                    new_email: newEmail || null,
+                    email_otp: emailOtp || null,
+                    old_password: oldPassword, 
+                    new_password: newPassword 
+                })
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                localStorage.setItem('token', result.access_token);
+                localStorage.setItem('username', result.username);
+                showModal("🎉 更新成功", "個人資料已修改！", true);
+                document.getElementById('modalBtn').onclick = () => location.reload();
+            } else {
+                showModal("❌ 修改失敗", result.detail || "更新失敗", false);
+            }
+        } catch (err) {
+            showModal("⚠️ 失敗", "連線伺服器失敗", false);
+        }
+    }
+
+    // --- 5. 彈窗 UI 控制 ---
+    function showModal(title, message, isSuccess = true) {
+        const modal = document.getElementById('statusModal');
+        document.getElementById('modalTitle').innerText = title;
+        document.getElementById('modalMsg').innerHTML = message;
+        document.getElementById('statusModal').style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('statusModal').style.display = 'none';
+    }
+
+    // 🏆 已經徹底移除 window.addEventListener('beforeunload')！
+    // 解決了跳轉就登出的問題。
+</script>
+</body>
+</html>

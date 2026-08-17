@@ -1,0 +1,223 @@
+:root {
+    --primary-blue: #4facfe;
+    --primary-yellow: #ffde59;
+    --primary-pink: #ff9a9e;
+    --success-green: #00cdac;
+    --bg-light: #f8fbff;
+    --text-dark: #000000; /* 標題改為純黑 */
+    --text-gray: #636e72;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    /* 字體恢復為原本設定 */
+    font-family: 'Segoe UI', '微軟正黑體', sans-serif;
+}
+
+body {
+    background-color: var(--bg-light);
+    background-image: 
+        radial-gradient(circle at 10% 20%, rgba(79, 172, 254, 0.05) 0%, transparent 20%),
+        radial-gradient(circle at 90% 80%, rgba(255, 222, 89, 0.1) 0%, transparent 20%);
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: var(--text-gray);
+}
+
+.card {
+    background: white;
+    width: 420px;
+    padding: 50px 40px;
+    border-radius: 30px;
+    box-shadow: 0 20px 50px rgba(79, 172, 254, 0.15);
+    text-align: center;
+    position: relative;
+    /* 移除黑框，改為淺色細邊框 */
+    border: 2px solid #f1f2f6;
+}
+
+/* 標題改為純黑色，拿掉漸層 */
+h1 {
+    font-size: 3.5rem;
+    font-weight: 900;
+    margin-bottom: 5px;
+    color: var(--text-dark);
+}
+
+.tagline {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #b2bec3;
+    letter-spacing: 3px;
+    margin-bottom: 35px;
+    text-transform: uppercase;
+}
+
+.tabs {
+    display: flex;
+    background: #f1f2f6;
+    border-radius: 15px;
+    margin-bottom: 30px;
+    padding: 5px;
+}
+
+.tab {
+    flex: 1;
+    padding: 12px;
+    cursor: pointer;
+    border-radius: 12px;
+    font-weight: 700;
+    color: #636e72;
+    transition: 0.3s;
+}
+
+.tab.active {
+    background: white;
+    color: var(--text-dark);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
+
+.input-group {
+    margin-bottom: 20px;
+    text-align: left;
+}
+
+label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+    margin-left: 5px;
+    color: #636e72;
+}
+
+input {
+    width: 100%;
+    padding: 14px;
+    border: 2px solid #f1f2f6;
+    border-radius: 15px;
+    background: #fdfdfd;
+    font-size: 1rem;
+    outline: none;
+    transition: 0.3s;
+}
+
+input:focus {
+    border-color: var(--primary-blue);
+    background: white;
+}
+
+/* ---------------- 新增樣式 ---------------- */
+.form-options {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: -10px;
+    margin-bottom: 25px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0 5px;
+}
+
+.remember-me {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-gray);
+    cursor: pointer;
+}
+
+.remember-me input {
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+    accent-color: var(--text-dark);
+}
+
+.forgot-pw {
+    color: var(--text-gray);
+    text-decoration: none;
+    transition: 0.2s;
+}
+
+.forgot-pw:hover {
+    text-decoration: underline;
+}
+/* ---------------------------------------- */
+
+/* 鮮豔的 3D 按鈕 */
+button.btn-submit {
+    width: 100%;
+    padding: 15px;
+    border: none;
+    border-radius: 15px;
+    background: var(--primary-yellow);
+    color: #574b10;
+    font-size: 1.1rem;
+    font-weight: 900;
+    cursor: pointer;
+    box-shadow: 0 6px 0 #e6c543;
+    transition: 0.1s;
+    margin-top: 10px;
+}
+
+button.btn-submit:hover {
+    transform: translateY(2px);
+    box-shadow: 0 4px 0 #e6c543;
+}
+
+button.btn-submit:active {
+    transform: translateY(6px);
+    box-shadow: 0 0 0 #e6c543;
+}
+
+/* Google 登入按鈕與分隔線 */
+.divider {
+    margin: 25px 0;
+    display: flex;
+    align-items: center;
+    color: #dfe6e9;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.divider::before, .divider::after {
+    content: "";
+    flex: 1;
+    height: 2px;
+    background: #f1f2f6;
+    margin: 0 15px;
+}
+
+.google-btn {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #f1f2f6;
+    border-radius: 15px;
+    background: white;
+    color: #2d3436;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.google-btn:hover {
+    background: #f8fbff;
+    border-color: var(--primary-blue);
+}
+
+form { display: none; }
+form.active { display: block; animation: slideUp 0.4s ease; }
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}

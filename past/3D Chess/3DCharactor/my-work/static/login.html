@@ -1,0 +1,487 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <title>Pypoly - Python Adventure</title>
+    <style>
+        :root {
+            --primary-blue: #4facfe;
+            --primary-yellow: #ffde59;
+            --success-green: #00cdac;
+            --error-red: #ff7675;
+            --bg-light: #f8fbff;
+            --text-dark: #000000;
+            --text-gray: #636e72;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
+
+        body {
+            background-color: var(--bg-light);
+            background-image: radial-gradient(circle at 10% 20%, rgba(79, 172, 254, 0.05) 0%, transparent 20%);
+            min-height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center; 
+            padding: 40px 20px;
+        }
+
+        .card {
+            background: white;
+            width: 420px;
+            min-height: 600px;
+            padding: 50px 40px;
+            border-radius: 30px;
+            box-shadow: 0 20px 50px rgba(79, 172, 254, 0.15);
+            text-align: center;
+            border: 2px solid #f1f2f6;
+            display: flex;
+            flex-direction: column;
+            margin-top: -20px;
+        }
+
+        h1 {
+            font-size: 3.5rem;
+            font-weight: 900;
+            margin-bottom: 0px;
+            color: var(--text-dark);
+            user-select: none;
+            margin-top: -20px;
+        }
+
+        .tagline {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #b2bec3;
+            letter-spacing: 3px;
+            margin-bottom: 35px;
+            text-transform: uppercase;
+        }
+
+        .tabs {
+            display: flex;
+            background: #f1f2f6;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            padding: 5px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 12px;
+            cursor: pointer;
+            border-radius: 12px;
+            font-weight: 700;
+            color: #636e72;
+            transition: 0.3s;
+        }
+
+        .tab.active { background: white; color: var(--text-dark); box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+
+        .form-container { width: 100%; text-align: left; }
+
+        form { display: none; }
+        form.active { display: block; animation: slideUp 0.3s ease forwards; }
+
+        .input-group {
+            margin-bottom: 20px; 
+            position: relative;
+        }
+
+        label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            margin-left: 5px;
+            color: #636e72;
+        }
+
+        input {
+            width: 100%;
+            padding: 14px;
+            border: 2px solid #f1f2f6;
+            border-radius: 15px;
+            background: #fdfdfd;
+            font-size: 1rem;
+            outline: none;
+        }
+
+        input:focus { border-color: var(--primary-blue); background: white; }
+
+        input::-webkit-calendar-picker-indicator {
+            display: none !important;
+        }
+
+        #idCheckMsg {
+            position: absolute;
+            left: 5px;
+            bottom: -18px;
+            font-size: 0.7rem;
+            font-weight: bold;
+        }
+
+        .form-options {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: -5px;
+            margin-bottom: 25px;
+            padding: 0 5px;
+        }
+
+        .remember-me {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            color: var(--text-gray);
+        }
+
+        .remember-me input {
+            width: 16px;
+            height: 16px;
+            margin: 0;
+        }
+
+        .forgot-pw {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--primary-blue);
+            text-decoration: none;
+        }
+
+        .forgot-pw:hover { text-decoration: underline; }
+
+        button.btn-submit {
+            width: 100%;
+            padding: 18px;
+            border: none;
+            border-radius: 15px;
+            background: var(--primary-yellow);
+            color: #574b10;
+            font-size: 1.1rem;
+            font-weight: 900;
+            cursor: pointer;
+            box-shadow: 0 6px 0 #e6c543;
+            margin-top: 10px;
+            transition: 0.1s;
+        }
+
+        button.btn-submit:active { transform: translateY(4px); box-shadow: 0 2px 0 #e6c543; }
+
+        .divider {
+            margin: 25px 0;
+            display: flex;
+            align-items: center;
+            color: #dfe6e9;
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+
+        .divider::before, .divider::after { content: ""; flex: 1; height: 2px; background: #f1f2f6; margin: 0 15px; }
+
+        .google-btn {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #f1f2f6;
+            border-radius: 15px;
+            background: white;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            cursor: pointer;
+            margin-top: auto;
+        }
+
+        @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.4); display: none;
+            align-items: center; justify-content: center; z-index: 1000;
+            backdrop-filter: blur(4px);
+        }
+        .modal-card {
+            background: white; width: 380px; padding: 40px; border-radius: 40px;
+            text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+            border: 2px solid #f1f2f6; animation: popIn 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
+        }
+        @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>BeeRich</h1>
+        <p class="tagline">Python Adventure</p>
+
+        <div class="tabs">
+            <div id="loginTab" class="tab active" onclick="toggle('login')">登入遊戲</div>
+            <div id="regTab" class="tab" onclick="toggle('register')">加入冒險</div>
+        </div>
+
+        <div class="form-container">
+            <form id="loginForm" class="active">
+                <div class="input-group">
+                    <label>PLAYER ID</label>
+                    <input type="text" id="loginUser" name="username" autocomplete="username" placeholder="輸入帳號...">
+                    <datalist id="idHistory"></datalist>
+                </div>
+                <div class="input-group">
+                    <label>PASSWORD</label>
+                    <input type="password" id="loginPass" placeholder="••••••••" required>
+                </div>
+                <div class="form-options">
+                    <label class="remember-me">
+                        <input type="checkbox" id="rememberMe"> 記住我
+                    </label>
+					<a href="forgot.html" style="color:#4facfe; font-size: 0.8rem; font-weight: 700; text-decoration: none;">忘記密碼？</a>
+                </div>
+                <button type="submit" class="btn-submit">GO! 開始遊戲</button>
+            </form>
+
+            <form id="regForm">
+                <div class="input-group">
+                    <label>GAME ID</label>
+                    <input type="text" id="regUsername" name="username" autocomplete="username" placeholder="Game ID">
+                    <span id="idCheckMsg"></span>
+                </div>
+                <div class="input-group">
+                    <label>EMAIL</label>
+                    <input type="email" id="regEmail" placeholder="冒險者的信箱..." required>
+                </div>
+                <div class="input-group">
+                    <label>SET PASSWORD</label>
+                    <input type="password" id="regPassword" placeholder="••••••••" required>
+                </div>
+                <button type="submit" id="regSubmitBtn" class="btn-submit" style="background:var(--success-green); color:white; box-shadow:0 6px 0 #00a88b;">CREATE & GO!</button>
+            </form>
+        </div>
+
+        <div class="divider">或者使用</div>
+
+        <button class="google-btn" onclick="handleGoogleLogin()">
+            <svg width="20" height="20" viewBox="0 0 24 24">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+            Google 帳號快速登入
+        </button>
+    </div>
+
+    <div id="statusModal" class="modal-overlay">
+        <div class="modal-card">
+            <h2 id="modalTitle" style="font-weight: 900; margin-bottom: 15px;">標題</h2>
+            <p id="modalMsg" style="font-weight: 800; color: #636e72; margin-bottom: 30px;">內容訊息</p>
+            <button id="modalBtn" class="btn-submit" onclick="closeModal()">確定</button>
+        </div>
+    </div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+    const API_URL = window.location.protocol !== 'file:' ? window.location.origin : 'http://localhost:8000';
+
+    // --- 0. 頁面初始化：狀態校對與封鎖偵測 ---
+    document.addEventListener('DOMContentLoaded', async () => {
+        // 🏆 1. 偵測 URL 參數：如果從大廳被踢過來，顯示封鎖訊息
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('reason') === 'banned') {
+            showModal("🚫 帳號停權", "您的帳號已被封鎖，無法進入遊戲，請聯繫管理員。", false);
+            // 清除 URL 參數，避免刷新後又跳出
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
+        const token = localStorage.getItem('token');
+        const username = localStorage.getItem('username');
+        const role = localStorage.getItem('role');
+
+        // 🏆 2. 老師要求的邏輯：如果已有 Token，嘗試自動進入大廳/後台
+        if (token && username && role) {
+            try {
+                const res = await fetch(`${API_URL}/auth/me?username=${encodeURIComponent(username)}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    // 只有在資料庫確認在線 (1) 且沒被封鎖時，才執行自動跳轉
+                    if (data.is_online === 1 && data.role !== 'banned') {
+                        console.log("🚩 偵測到已登入 Session，執行自動跳轉...");
+                        window.location.href = role === 'admin' ? 'admin.html' : 'lobby.html';
+                        return;
+                    }
+                }
+            } catch (err) {
+                console.warn("自動校對失敗，停留在登入頁");
+            }
+        }
+
+        // 🏆 3. 處理「記住我」
+        const savedUsername = localStorage.getItem('remembered_username');
+        const rememberMeChecked = localStorage.getItem('remember_me_checked') === 'true';
+        if (rememberMeChecked && savedUsername) {
+            const userField = document.getElementById('loginUser');
+            if (userField) userField.value = savedUsername;
+            const checkField = document.getElementById('rememberMe');
+            if (checkField) checkField.checked = true;
+        }
+
+        // --- 綁定帳密登入表單 ---
+        const loginForm = document.getElementById('loginForm');
+        if (loginForm) {
+            loginForm.onsubmit = async (e) => {
+                e.preventDefault();
+                const userVal = document.getElementById('loginUser').value.trim();
+                const passVal = document.getElementById('loginPass').value;
+                const rememberMe = document.getElementById('rememberMe').checked;
+
+                try {
+                    const response = await fetch(`${API_URL}/auth/login`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: userVal, password: passVal })
+                    });
+                    
+                    const result = await response.json();
+
+                    if (response.ok) {
+                        // 處理記住我
+                        if (rememberMe) {
+                            localStorage.setItem('remembered_username', userVal);
+                            localStorage.setItem('remember_me_checked', 'true');
+                        } else {
+                            localStorage.removeItem('remembered_username');
+                            localStorage.setItem('remember_me_checked', 'false');
+                        }
+
+                        localStorage.setItem('token', result.access_token);
+                        localStorage.setItem('username', result.username);
+                        localStorage.setItem('role', result.role);
+                        window.location.href = result.role === 'admin' ? 'admin.html' : 'lobby.html';
+                    } else {
+                        // 🏆 封鎖攔截提示：如果後端回傳 403，顯示對應訊息
+                        showModal("🔒 登入失敗", result.detail || "帳號或密碼錯誤", false);
+                    }
+                } catch (err) {
+                    showModal("⚠️ 連線失敗", "無法連接到伺服器，請檢查後端是否啟動。", false);
+                }
+            };
+        }
+
+        // --- 綁定註冊表單 ---
+        const regForm = document.getElementById('regForm');
+        if (regForm) {
+            regForm.onsubmit = async (e) => {
+                e.preventDefault();
+                const u = document.getElementById('regUsername').value;
+                const e_mail = document.getElementById('regEmail').value;
+                const p = document.getElementById('regPassword').value;
+
+                try {
+                    const res = await fetch(`${API_URL}/auth/register`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: u, email: e_mail, password: p })
+                    });
+                    if (res.ok) {
+                        showModal("🎉 註冊成功", "歡迎加入！請登入開始冒險。", true);
+                        toggle('login');
+                        document.getElementById('loginUser').value = u;
+                    } else {
+                        const errData = await res.json();
+                        showModal("❌ 註冊失敗", errData.detail || "註冊資訊有誤", false);
+                    }
+                } catch (err) {
+                    showModal("⚠️ 連線失敗", "伺服器連線失敗", false);
+                }
+            };
+        }
+    });
+
+    // --- Google 登入邏輯 ---
+    function handleGoogleLogin() {
+        try {
+            if (typeof google === 'undefined') {
+                showModal("⚠️ 載入中", "Google 服務載入中，請稍候...", false);
+                return;
+            }
+            const client = google.accounts.oauth2.initTokenClient({
+                client_id: "111298973031-n8e4s6353pgiqpc74p5hl4vul2j6c7pt.apps.googleusercontent.com",
+                scope: "openid email profile",
+                callback: async (tokenResponse) => {
+                    if (tokenResponse && tokenResponse.access_token) {
+                        handleGoogleUser(tokenResponse.access_token);
+                    }
+                },
+            });
+            client.requestAccessToken();
+        } catch (error) {
+            console.error(error);
+            showModal("❌ 錯誤", "無法啟動 Google 登入視窗", false);
+        }
+    }
+
+    async function handleGoogleUser(accessToken) {
+        try {
+            const res = await fetch(`${API_URL}/auth/google_v2`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ access_token: accessToken }) 
+            });
+
+            const result = await res.json();
+            if (res.ok) {
+                localStorage.setItem('token', result.access_token);
+                localStorage.setItem('username', result.username);
+                localStorage.setItem('role', result.role);
+                window.location.href = result.role === 'admin' ? 'admin.html' : 'lobby.html';
+            } else {
+                showModal("❌ Google 登入失敗", result.detail || "驗證失敗", false);
+            }
+        } catch (err) {
+            showModal("❌ 錯誤", "連線伺服器失敗", false);
+        }
+    }
+
+    // --- UI 功能 (Modal / Toggle) ---
+    function toggle(mode) {
+        const isLogin = mode === 'login';
+        document.getElementById('loginForm').classList.toggle('active', isLogin);
+        document.getElementById('regForm').classList.toggle('active', !isLogin);
+        document.getElementById('loginTab').classList.toggle('active', isLogin);
+        document.getElementById('regTab').classList.toggle('active', !isLogin);
+    }
+
+    function showModal(title, message, isSuccess = true) {
+        const modal = document.getElementById('statusModal');
+        const titleEl = document.getElementById('modalTitle');
+        const msgEl = document.getElementById('modalMsg');
+        const btnEl = document.getElementById('modalBtn');
+
+        if (!modal || !titleEl || !msgEl) return;
+
+        titleEl.innerText = title;
+        msgEl.innerText = message;
+        titleEl.style.color = isSuccess ? "#00cdac" : "#ff7675";
+        
+        if (btnEl) {
+            btnEl.style.background = isSuccess ? "var(--primary-yellow, #ffd32a)" : "#ff7675";
+        }
+        modal.style.display = 'flex';
+    }
+
+    function closeModal() {
+        const modal = document.getElementById('statusModal');
+        if (modal) modal.style.display = 'none';
+    }
+</script>
+</body>
+</html>

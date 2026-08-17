@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>PyPoly 進階編譯任務</title>
+    <link rel="stylesheet" href="./css/coding task.css">
+</head>
+<body>
+
+<div class="pypoly-overlay">
+    <div class="task-window">
+        <div class="neon-line"></div>
+        
+        <div class="system-hint">
+            <span>⚡ SYSTEM:</span> 請使用鍵盤輸入正確的 Python 程式碼以完成編譯。
+        </div>
+
+        <div class="header">
+            <span class="mode-tag">ADVANCED MODE</span>
+            <h2>核心邏輯編譯挑戰</h2>
+        </div>
+
+        <p class="desc">
+            Sandy，此土地需要進階權限！<br>
+            <strong>任務：</strong> 若變數 <code>hp</code> 小於 <code>10</code>，請印出 <code>"Danger"</code>。
+        </p>
+
+        <div class="editor-container">
+            <div class="line-numbers">
+                1<br>2<br>3
+            </div>
+            <textarea id="code-editor" class="code-input" spellcheck="false" placeholder="# 在此輸入代碼..."></textarea>
+        </div>
+
+        <div class="footer-actions">
+            <div id="output" class="terminal-output">> 等待編譯指令...</div>
+            <button class="btn-execute" onclick="runCompile()">執行編譯 (EXECUTE)</button>
+        </div>
+    </div>
+</div>
+
+    <script src="js/coding task.js"></script>
+</body>
+</html>

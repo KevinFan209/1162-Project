@@ -1,0 +1,123 @@
+:root {
+    --bg-dark: #05050a;
+    --p1-color: #f05454;
+    --p2-color: #38bdf8;
+    --accent-green: #4ee44e;
+    --glass: rgba(15, 23, 42, 0.85);
+}
+
+body, html {
+    margin: 0; padding: 0;
+    width: 100%; height: 100%;
+    background-color: var(--bg-dark);
+    color: white; font-family: 'Segoe UI', sans-serif;
+    overflow: hidden;
+}
+
+/* 1. Unity 遊戲畫布 (底層) */
+#unity-container {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    z-index: 1; /* 最底層 */
+    background: radial-gradient(circle, #1a1a2e 0%, #05050a 100%);
+    display: flex; justify-content: center; align-items: center;
+}
+
+#unity-canvas-placeholder {
+    width: 90%; height: 85%;
+    border: 2px dashed rgba(255,255,255,0.1);
+    display: flex; justify-content: center; align-items: center;
+    color: rgba(255,255,255,0.2); font-size: 24px;
+}
+
+/* 2. 玩家狀態欄 (頂部左右) */
+.hud-top {
+    position: absolute;
+    top: 20px; left: 0; width: 100%;
+    display: flex; justify-content: space-between;
+    padding: 0 30px; box-sizing: border-box;
+    z-index: 10;
+}
+
+.player-card {
+    width: 280px; background: var(--glass);
+    padding: 15px; border-radius: 15px;
+    border: 1px solid rgba(255,255,255,0.1);
+    backdrop-filter: blur(10px);
+}
+
+.player-card.p1 { border-left: 5px solid var(--p1-color); }
+.player-card.p2 { border-right: 5px solid var(--p2-color); text-align: right; }
+
+.info-row { display: flex; align-items: center; gap: 12px; }
+.p2 .info-row { flex-direction: row-reverse; }
+
+.avatar { width: 45px; height: 45px; background: #222; border-radius: 10px; display: flex; justify-content: center; align-items: center; font-size: 24px; }
+.money { color: #ffd700; font-weight: bold; font-size: 18px; }
+.lap { font-size: 12px; opacity: 0.7; margin-top: 4px; }
+
+.inventory { margin-top: 10px; display: flex; gap: 5px; flex-wrap: wrap; }
+.p2 .inventory { justify-content: flex-end; }
+.card-tag { padding: 2px 8px; background: rgba(255,255,255,0.1); border-radius: 4px; font-size: 11px; }
+
+/* 3. 鏡頭監控區 (右下角) */
+.vision-panel {
+    position: absolute;
+    bottom: 30px; right: 30px;
+    width: 320px; height: 180px;
+    background: #000; border-radius: 15px;
+    border: 2px solid rgba(255,255,255,0.1);
+    overflow: hidden; z-index: 20;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+/* 模擬鏡頭畫面 */
+.webcam-feed {
+    width: 100%; height: 100%;
+    background: url('https://images.unsplash.com/photo-1516116216624-53e697fedbea?auto=format&fit=crop&w=400&q=80') center/cover;
+    opacity: 0.6;
+}
+
+/* 4. 辨識 Overlay (疊加在鏡頭上) */
+.recognition-overlay {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    pointer-events: none;
+}
+
+.scan-frame {
+    width: 120px; height: 120px;
+    border: 2px solid var(--accent-green);
+    position: relative;
+    box-shadow: inset 0 0 15px rgba(78, 228, 78, 0.2);
+}
+
+.scan-line {
+    position: absolute; width: 100%; height: 2px;
+    background: var(--accent-green);
+    top: 0; animation: scanning 2s linear infinite;
+}
+
+@keyframes scanning {
+    0% { top: 0; } 100% { top: 100%; }
+}
+
+.result-badge {
+    background: var(--accent-green); color: black;
+    padding: 4px 12px; border-radius: 20px;
+    font-size: 12px; font-weight: bold;
+    margin-top: 10px; box-shadow: 0 0 15px var(--accent-green);
+}
+
+/* 中央 LOGO */
+.center-logo {
+    position: absolute; top: 25px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 24px; font-weight: 900;
+    background: linear-gradient(to right, #306998, #00d2ff);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    z-index: 10;
+}

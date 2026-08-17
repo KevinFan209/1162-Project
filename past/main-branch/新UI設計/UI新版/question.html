@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PyPoly - Admin Question Editor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-blue: #4facfe;
+            --success-green: #00cdac;
+            --success-green-shadow: #00a88b;
+            --bg-gray: #f1f5f9;
+            --text-dark: #000000;
+            --text-gray: #64748b;
+            --sidebar-dark: #334155;
+            --sidebar-dark-shadow: #1e293b;
+            --border-light: #e2e8f0;
+            --danger-red: #ff7675;
+            --difficulty-easy: #00b894;
+            --difficulty-hard: #d63031;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
+        body { background-color: var(--bg-gray); height: 100vh; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+
+        /* 🏆 Header 同步 */
+        header {
+            background: linear-gradient(to bottom, #ffffff 0%, #fcfcfc 100%);
+            padding: 0 40px; display: flex; justify-content: space-between; align-items: center;
+            height: 85px; z-index: 100; border-bottom: 1.5px solid var(--border-light); 
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+        }
+        .header-left h1 { font-size: 2.5rem; font-weight: 900; margin-bottom: 10px;color: var(--text-dark); }
+        .header-right { display: flex; align-items: center; gap: 20px; }
+        .page-tag { font-weight: 800; color: var(--text-gray); background: #f1f5f9; padding: 10px 22px; border-radius: 12px; font-size: 0.95rem; }
+
+        .menu-btn { background: transparent; border: none; cursor: pointer; display: flex; flex-direction: column; justify-content: center; padding: 10px; transition: 0.2s; }
+        .menu-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.15); display: none; z-index: 999; backdrop-filter: blur(2px); }
+        .menu-overlay.open { display: block; }
+        .side-menu { position: fixed; top: 0; right: -320px; width: 320px; height: 100vh; background: white; box-shadow: -10px 0 30px rgba(0,0,0,0.05); z-index: 1000; transition: 0.4s cubic-bezier(0.165, 0.84, 0.44, 1); padding: 100px 30px 40px; display: flex; flex-direction: column; gap: 15px; }
+        .side-menu.open { right: 0; }
+        .menu-item { padding: 18px 25px; border-radius: 15px; font-weight: 800; color: var(--text-gray); text-decoration: none; display: flex; align-items: center; gap: 15px; transition: 0.2s; background: #f8fafc; }
+        .menu-item.danger { margin-top: auto; color: #ff4757; }
+
+        /* 🏆 Admin Layout */
+        .admin-main { flex: 1; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .admin-container { display: flex; gap: 30px; width: 95%; max-width: 1250px; height: 82vh; }
+
+        /* Sidebar Nav */
+        .admin-nav {
+            width: 280px; background: white; border-radius: 35px; padding: 30px 20px;
+            display: flex; flex-direction: column; gap: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #f1f2f6;
+        }
+        .nav-link { 
+            width: 100%; padding: 16px; border: none; border-radius: 15px; 
+            font-weight: 900; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 12px;
+            background: #f8fafc; color: var(--text-gray); transition: 0.2s;
+        }
+        .nav-link.active { background: var(--sidebar-dark); color: white; box-shadow: 0 6px 0 var(--sidebar-dark-shadow); }
+
+        /* Main Board */
+        .admin-board { flex: 1; display: flex; flex-direction: column; gap: 20px; overflow: hidden; }
+        
+        /* Board Header */
+        .board-header { 
+            background: white; padding: 20px 30px; border-radius: 25px; 
+            display: flex; justify-content: space-between; align-items: center; 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.03); border: 1px solid #f1f2f6; 
+        }
+        .filter-group { display: flex; gap: 10px; }
+        .select-filter { padding: 10px 15px; border-radius: 10px; border: 1.5px solid var(--border-light); font-weight: 800; background: #f8fafc; }
+        .btn-add { padding: 12px 25px; background: var(--success-green); color: white; border: none; border-radius: 12px; font-weight: 900; cursor: pointer; box-shadow: 0 6px 0 var(--success-green-shadow); }
+        .btn-add:active { transform: translateY(4px); box-shadow: none; }
+
+        /* Question List Container */
+        .question-list { 
+            background: white; flex: 1; border-radius: 40px; padding: 30px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #f1f2f6;
+            overflow-y: auto;
+        }
+
+        /* Question Card Item (同步 Lobby 房間樣式) */
+        .q-item {
+            background: #f8fafc; padding: 25px 30px; border-radius: 25px;
+            display: flex; justify-content: space-between; align-items: flex-start;
+            margin-bottom: 20px; border: 1px solid #f1f2f6;
+            transition: 0.2s;
+        }
+        .q-item:hover { transform: translateY(-3px); box-shadow: 0 5px 15px rgba(0,0,0,0.05); border-color: var(--primary-blue); }
+
+        .q-content { flex: 1; }
+        .q-tag-row { display: flex; gap: 8px; margin-bottom: 12px; }
+        .q-tag { padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 900; text-transform: uppercase; }
+        .tag-category { background: #eef2ff; color: #4338ca; }
+        .tag-easy { background: #ebfffa; color: var(--difficulty-easy); }
+        .tag-hard { background: #fff5f5; color: var(--difficulty-hard); }
+
+        .q-text { font-weight: 900; font-size: 1.1rem; color: var(--text-dark); line-height: 1.4; margin-bottom: 10px; }
+        .q-code { background: #1e293b; color: #f8fafc; padding: 12px; border-radius: 10px; font-family: 'Consolas', monospace; font-size: 0.9rem; margin-bottom: 10px; }
+
+        .action-btns { display: flex; flex-direction: column; gap: 8px; margin-left: 20px; }
+        .btn-q { padding: 10px 20px; border: none; border-radius: 10px; cursor: pointer; font-weight: 800; font-size: 0.85rem; width: 100px; }
+        .btn-edit { background: #e2e8f0; color: var(--text-dark); }
+        .btn-del { background: #fff5f5; color: var(--danger-red); }
+    </style>
+</head>
+<body>
+
+<div class="menu-overlay" id="overlay" onclick="toggleMenu()"></div>
+<div class="side-menu" id="sideMenu">
+    <a href="Profile.html" class="menu-item"><span>👤</span> 個人主頁</a>
+    <a href="Guide.html" class="menu-item"><span>📖</span> 遊戲說明</a>
+    <a href="learn.html" class="menu-item"><span>📊</span> 學習統計</a>
+    <a href="Settings.html" class="menu-item"><span>⚙️</span> 遊戲設定</a>
+    <a href="Lobby.html" class="menu-item"><span>🏠</span> 返回大廳</a>
+    <a href="Login.html" class="menu-item" style="margin-top:auto; color:#ff4757;"><span>🚪</span> 登出遊戲</a>
+</div>
+
+<header>
+    <div class="header-left"><h1>PyPoly</h1></div>
+    <div class="header-right">
+        <div class="page-tag">管理後台中心 ⚙️</div>
+        <button class="menu-btn" onclick="toggleMenu()" style="background:none; border:none; cursor:pointer;">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+        </button>
+    </div>
+</header>
+
+<div class="admin-main">
+    <div class="admin-container">
+        <aside class="admin-nav">
+            <h2 style="font-weight: 900; font-size: 1.4rem; margin-bottom: 15px; padding-left: 10px;">後台選單</h2>
+            <button class="nav-link"><span>👥</span> 用戶權限管理</button>
+            <button class="nav-link active"><span>❓</span> 考題庫編輯</button>
+            <button class="nav-link"><span>📷</span> 影像辨識偵錯</button>
+            <button class="nav-link"><span>📈</span> 遊戲數據監控</button>
+            <button class="nav-link" style="margin-top: auto; color: var(--danger-red);"><span>🛑</span> 伺服器狀態</button>
+        </aside>
+
+        <main class="admin-board">
+            <div class="board-header">
+                <div class="filter-group">
+                    <select class="select-filter"><option>所有語法分類</option><option>Variables</option><option>Loops</option></select>
+                    <select class="select-filter"><option>所有難度</option><option>Easy</option><option>Hard</option></select>
+                </div>
+                <button class="btn-add">+ 新增考題</button>
+            </div>
+
+            <div class="question-list">
+                <div class="q-item">
+                    <div class="q-content">
+                        <div class="q-tag-row">
+                            <span class="q-tag tag-category">Variables</span>
+                            <span class="q-tag tag-easy">Easy</span>
+                        </div>
+                        <p class="q-text">下列哪一個變數名稱在 Python 中是合法的？</p>
+                        <p style="color: var(--text-gray); font-weight: 700; font-size: 0.9rem;">(A) 2_variable (B) _my_var (C) class (D) my-var</p>
+                    </div>
+                    <div class="action-btns">
+                        <button class="btn-q btn-edit">編輯</button>
+                        <button class="btn-q btn-del">刪除</button>
+                    </div>
+                </div>
+
+                <div class="q-item">
+                    <div class="q-content">
+                        <div class="q-tag-row">
+                            <span class="q-tag tag-category">Loops</span>
+                            <span class="q-tag tag-hard">Hard</span>
+                        </div>
+                        <p class="q-text">請預測下列程式碼的輸出結果為何？</p>
+                        <div class="q-code">
+                            for i in range(1, 4):<br>
+                            &nbsp;&nbsp;print(i * 2, end=" ")
+                        </div>
+                        <p style="color: var(--text-gray); font-weight: 700; font-size: 0.9rem;">(A) 1 2 3 (B) 2 4 6 (C) 2 4 (D) 0 2 4</p>
+                    </div>
+                    <div class="action-btns">
+                        <button class="btn-q btn-edit">編輯</button>
+                        <button class="btn-q btn-del">刪除</button>
+                    </div>
+                </div>
+
+                <div class="q-item">
+                    <div class="q-content">
+                        <div class="q-tag-row">
+                            <span class="q-tag tag-category">Conditions</span>
+                            <span class="q-tag tag-easy">Easy</span>
+                        </div>
+                        <p class="q-text">Python 中使用哪一個關鍵字來處理多重條件判斷？</p>
+                        <p style="color: var(--text-gray); font-weight: 700; font-size: 0.9rem;">(A) else if (B) elseif (C) elif (D) switch</p>
+                    </div>
+                    <div class="action-btns">
+                        <button class="btn-q btn-edit">編輯</button>
+                        <button class="btn-q btn-del">刪除</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<script>
+    function toggleMenu() {
+        const sideMenu = document.getElementById('sideMenu');
+        const overlay = document.getElementById('overlay');
+        sideMenu.classList.toggle('open');
+        overlay.classList.toggle('open');
+    }
+</script>
+</body>
+</html>

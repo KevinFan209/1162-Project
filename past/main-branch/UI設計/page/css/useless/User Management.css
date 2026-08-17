@@ -1,0 +1,83 @@
+:root {
+    --admin-bg: #0f172a;
+    --sidebar-bg: #1e293b;
+    --accent-cyan: #38bdf8;
+    --accent-red: #f87171;
+    --accent-green: #4ade80;
+    --text-gray: #94a3b8;
+    --border: #334155;
+}
+body {
+    display: block;
+    margin: 0;
+}
+
+.Game-Analytics {
+    margin: 0; background: var(--admin-bg); color: white;
+    font-family: 'Inter', 'Segoe UI', sans-serif; display: flex;
+    height: 100vh; overflow: hidden;
+}
+/* 側邊導覽欄 (樣式同步) */
+.sidebar {
+    width: 240px; height: 100vh; background: var(--sidebar-bg);
+    padding: 20px; box-sizing: border-box; border-right: 1px solid var(--border);
+}
+
+.logo-area {
+    padding: 10px 15px 30px; border-bottom: 1px solid var(--border); margin-bottom: 20px;
+}
+
+.nav-item {
+    padding: 12px 15px; border-radius: 8px; margin-bottom: 8px;
+    cursor: pointer; color: var(--text-gray); transition: 0.3s;
+}
+
+.nav-item:hover { background: rgba(255,255,255,0.05); color: white; }
+.nav-item.active { background: var(--accent-cyan); color: #000; font-weight: bold; }
+
+/* 主內容區 */
+.main-content { flex: 1; padding: 40px; overflow-y: auto; }
+
+.header-box { display: flex; justify-content: flex-end; align-items: flex-end; margin-bottom: 35px; }
+.header-box h1 { margin: 0; font-size: 28px; }
+
+/* 搜尋與過濾 */
+.filter-section {
+    display: flex; gap: 15px; margin-bottom: 25px;
+}
+.search-input {
+    flex: 1; background: #1e293b; border: 1px solid var(--border);
+    color: white; padding: 12px 15px; border-radius: 10px; outline: none;
+}
+.search-input:focus { border-color: var(--accent-cyan); }
+
+.btn-filter {
+    background: var(--accent-cyan); border: none; padding: 0 25px; border-radius: 10px; font-weight: bold; cursor: pointer;
+}
+
+/* 帳號清單表格 */
+.user-table-container {
+    background: var(--sidebar-bg); border: 1px solid var(--border);
+    border-radius: 16px; overflow: hidden;
+}
+.user-table { width: 100%; border-collapse: collapse; }
+.user-table th { text-align: left; padding: 18px 25px; font-size: 13px; color: var(--text-gray); background: rgba(0,0,0,0.2); }
+.user-table td { padding: 18px 25px; border-bottom: 1px solid var(--border); font-size: 14px; }
+
+/* 狀態標籤 */
+.status-badge {
+    padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: bold;
+}
+.status-online { background: rgba(74, 222, 128, 0.1); color: var(--accent-green); }
+.status-offline { background: rgba(148, 163, 184, 0.1); color: var(--text-gray); }
+
+/* 操作按鈕 */
+.action-link { color: var(--accent-cyan); text-decoration: none; margin-right: 15px; font-size: 13px; cursor: pointer; }
+.action-link:hover { text-decoration: underline; }
+.delete-link { color: var(--accent-red); }
+
+/* 底部資訊 */
+.pagination {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 20px 25px; color: var(--text-gray); font-size: 13px;
+}

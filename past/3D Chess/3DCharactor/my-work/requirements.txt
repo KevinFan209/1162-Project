@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+google-auth
+google-auth-oauthlib
+python-multipart
+pydantic
+passlib[bcrypt]
+bcrypt
+python-jose[cryptography]
+mediapipe
+opencv-python-headless
+python-dotenv
+requests
+rsa
+pyasn1-modules
+python-socketio

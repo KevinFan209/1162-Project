@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>3D 小車</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h2>3D 小車</h2>
+
+  <div class="blank-panel">
+    <h3>速度控制</h3>
+    <div class="control-group">
+      <label>速度倍率: <span id="speed-multiplier-val">1.0</span>x</label>
+      <input type="range" id="speed-multiplier" min="0.5" max="3" step="0.1" value="1">
+    </div>
+
+    <h3>轉向靈敏度</h3>
+    <div class="control-group">
+      <label>轉向倍率: <span id="turn-sensitivity-val">1.0</span>x</label>
+      <input type="range" id="turn-sensitivity" min="0.5" max="1.5" step="0.1" value="1">
+    </div>
+
+    <h3>小車大小</h3>
+    <div class="control-group">
+      <label>大小倍率: <span id="car-size-multiplier-val">1.0</span>x</label>
+      <input type="range" id="car-size-multiplier" min="0.25" max="1" step="0.25" value="1">
+    </div>
+
+    <h3>物理參數</h3>
+    <div class="control-group">
+      <label>摩擦係數: <span id="friction-val">0.98</span></label>
+      <input type="range" id="friction" min="0.80" max="0.99" step="0.01" value="0.98">
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="scene" id="scene">
+      <!-- 3D 平台 -->
+      <div class="platform">
+        <div class="platform-base"></div>
+        <div class="platform-edge front"></div>
+        <div class="platform-edge back"></div>
+        <div class="platform-edge left"></div>
+        <div class="platform-edge right"></div>
+        <div class="platform-glow"></div>
+      </div>
+
+      <!-- 3D 小車 (使用 tilt wrapper) -->
+      <div class="car-tilt" id="car-tilt">
+        <div class="car" id="car">
+        <div class="car-body">
+          <div class="car-body-front"></div>
+          <div class="car-body-back"></div>
+          <div class="car-body-left"></div>
+          <div class="car-body-right"></div>
+          <div class="car-body-top"></div>
+          <div class="car-body-bottom"></div>
+        </div>
+        <div class="car-cabin">
+          <div class="window-front"></div>
+          <div class="window-back"></div>
+          <div class="window-left"></div>
+          <div class="window-right"></div>
+        </div>
+        <div class="light front-light-left"></div>
+        <div class="light front-light-right"></div>
+        <div class="light back-light-left"></div>
+        <div class="light back-light-right"></div>
+        <div class="wheel w1"></div>
+        <div class="wheel w2"></div>
+        <div class="wheel w3"></div>
+        <div class="wheel w4"></div>
+      </div>
+      <!-- 车阴影（在小车内部，与车轮同级） -->
+      <div id="car-shadow" class="car-shadow"></div>
+    </div>
+    </div>
+  </div>
+
+<script>
+(function() {
+  const car = document.getElementById('car');
+  const carTilt = document.getElementById('car-tilt');
+  const shadow = document.getElementById('car-shadow');
+  const scene = document.getElementById('scene');
+  
+  // 車輛狀態
+  let carX, carY;
+  let carRotation = 0; // 車頭朝向 (度)
+  let steerAngle = 0;   // 轉向角 (度)
+  let vx = 0, vy = 0;
+  
+  // 車輛參數 (基礎值)
+  const baseMaxSpeed = 200;
+  const baseAcceleration = 400;
+  const maxSteerAngle = 30; // 最大轉向角 (度)
+  const steerSpeed = 180;   // 轉向速度 (度/秒)
+  let speedMultiplier = 1.0;
+  let turnSensitivity = 1.0;
+  let carSizeMultiplier = 1.0;
+  const baseCarWidth = 140, baseCarHeight = 80;
+  let friction = 0.98;
+  const bounceFactor = 0.3;
+  let platformSize = 90; // 平台大小百分比 (50-100)
+  
+  // 按鍵狀態
+  const keysPressed = {
+    w: false, s: false,
+    a: false, d: false,
+    q: false, e: false,
+    ArrowUp: false, ArrowDown: false,
+    ArrowLeft: false, ArrowRight: false
+  };
+  
+  // 平台邊界
+  let minX, minY, maxX, maxY;
+  function updatePlatformBounds() {
+    const platform = document.querySelector('.platform');
+    const platRect = platform.getBoundingClientRect();
+    const sceneRect = scene.getBoundingClientRect();
+    const platLeft = platRect.left - sceneRect.left;
+    const platTop = platRect.top - sceneRect.top;
+    const carHalfW = (baseCarWidth * carSizeMultiplier) / 2;
+    const carHalfH = (baseCarHeight * carSizeMultiplier) / 2;
+    minX = platLeft + carHalfW;
+    maxX = platLeft + platRect.width - carHalfW;
+    minY = platTop + carHalfH;
+    maxY = platTop + platRect.height - carHalfH;
+    // 確保車輛在範圍內
+    if (carX < minX) carX = minX;
+    if (carX > maxX) carX = maxX;
+    if (carY < minY) carY = minY;
+    if (carY > maxY) carY = maxY;
+  }
+  
+  // 初始化位置
+  updatePlatformBounds();
+  carX = (minX + maxX) / 2;
+  carY = (minY + maxY) / 2;
+  carTilt.style.left = carX + 'px';
+  carTilt.style.top = carY + 'px';
+  car.style.transform = `translate(-50%,-50%) scale(${carSizeMultiplier}) rotateZ(${carRotation}deg) translateZ(20px)`;
+  // 初始化陰影 (在 car-tilt 內部中心)
+  shadow.style.width = (baseCarWidth * carSizeMultiplier * 1.3) + 'px';
+  shadow.style.height = (baseCarHeight * carSizeMultiplier * 1.4) + 'px';
+  
+  window.addEventListener('resize', updatePlatformBounds);
+  
+  // UI 參數綁定
+  const speedSlider = document.getElementById('speed-multiplier');
+  const speedVal = document.getElementById('speed-multiplier-val');
+  if (speedSlider && speedVal) {
+    speedMultiplier = parseFloat(speedSlider.value);
+    speedVal.textContent = speedMultiplier.toFixed(1);
+    speedSlider.addEventListener('input', () => {
+      speedMultiplier = parseFloat(speedSlider.value);
+      speedVal.textContent = speedMultiplier.toFixed(1);
+    });
+  }
+  const turnSlider = document.getElementById('turn-sensitivity');
+  const turnVal = document.getElementById('turn-sensitivity-val');
+  if (turnSlider && turnVal) {
+    turnSensitivity = parseFloat(turnSlider.value);
+    turnVal.textContent = turnSensitivity.toFixed(1);
+    turnSlider.addEventListener('input', () => {
+      turnSensitivity = parseFloat(turnSlider.value);
+      turnVal.textContent = turnSensitivity.toFixed(1);
+    });
+  }
+  const sizeSlider = document.getElementById('car-size-multiplier');
+  const sizeVal = document.getElementById('car-size-multiplier-val');
+  if (sizeSlider && sizeVal) {
+    carSizeMultiplier = parseFloat(sizeSlider.value);
+    sizeVal.textContent = carSizeMultiplier.toFixed(2);
+    sizeSlider.addEventListener('input', () => {
+      carSizeMultiplier = parseFloat(sizeSlider.value);
+      sizeVal.textContent = carSizeMultiplier.toFixed(2);
+      updatePlatformBounds();
+      // 更新小車尺寸
+      car.style.width = baseCarWidth * carSizeMultiplier + 'px';
+      car.style.height = baseCarHeight * carSizeMultiplier + 'px';
+      // 更新陰影尺寸
+      shadow.style.width = (baseCarWidth * carSizeMultiplier * 1.3) + 'px';
+      shadow.style.height = (baseCarHeight * carSizeMultiplier * 1.4) + 'px';
+    });
+    // 初始化尺寸
+    car.style.width = baseCarWidth * carSizeMultiplier + 'px';
+    car.style.height = baseCarHeight * carSizeMultiplier + 'px';
+  }
+  const frictionSlider = document.getElementById('friction');
+  const frictionVal = document.getElementById('friction-val');
+  if (frictionSlider && frictionVal) {
+    friction = parseFloat(frictionSlider.value);
+    frictionVal.textContent = friction.toFixed(2);
+    frictionSlider.addEventListener('input', () => {
+      friction = parseFloat(frictionSlider.value);
+      frictionVal.textContent = friction.toFixed(2);
+    });
+  }
+  
+  // 鍵盤事件
+  document.addEventListener('keydown', (e) => {
+    const k = e.key;
+    if (k === 'w' || k === 'ArrowUp') keysPressed.ArrowUp = true;
+    if (k === 's' || k === 'ArrowDown') keysPressed.ArrowDown = true;
+    if (k === 'a' || k === 'ArrowLeft') keysPressed.ArrowLeft = true;
+    if (k === 'd' || k === 'ArrowRight') keysPressed.ArrowRight = true;
+    if (k === 'q') keysPressed.q = true;
+    if (k === 'e') keysPressed.e = true;
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(k)) e.preventDefault();
+  });
+  document.addEventListener('keyup', (e) => {
+    const k = e.key;
+    if (k === 'w' || k === 'ArrowUp') keysPressed.ArrowUp = false;
+    if (k === 's' || k === 'ArrowDown') keysPressed.ArrowDown = false;
+    if (k === 'a' || k === 'ArrowLeft') keysPressed.ArrowLeft = false;
+    if (k === 'd' || k === 'ArrowRight') keysPressed.ArrowRight = false;
+    if (k === 'q') keysPressed.q = false;
+    if (k === 'e') keysPressed.e = false;
+  });
+  
+  // 主循環
+  let lastTime = 0;
+  function update(timestamp) {
+    if (!lastTime) lastTime = timestamp;
+    const dt = (timestamp - lastTime) / 1000;
+    lastTime = timestamp;
+    const angleRad = carRotation * Math.PI / 180;
+    const dirX = Math.cos(angleRad);
+    const dirY = Math.sin(angleRad);
+    
+    // 轉向 (只在移動時)
+    const isMoving = keysPressed.ArrowUp || keysPressed.w || keysPressed.q || keysPressed.e || keysPressed.ArrowDown || keysPressed.s;
+    if (isMoving) {
+      const steerInput = (keysPressed.ArrowLeft || keysPressed.a || keysPressed.q ? -1 : 0) + (keysPressed.ArrowRight || keysPressed.d || keysPressed.e ? 1 : 0);
+      if (steerInput !== 0) {
+        steerAngle = Math.max(-maxSteerAngle, Math.min(maxSteerAngle, steerAngle + steerInput * steerSpeed * turnSensitivity * dt));
+      } else {
+        if (Math.abs(steerAngle) > 0.5) {
+          steerAngle *= 0.9;
+        } else {
+          steerAngle = 0;
+        }
+      }
+    } else {
+      steerAngle = 0;
+    }
+    
+    // 自行車模型：根據轉向角更新車頭朝向
+    const speed = Math.sqrt(vx*vx + vy*vy);
+    if (Math.abs(speed) > 0.5) {
+      const L = 100;
+      const steerRad = steerAngle * Math.PI / 180;
+      const omega = (speed / L) * Math.tan(steerRad);
+      carRotation += omega * dt * (180 / Math.PI);
+    }
+    
+    // 前進/後退
+    if (keysPressed.ArrowUp || keysPressed.w || keysPressed.q || keysPressed.e) {
+      vx += dirX * baseAcceleration * dt;
+      vy += dirY * baseAcceleration * dt;
+    } else if (keysPressed.ArrowDown || keysPressed.s) {
+      vx -= dirX * baseAcceleration * dt;
+      vy -= dirY * baseAcceleration * dt;
+    } else {
+      vx *= friction;
+      vy *= friction;
+    }
+    
+    // 限制最大速度
+    const currentSpeed = Math.sqrt(vx*vx + vy*vy);
+    const currentMaxSpeed = baseMaxSpeed * speedMultiplier;
+    if (currentSpeed > currentMaxSpeed) {
+      const scale = currentMaxSpeed / currentSpeed;
+      vx *= scale;
+      vy *= scale;
+    }
+    
+    // 更新位置
+    let newX = carX + vx * dt;
+    let newY = carY + vy * dt;
+    
+    // 邊界碰撞與反彈
+    if (newX < minX) { newX = minX; vx = -vx * bounceFactor; } else if (newX > maxX) { newX = maxX; vx = -vx * bounceFactor; }
+    if (newY < minY) { newY = minY; vy = -vy * bounceFactor; } else if (newY > maxY) { newY = maxY; vy = -vy * bounceFactor; }
+    
+    carX = newX;
+    carY = newY;
+    
+    // 應用位置到 tilt container
+    carTilt.style.left = carX + 'px';
+    carTilt.style.top = carY + 'px';
+    
+    // 應用變換到小車 (heading only)
+    car.style.transform = `translate(-50%,-50%) scale(${carSizeMultiplier}) rotateZ(${carRotation}deg) translateZ(20px)`;
+    
+    // 更新陰影尺寸 (位置固定於 car-tilt 中心)
+    shadow.style.width = (baseCarWidth * carSizeMultiplier * 1.3) + 'px';
+    shadow.style.height = (baseCarHeight * carSizeMultiplier * 1.4) + 'px';
+    
+    requestAnimationFrame(update);
+  }
+  
+  requestAnimationFrame(update);
+})();
+</script>
+</body>
+</html>
