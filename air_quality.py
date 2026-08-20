@@ -2,16 +2,17 @@ import os
 import requests
 from dotenv import load_dotenv
 
-# 自動載入同目錄下的 .env 環境變數檔
-load_dotenv()
+# 強制抓取當前檔案所在目錄的 .env 檔案
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
 
-# 從 .env 中讀取 MOENV_API_KEY
-API_KEY = os.getenv("MOENV_API_KEY", "")
+# 讀取 API Key
+API_KEY = os.getenv("MOENV_API_KEY", "").strip()
 
-# 環境部開放資料 API 網址
-ENV_API_URL = f"https://data.moenv.gov.tw/api/v2/aqx_p_432?language=zh&api_key={API_KEY}"
+# 環境部開放資料 API 基礎網址
+ENV_API_URL = "https://data.moenv.gov.tw/api/v2/aqx_p_432"
 
-# 南投縣環保局官方 4 大監測站關鍵字對應表
+# 南投縣 4 大監測站關鍵字表
 STATION_KEYWORDS = {
     "埔里": ["埔里"],
     "南投": ["南投"],
@@ -19,37 +20,69 @@ STATION_KEYWORDS = {
     "竹山": ["竹山"]
 }
 
+def get_aqi_status_and_multiplier(aqi: int):
+    """
+    根據台灣環境部官方標準判定狀態文字與大富翁遊戲加成倍率
+    """
+    if aqi <= 50:
+        return "良好", 1.15
+    elif aqi <= 100:
+        return "普通", 1.0
+    elif aqi <= 150:
+        return "對敏感族群不健康", 0.85
+    elif aqi <= 200:
+        return "對所有族群不健康", 0.85
+    elif aqi <= 300:
+        return "非常不健康", 0.85
+    else:
+        return "危害", 0.85
+
 def fetch_aqi_by_name(station_name: str):
     """
     輸入監測站名稱（"埔里"、"南投"、"鹿谷"、"竹山"），
-    抓取環境部 API 即時 AQI，並計算遊戲內的動態地價與過路費加成倍率[cite: 1]。
-    若傳入非 4 大監測站或空值，則回傳 None（視為一般格子）。
+    抓取環境部 API 即時 AQI，並精確計算遊戲動態倍率與文字狀態。
     """
     if not station_name or station_name not in STATION_KEYWORDS:
-        return None  # 一般格子，不安裝/不觸發環境氣候事件
+        return None
 
     keywords = STATION_KEYWORDS[station_name]
-    
+    print(f"\n[AirQuality] 收到查詢請求: {station_name}")
+    print(f"[AirQuality] 讀取到的 API Key 長度: {len(API_KEY)} (前4碼: {API_KEY[:4]}***)")
+
     try:
-        response = requests.get(ENV_API_URL, timeout=3)
+        params = {
+            "language": "zh",
+            "api_key": API_KEY
+        }
+        response = requests.get(ENV_API_URL, params=params, timeout=6)
+        print(f"[AirQuality] API 回應狀態碼: {response.status_code}")
+
         if response.status_code == 200:
-            records = response.json().get("records", [])
+            data = response.json()
+            records = data.get("records", [])
+            print(f"[AirQuality] 成功取得 {len(records)} 筆監測站資料")
+
             for record in records:
-                # 僅篩選南投縣之監測站紀錄
+                # 篩選南投縣
                 if record.get("county") == "南投縣":
                     sitename = record.get("sitename", "")
                     
-                    # 進行關鍵字匹配（可相容 "南投（鹿谷）" 等官方名稱寫法）
+                    # 匹配關鍵字
                     if any(kw in sitename for kw in keywords):
-                        aqi = int(record.get("aqi", 35))
-                        status = record.get("status", "良好")
+                        raw_aqi = record.get("aqi", "")
                         
-                        # 動態加成演算機制[cite: 1]：
-                        # AQI <= 50 (良好) -> 地價/過路費加成 +15% (1.15)
-                        # AQI > 100 (不良) -> 地價/過路費打 85 折 (0.85)
-                        # 51~100 (普通) -> 原價 (1.0)
-                        multiplier = 1.15 if aqi <= 50 else (0.85 if aqi > 100 else 1.0)
+                        # 安全轉型 AQI（防止空字串崩潰）
+                        if str(raw_aqi).isdigit():
+                            aqi = int(raw_aqi)
+                        else:
+                            print(f"[AirQuality] 測站 {sitename} AQI 暫無數值: '{raw_aqi}'，給予預設值 25")
+                            aqi = 25
+
+                        # 依據標準計算狀態文字與倍率
+                        status, multiplier = get_aqi_status_and_multiplier(aqi)
                         
+                        print(f"🎉 [成功比對] 站名: {sitename} | 即時 AQI: {aqi} | 狀態: {status} | 倍率: {multiplier}")
+
                         return {
                             "has_event": True,
                             "station_name": station_name,
@@ -57,14 +90,25 @@ def fetch_aqi_by_name(station_name: str):
                             "status": status,
                             "multiplier": multiplier
                         }
-    except Exception as e:
-        print(f"[air.py Warning] 讀取 API 或網路連線異常: {e}")
 
-    # Fallback 防呆機制（當 API Key 未設定、網路斷線或 API 故障時，回傳預設優良數據確保遊戲流暢執行）
+            print(f"⚠️ [比對失敗] 在南投縣紀錄中未找到符合 {keywords} 的測站")
+        else:
+            print(f"❌ [API 拒絕] 狀態碼 {response.status_code}，錯誤訊息: {response.text}")
+
+    except requests.exceptions.Timeout:
+        print("❌ [連線超時] 外部環境部 API 回應超過 6 秒")
+    except Exception as e:
+        print(f"❌ [執行例外]: {e}")
+
+    # Fallback 備用值（同樣經過標準函式換算）
+    default_aqi = 35
+    default_status, default_multiplier = get_aqi_status_and_multiplier(default_aqi)
+    
+    print(f"⚠️ 觸發 Fallback 備用值 (AQI: {default_aqi}, 狀態: {default_status})")
     return {
         "has_event": True,
         "station_name": station_name,
-        "aqi": 35,
-        "status": "良好",
-        "multiplier": 1.15
+        "aqi": default_aqi,
+        "status": default_status,
+        "multiplier": default_multiplier
     }
