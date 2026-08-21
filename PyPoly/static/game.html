@@ -1464,7 +1464,8 @@ async function triggerTask() {
 
             // 3. 動畫播完後，觸發換人回合 (這會自動讓大家回到上帝視角)
             const nextP = getNextPlayerName();
-            socket.emit('next_turn_trigger', { room: roomCode, next_player: nextP });
+            // 🏆 統一走 endMyTurn：先前這裡直接 emit next_turn_trigger，會繞過回合計數與結束判定
+            endMyTurn();
             break;
         case 'SHOP':
             await startShopView();
@@ -3158,10 +3159,8 @@ async function initCameraAndStartVision() {
                             });
 
                             allTileMeshes.forEach(m => m.visible = true);
-                            socket.emit('next_turn_trigger', { 
-                                room: localStorage.getItem('room_code'), 
-                                next_player: getNextPlayerName() 
-                            });
+                            // 🏆 統一走 endMyTurn：先前這裡直接 emit next_turn_trigger，會繞過回合計數與結束判定
+                            endMyTurn();
                             showGameNotice("👋 已離開道具店", 2000);
                         } else {
                             // 選擇了道具
@@ -3427,7 +3426,8 @@ async function executeStealAnimation(attackerName) {
     setTimeout(() => {
         allTileMeshes.forEach(m => m.visible = true);
         isProcessingDecision = false;
-        socket.emit('next_turn_trigger', { room: roomCode, next_player: victimName });
+        // 🏆 統一走 endMyTurn：先前這裡直接 emit next_turn_trigger，會繞過回合計數與結束判定
+        endMyTurn();
     }, 2000);
 }
 
@@ -3928,7 +3928,8 @@ async function executePurchase(isBuying) {
 
         if (currentBalance < finalPrice) {
             showGameNotice(`❌ 金幣不足！無法操作`, 3000);
-            socket.emit('next_turn_trigger', { room: roomCode, next_player: nextP });
+            // 🏆 統一走 endMyTurn：先前這裡直接 emit next_turn_trigger，會繞過回合計數與結束判定
+            endMyTurn();
         } else {
             updateMoneyUI(myName, -finalPrice);
             playSfx('buy'); // 🏆 需求⑥：收購成功音效
@@ -3956,7 +3957,8 @@ async function executePurchase(isBuying) {
             else if (window.isUpgrading) showGameNotice(`🏢 加蓋成功！過路費升級為 $${finalToll}！`, 2500);
             else showGameNotice(`🎉 ${landName} 收購成功！`, 2000);
             
-            setTimeout(() => { socket.emit('next_turn_trigger', { room: roomCode, next_player: nextP }); }, 2000);
+            // 🏆 統一走 endMyTurn：先前這裡直接 emit next_turn_trigger，會繞過回合計數與結束判定
+            setTimeout(() => endMyTurn(), 2000);
         }
     }else {
         // 放棄收購的情況
@@ -3970,7 +3972,8 @@ async function executePurchase(isBuying) {
 
         setTimeout(() => {
             exitSpectatorMode(); 
-            socket.emit('next_turn_trigger', { room: roomCode, next_player: nextP });
+            // 🏆 統一走 endMyTurn：先前這裡直接 emit next_turn_trigger，會繞過回合計數與結束判定
+            endMyTurn();
         }, 2000);
     }
 }
@@ -4301,16 +4304,16 @@ const opponentJumpPeak = {};
 // 這裡在先後手確定的當下寫入真正的順序，供 endMyTurn 與結算權威端使用。
 // 兩端各自算出的順序必然一致（平手會重擲，不存在相等情況）。
 // =========================================================
+// 🏆 單次執行保護：確保一個回合只會被結束一次。
+//    所有結束回合的路徑都已統一走 endMyTurn（見下方註解），
+//    有了這道保護，即使某條路徑不小心呼叫兩次也不會重複計算回合。
+//    由 startMainTurn 在每個回合開始時重置。
+let turnEndedGuard = false;
+
 function setTurnOrder(firstName, secondName) {
     const order = [firstName, secondName];
     localStorage.setItem('pypoly_turn_order', JSON.stringify(order));
-    // 🔍 [回合診斷] 用於追查「設定 1 回合卻跑了 2 輪」的問題
-    console.log('%c🔍[回合診斷] setTurnOrder', 'color:#00cdac;font-weight:bold', {
-        我是: localStorage.getItem('username'),
-        寫入的順序: order,
-        先手: firstName,
-        後手_lastMover: secondName
-    });
+    console.log(`🔢 本局行動順序：${order.join(' → ')}`);
     return order;
 }
 
@@ -4468,7 +4471,8 @@ async function payToSkipJumping() {
     setTimeout(() => {
         isProcessingDecision = false; // 兩秒後才解鎖 (已換人)
         const nextP = getNextPlayerName();
-		socket.emit('next_turn_trigger', { room: roomCode, next_player: nextP });
+		// 🏆 統一走 endMyTurn：先前這裡直接 emit next_turn_trigger，會繞過回合計數與結束判定
+		endMyTurn();
     }, 2000);
 }
 
@@ -4644,10 +4648,8 @@ async function initPoseAndStartVision() {
                     showGameNotice("🎉 挑戰成功！體力充沛", 2500);
                     
                     const nextP = getNextPlayerName();
-                    socket.emit('next_turn_trigger', { 
-                        room: roomData.code, 
-                        next_player: nextP 
-                    });
+                    // 🏆 統一走 endMyTurn：先前這裡直接 emit next_turn_trigger，會繞過回合計數與結束判定
+                    endMyTurn();
                 }, 1500);
             }
             
@@ -5417,7 +5419,8 @@ function finishFlappyBird(coins) {
     setTimeout(() => {
         allTileMeshes.forEach(m => m.visible = true);
         const nextP = getNextPlayerName();
-        socket.emit('next_turn_trigger', { room: roomCode, next_player: nextP });
+        // 🏆 統一走 endMyTurn：先前這裡直接 emit next_turn_trigger，會繞過回合計數與結束判定
+        endMyTurn();
     }, 3500);
 }
 
@@ -5762,14 +5765,6 @@ socket.on('dice_order_final', (results) => {
     const myName = localStorage.getItem('username');
     const myPoint = results[myName];
     const allUsers = Object.keys(results);
-    // 🔍 [回合診斷] 若 results 只含一人，opponentName 會退成字串 "對手"，
-    //    setTurnOrder 就會寫入一個不存在的玩家名，導致誰都不是 lastMover。
-    console.log('%c🔍[回合診斷] dice_order_final', 'color:#4facfe;font-weight:bold', {
-        我是: myName,
-        收到的原始結果: results,
-        結果中的玩家: allUsers,
-        我的點數: myPoint
-    });
     const opponentName = allUsers.find(name => name !== myName) || "對手";
     const opponentPoint = results[opponentName];
 
@@ -5945,7 +5940,10 @@ function finalizeGameStart(iAmFirst) {
 // 🏆 修正版：解決 ReferenceError 並顯示真實玩家 ID
 function startMainTurn(isMyTurn, targetPlayerName = "對手") {
     const myName = localStorage.getItem('username');
-    
+
+    // 🏆 新回合開始，解除上一回合的結束保護
+    turnEndedGuard = false;
+
     if (isMyTurn) {
         // 進入我的回合邏輯
         window.uiState = "READY"; 
@@ -6613,11 +6611,17 @@ function getNextPlayerName() {
 // 🏆 全新回合制核心控制器 (自動結算引擎)
 // ======================================================
 function endMyTurn() {
+    if (turnEndedGuard) {
+        console.warn("⚠️ 本回合已經結束過，忽略重複的 endMyTurn 呼叫");
+        return;
+    }
+    turnEndedGuard = true;
+
     const myName = localStorage.getItem('username');
     const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
     const nextP = getNextPlayerName();
-    
+
     const gameSnapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot'));
     const maxTurns = gameSnapshot.winLaps || 10;
     let currentRound = parseInt(localStorage.getItem('pypoly_current_round')) || 1;
@@ -6627,21 +6631,6 @@ function endMyTurn() {
     //    客人擲骰贏得先手時會在他的回合就判定結束，害房主少打一回合。
     const turnOrder = getTurnOrder();
     const lastMover = turnOrder[turnOrder.length - 1];
-
-    // 🔍 [回合診斷] 用於追查「設定 1 回合卻跑了 2 輪」的問題。
-    //    若 我是lastMover 兩位玩家都是 false，回合數就永遠不會增加也不會結束。
-    console.log('%c🔍[回合診斷] endMyTurn', 'color:#ffde59;font-weight:bold', {
-        我是: myName,
-        turnOrder: turnOrder,
-        lastMover: lastMover,
-        我是lastMover: myName === lastMover,
-        currentRound: currentRound,
-        maxTurns: maxTurns,
-        maxTurns型別: typeof maxTurns,
-        會結束遊戲: (myName === lastMover) && (currentRound >= maxTurns),
-        原始turnOrder存的值: localStorage.getItem('pypoly_turn_order'),
-        snapshot的players: gameSnapshot.players
-    });
 
     if (myName === lastMover) {
         if (currentRound >= maxTurns) {

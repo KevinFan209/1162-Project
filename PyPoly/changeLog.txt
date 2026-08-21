@@ -1049,3 +1049,43 @@ PyPoly 變更紀錄 (changeLog)
   ⚠️ 記錄一個測試上的坑：用 curl 傳含中文的 JSON 會因主控台編碼而送出錯誤內容，
      導致誤判為 API 失敗。驗證這類端點時應改用 Python 的 requests。
 ========================================================================
+
+
+[2026-08-22] #41 修復回合數計算：統一所有結束回合的路徑
+
+  現象：設定 1 回合的房間，實際跑了 2 輪才結束；回合指示器全程停在「第 1 / 1」。
+
+  根因：全檔共有 9 處直接 socket.emit('next_turn_trigger') 換人，
+        完全繞過 endMyTurn()——而回合計數與遊戲結束判定「只在 endMyTurn 裡」。
+        走到這些路徑的回合既不計數也不檢查結束，遊戲就會多跑。
+
+        繞過的九處分別位於：
+          triggerTask 的 JAIL 分支、initCameraAndStartVision 的離開商店、
+          executeStealAnimation（偷竊道具）、executePurchase 的三條分支
+          （金幣不足 / 收購成功 / 放棄收購）、開合跳的付費略過與完成、
+          finishFlappyBird。
+
+        使用者提供的 console 記錄正好印證：第一輪踩到冒險格並「放棄收購」，
+        走的是 executePurchase 的繞過路徑，該回合未被計數；
+        第二輪踩到 BLANK 走正常路徑，才觸發「達到設定回合數，遊戲結束」。
+        這也解釋了為何回合指示器始終是 1——currentRound++ 從未執行。
+
+  檔案：static/game.html
+    - 九處直接 emit 全部改為呼叫 endMyTurn()，讓所有結束回合的路徑收斂到同一處。
+      endMyTurn 內部原本那一處 emit 保留（它才是真正送出換人訊號的地方）。
+    - executeStealAnimation 原本指定 next_player: victimName，
+      與 getNextPlayerName() 用的是同一個運算式（players.find(p => p !== 自己)），
+      雙人局中等價，改動安全。
+    - 新增 turnEndedGuard：確保一個回合只會被結束一次，
+      由 startMainTurn 在每個回合開始時重置。
+      九個呼叫點收斂後若有路徑重複觸發，這道保護可避免回合被重複計算。
+      宣告放在 setTurnOrder 前方（所有使用處之前），避免 let 的暫時性死區疑慮。
+    - 移除 #40 加入的暫時性診斷輸出（原因已確認），還原 setTurnOrder 的簡短輸出。
+
+  驗證：既有的 70 項整合測試、17 項地圖測試、12 項斷線測試、
+        21 項房間生命週期測試全數通過，0 失敗。
+        另以 git diff 逐一核對九處改動的位置與縮排皆正確。
+
+  ⚠️ 使用者回報時提供的 console 記錄顯示其瀏覽器載入的是舊版 game.html
+     （診斷訊息未出現、行號對不上），測試前需強制重新整理以避免快取。
+========================================================================
