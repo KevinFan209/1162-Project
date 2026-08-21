@@ -68,6 +68,42 @@ def _clear_room_dice_state(code: str):
         dice_order_results.pop(key, None)
         room_dice_data.pop(key, None)
 
+
+# ==========================================================
+# 🏆 殭屍房間回收
+# active_rooms 原本只有明確呼叫 leave/delete 才會清除，玩家關掉分頁、當機或
+# 網路中斷時房間會永久留著，大廳因此逐漸堆滿別人進不去的滿員房。
+# 這裡替每間房記錄最後活躍時間，由背景任務回收長時間沒有動靜的房間。
+# ==========================================================
+# 60 分鐘沒有任何活動才回收。訂得比一般對局長是刻意的——
+# 一局最長可能接近 30 分鐘，中途還可能暫離，寧可晚一點收也不要誤殺進行中的房間。
+# 所有 REST 端點與 socket 事件都會更新活躍時間，真正被收掉的必然是沒人在玩的房。
+ROOM_IDLE_TIMEOUT = 3600
+
+
+def touch_room(room: dict):
+    """更新房間的最後活躍時間。任何與該房有關的請求或 socket 事件都應呼叫。"""
+    if isinstance(room, dict):
+        room['last_active'] = datetime.utcnow().timestamp()
+
+
+def touch_room_by_code(code: str):
+    room = active_rooms.get((code or "").upper())
+    if room:
+        touch_room(room)
+
+
+def cleanup_idle_rooms():
+    """回收超過 ROOM_IDLE_TIMEOUT 沒有活動的房間。"""
+    now = datetime.utcnow().timestamp()
+    stale = [c for c, r in active_rooms.items()
+             if now - r.get('last_active', now) > ROOM_IDLE_TIMEOUT]
+    for code in stale:
+        active_rooms.pop(code, None)
+        _clear_room_dice_state(code)
+        print(f"🧹 [房間回收] {code} 閒置超過 {ROOM_IDLE_TIMEOUT // 60} 分鐘，已清除")
+    return len(stale)
+
 # 定義接收的資料結構
 class RoomSchema(BaseModel):
     hostId: str
@@ -92,6 +128,8 @@ async def start_cleanup_task():
                 perform_auto_cleanup(db)
             finally:
                 db.close()
+            # 🏆 一併回收閒置房間，避免大廳堆滿沒人但顯示滿員的殭屍房
+            cleanup_idle_rooms()
             # 每 10 秒自動掃描一次
             await asyncio.sleep(10)
     
@@ -594,16 +632,21 @@ async def vision_game_start(websocket: WebSocket):
 
 @app.post("/rooms/create")
 async def create_room(room: RoomSchema):
-    if room.code in active_rooms:
+    # 🏆 房號一律正規化為大寫：verify / join / leave / kick / start 全都有 .upper()，
+    #    唯獨建房沒有，會讓 'abc123' 與 'ABC123' 被當成兩間不同的房。
+    code = room.code.upper()
+    if code in active_rooms:
         raise HTTPException(status_code=400, detail="代碼已存在")
-    
+
     # 🏆 修正：初始化時就建立 players 陣列，並把房主放進去
     room_dict = room.dict()
-    room_dict['players'] = [room.hostId] 
+    room_dict['code'] = code
+    room_dict['players'] = [room.hostId]
     room_dict['status'] = 'waiting'
     room_dict['is_started'] = False
-    
-    active_rooms[room.code] = room_dict
+    touch_room(room_dict)
+
+    active_rooms[code] = room_dict
     return room_dict
 
 # --- 核心邏輯：獲取所有公開房間 ---
@@ -615,6 +658,7 @@ async def get_public_rooms():
 # --- 核心邏輯：刪除房間 (解決解散不掉的問題) ---
 @app.delete("/rooms/delete/{code}")
 async def delete_room(code: str):
+    code = code.upper()
     if code in active_rooms:
         del active_rooms[code]
         _clear_room_dice_state(code)  # 🏆 一併清掉擲骰暫存，避免同房號重開有殘留
@@ -625,15 +669,17 @@ async def delete_room(code: str):
 
 @app.post("/rooms/join/{code}")
 async def join_room(code: str, username: str):
+    code = code.upper()
     if code not in active_rooms:
         raise HTTPException(status_code=404, detail="房間不存在")
-    
+
     room = active_rooms[code]
     if username not in room['players']:
         if len(room['players']) >= 2:
             raise HTTPException(status_code=400, detail="房間已滿")
         room['players'].append(username)
-    
+
+    touch_room(room)
     return room
 
 @app.post("/rooms/leave/{code}")
@@ -669,6 +715,7 @@ async def kick_player(code: str, username: str = Query(...)): # 🏆 強制指�
 
     if code in active_rooms:
         room = active_rooms[code]
+        touch_room(room)
         if 'players' in room and username in room['players']:
             room['players'].remove(username)
             print(f"✅ 成功剔除: {username}")
@@ -694,6 +741,8 @@ async def verify_room(code: str, username: Optional[str] = None):
     
     room = active_rooms[code]
     
+    touch_room(room)
+    
     return {
         "exists": True,
         "code": code,
@@ -718,6 +767,8 @@ async def get_room_status(code: str):
     
     room = active_rooms[code]
     
+    touch_room(room)
+    
     # 🏆 確保回傳前端需要的欄位：status, players, is_started
     return {
         "code": code,
@@ -736,6 +787,8 @@ async def start_game(code: str, username: str, token: str = Depends(auth_utils.o
         raise HTTPException(status_code=404, detail="找不到該房間")
     
     room = active_rooms[code]
+    
+    touch_room(room)
     if room['hostId'] != username:
         raise HTTPException(status_code=403, detail="只有房主可以開始遊戲")
 
@@ -748,17 +801,62 @@ async def start_game(code: str, username: str, token: str = Depends(auth_utils.o
 # 🏆 修正：讓玩家連線進入 Socket 房間，否則訊息發不出去
 # 在 handle_order_dice 附近加入這個函式
 # 🏆 必須加入此監聽器，否則 emit(room=room) 會找不到對象
+# ==========================================================
+# 🏆 斷線處理
+# 原本完全沒有 disconnect handler：玩家關掉分頁後仍留在 room['players']，
+# 對手收不到任何通知。最嚴重的是決定先後手階段——handle_order_dice 要湊滿
+# 2 人才會廣播 dice_order_final，對手一斷線就永遠湊不滿，遊戲直接死鎖。
+# 這裡記錄 sid 對應的房間與玩家，斷線時通知同房其他人並解除該死鎖。
+# ==========================================================
+sid_to_player: Dict[str, dict] = {}   # sid -> {"room": 房號, "user": 玩家名}
+
+
 @sio.on('join_game_room')
 async def handle_join_game_room(sid, data):
+    # 🏆 有活動就更新房間活躍時間，避免進行中的對局被閒置回收
+    touch_room_by_code(data.get('room') if isinstance(data, dict) else None)
     room = data.get('room')
     user = data.get('user')
     if room:
         await sio.enter_room(sid, room)
+        sid_to_player[sid] = {"room": room, "user": user}
         print(f"✅ [Socket 房門已開] 使用者 {user} 已進入房間: {room}")
+
+
+@sio.event
+async def disconnect(sid):
+    """玩家斷線（關分頁、當機、網路中斷）時通知同房其他人。"""
+    info = sid_to_player.pop(sid, None)
+    if not info:
+        return   # 沒進過遊戲房的連線，不必處理
+
+    room, user = info.get("room"), info.get("user")
+    print(f"🔌 [斷線] {user} 離開房間 {room}")
+
+    # 1. 若還在決定先後手階段，整份清掉並通知同房的人。
+    #    ⚠️ 不能只在「斷線者已提交過點數」時才處理——死鎖恰恰發生在他還沒提交
+    #    就離開的情況（剩下的人永遠湊不滿 2 人）。只要該房有進行中的擲骰回合，
+    #    離開任何一人都代表這輪無法完成。
+    #    整份清空也避免殘留的舊點數在對方重連後被誤用。
+    if room_dice_data.get(room):
+        room_dice_data[room] = {}
+        await sio.emit('order_dice_aborted',
+                       {"reason": "opponent_left", "user": user}, room=room)
+
+    # 2. 通知同房其他人，讓前端能顯示提示而不是無限等待
+    await sio.emit('opponent_disconnected', {"user": user, "room": room}, room=room)
+
+
+@sio.event
+async def connect(sid, environ, auth=None):
+    # 僅記錄，實際的房間綁定在 join_game_room
+    print(f"🔗 [Socket 連線] {sid}")
 
 # 在 main.py 中檢查或加入此段
 @sio.on('start_game_request')
 async def handle_start_game(sid, data):
+    # 🏆 有活動就更新房間活躍時間，避免進行中的對局被閒置回收
+    touch_room_by_code(data.get('room') if isinstance(data, dict) else None)
     room_code = data.get('room')
     print(f"🚀 房主請求開始遊戲，房間代碼: {room_code}")
     
@@ -802,6 +900,8 @@ room_dice_data = {}
 # --- 修正後的 handle_order_dice ---
 @sio.on('submit_order_dice')
 async def handle_order_dice(sid, data):
+    # 🏆 有活動就更新房間活躍時間，避免進行中的對局被閒置回收
+    touch_room_by_code(data.get('room') if isinstance(data, dict) else None)
     print(f"📥 收到點數提交: {data}")
     room = data.get('room')
     user = data.get('user')
@@ -834,6 +934,8 @@ async def handle_order_dice(sid, data):
 # 🏆 新增：處理平手重置請求
 @sio.on('reset_dice_order')
 async def handle_reset_dice(sid, data):
+    # 🏆 有活動就更新房間活躍時間，避免進行中的對局被閒置回收
+    touch_room_by_code(data.get('room') if isinstance(data, dict) else None)
     room = data.get('room')
     if room in room_dice_data:
         room_dice_data[room] = {}
@@ -842,6 +944,8 @@ async def handle_reset_dice(sid, data):
 # 在 main.py 中加入或修改此 Socket 監聽器
 @sio.on('broadcast_dice_event')
 async def handle_dice_event(sid, data):
+    # 🏆 有活動就更新房間活躍時間，避免進行中的對局被閒置回收
+    touch_room_by_code(data.get('room') if isinstance(data, dict) else None)
     # data 格式範例: {"room": "ROOM123", "user": "玩家ID", "type": "ROLLING" 或 "RESULT", "point": 5}
     room = data.get('room')
     print(f"📣 廣播擲骰事件: {data}")
@@ -850,6 +954,8 @@ async def handle_dice_event(sid, data):
 # 在 main.py 中加入此段落
 @sio.on('player_move_sync_request')
 async def handle_move_request(sid, data):
+    # 🏆 有活動就更新房間活躍時間，避免進行中的對局被閒置回收
+    touch_room_by_code(data.get('room') if isinstance(data, dict) else None)
     room = data.get('room')
     print(f"🚀 收到移動請求，正在廣播給房間 {room}: {data}")
     # 🏆 關鍵：將訊息廣播給房間內所有人 (包含發送者自己)
@@ -858,6 +964,8 @@ async def handle_move_request(sid, data):
 
 @sio.on('player_move_finished_event')
 async def handle_move_finished(sid, data):
+    # 🏆 有活動就更新房間活躍時間，避免進行中的對局被閒置回收
+    touch_room_by_code(data.get('room') if isinstance(data, dict) else None)
     room = data.get('room')
     # 通知所有人清空提示訊息
     await sio.emit('player_move_finished', data, room=room)
@@ -1002,6 +1110,8 @@ async def vision_bird(websocket: WebSocket):
 
 @sio.on('sync_user_appearance')
 async def handle_sync_appearance(sid, data):
+    # 🏆 有活動就更新房間活躍時間，避免進行中的對局被閒置回收
+    touch_room_by_code(data.get('room') if isinstance(data, dict) else None)
     room = data.get('room')
     user = data.get('user')
     
@@ -1021,6 +1131,8 @@ async def handle_sync_appearance(sid, data):
 # main.py 修正版
 @sio.on('buy_land')
 async def handle_buy_land(sid, data):
+    # 🏆 有活動就更新房間活躍時間，避免進行中的對局被閒置回收
+    touch_room_by_code(data.get('room') if isinstance(data, dict) else None)
     room = data['room']
     user = data['user']
     tile_index = data['tileIndex']
@@ -1109,22 +1221,30 @@ async def get_adventure_analysis(land_id: int, db: Session = Depends(database.ge
 # main.py 確保包含這兩段 (刪除舊的 sync_adventure_start/state)
 @sio.on('sync_adventure_phase')
 async def handle_adv_phase(sid, data):
+    # 🏆 有活動就更新房間活躍時間，避免進行中的對局被閒置回收
+    touch_room_by_code(data.get('room') if isinstance(data, dict) else None)
     # data 包含: room, user, phase (NARRATIVE/QUIZ/DECISION), payload
     await sio.emit('adventure_phase_broadcast', data, room=data.get('room'), skip_sid=sid)
 
 @sio.on('sync_adventure_choice')
 async def handle_choice_sync(sid, data):
+    # 🏆 有活動就更新房間活躍時間，避免進行中的對局被閒置回收
+    touch_room_by_code(data.get('room') if isinstance(data, dict) else None)
     # 用來同步按鈕亮燈 (1,2,3,4 或 LIKE, DISLIKE)
     await sio.emit('adventure_choice_broadcast', data, room=data.get('room'), skip_sid=sid)
 
 @sio.on('next_turn_trigger')
 async def handle_next_turn(sid, data):
+    # 🏆 有活動就更新房間活躍時間，避免進行中的對局被閒置回收
+    touch_room_by_code(data.get('room') if isinstance(data, dict) else None)
     # data 包含: room, next_player
     # 🏆 核心：發送 next_turn_sync 給房間所有人，告知該回合徹底結束
     await sio.emit('next_turn_sync', data, room=data.get('room'))
 
 @sio.on('update_pose_count')
 async def handle_update_pose_count(sid, data):
+    # 🏆 有活動就更新房間活躍時間，避免進行中的對局被閒置回收
+    touch_room_by_code(data.get('room') if isinstance(data, dict) else None)
     """
     接收遊玩者的開合跳次數，並廣播給房間內的觀戰者
     """

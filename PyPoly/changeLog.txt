@@ -922,3 +922,62 @@ PyPoly 變更紀錄 (changeLog)
     - 回歸：先前的 69 項整合測試與 17 項地圖/測試模式測試全數通過。
     - game.html 以括號平衡檢查確認結構完整。
 ========================================================================
+
+
+[2026-08-21] #39 修復五項既有問題：心跳、斷線處理、殭屍房間、回合選單、房號正規化
+
+  一、對局中不再被誤判離線（static/game.html）
+    - window.onload 加上 startSyncLoop(myName, token) 的呼叫。
+      該函式原本只有定義而從未被呼叫，導致進入遊戲後完全不送心跳，
+      後端 60 秒無心跳的清理會把正在遊玩的人判定為離線。
+      影響：管理員後台顯示錯誤的在線狀態、防止重複登入的機制失效。
+      lobby.html 與 WaitingRoom.html 本來就有呼叫，此處補齊。
+
+  二、加入 socket 斷線處理（main.py、static/game.html）
+    - 新增 sid_to_player 記錄每個連線對應的房間與玩家，
+      於 join_game_room 時建立、disconnect 時取用。
+    - 新增 @sio.event disconnect：
+      * 若該房有進行中的擲骰回合，整份清空 room_dice_data[room] 並廣播
+        order_dice_aborted。原本沒有這段時，對手在決定先後手階段離線，
+        剩下的人會永遠等不到 dice_order_final（湊不滿 2 人）而卡死。
+        ⚠️ 判斷條件是「該房有進行中的擲骰回合」而非「斷線者已提交過點數」——
+        死鎖恰恰發生在他還沒提交就離開的情況。整份清空也避免殘留的舊點數
+        在對方重連後被誤用（實測確認過會發生）。
+      * 廣播 opponent_disconnected 通知同房其他人。
+    - 前端新增兩個監聽器，收到後顯示明確提示而非無限等待。
+
+  三、殭屍房間逾時回收（main.py）
+    - active_rooms 原本只有明確呼叫 leave/delete 才會清除，玩家關分頁或當機時
+      房間永久留著，大廳逐漸堆滿別人進不去的滿員房。
+    - 新增 touch_room / touch_room_by_code / cleanup_idle_rooms，
+      由既有的背景清理迴圈每 10 秒一併執行。
+    - 所有房間相關的 REST 端點與全部 13 個 socket handler 都會更新活躍時間。
+      ⚠️ socket 端必須加：對局進行中只走 socket 不打 REST，
+      少了這段會把進行中的房間誤判為閒置而回收。
+    - ROOM_IDLE_TIMEOUT 設為 3600 秒。訂得比一般對局長是刻意的——
+      一局最長可能接近 30 分鐘且中途可能暫離，寧可晚收也不要誤殺。
+
+  四、遊玩回合選單的 value 誤植（static/modal.html）
+    - 「25 回合」「30 回合」兩個 option 的 value 原本都寫成 20，
+      選了實際只會打 20 回合。已改為對應的 25 與 30。
+
+  五、房號大小寫正規化（main.py）
+    - create_room / delete_room / join_room 補上 .upper()。
+      其餘端點（verify/leave/kick/start/roll_order）本來就有，
+      唯獨這三個沒有，會讓 'abc123' 與 'ABC123' 被當成兩間不同的房。
+    - create_room 同時把正規化後的 code 寫回 room_dict，確保回傳值一致。
+
+  驗證：新增 12 項斷線與正規化測試全數通過，涵蓋——
+        小寫建房後回傳大寫、大小寫皆可查詢與加入、重複建房被擋；
+        決定先後手階段對手斷線時收到 order_dice_aborted 與
+        opponent_disconnected；重連後可正常完成且點數無舊資料殘留。
+        另跑既有的 70 項整合測試與 17 項地圖測試，皆 0 失敗。
+        （整合測試的警告由 6 項降為 5 項，房號正規化那項已從警告轉為通過。）
+
+  ⚠️ 測試時踩到的坑，記錄以免日後誤判：
+     socketio.Client 用 polling transport 時 emit 會被批次延後送出，
+     測試若在 emit 後立刻斷線，伺服器其實還沒收到該事件，
+     測到的是「還沒有人提交」的情境而非預期的死鎖情境。
+     真實瀏覽器會升級為 websocket、emit 即時，無此問題。
+     撰寫這類時序相關的測試時需在 emit 後留足夠等待。
+========================================================================

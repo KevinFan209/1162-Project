@@ -906,6 +906,31 @@ socket.on('connect', () => {
     setTimeout(broadcastMyAppearance, 1000);
     setTimeout(broadcastMyAppearance, 3000);
 });
+
+// 🏆 對手斷線：先前沒有這個監聽器，對手關掉分頁時這端會無限等待、
+//    完全不知道發生什麼事。現在至少明確告知，讓人知道該重開而不是乾等。
+socket.on('opponent_disconnected', (data) => {
+    const myName = localStorage.getItem('username');
+    if (!data || data.user === myName) return;
+    console.warn(`🔌 對手 ${data.user} 已斷線`);
+    showGameNotice(
+        `🔌 ${data.user} 已離線<br>`
+        + `<span style="font-size:1.2rem;">對局無法繼續，請雙方回大廳重新開始</span>`,
+        0);
+});
+
+// 🏆 決定先後手階段對手斷線：後端會清掉他的點數並發這個事件。
+//    沒有它的話，剩下的人會永遠等不到 dice_order_final（湊不滿 2 人）——
+//    這是先前最容易遇到的死鎖。
+socket.on('order_dice_aborted', (data) => {
+    const myName = localStorage.getItem('username');
+    if (!data || data.user === myName) return;
+    console.warn(`🎲 決定順序中斷：${data.user} 離線`);
+    showGameNotice(
+        `🎲 ${data.user} 在決定先後手時離線<br>`
+        + `<span style="font-size:1.2rem;">請回大廳重新開始對局</span>`,
+        0);
+});
 	
 	window.netPlayerColors = {}; // 全域快照：存放連線收到的所有玩家外觀顏色
     window.netPlayerFaces = {};  // 🏆 新增：存放連線收到的所有玩家人臉貼圖
@@ -2344,6 +2369,12 @@ window.onload = async function() {
         location.href = 'lobby.html';
         return;
     }
+
+    // 🏆 啟動心跳。先前 startSyncLoop 只有定義卻從未被呼叫，導致進入遊戲後
+    //    完全不送心跳，後端 60 秒無心跳的清理會把正在遊玩的人判定為離線——
+    //    管理員後台顯示錯誤，且防止重複登入的機制會失效。
+    //    lobby.html 與 WaitingRoom.html 本來就有呼叫，這裡補齊。
+    startSyncLoop(myName, localStorage.getItem('token'));
 
     // --- 2. 解決房間名與個人資訊顯示問題 ---
     const roomDisplayName = gameSnapshot.name || gameSnapshot.code;
