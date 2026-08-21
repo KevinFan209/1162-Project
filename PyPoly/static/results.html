@@ -154,8 +154,42 @@
                 `<div style="text-align:center;color:#ef4444;font-weight:800;padding:40px;">缺少房間代碼，無法顯示結算</div>`;
             return;
         }
+        finishRoom();       // 先通知後端這局結束了
+        cleanupGameState(); // 再清掉本機的局內殘留
         loadResults(0);
     };
+
+    // 🏆 通知後端結束對局。先前完全沒有這一步——「回大廳」只是換頁，
+    //    後端不知道對局已結束，房間就永遠留在大廳且進不去（殭屍房間）。
+    //    兩位玩家都會進到這頁，各會呼叫一次，後端端點具冪等性。
+    async function finishRoom() {
+        try {
+            await fetch(`${API_URL}/rooms/finish/${encodeURIComponent(roomCode)}`,
+                        { method: 'POST' });
+            console.log(`🏁 已通知後端結束房間 ${roomCode}`);
+        } catch (err) {
+            console.warn('⚠️ 通知後端結束對局失敗，房間將由閒置回收處理', err);
+        }
+    }
+
+    // 🏆 清掉局內狀態，避免回大廳後被誤判成「還在房間中」
+    //    （modal.html 建房時會偵測 pypoly_active_room 並跳出確認框）。
+    //    ⚠️ 不動 pypoly_char_*（角色外觀）與 token / username / role。
+    function cleanupGameState() {
+        const exact = ['pypoly_active_room', 'room_code', 'room_info', 'is_host',
+                       'pypoly_game_snapshot', 'pypoly_current_round', 'pypoly_turn_order',
+                       'pypoly_land_ownership', 'pypoly_global_owned_lands',
+                       'pypoly_used_questions', 'current_player_role'];
+        exact.forEach(k => localStorage.removeItem(k));
+
+        // 帶房號或玩家名的動態鍵：pypoly_synced_map_* / pypoly_inv_* / pypoly_jumps_*
+        const prefixes = ['pypoly_synced_map_', 'pypoly_inv_', 'pypoly_jumps_'];
+        Object.keys(localStorage)
+            .filter(k => prefixes.some(p => k.startsWith(p)))
+            .forEach(k => localStorage.removeItem(k));
+
+        console.log('🧹 已清除本機的局內狀態');
+    }
 
     async function loadResults(attempt) {
         const MAX_RETRY = 10; // 最多重試 10 次 (約 10 秒)

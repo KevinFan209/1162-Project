@@ -74,6 +74,38 @@ class GameRecord(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class GameRoomLog(Base):
+    """房間生命週期紀錄。
+
+    為什麼需要：房間原本只存在伺服器記憶體的 active_rooms，
+    (1) 沒有人通知後端「這局結束了」，結算完的房仍留在大廳且進不去；
+    (2) 重啟伺服器就整批消失，沒有任何對局歷史。
+    這張表讓房間狀態可持久化，/rooms/public 也能只顯示仍可加入的房。
+
+    room_code 刻意不設 unique：房號是隨機產生的，日後可能被重複使用，
+    同一個 code 應該能保有多筆歷史。查「目前這間房」時取尚未結束的最新一筆。
+    """
+    __tablename__ = "game_room_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    room_code = Column(String(20), index=True)   # 房間代碼
+    host = Column(String(50))                    # 房主
+    name = Column(String(100))                   # 房間名稱
+    mode = Column(String(20))                    # 基礎填空 / 進階代碼
+    difficulty = Column(String(20))              # easy / normal / hard
+    win_laps = Column(String(10))                # 設定的遊玩回合數
+    room_type = Column(String(20))               # public / private
+    test_mode = Column(Boolean, default=False)   # 是否為測試模式（含空白格）
+    # waiting  尚未開始，會出現在大廳
+    # gaming   對局進行中
+    # finished 正常結束（已進結算頁）
+    # abandoned 玩家離開或閒置被回收
+    status = Column(String(20), default="waiting", index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    started_at = Column(DateTime)
+    finished_at = Column(DateTime)
+
+
 class GameAnswerLog(Base):
     """每一題的作答明細 (報表/答錯回顧用)。用來計算答對率、最常出現語法、平均用時。"""
     __tablename__ = "game_answer_logs"

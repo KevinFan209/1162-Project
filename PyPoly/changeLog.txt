@@ -981,3 +981,71 @@ PyPoly 變更紀錄 (changeLog)
      真實瀏覽器會升級為 websocket、emit 即時，無此問題。
      撰寫這類時序相關的測試時需在 emit 後留足夠等待。
 ========================================================================
+
+
+[2026-08-22] #40 房間生命週期入庫，修復結算後的殭屍房間
+
+  現象：實測「1 回合 + 測試模式」的對局，結算完返回大廳後該房仍留在公開
+        房間列表，進不去也刪不掉，要重啟伺服器才消失。
+
+  根因：static/results.html 的「回大廳」只是 location.href='lobby.html'，
+        完全沒有通知後端。房間就留在記憶體的 active_rooms 裡、兩名玩家還掛在
+        players，於是大廳顯示滿員而進不去。先前加的閒置回收要 60 分鐘才生效，
+        所以感覺像「只能重啟」。
+
+  檔案：models.py
+    - 新增 GameRoomLog（game_room_logs）：room_code / host / name / mode /
+      difficulty / win_laps / room_type / test_mode / status /
+      created_at / started_at / finished_at。
+      status 為 waiting / gaming / finished / abandoned。
+      room_code 刻意不設 unique——房號是隨機產生的、日後可能重複使用，
+      同一個 code 應該能保有多筆歷史；查「目前這間房」時取尚未結束的最新一筆。
+
+  檔案：main.py
+    - 新增 sync_room_log(code, status, room)：集中處理 upsert，避免各端點
+      各寫一份而漸漸分歧。自帶 DB session（呼叫點多半不是 request handler，
+      不能沿用 Depends(get_db)）。已結束的紀錄不會被改回進行中，
+      確保重複呼叫 finish 不會讓狀態跳動。
+    - 生命週期接點：create → waiting、start → gaming、
+      finish → finished、leave(房空)/delete/閒置回收 → abandoned。
+    - 新增 POST /rooms/finish/{code}：標記 finished 並把房間收回。
+      具冪等性——兩位玩家都會進結算頁、各會呼叫一次，第二次仍回 200。
+    - /rooms/public 改為只回傳 type 公開、is_started 為否、且 status 為
+      waiting 的房。先前不分狀態全回，已開局或已結束的房才會留在大廳。
+    - 新增 restore_rooms_from_db()，於 startup 還原尚未結束的房間。
+      還原時 players 一律清空：重啟時 socket 連線已全數斷開，
+      沿用舊名單會讓房間顯示滿員卻沒有人在裡面。
+
+  檔案：static/results.html
+    - 載入時呼叫 /rooms/finish/{room} 通知後端結束對局。
+    - 新增 cleanupGameState()：清掉 pypoly_active_room / room_code /
+      pypoly_game_snapshot / pypoly_current_round / pypoly_turn_order /
+      土地與道具等局內狀態，含 pypoly_synced_map_* / pypoly_inv_* /
+      pypoly_jumps_* 這類帶房號或玩家名的動態鍵。
+      避免回大廳後被誤判成「還在房間中」（modal.html 建房時會偵測
+      pypoly_active_room 並跳出確認框）。
+      ⚠️ 刻意不動 pypoly_char_*（角色外觀）與 token / username / role。
+
+  檔案：static/game.html —— 回合數問題的診斷輸出（暫時性）
+    - 使用者回報設定 1 回合卻跑了 2 輪，且回合指示器全程顯示「第 1 / 1」，
+      代表 endMyTurn 裡 currentRound++ 的分支從未執行，
+      即 myName === lastMover 對兩位玩家都是 false。
+      問題在 getTurnOrder() / lastMover 的判定，而非 winLaps 的值
+      或比較運算（1 >= "1" 成立，已驗證）。
+    - 在 setTurnOrder / dice_order_final / endMyTurn 三處加上診斷輸出，
+      印出 turnOrder、lastMover、currentRound、maxTurns 與其型別、
+      以及 dice_order_final 收到的原始 results
+      （若 results 只含一人，opponentName 會退成字串 "對手"，
+       setTurnOrder 就會寫入不存在的玩家名，導致誰都不是 lastMover）。
+    - ⚠️ 這些是暫時性的診斷，待原因確認並修正後應移除或降為 console.debug。
+
+  驗證：新增 21 項房間生命週期測試與 5 項重啟還原測試，全數通過——
+        資料表與欄位齊全；waiting→gaming→finished 狀態與時間戳正確；
+        已開局與已結束的房都不再出現在大廳；finish 具冪等性且不產生重複列；
+        結束後同一房號可重新建立並產生第二筆歷史；
+        房間清空時轉為 abandoned；重啟伺服器後房間能從 DB 還原且 players 清空。
+        另跑既有的 70 項整合測試、17 項地圖測試、12 項斷線測試，皆 0 失敗。
+
+  ⚠️ 記錄一個測試上的坑：用 curl 傳含中文的 JSON 會因主控台編碼而送出錯誤內容，
+     導致誤判為 API 失敗。驗證這類端點時應改用 Python 的 requests。
+========================================================================

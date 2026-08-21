@@ -4304,7 +4304,13 @@ const opponentJumpPeak = {};
 function setTurnOrder(firstName, secondName) {
     const order = [firstName, secondName];
     localStorage.setItem('pypoly_turn_order', JSON.stringify(order));
-    console.log(`🔢 本局行動順序：${order.join(' → ')}`);
+    // 🔍 [回合診斷] 用於追查「設定 1 回合卻跑了 2 輪」的問題
+    console.log('%c🔍[回合診斷] setTurnOrder', 'color:#00cdac;font-weight:bold', {
+        我是: localStorage.getItem('username'),
+        寫入的順序: order,
+        先手: firstName,
+        後手_lastMover: secondName
+    });
     return order;
 }
 
@@ -5756,6 +5762,14 @@ socket.on('dice_order_final', (results) => {
     const myName = localStorage.getItem('username');
     const myPoint = results[myName];
     const allUsers = Object.keys(results);
+    // 🔍 [回合診斷] 若 results 只含一人，opponentName 會退成字串 "對手"，
+    //    setTurnOrder 就會寫入一個不存在的玩家名，導致誰都不是 lastMover。
+    console.log('%c🔍[回合診斷] dice_order_final', 'color:#4facfe;font-weight:bold', {
+        我是: myName,
+        收到的原始結果: results,
+        結果中的玩家: allUsers,
+        我的點數: myPoint
+    });
     const opponentName = allUsers.find(name => name !== myName) || "對手";
     const opponentPoint = results[opponentName];
 
@@ -6613,6 +6627,22 @@ function endMyTurn() {
     //    客人擲骰贏得先手時會在他的回合就判定結束，害房主少打一回合。
     const turnOrder = getTurnOrder();
     const lastMover = turnOrder[turnOrder.length - 1];
+
+    // 🔍 [回合診斷] 用於追查「設定 1 回合卻跑了 2 輪」的問題。
+    //    若 我是lastMover 兩位玩家都是 false，回合數就永遠不會增加也不會結束。
+    console.log('%c🔍[回合診斷] endMyTurn', 'color:#ffde59;font-weight:bold', {
+        我是: myName,
+        turnOrder: turnOrder,
+        lastMover: lastMover,
+        我是lastMover: myName === lastMover,
+        currentRound: currentRound,
+        maxTurns: maxTurns,
+        maxTurns型別: typeof maxTurns,
+        會結束遊戲: (myName === lastMover) && (currentRound >= maxTurns),
+        原始turnOrder存的值: localStorage.getItem('pypoly_turn_order'),
+        snapshot的players: gameSnapshot.players
+    });
+
     if (myName === lastMover) {
         if (currentRound >= maxTurns) {
             // 🚀 達到最大回合數，遊戲強制結束！

@@ -101,8 +101,102 @@ def cleanup_idle_rooms():
     for code in stale:
         active_rooms.pop(code, None)
         _clear_room_dice_state(code)
+        sync_room_log(code, "abandoned")
         print(f"🧹 [房間回收] {code} 閒置超過 {ROOM_IDLE_TIMEOUT // 60} 分鐘，已清除")
     return len(stale)
+
+
+# ==========================================================
+# 🏆 房間生命週期紀錄（game_room_logs）
+# 集中在這裡處理 upsert，避免五個端點各寫一份而漸漸分歧。
+# 自帶 DB session：這些呼叫點多半不是 request handler，
+# 不能沿用 Depends(get_db) 的 session。
+# ==========================================================
+ROOM_OPEN_STATUSES = ("waiting", "gaming")   # 尚未結束、重啟後需要還原的狀態
+
+
+def sync_room_log(code: str, status: str, room: dict = None):
+    """建立或更新該房的生命週期紀錄。同一房號取尚未結束的最新一筆。"""
+    if not code:
+        return
+    code = code.upper()
+    db = database.SessionLocal()
+    try:
+        log = (db.query(models.GameRoomLog)
+                 .filter(models.GameRoomLog.room_code == code,
+                         models.GameRoomLog.status.in_(ROOM_OPEN_STATUSES))
+                 .order_by(models.GameRoomLog.id.desc())
+                 .first())
+
+        if log is None:
+            if status != "waiting" and room is None:
+                return   # 沒有進行中的紀錄又沒有房間資料可建，略過
+            log = models.GameRoomLog(room_code=code)
+            db.add(log)
+
+        if room:
+            log.host = room.get("hostId")
+            log.name = room.get("name")
+            log.mode = room.get("mode")
+            log.difficulty = room.get("difficulty")
+            log.win_laps = str(room.get("winLaps", ""))
+            log.room_type = room.get("type")
+            log.test_mode = bool(room.get("testMode"))
+
+        # 已結束的紀錄不再被改回進行中，避免重複呼叫 finish 造成狀態跳動
+        if log.status in ("finished", "abandoned") and status in ROOM_OPEN_STATUSES:
+            return
+
+        log.status = status
+        if status == "gaming" and log.started_at is None:
+            log.started_at = datetime.utcnow()
+        if status in ("finished", "abandoned") and log.finished_at is None:
+            log.finished_at = datetime.utcnow()
+
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"⚠️ 房間紀錄寫入失敗（{code} → {status}）：{type(e).__name__}: {e}")
+    finally:
+        db.close()
+
+
+def restore_rooms_from_db():
+    """啟動時把尚未結束的房間還原到 active_rooms。
+
+    先前 active_rooms 只存在記憶體，重啟就整批消失——房間紀錄與進行中的
+    對局都救不回來。有了 game_room_logs 之後至少能還原房間本身。
+    """
+    db = database.SessionLocal()
+    try:
+        logs = (db.query(models.GameRoomLog)
+                  .filter(models.GameRoomLog.status.in_(ROOM_OPEN_STATUSES))
+                  .all())
+        for log in logs:
+            if log.room_code in active_rooms:
+                continue
+            active_rooms[log.room_code] = {
+                "code": log.room_code,
+                "hostId": log.host,
+                "name": log.name,
+                "mode": log.mode,
+                "difficulty": log.difficulty,
+                "winLaps": log.win_laps,
+                "type": log.room_type,
+                "testMode": bool(log.test_mode),
+                # 還原後 players 一律清空：socket 連線在重啟時已全數斷開，
+                # 沿用舊名單會讓房間顯示滿員卻沒有人在裡面。
+                "players": [],
+                "status": log.status,
+                "is_started": log.status == "gaming",
+                "last_active": datetime.utcnow().timestamp(),
+            }
+        if logs:
+            print(f"♻️ 已從資料庫還原 {len(logs)} 間未結束的房間")
+    except Exception as e:
+        print(f"⚠️ 還原房間失敗：{type(e).__name__}: {e}")
+    finally:
+        db.close()
 
 # 定義接收的資料結構
 class RoomSchema(BaseModel):
@@ -120,6 +214,9 @@ class RoomSchema(BaseModel):
 
 @app.on_event("startup")
 async def start_cleanup_task():
+    # 🏆 先把尚未結束的房間從資料庫還原，重啟不再遺失
+    restore_rooms_from_db()
+
     async def cleanup_loop():
         while True:
             # 建立一個新的資料庫連線來清理
@@ -647,13 +744,21 @@ async def create_room(room: RoomSchema):
     touch_room(room_dict)
 
     active_rooms[code] = room_dict
+    sync_room_log(code, "waiting", room_dict)
     return room_dict
 
 # --- 核心邏輯：獲取所有公開房間 ---
 @app.get("/rooms/public")
 async def get_public_rooms():
-    # 只回傳類型為「公開」或「public」的房間
-    return [r for r in active_rooms.values() if r.get('type') in ['public', '公開']]
+    # 🏆 只回傳「還能加入」的房：公開、尚未開局、且狀態為 waiting。
+    #    先前不分狀態全回，導致已開局或已結算的房仍留在大廳，
+    #    看得到卻進不去（顯示滿員）——這是使用者回報的殭屍房間。
+    return [
+        r for r in active_rooms.values()
+        if r.get('type') in ['public', '公開']
+        and not r.get('is_started')
+        and r.get('status', 'waiting') == 'waiting'
+    ]
 
 # --- 核心邏輯：刪除房間 (解決解散不掉的問題) ---
 @app.delete("/rooms/delete/{code}")
@@ -662,6 +767,7 @@ async def delete_room(code: str):
     if code in active_rooms:
         del active_rooms[code]
         _clear_room_dice_state(code)  # 🏆 一併清掉擲骰暫存，避免同房號重開有殘留
+        sync_room_log(code, "abandoned")
         print(f"🔥 房間 {code} 已被刪除")
         return {"status": "success"}
     raise HTTPException(status_code=404, detail="房間不存在")
@@ -695,7 +801,10 @@ async def leave_room(code: str, username: str):
             if not room['players']:
                 del active_rooms[code]
                 _clear_room_dice_state(code)  # 🏆 一併清掉擲骰暫存
+                sync_room_log(code, "abandoned")
                 print(f"🧹 房間 {code} 已空，自動清理完成")
+            else:
+                touch_room(room)
             
             # 🏆 額外邏輯 2：如果是房主離開，也可以選擇解散 (選用)
             # elif username == room.get('hostId'):
@@ -794,9 +903,30 @@ async def start_game(code: str, username: str, token: str = Depends(auth_utils.o
 
     room['status'] = 'gaming'
     room['is_started'] = True
+    sync_room_log(code, "gaming", room)
 
     # 🏆 務必回傳整個 room，這樣房主端 localStorage.setItem(JSON.stringify(latestData)) 才有資料
     return room
+
+
+@app.post("/rooms/finish/{code}")
+async def finish_room(code: str):
+    """對局結束：標記為 finished 並把房間收掉。
+
+    先前完全沒有這個端點——results.html 的「回大廳」只是換頁，
+    後端從不知道對局已結束，房間就永遠留在 active_rooms 裡。
+
+    ⚠️ 必須具冪等性：兩位玩家都會進結算頁，各會呼叫一次。
+    """
+    code = code.upper()
+    existed = code in active_rooms
+    if existed:
+        del active_rooms[code]
+        _clear_room_dice_state(code)
+    sync_room_log(code, "finished")
+    print(f"🏁 房間 {code} 對局結束，已收回")
+    # 第二次呼叫時 existed 為 False，但仍回 200——冪等，不讓前端看到假錯誤
+    return {"status": "success", "was_active": existed}
 
 # 🏆 修正：讓玩家連線進入 Socket 房間，否則訊息發不出去
 # 在 handle_order_dice 附近加入這個函式
