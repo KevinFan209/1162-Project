@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 import models, auth_utils, database
 import air_quality  # 🏆 環境部 AQI（移植自 origin/vamos 的 990e880）
+import learn_ai     # 🏆 AI 導師分析（learn.html 右側面板，交接給組員維護）
 import smtplib, random, requests, base64, cv2
 import numpy as np
 from email.mime.text import MIMEText
@@ -1612,3 +1613,166 @@ def get_results(room_code: str, db: Session = Depends(database.get_db)):
     }
 
     return {"room_code": room_code, "leaderboard": leaderboard, "report": report}
+
+
+# ==========================================================
+# 學習統計 (learn.html)
+#
+# 這裡刻意「即時計算」而不另建彙總表。所有數字都能從 game_records 與
+# game_answer_logs 算出來，另存一份就是衍生資料——結算時若漏更新或需要回填，
+# 它會安靜地與來源表不一致，而且沒有人會發現。
+# 成本可忽略：兩張表的 username 都已建索引，目前資料量也只有數十筆。
+# ==========================================================
+
+# ⚠️ 與 static/game.html:2475 的起始金寫死值對應，兩處必須一起改。
+#    「累積淨賺」要扣掉起始金，否則玩越多局數字越大，反映的是場次而非實力。
+STARTING_MONEY = 5000
+
+# 判定弱項至少要答過幾題。只答一題就答錯不足以稱為弱項，
+# 否則第一次上場答錯一題，該主題就會被 AI 拿去說教。
+_WEAK_MIN_SAMPLES = 2
+
+
+def _build_learn_stats(username: str, db: Session) -> dict:
+    """彙總單一玩家的跨場次學習統計。
+
+    回傳的 ai_context 是給組員接 AI 用的**穩定契約**：
+    畫面欄位日後怎麼改都不動它，組員的程式只讀那一塊。
+    """
+    records = db.query(models.GameRecord).filter(
+        models.GameRecord.username == username
+    ).order_by(models.GameRecord.created_at.desc()).all()
+
+    logs = db.query(models.GameAnswerLog).filter(
+        models.GameAnswerLog.username == username
+    ).order_by(models.GameAnswerLog.created_at.desc()).all()
+
+    # --- 總覽 ---
+    total_q = sum(r.total_questions or 0 for r in records)
+    correct = sum(r.correct_count or 0 for r in records)
+    net_profit = sum((r.final_money or 0) - STARTING_MONEY for r in records)
+    jump_total = sum(r.jump_count or 0 for r in records)
+    wins = sum(1 for r in records if r.is_winner)
+    # 平均用時取自作答明細而非 game_records.avg_answer_sec，
+    # 後者是「每局的平均」，再平均一次會讓題數少的那局被過度加權。
+    avg_sec = round(sum((l.answer_sec or 0) for l in logs) / len(logs), 1) if logs else 0
+
+    summary = {
+        "accuracy": round(correct / total_q * 100) if total_q else 0,
+        "correct": correct,
+        "total_questions": total_q,
+        "net_profit": net_profit,
+        "jump_count": jump_total,
+        "avg_answer_sec": avg_sec,
+        "wins": wins,
+    }
+
+    # --- 知識維度：依語法主題分組 ---
+    # game_answer_logs.category 存的是 questions.topic（變數/迴圈/串列…），
+    # 不是 basic/advanced 的模式分類，見 game.html:7510。
+    by_topic: Dict[str, Dict[str, int]] = {}
+    for l in logs:
+        if not l.category:
+            continue
+        d = by_topic.setdefault(l.category, {"total": 0, "correct": 0})
+        d["total"] += 1
+        if l.is_correct:
+            d["correct"] += 1
+
+    dimensions = [{
+        "topic": topic,
+        "total": d["total"],
+        "correct": d["correct"],
+        "accuracy": round(d["correct"] / d["total"] * 100) if d["total"] else 0,
+    } for topic, d in by_topic.items()]
+    # 答得多的排前面，同樣題數時正確率低的優先（比較需要被看見）
+    dimensions.sort(key=lambda x: (-x["total"], x["accuracy"]))
+
+    # --- 近期對局 ---
+    recent_games = [{
+        "room_code": r.room_code,
+        "rank": r.rank,
+        "final_money": r.final_money,
+        "net_profit": (r.final_money or 0) - STARTING_MONEY,
+        "accuracy": round(r.correct_count / r.total_questions * 100) if r.total_questions else 0,
+        "laps": r.laps,
+        "jump_count": r.jump_count,
+        "is_winner": bool(r.is_winner),
+        "created_at": r.created_at,
+    } for r in records[:5]]
+
+    # --- 給 AI 的脈絡 ---
+    sampled = [d for d in dimensions if d["total"] >= _WEAK_MIN_SAMPLES]
+    weakest = [d["topic"] for d in sorted(sampled, key=lambda x: x["accuracy"])[:3]
+               if d["accuracy"] < 100]
+    strongest = [d["topic"] for d in sorted(sampled, key=lambda x: -x["accuracy"])[:3]
+                 if d["accuracy"] >= 60]
+
+    ai_context = {
+        "username": username,
+        "games_played": len(records),
+        "accuracy": summary["accuracy"],
+        "total_questions": total_q,
+        "avg_answer_sec": avg_sec,
+        "dimensions": [{"topic": d["topic"], "accuracy": d["accuracy"], "total": d["total"]}
+                       for d in dimensions],
+        "strongest": strongest,
+        "weakest": weakest,
+        # 只取最近 5 題，避免 prompt 過長；LLM 不需要看完整作答史
+        "recent_wrong": [{
+            "topic": l.category,
+            "question": l.question_text,
+            "chosen": l.chosen_answer,
+            "correct": l.correct_answer,
+        } for l in logs if not l.is_correct][:5],
+    }
+
+    return {
+        "username": username,
+        "games_played": len(records),
+        "summary": summary,
+        "dimensions": dimensions,
+        "recent_games": recent_games,
+        "ai_context": ai_context,
+    }
+
+
+@app.get("/learn/stats")
+def learn_stats(username: str = None, authorization: str = Header(None),
+                db: Session = Depends(database.get_db)):
+    """學習統計。省略 username 時用 token 解出自己的身分。
+
+    從未遊玩過的人回傳 games_played=0 的空統計而非 404——
+    「還沒有資料」不是錯誤，前端要能顯示空狀態而不是報錯。
+    """
+    if not username:
+        username = auth_utils.get_current_user(authorization)   # 無效 token 會拋 401
+    return _build_learn_stats(username, db)
+
+
+@app.post("/learn/ai_report")
+def learn_ai_report(username: str = None, authorization: str = Header(None),
+                    db: Session = Depends(database.get_db)):
+    """AI 導師分析。實作在 learn_ai.py，那是留給組員的交接點。
+
+    用 POST 而非 GET：這會觸發一次昂貴的外部呼叫，
+    不希望瀏覽器或代理把結果快取起來、或做預先擷取。
+
+    刻意包上 try/except：learn_ai.py 由另一位組員維護，
+    他改壞或 LLM 連不上時，這頁應該退回規則式文字，
+    而不是回 500 讓整個學習統計頁都打不開。
+    """
+    if not username:
+        username = auth_utils.get_current_user(authorization)
+
+    ctx = _build_learn_stats(username, db)["ai_context"]
+
+    try:
+        report = learn_ai.generate_report(ctx)
+        if not report or not str(report).strip():
+            raise ValueError("generate_report 回傳空內容")
+        return {"status": "success", "source": "ai", "report": str(report)}
+    except Exception as e:
+        print(f"⚠️ AI 導師分析失敗，改用規則式退路：{e}")
+        return {"status": "success", "source": "fallback",
+                "report": learn_ai._rule_based(ctx)}

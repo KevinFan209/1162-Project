@@ -97,7 +97,11 @@
         .progress-item { display: flex; align-items: center; gap: 20px; margin-bottom: 25px; }
         .skill-name { width: 140px; font-weight: 900; color: var(--text-dark); font-size: 1.1rem; }
         .progress-bar-bg { flex: 1; height: 16px; background: var(--bg-gray); border-radius: 10px; overflow: hidden; }
-        .progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--success-green), #55efc4); border-radius: 10px; }
+        .progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--success-green), #55efc4); border-radius: 10px; transition: width 0.6s cubic-bezier(0.165, 0.84, 0.44, 1); }
+        /* 正確率偏低的主題改用暖色，讓弱項在圖表上一眼看得出來 */
+        .progress-bar-fill.weak { background: linear-gradient(90deg, #ff7675, #fdcb6e); }
+        .progress-count { width: 70px; text-align: right; font-weight: 900; color: var(--text-gray); font-size: 0.95rem; }
+        .empty-hint { color: var(--text-gray); font-weight: 700; line-height: 1.8; padding: 10px 0; }
 
         .side-ai-panel { background: white; border-radius: 35px; border: 1.5px solid var(--border-light); padding: 30px; display: flex; flex-direction: column; gap: 20px; }
         .ai-header { font-weight: 900; font-size: 1.4rem; color: var(--text-dark); display: flex; align-items: center; gap: 10px; }
@@ -144,30 +148,21 @@
                 <div class="summary-value" id="statAccuracy">85<span class="summary-unit">%</span></div>
             </div>
             <div class="summary-card">
-                <div class="summary-label">累積資產</div>
-                <div class="summary-value" id="statAssets">4,250</div>
+                <div class="summary-label">累積淨賺</div>
+                <div class="summary-value" id="statAssets">—</div>
             </div>
             <div class="summary-card">
                 <div class="summary-label">海關運動量</div>
-                <div class="summary-value" id="statExercise">120</div>
+                <div class="summary-value" id="statExercise">—</div>
             </div>
         </div>
 
         <div class="chart-section">
             <div class="chart-header">Python 知識維度分析</div>
-            <div class="progress-list">
-                <div class="progress-item">
-                    <div class="skill-name">基礎變數</div>
-                    <div class="progress-bar-bg"><div class="progress-bar-fill" style="width: 95%;"></div></div>
-                </div>
-                <div class="progress-item">
-                    <div class="skill-name">條件判斷</div>
-                    <div class="progress-bar-bg"><div class="progress-bar-fill" style="width: 80%;"></div></div>
-                </div>
-                <div class="progress-item">
-                    <div class="skill-name">迴圈控制</div>
-                    <div class="progress-bar-bg"><div class="progress-bar-fill" style="width: 65%;"></div></div>
-                </div>
+            <!-- 內容由 renderDimensions() 依 /learn/stats 的實際作答紀錄動態產生。
+                 原本這裡是三條寫死的進度條（基礎變數 95% / 條件判斷 80% / 迴圈控制 65%）。 -->
+            <div class="progress-list" id="dimensionList">
+                <div class="empty-hint">載入中...</div>
             </div>
         </div>
     </div>
@@ -182,57 +177,151 @@
 </div>
 
 <script>
+    // ⚠️ 這頁原本把 API 位址寫死成 http://<host>:8000，其餘 17 個頁面都是用
+    //    location.origin。走 Cloudflare 隧道時會變成 http://xxx.trycloudflare.com:8000
+    //    ——連不上，而且 HTTPS 頁面發 HTTP 請求會被瀏覽器擋掉（mixed content），
+    //    結果是心跳失效、停在這頁的人會被誤判斷線。
+    const API_URL = location.origin;
+    let syncTimer = null;
+
     function toggleMenu() {
         document.getElementById('sideMenu').classList.toggle('open');
         document.getElementById('overlay').classList.toggle('open');
     }
 
-    function logout() {
-        localStorage.clear();
-        window.location.href = 'login.html';
-    }
-
-    window.onload = function() {
-        const username = localStorage.getItem('username') || "探險者";
-        
-        // 動態生成 AI 報告
-        const reportBox = document.getElementById('aiMentorReport');
-        reportBox.innerHTML = `
-            Hey <b>${username}</b>！你在基礎語法上表現優異。
-            目前的挑戰是<b>迴圈控制</b>，建議針對 <code>while</code> 迴圈多練習。
-            繼續保持高頻率的開合跳，這對大腦很有幫助！
-        `;
-
-        // 登入保護
-        if (!localStorage.getItem('token')) {
-            window.location.href = 'login.html';
-        }
-    };
-	
-	window.onload = async () => {
+    // ⚠️ 這頁原本有兩個 window.onload，後者直接覆蓋前者，
+    //    導致被覆蓋的那段（AI 報告 + 登入保護）從來沒有執行過。
+    //    現在合併成單一進入點，寫法比照 guide.html。
+    window.onload = async () => {
         const username = localStorage.getItem('username');
         const token = localStorage.getItem('token');
-        if (!username || !token) return;
 
-        // 🏆 進場報到，確保在看學習統計時不會被當作斷線
-        fetch(`http://${location.hostname}:8000/auth/verify_and_refresh?username=${username}`, {
-            method: "POST",
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
+        if (!username || !token) {
+            window.location.href = 'login.html';
+            return;
+        }
 
-        // 啟動一個簡單的心跳
-        setInterval(() => {
-            fetch(`http://${location.hostname}:8000/auth/heartbeat?username=${username}`, {
+        // 進場報到，避免看統計看太久被判定為離線
+        try {
+            const res = await fetch(`${API_URL}/auth/verify_and_refresh?username=${encodeURIComponent(username)}`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-        }, 5000);
+            const data = await res.json();
+            if (data.status !== 'success') {
+                localStorage.clear();
+                window.location.href = 'login.html';
+                return;
+            }
+            startSyncLoop(username, token);
+        } catch (err) {
+            console.error('驗證失敗:', err);
+        }
+
+        // 兩塊各自載入：AI 那邊要等 LLM，不該卡住統計數字的顯示
+        loadStats(token);
+        loadAiReport(token);
     };
 
-    // 🏆 修正登出按鈕 (如果有)
+    function startSyncLoop(username, token) {
+        if (syncTimer) clearInterval(syncTimer);
+        syncTimer = setInterval(async () => {
+            try {
+                fetch(`${API_URL}/auth/heartbeat?username=${encodeURIComponent(username)}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const res = await fetch(`${API_URL}/auth/me?username=${encodeURIComponent(username)}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.is_online === 0 || data.role === 'banned') {
+                        clearInterval(syncTimer);
+                        localStorage.clear();
+                        window.location.href = 'login.html';
+                    }
+                }
+            } catch (err) {}
+        }, 5000);
+    }
+
+    // --- 統計數字 ---
+    async function loadStats(token) {
+        try {
+            const res = await fetch(`${API_URL}/learn/stats`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+
+            const s = data.summary || {};
+            document.getElementById('statAccuracy').innerHTML =
+                `${s.accuracy || 0}<span class="summary-unit">%</span>`;
+            // 淨賺可能是負的（買地買太兇），要保留負號
+            document.getElementById('statAssets').textContent =
+                (s.net_profit || 0).toLocaleString();
+            document.getElementById('statExercise').textContent =
+                (s.jump_count || 0).toLocaleString();
+
+            renderDimensions(data.dimensions || [], data.games_played || 0);
+        } catch (err) {
+            console.warn('⚠️ 載入學習統計失敗', err);
+            document.getElementById('dimensionList').innerHTML =
+                '<div class="empty-hint">統計載入失敗，請稍後重新整理。</div>';
+        }
+    }
+
+    function renderDimensions(dimensions, gamesPlayed) {
+        const box = document.getElementById('dimensionList');
+
+        if (!dimensions.length) {
+            box.innerHTML = gamesPlayed
+                ? '<div class="empty-hint">這幾局還沒有答題紀錄，多走幾格冒險格就會出現分析。</div>'
+                : '<div class="empty-hint">還沒有對局紀錄，先去大廳玩一局吧！</div>';
+            return;
+        }
+
+        box.innerHTML = dimensions.map(d => `
+            <div class="progress-item">
+                <div class="skill-name">${escapeHtml(d.topic)}</div>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill ${d.accuracy < 60 ? 'weak' : ''}" style="width: ${d.accuracy}%;"></div>
+                </div>
+                <div class="progress-count">${d.correct}/${d.total}</div>
+            </div>
+        `).join('');
+    }
+
+    // --- AI 導師分析（實作在後端的 learn_ai.py，由組員維護） ---
+    async function loadAiReport(token) {
+        const box = document.getElementById('aiMentorReport');
+        try {
+            const res = await fetch(`${API_URL}/learn/ai_report`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            box.innerHTML = data.report || '目前沒有可顯示的分析。';
+        } catch (err) {
+            console.warn('⚠️ 載入 AI 分析失敗', err);
+            box.textContent = 'AI 導師暫時無法連線，稍後再試試看。';
+        }
+    }
+
+    function escapeHtml(str) {
+        return String(str == null ? '' : str).replace(/[&<>"']/g,
+            c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
     async function logout() {
         const username = localStorage.getItem('username');
-        await fetch(`http://${location.hostname}:8000/auth/logout?username=${username}&confirm=true`, { method: 'POST' });
+        if (syncTimer) clearInterval(syncTimer);
+        try {
+            await fetch(`${API_URL}/auth/logout?username=${encodeURIComponent(username)}&confirm=true`,
+                        { method: 'POST' });
+        } catch (err) {}
         localStorage.clear();
         window.location.href = 'login.html';
     }

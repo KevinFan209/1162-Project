@@ -1161,3 +1161,93 @@ PyPoly 變更紀錄 (changeLog)
   ⚠️ 待人工驗收：換一台裝置（或清除 localStorage 後）登入 → 進遊戲確認角色
      外觀正確重建。這是本次改動的真正驗收標準。
 ========================================================================
+
+[2026-08-22] #43 learn.html 接上真實資料，並留出 AI 導師的交接點
+
+  問題一：整頁都是假資料。
+    正確率 85%、累積資產 4,250、運動量 120，以及三條知識維度進度條
+    （基礎變數 95% / 條件判斷 80% / 迴圈控制 65%）全部寫死在 HTML。
+    statAccuracy / statAssets / statExercise 三個 id 雖然存在，
+    但整份檔案沒有任何一行程式碼寫入它們。
+
+  問題二：window.onload 被指派兩次（原 195 行與 212 行），後者覆蓋前者。
+    被吃掉的那段包含 AI 報告的產生（所以面板永遠停在「載入中...」）
+    與登入保護（未登入者可直接開啟這頁）。logout() 也重複定義兩次。
+
+  問題三：API 位址寫死 http://<host>:8000。
+    其餘 17 個頁面都已改用 location.origin，只有這頁漏掉。
+    走 Cloudflare 隧道時會變成 http://xxx.trycloudflare.com:8000——連不上，
+    且 HTTPS 頁面發 HTTP 請求會被瀏覽器以 mixed content 擋掉。
+    後果是心跳失效，停在這頁的人約 60 秒後會被誤判為離線。
+
+  決策：不新增資料表，也不落地成 .json，改為即時計算。
+    所有數字都能從既有的 game_records 與 game_answer_logs 算出來：
+      Python 正確率 = correct_count / total_questions
+      累積淨賺     = Σ(final_money - 5000)
+      海關運動量   = Σ jump_count
+      知識維度     = game_answer_logs.category 分組算答對率
+    另建彙總表等於存衍生資料，結算時若漏更新或需要回填，
+    它會安靜地與來源表不一致而且沒人會發現——與先前角色外觀
+    「存配方不存成品圖」是同一個判斷。
+    成本可忽略：兩張表的 username 都已建索引。
+    .json 檔則是因為統計每位使用者各一份，一人一檔會爆炸，
+    單一檔案又會在多人同時遊玩時面臨並行寫入。
+
+    「累積資產」改為「累積淨賺」：每局起始金都是 5,000，直接加總的話
+    玩越多局數字越大，反映的是場次而不是實力。
+
+  檔案：main.py
+    - 新增 GET /learn/stats，回傳 summary / dimensions / recent_games / ai_context。
+      username 為選填，省略時用 token 解出自己的身分（比照 /auth/character）。
+      從未遊玩的人回 games_played=0 的空統計而非 404——
+      「還沒有資料」不是錯誤，前端要能顯示空狀態。
+    - 平均用時取自作答明細而非 game_records.avg_answer_sec：
+      後者是「每局的平均」，再平均一次會讓題數少的那局被過度加權。
+    - 弱項判定要求該主題至少答過 2 題，否則第一次上場答錯一題
+      就會被 AI 拿去說教。
+    - 新增 STARTING_MONEY = 5000，與 game.html:2475 的寫死值對應，兩處需一起維護。
+    - 新增 POST /learn/ai_report。用 POST 而非 GET 是因為它會觸發昂貴的
+      外部呼叫，不希望瀏覽器或代理快取結果或做預先擷取。
+
+  檔案：learn_ai.py（新增）—— AI 導師的交接點
+    - 這是 AI 功能的唯一交接檔，組員只需改 generate_report() 一個函式，
+      不必動 1600 行的 main.py（四人協作很容易撞 merge），也不必動 learn.html。
+    - ai_context 的完整結構寫在 docstring：每個欄位的型別、範例、
+      以及「所有清單都可能是空的」這個前提。
+    - ai_context 刻意獨立成一個鍵，即使內容與畫面欄位重疊：
+      它是給組員的穩定契約，日後調整卡片或排序都不會弄壞他們的程式。
+    - 目前是規則式實作，讓頁面現在就能動；_call_llm() 已寫好骨架，
+      拆掉一行註解即可切換。骨架裡註明兩個實測踩過的坑：
+      gemma-4 會把輸出拆成 content 與 reasoning_content（只讀 content），
+      以及 max_tokens 給太小會讓 content 回空字串。
+    - 規則式退路即使接上 AI 後也建議保留，它同時是 LLM 掛掉時的安全網。
+    - main.py 那一端包了 try/except：組員改壞或 LLM 連不上時退回規則式文字，
+      不會讓整個學習統計頁回 500。
+
+  檔案：static/learn.html
+    - 合併成單一 window.onload，寫法比照 guide.html:204-272。
+    - 刪掉重複的 logout()，保留會呼叫 /auth/logout 的那一個。
+    - 全部改用 const API_URL = location.origin。
+    - 抽出 startSyncLoop() 並加上 clearInterval 保護（原本的 setInterval
+      沒有任何清除機制）。
+    - 三條寫死的進度條改為依 dimensions 動態產生，正確率低於 60% 的主題
+      用暖色顯示，讓弱項一眼看得出來；並顯示 correct/total 的實際題數。
+    - 統計與 AI 分開載入：AI 那邊要等 LLM，不該卡住統計數字的顯示。
+    - 空狀態分兩種文案：完全沒玩過 vs 玩過但沒答過題。
+
+  驗證：新增 29 項 learn API 測試全數通過。
+        數值不是拿 API 自己驗自己，而是先從資料庫獨立算出預期值再比對
+        （games=1、4/6=67%、淨賺 3600），另檢查各主題題數加總等於
+        作答明細筆數、accuracy 無除以零、排序正確、ai_context 契約完整。
+        另新增 11 項韌性測試：以 in-process 竄改 generate_report，
+        分別模擬拋例外、回空字串、回 None、回全空白、KeyError 五種壞法，
+        確認每一種都仍回 200 並走規則式退路。
+        既有的 70 項整合測試、17 項地圖測試、12 項斷線測試、
+        21 項房間生命週期測試全數通過，0 失敗。
+
+  ⚠️ 目前 game_records 僅 4 筆、game_answer_logs 13 筆，且部分是測試資料，
+     畫面會顯得稀疏。這是資料量問題不是程式問題。
+
+  ⚠️ question.html 與 settings.html 同樣缺少 API_URL = location.origin，
+     本次不在範圍內，但有同樣的隧道失效風險。
+========================================================================
