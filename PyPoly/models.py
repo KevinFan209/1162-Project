@@ -17,6 +17,25 @@ class User(Base):
     # 🏆 建議新增：紀錄最後活動時間 (這對解決第三點「斷線偵測」很有用)
     last_active = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # ======================================================
+    # 🏆 角色外觀
+    # 只存「配方」不存「成品圖」：外觀完全由 5 個色碼與 4 個五官 ID 決定，
+    # 臉部貼圖是由這些資料即時合成的衍生物（見 static/js/character-face.js）。
+    # 存配方約 200 bytes，存合成後的 512x512 PNG 則要數百 KB；
+    # 更重要的是角色形式日後改版時，成品圖會直接報廢，配方仍可重新渲染或轉換。
+    #
+    # 結構（帶 version 讓日後能辨識並轉換舊資料）：
+    #   { "version": 1,
+    #     "colors":   {"head","arm","body","legs","feet"},
+    #     "features": {"eyebrow","eye","nose","mouth"} }
+    #
+    # 用 JSON 而非逐項開欄位：新增部位或五官時不必再 ALTER TABLE。
+    # ⚠️ 欄位不叫 character——那是 MySQL 保留字，寫原生 SQL 得處處加反引號。
+    # ======================================================
+    character_data = Column(JSON, nullable=True)
+    character_created_at = Column(DateTime, nullable=True)   # 首次建立角色的時間
+    character_updated_at = Column(DateTime, nullable=True)   # 最後一次修改
+
 
 class Question(Base):
     __tablename__ = "questions"

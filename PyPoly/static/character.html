@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BeeRich - 角色自定義（方案A：Canvas 繪製五官）</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="js/character-face.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
@@ -515,13 +516,33 @@ function applyPreset(name) {
     updateShaderColors();
     if (localStorage.getItem('pypoly_char_features')) composeFaceTexture();
 }
+// 🏆 把角色「配方」存進資料庫，換裝置或清快取後仍能還原。
+//    只送顏色與五官，不送合成後的圖片——game.html 會用共用模組自行重建。
+//    網路失敗只警告、不阻擋存檔，localStorage 仍是有效的本機快取。
+async function saveCharacterToServer() {
+    const token = localStorage.getItem('token');
+    if (!token) { console.warn('⚠️ 未登入，角色僅存於本機'); return; }
+    try {
+        const res = await fetch(`${API_URL}/auth/character`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ version: 1, colors: partColors, features: faceFeatures })
+        });
+        if (res.ok) console.log('🎨 角色外觀已同步至伺服器');
+        else console.warn('⚠️ 角色同步失敗：HTTP', res.status);
+    } catch (err) {
+        console.warn('⚠️ 角色同步失敗（僅存於本機）', err);
+    }
+}
+
 function saveColors() {
     // 存成大廳看得懂的 pypoly_ 變數
     localStorage.setItem('pypoly_char_colors', JSON.stringify(partColors));
-    
+    saveCharacterToServer();
+
     // 執行截圖
     saveCharacterPreviewImage();
-    
+
     showModal('儲存成功', '角色外觀顏色已儲存！按下確定返回大廳。');
     // 修改彈窗按鈕功能：按下確定後跳轉
     document.querySelector('#modal button').onclick = () => window.location.href = 'lobby.html';
@@ -658,132 +679,7 @@ const EXPRESSION_PRESETS = [
 ];
 
 // ── 主臉部繪製（512×128 canvas） ──
-function drawFaceFeatures(ctx, W, H, feats) {
-    const s   = H / 128;
-    const LEX = W * 0.32, REX = W * 0.68;
-    const EYY = H * 0.46;
-    const BRY = H * 0.30;
-    const NCX = W * 0.50, NCY = H * 0.63;
-    const MCX = W * 0.50, MCY = H * 0.80;
-
-    ctx.save();
-
-    // ── Eyebrows ──
-    const brow = feats.eyebrow;
-    if (brow !== 'none') {
-        ctx.strokeStyle = '#3d1f0a'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-        const bw = 22 * s, bh = 7 * s;
-        if (brow === 'standard') {
-            ctx.lineWidth = 3.5 * s;
-            [[LEX,BRY],[REX,BRY]].forEach(([cx,cy]) => {
-                ctx.beginPath(); ctx.moveTo(cx-bw, cy); ctx.lineTo(cx+bw, cy); ctx.stroke();
-            });
-        } else if (brow === 'arch') {
-            ctx.lineWidth = 3 * s;
-            [[LEX,BRY],[REX,BRY]].forEach(([cx,cy]) => {
-                ctx.beginPath(); ctx.moveTo(cx-bw, cy+bh*0.6); ctx.quadraticCurveTo(cx, cy-bh, cx+bw, cy+bh*0.6); ctx.stroke();
-            });
-        } else if (brow === 'angry') {
-            ctx.lineWidth = 3.5 * s;
-            ctx.beginPath(); ctx.moveTo(LEX-bw, BRY-bh); ctx.lineTo(LEX+bw, BRY+bh); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(REX-bw, BRY+bh); ctx.lineTo(REX+bw, BRY-bh); ctx.stroke();
-        } else if (brow === 'thick') {
-            ctx.lineWidth = 7.5 * s;
-            [[LEX,BRY],[REX,BRY]].forEach(([cx,cy]) => {
-                ctx.beginPath(); ctx.moveTo(cx-bw, cy+bh*0.5); ctx.quadraticCurveTo(cx, cy-bh, cx+bw, cy+bh*0.5); ctx.stroke();
-            });
-        } else if (brow === 'sad') {
-            ctx.lineWidth = 3 * s;
-            ctx.beginPath(); ctx.moveTo(LEX-bw, BRY+bh); ctx.lineTo(LEX+bw, BRY-bh); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(REX-bw, BRY-bh); ctx.lineTo(REX+bw, BRY+bh); ctx.stroke();
-        }
-    }
-
-    // ── Eyes ──
-    const eye = feats.eye;
-    const er  = 12 * s, pr = 5.5 * s;
-    if (eye === 'round' || eye === 'big') {
-        const r = eye === 'big' ? er * 1.35 : er;
-        [[LEX,EYY],[REX,EYY]].forEach(([cx,cy]) => {
-            ctx.fillStyle = 'white';
-            ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#18182a';
-            ctx.beginPath(); ctx.arc(cx, cy, pr, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = 'rgba(255,255,255,0.85)';
-            ctx.beginPath(); ctx.arc(cx - pr*0.55, cy - pr*0.6, pr*0.52, 0, Math.PI*2); ctx.fill();
-        });
-    } else if (eye === 'half') {
-        [[LEX,EYY],[REX,EYY]].forEach(([cx,cy]) => {
-            ctx.fillStyle = 'white';
-            ctx.beginPath(); ctx.arc(cx, cy, er, Math.PI, 0, false); ctx.closePath(); ctx.fill();
-            ctx.fillStyle = '#18182a';
-            ctx.beginPath(); ctx.arc(cx, cy, pr, Math.PI, 0, false); ctx.closePath(); ctx.fill();
-        });
-    } else if (eye === 'squint') {
-        [[LEX,EYY],[REX,EYY]].forEach(([cx,cy]) => {
-            ctx.save(); ctx.translate(cx, cy); ctx.scale(1, 0.32);
-            ctx.fillStyle = 'white';  ctx.beginPath(); ctx.arc(0, 0, er, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#18182a'; ctx.beginPath(); ctx.arc(0, 0, pr, 0, Math.PI*2); ctx.fill();
-            ctx.restore();
-        });
-    } else if (eye === 'wink') {
-        // Left eye: open
-        ctx.fillStyle = 'white';  ctx.beginPath(); ctx.arc(LEX, EYY, er, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#18182a'; ctx.beginPath(); ctx.arc(LEX, EYY, pr, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = 'rgba(255,255,255,0.85)';
-        ctx.beginPath(); ctx.arc(LEX - pr*0.55, EYY - pr*0.6, pr*0.52, 0, Math.PI*2); ctx.fill();
-        // Right eye: closed arc
-        ctx.strokeStyle = '#18182a'; ctx.lineWidth = 3.5 * s; ctx.lineCap = 'round';
-        ctx.beginPath(); ctx.moveTo(REX-er, EYY); ctx.quadraticCurveTo(REX, EYY+er*0.55, REX+er, EYY); ctx.stroke();
-    }
-
-    // ── Nose ──
-    const nose = feats.nose;
-    if (nose === 'button') {
-        ctx.fillStyle = 'rgba(0,0,0,0.18)';
-        ctx.beginPath(); ctx.ellipse(NCX-9*s, NCY, 4.5*s, 3.5*s, 0, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.ellipse(NCX+9*s, NCY, 4.5*s, 3.5*s, 0, 0, Math.PI*2); ctx.fill();
-    } else if (nose === 'dot') {
-        ctx.fillStyle = 'rgba(0,0,0,0.22)';
-        ctx.beginPath(); ctx.arc(NCX-7*s, NCY, 3*s, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(NCX+7*s, NCY, 3*s, 0, Math.PI*2); ctx.fill();
-    } else if (nose === 'cat') {
-        ctx.fillStyle = '#d6609a';
-        ctx.beginPath(); ctx.moveTo(NCX, NCY-7*s); ctx.lineTo(NCX-11*s, NCY+6*s); ctx.lineTo(NCX+11*s, NCY+6*s); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = 'rgba(0,0,0,0.12)';
-        ctx.beginPath(); ctx.arc(NCX, NCY+3*s, 3*s, 0, Math.PI*2); ctx.fill();
-    }
-
-    // ── Mouth ──
-    const mouth = feats.mouth;
-    const mw = 30 * s, ma = 10 * s;
-    ctx.strokeStyle = '#3d1f0a'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    if (mouth === 'neutral') {
-        ctx.lineWidth = 3 * s;
-        ctx.beginPath(); ctx.moveTo(MCX-mw, MCY); ctx.lineTo(MCX+mw, MCY); ctx.stroke();
-    } else if (mouth === 'smile') {
-        ctx.lineWidth = 3 * s;
-        ctx.beginPath(); ctx.moveTo(MCX-mw, MCY-ma*0.35); ctx.quadraticCurveTo(MCX, MCY+ma, MCX+mw, MCY-ma*0.35); ctx.stroke();
-    } else if (mouth === 'grin') {
-        ctx.fillStyle = '#1a0a02';
-        ctx.beginPath(); ctx.moveTo(MCX-mw, MCY); ctx.quadraticCurveTo(MCX, MCY+ma*1.6, MCX+mw, MCY); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#f0f0f0';
-        ctx.beginPath(); ctx.moveTo(MCX-mw, MCY); ctx.quadraticCurveTo(MCX, MCY+ma*0.7, MCX+mw, MCY); ctx.closePath(); ctx.fill();
-        ctx.lineWidth = 2 * s;
-        ctx.beginPath(); ctx.moveTo(MCX-mw, MCY); ctx.quadraticCurveTo(MCX, MCY+ma*1.6, MCX+mw, MCY); ctx.stroke();
-    } else if (mouth === 'surprise') {
-        ctx.fillStyle = '#1a0a02';
-        ctx.beginPath(); ctx.ellipse(MCX, MCY, 11*s, 14*s, 0, 0, Math.PI*2); ctx.fill();
-    } else if (mouth === 'frown') {
-        ctx.lineWidth = 3 * s;
-        ctx.beginPath(); ctx.moveTo(MCX-mw, MCY+ma*0.35); ctx.quadraticCurveTo(MCX, MCY-ma, MCX+mw, MCY+ma*0.35); ctx.stroke();
-    } else if (mouth === 'smirk') {
-        ctx.lineWidth = 3 * s;
-        ctx.beginPath(); ctx.moveTo(MCX-mw, MCY); ctx.quadraticCurveTo(MCX+mw*0.4, MCY+ma*0.9, MCX+mw, MCY-ma*0.5); ctx.stroke();
-    }
-
-    ctx.restore();
-}
+// drawFaceFeatures 已抽至 static/js/character-face.js（與 game.html 共用），避免兩處各留一份畫法而逐漸分歧
 
 // ── 縮圖繪製（46×46 canvas，只畫單一部件，置中） ──
 function drawFeatureThumbnail(type, id) {
@@ -860,16 +756,8 @@ function drawFeatureThumbnail(type, id) {
 
 // ── 合成臉部 texture 並推入 shader ──
 function composeFaceTexture() {
-    const W = 512, H = 512;
-    const faceCanvas = document.createElement('canvas');
-    faceCanvas.width = W; faceCanvas.height = H;
-    const ctx = faceCanvas.getContext('2d');
-
-    // 皮膚底色
-    ctx.fillStyle = partColors.head || '#f5c18a';
-    ctx.fillRect(0, 0, W, H);
-
-    drawFaceFeatures(ctx, W, H, faceFeatures);
+    // 🏆 建畫布的部分改用共用模組，確保與 game.html 畫出來的臉完全一致
+    const faceCanvas = buildFaceCanvas(partColors, faceFeatures);
 
     // 更新 2D 預覽
     const prev = document.getElementById('face-feat-preview');
@@ -966,7 +854,8 @@ function saveFaceFeatures() {
     // 存成大廳看得懂的 pypoly_ 變數
     localStorage.setItem('pypoly_char_features', JSON.stringify(faceFeatures));
     localStorage.setItem('pypoly_char_face', faceCanvas.toDataURL('image/png'));
-    
+    saveCharacterToServer();
+
     // 執行截圖
     saveCharacterPreviewImage();
     

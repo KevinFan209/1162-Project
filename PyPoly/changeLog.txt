@@ -846,7 +846,8 @@ PyPoly 變更紀錄 (changeLog)
   查證結果推翻了前提：
     - 相對於共同祖先 b1a3ad3，main 的淨變更只有「在 影像辨識/ 新增 29 檔」。
       其中 21 檔與 Fan 完全相同；另外 8 檔的差異純粹是 CRLF vs LF——
-      逐位元組比對確認忽略  後 md5 一致，位元組差正好等於行數。
+      逐位元組比對確認忽略 
+ 後 md5 一致，位元組差正好等於行數。
     - 因此 git merge -Xrenormalize 可完全自動合併，實測零衝突。
       先前的「無法 merge」是被這些換行造成的幽靈衝突誤導。
     - past/ 於是不再是迴避手段而純屬整理，且改為「合併後才搬」
@@ -1088,4 +1089,75 @@ PyPoly 變更紀錄 (changeLog)
 
   ⚠️ 使用者回報時提供的 console 記錄顯示其瀏覽器載入的是舊版 game.html
      （診斷訊息未出現、行號對不上），測試前需強制重新整理以避免快取。
+========================================================================
+
+[2026-08-22] #42 角色外觀存入資料庫，跨裝置可還原
+
+  問題：角色外觀只存在瀏覽器的 localStorage。換一台電腦或清除瀏覽器資料後，
+        辛苦捏好的角色就消失，得從頭再捏一次。
+
+  決策：只存「配方」，不存「成品圖」。
+    外觀完全由 5 個色碼（head/arm/body/legs/feet）與 4 個五官 ID
+    （eyebrow/eye/nose/mouth）決定，臉部貼圖是由它們即時合成的衍生物。
+    - 配方約 200 bytes；合成後的 512x512 PNG 是數百 KB。
+    - 更關鍵的是角色形式日後改版時，成品圖會直接報廢，配方仍能重新渲染或轉換。
+      使用者明確提到「角色的形式不一定會是目前的樣子」，這是選配方的主因。
+    - 用單一 JSON 欄位而非逐項開欄位：新增部位或五官時不必再 ALTER TABLE。
+    - 結構帶 version 欄位，日後能辨識並轉換舊資料。
+
+  檔案：models.py
+    - User 新增 character_data (JSON)、character_created_at、character_updated_at。
+    - 欄位名不叫 character：那是 MySQL 保留字，寫原生 SQL 得處處加反引號。
+    - created_at 只在首次建立時寫入，updated_at 每次修改都更新。
+
+  檔案：db_migrate.py（新增）
+    - create_all() 只建立不存在的資料表，不會替既有資料表補欄位。
+      組員拉到這版若沒補欄位，每一次查詢 user 都會撞上 Unknown column。
+    - 冪等：每個欄位先查 information_schema，已存在就跳過，重複執行安全。
+    - 用法：在 PyPoly 目錄下執行 python db_migrate.py
+
+  檔案：main.py
+    - PUT /auth/character —— 以 Bearer token 解出身分後儲存自己的配方。
+    - GET /auth/character —— 省略 username 時回傳自己的（game.html 進場還原用），
+      帶 username 則可查他人。未建立角色時回 character=null 而非 404，
+      回 404 會讓前端誤判為錯誤而無法走 localStorage 退路。
+    - 驗證刻意寬鬆：只檢查是 dict、含 colors 與 features 兩個 dict、
+      且序列化後不超過 8KB。不逐一檢查色碼格式或五官 ID 白名單——
+      那會與「格式之後會改」的目標衝突。大小上限則是必要的，
+      否則有人把 base64 圖片塞進來，這個欄位就失去輕量的意義。
+
+  檔案：static/js/character-face.js（新增）
+    - 障礙：game.html 沒有任何臉部合成能力，它只會套用現成的圖。
+      資料庫只存配方的話，它無法重建臉。
+    - 所幸切割點很乾淨：drawFaceFeatures(ctx, W, H, feats) 是純函式、零外部相依，
+      從 character.html 原樣搬出成共用模組。
+    - 另加 buildFaceCanvas(colors, features) 與 buildFaceDataUrl()，
+      只負責建立 512x512 畫布、填膚色、畫五官。
+
+  檔案：static/character.html
+    - 移除自有的 drawFaceFeatures（126 行），改為載入共用模組。
+    - composeFaceTexture() 原本混了三件事（建畫布／更新 2D 預覽／推入 3D shader），
+      只有第一件是共用的，改為呼叫 buildFaceCanvas，其餘 UI 行為留在原地。
+    - saveColors / saveFaceFeatures 除了寫 localStorage，另外 PUT /auth/character。
+      網路失敗只 console.warn，不阻擋存檔流程。
+
+  檔案：static/game.html
+    - 新增 restoreCharacterFromServer()：進場時 GET 自己的配方，
+      用 buildFaceCanvas 重建臉部貼圖後回寫 localStorage 快取，
+      讓既有的 broadcastMyAppearance 完全不必改動，對手的外觀同步流程也不受影響。
+    - 用 .finally() 接續廣播：即使還原失敗也一定會廣播，不讓它擋住外觀同步。
+    - 沒有角色資料或請求失敗 → 沿用現行的 localStorage 行為。
+
+  驗證：新增 14 項角色 API 測試全數通過——未授權回 401、首次寫入兩個時間戳皆有值、
+        第二次寫入 created_at 不變而 updated_at 更新、超過 8KB 回 400、
+        缺 colors/features 或型別錯誤被拒、未建角色者回 200+null 而非 404。
+        既有的 70 項整合測試、17 項地圖測試、12 項斷線測試、
+        21 項房間生命週期測試全數通過，0 失敗。
+        db_migrate.py 重複執行確認冪等。
+
+  ⚠️ 已知限制：pypoly_char_preview（大廳的角色縮圖）是 3D 場景截圖，仍留在
+     localStorage 不入庫。換裝置後大廳縮圖會是空的，直到再次進入角色頁。
+
+  ⚠️ 待人工驗收：換一台裝置（或清除 localStorage 後）登入 → 進遊戲確認角色
+     外觀正確重建。這是本次改動的真正驗收標準。
 ========================================================================

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PyPoly - Battle</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
+	<script src="js/character-face.js"></script>
 	<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
@@ -902,9 +903,12 @@ socket.on('connect', () => {
         });
     }
 
-    // 延遲發送外觀同步 (原有的廣播機制)
-    setTimeout(broadcastMyAppearance, 1000);
-    setTimeout(broadcastMyAppearance, 3000);
+    // 先向伺服器要角色配方（換裝置時本機沒有快取），再走原有的廣播機制。
+    // 用 finally 是為了即使還原失敗也一定會廣播，不能讓外觀同步被它擋住。
+    restoreCharacterFromServer().finally(() => {
+        setTimeout(broadcastMyAppearance, 1000);
+        setTimeout(broadcastMyAppearance, 3000);
+    });
 });
 
 // 🏆 對手斷線：先前沒有這個監聽器，對手關掉分頁時這端會無限等待、
@@ -936,6 +940,41 @@ socket.on('order_dice_aborted', (data) => {
     window.netPlayerFaces = {};  // 🏆 新增：存放連線收到的所有玩家人臉貼圖
 
 // 🏆 4. 全域外觀發送器 (強化版)
+// 🏆 從資料庫還原角色外觀（換裝置或清快取後仍能顯示自己捏的角色）。
+//    資料庫只存「配方」（顏色 + 五官 ID），臉部貼圖在這裡用共用模組重新合成。
+//    合成後回寫 localStorage 快取，底下的 broadcastMyAppearance 完全不必改動。
+//    沒角色資料或請求失敗 → 直接沿用現有的 localStorage 行為。
+async function restoreCharacterFromServer() {
+    const token = localStorage.getItem('token');
+    const myName = localStorage.getItem('username');
+    if (!token || !myName) return;
+
+    try {
+        const res = await fetch(`${API_URL}/auth/character`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) { console.warn('⚠️ 讀取角色失敗：HTTP', res.status); return; }
+
+        const data = await res.json();
+        const char = data && data.character;
+        if (!char || !char.colors) { console.log('ℹ️ 伺服器尚無角色資料，沿用本機快取'); return; }
+
+        const colorsStr = JSON.stringify(char.colors);
+        localStorage.setItem('pypoly_char_colors', colorsStr);
+        localStorage.setItem(`pypoly_char_colors_${myName}`, colorsStr);
+
+        if (typeof buildFaceDataUrl === 'function') {
+            const faceUrl = buildFaceDataUrl(char.colors, char.features || {});
+            localStorage.setItem('pypoly_char_face', faceUrl);
+            localStorage.setItem(`pypoly_char_face_${myName}`, faceUrl);
+            localStorage.setItem('pypoly_char_features', JSON.stringify(char.features || {}));
+        }
+        console.log('🎨 已從伺服器還原角色外觀');
+    } catch (err) {
+        console.warn('⚠️ 讀取角色失敗（沿用本機快取）', err);
+    }
+}
+
 function broadcastMyAppearance() {
     const myName = localStorage.getItem('username');
     // 💡 嘗試讀取專屬顏色，如果沒有，就讀取通用的 (這通常發生在單機測試或舊資料)

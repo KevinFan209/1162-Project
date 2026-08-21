@@ -28,6 +28,7 @@ from sqlalchemy.exc import IntegrityError  # 🏆 註冊時攔截 email/username
 from collections import Counter  # 🏆 需求⑨：統計最常出現語法
 # main.py
 import os
+import json   # 🏆 角色外觀的大小驗證用
 import base64
 from fastapi.staticfiles import StaticFiles
 from PIL import Image # 需安裝 pillow: pip install Pillow
@@ -642,6 +643,98 @@ def update_profile(
     # username 可能已變更，必須重新簽發 token（sub 帶的是 username）
     token = auth_utils.create_access_token(data={"sub": user.username, "role": user.role})
     return {"access_token": token, "username": user.username, "role": user.role}
+
+
+# ==========================================================
+# 角色外觀（users.character_data）
+#
+# 只存「配方」不存「成品圖」——外觀完全由 colors 與 features 決定，
+# 臉部貼圖由前端的 static/js/character-face.js 即時合成。
+# 這讓角色形式日後改版時，舊資料還能重新渲染或轉換。
+# ==========================================================
+
+CHARACTER_SCHEMA_VERSION = 1
+# 8KB 上限：配方本身約 200 bytes，訂這個上限是為了擋住有人把 base64 圖片
+# 塞進來——那會讓這個欄位失去輕量的意義。
+CHARACTER_MAX_BYTES = 8 * 1024
+
+
+def _validate_character(payload: dict) -> dict:
+    """檢查並正規化角色配方。
+
+    刻意只驗結構與大小，不逐一檢查色碼格式或五官 ID 是否在白名單內——
+    角色形式日後會改，嚴格驗證會擋掉未來的新欄位。
+    """
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="角色資料格式錯誤")
+
+    colors = payload.get("colors")
+    features = payload.get("features")
+    if not isinstance(colors, dict) or not isinstance(features, dict):
+        raise HTTPException(status_code=400, detail="角色資料需包含 colors 與 features 兩個物件")
+
+    data = {
+        "version": int(payload.get("version") or CHARACTER_SCHEMA_VERSION),
+        "colors": colors,
+        "features": features,
+    }
+
+    size = len(json.dumps(data, ensure_ascii=False).encode("utf-8"))
+    if size > CHARACTER_MAX_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"角色資料過大（{size} bytes，上限 {CHARACTER_MAX_BYTES}）。"
+                   "此欄位只應存放外觀設定，不可放圖片。")
+    return data
+
+
+@app.put("/auth/character")
+def save_character(payload: dict, authorization: str = Header(None),
+                   db: Session = Depends(database.get_db)):
+    """儲存目前登入者的角色外觀。首次寫入會記錄 character_created_at。"""
+    username = auth_utils.get_current_user(authorization)   # 無效 token 會拋 401
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="找不到使用者")
+
+    data = _validate_character(payload)
+    now = datetime.utcnow()
+    is_first = user.character_created_at is None
+
+    user.character_data = data
+    if is_first:
+        user.character_created_at = now
+    user.character_updated_at = now
+    db.commit()
+
+    print(f"🎨 {username} {'建立' if is_first else '更新'}了角色外觀")
+    return {"status": "success", "is_first": is_first,
+            "created_at": user.character_created_at, "updated_at": user.character_updated_at}
+
+
+@app.get("/auth/character")
+def get_character(username: str = None, authorization: str = Header(None),
+                  db: Session = Depends(database.get_db)):
+    """取得角色外觀。
+
+    username 省略時回傳「自己的」（用 token 解身分），這是 game.html 進場
+    還原自己外觀的用法；帶 username 則可查他人（大廳／觀戰用）。
+
+    尚未建立角色時回 character=None 而非 404——前端據此決定要不要
+    退回 localStorage 的舊資料，回 404 會讓前端誤判為錯誤。
+    """
+    if not username:
+        username = auth_utils.get_current_user(authorization)   # 無效 token 會拋 401
+
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="找不到使用者")
+    return {
+        "username": user.username,
+        "character": user.character_data,
+        "created_at": user.character_created_at,
+        "updated_at": user.character_updated_at,
+    }
 
 
 
