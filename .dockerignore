@@ -1,0 +1,13 @@
+# build context 只需要 PyPoly/。以下都是純粹的重量：
+past/                 # 53MB 早期原型封存（含 PHP vendor 目錄）
+ops/                  # 53MB 營運工具，含 cloudflared.exe，不進容器
+UI design/
+.git/
+.claude/
+
+# 機敏設定不進映像，改由 compose 以環境變數注入
+**/.env
+
+**/__pycache__/
+**/*.pyc
+**/*.pyo
