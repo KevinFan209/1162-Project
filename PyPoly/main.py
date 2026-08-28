@@ -13,7 +13,10 @@ from pydantic import BaseModel
 import models, auth_utils, database
 import air_quality  # 🏆 環境部 AQI（移植自 origin/vamos 的 990e880）
 import learn_ai     # 🏆 AI 導師分析（learn.html 右側面板，交接給組員維護）
-import smtplib, random, requests, base64, cv2
+# ⚠️ 這裡原本有 cv2，但全檔沒有任何一處用到它。
+#    它唯一的作用是讓 mediapipe 相依的 opencv（149MB）變成必裝，
+#    而 mediapipe 本身也沒有被任何 .py import——手勢辨識是跑在瀏覽器端的。
+import smtplib, random, requests, base64
 import numpy as np
 from email.mime.text import MIMEText
 from typing import Dict, Optional, List

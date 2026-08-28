@@ -1251,3 +1251,75 @@ PyPoly 變更紀錄 (changeLog)
   ⚠️ question.html 與 settings.html 同樣缺少 API_URL = location.origin，
      本次不在範圍內，但有同樣的隧道失效風險。
 ========================================================================
+
+[2026-08-22] #44 Docker 化：組員一行指令就能在本機跑起完整環境
+
+  目的：組員要在自己電腦跑專案。原本流程是裝 Python → 裝 XAMPP → pip install
+        → 建資料庫 → 跑三支 seed → 建 .env → 記得用 main:sio_app 啟動，
+        任何一步做錯都會卡住。現在只要 docker compose up -d --build。
+
+  ── 必要的程式改動 ──
+
+  檔案：database.py
+    連線字串改為 os.getenv("DATABASE_URL", 原本的值)。
+    容器裡的 localhost 指的是容器自己，不改這行就一定連不到資料庫服務。
+    預設值完全不變，直接在本機跑的人無感。
+    順帶讓 .env.example 那句「可用 DATABASE_URL 覆寫」變成真的——
+    先前 database.py 根本沒讀任何環境變數，那段說明一直是假的。
+
+  檔案：main.py
+    移除第 16 行沒用到的 import cv2。全檔沒有任何一處用到 cv2.，
+    它唯一的作用是讓 opencv 變成必裝。
+
+  檔案：requirements.txt
+    移除 mediapipe、opencv-python-headless、google-auth、google-auth-oauthlib、
+    rsa、pyasn1-modules、bcrypt，補上先前遺漏的 numpy。
+      - mediapipe 從未被任何 .py import——手勢辨識是透過 CDN 跑在瀏覽器，
+        後端只收 landmarks，由 game_start.py 用 numpy 判定。
+      - opencv 是被 mediapipe 當相依拖進來的，單獨就佔 149MB。
+      - bcrypt 用不到：auth_utils.py 只註冊 pbkdf2_sha256，
+        且資料庫現有 9 筆雜湊全部是 pbkdf2-sha256，移除不影響任何人登入。
+      - numpy 先前靠 mediapipe/opencv 間接帶進來，移除後必須明列。
+    檔案開頭寫明「不要把 mediapipe/opencv 加回來」及理由。
+
+  檔案：.gitattributes
+    新增 *.sh text eol=lf。shell 腳本若帶 CRLF 進到 Linux 容器會噴
+    "bad interpreter"，而錯誤訊息完全看不出是換行問題。
+
+  ── 新增檔案 ──
+
+  Dockerfile / docker-compose.yml / .dockerignore / docker/entrypoint.sh / DOCKER.md
+
+    - 兩個服務：mariadb:10.4（對齊正式環境的 10.4.32）與 app。
+      app 用 depends_on: condition: service_healthy 等資料庫真的可用才啟動。
+    - PyPoly/ 掛載進容器並開 --reload，改程式碼即時生效不用重建。
+    - entrypoint 只在題庫為空時才 seed：seed_data.py 會先 delete() 再重建，
+      每次啟動都跑等於白做工，也會洗掉組員自己加的題目。
+    - 不裝 mariadb-client（單獨 140MB），改用已是專案相依的 pymysql 等待資料庫。
+
+  ── 實測抓到的兩個問題 ──
+
+  1. 中文完全寫不進資料庫（error 1366 Incorrect string value）。
+     根因：MariaDB 10.4 的伺服器預設字元集是 latin1，而
+     MARIADB_CHARACTER_SET_SERVER 這組環境變數別名是後來版本才加的，
+     在 10.4 的映像會被安靜忽略——六張表全部建成 latin1_swedish_ci。
+     主要開發機的 XAMPP 預設是 utf8mb4，所以本機從來不會遇到。
+     改用 command: --character-set-server=utf8mb4 傳參數解決。
+
+  2. 映像 801MB，比預期大。查層發現 mariadb-client 佔 140MB，
+     而它只被用來 ping 一次資料庫。移除後降到 630MB。
+
+  驗證：實際建置並啟動整套。
+        - db 通過 healthcheck 後 app 才啟動，順序正確
+        - 首次啟動自動灌入 36 筆題庫、5 筆冒險格、admin 帳號，中文正確落地
+        - down 之後再 up：資料完整保留、正確略過 seed
+        - /static/login.html 回 200、/socket.io/ 回 200（確認進入點是 sio_app）
+        - 容器內跑完整回歸：70 項整合、17 項地圖、12 項斷線、21 項房間生命週期、
+          29 項學習統計，共 149 項全過 0 失敗
+        - 改 .py 後 WatchFiles 確實觸發重啟（熱重載有效）
+        - 本機直接跑（未設 DATABASE_URL）同樣 149 項全過，確認移除 cv2 無影響
+
+  ⚠️ roomlog_test.py 與 learn_test.py 會直接連資料庫算預期值，
+     硬寫的是 localhost 的 XAMPP。要驗容器時必須放進容器裡跑，
+     否則會拿本機資料庫的內容去比對容器 API 的回應。
+========================================================================

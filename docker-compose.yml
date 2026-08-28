@@ -1,0 +1,73 @@
+# PyPoly 開發環境
+#
+# 用法（在專案根目錄）：
+#   docker compose up -d --build     啟動
+#   docker compose logs -f app       看後端日誌
+#   docker compose down              停止（資料保留）
+#   docker compose down -v           停止並清空資料庫，下次啟動會重新 seed
+#
+# 啟動後開 http://localhost:8000/static/login.html
+#   ⚠️ 根路徑沒有路由，直接開 localhost:8000 會看到 404
+#   ⚠️ 必須用 localhost，用區網 IP 的話瀏覽器不給相機權限
+
+services:
+  db:
+    # 對齊正式環境的 MariaDB 10.4.32。版本要一致是因為 JSON 欄位在 10.4
+    # 底層是 longtext + json_valid 檢查，換版本行為可能不同。
+    image: mariadb:10.4
+    # ⚠️ 字元集一定要用 command 傳，不能用環境變數。
+    #    MariaDB 10.4 的伺服器預設是 latin1，而 MARIADB_CHARACTER_SET_SERVER
+    #    這組環境變數別名是後來的版本才加的，在 10.4 的映像會被安靜忽略。
+    #    實測後果：六張表全部建成 latin1，灌題庫時所有中文都寫不進去
+    #    （Incorrect string value / error 1366）。
+    #    主要開發機的 XAMPP 預設就是 utf8mb4，所以本機從來不會遇到這個問題。
+    command: >-
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+    environment:
+      MARIADB_ROOT_PASSWORD: pypoly
+      MARIADB_DATABASE: pypoly_db
+    volumes:
+      # named volume：down 之後資料還在，down -v 才會清掉
+      - pypoly_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-uroot", "-ppypoly"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    # 預設不對外開埠。要用 HeidiSQL/DBeaver 連進來看資料時再把下面兩行打開。
+    # ports:
+    #   - "3307:3306"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        # 等 healthcheck 真的通過才啟動，否則第一次 up 幾乎必定連線失敗
+        condition: service_healthy
+    environment:
+      # 容器裡的 localhost 是容器自己，主機名必須是 compose 的服務名 db
+      DATABASE_URL: mysql+pymysql://root:pypoly@db:3306/pypoly_db
+      DB_HOST: db
+      DB_USER: root
+      DB_PASSWORD: pypoly
+      # 開發用密鑰。正式環境請換掉，這裡寫死是為了讓組員不必自己建 .env。
+      SECRET_KEY: dev-only-not-for-production
+      # ⚠️ Windows 主機的檔案變更事件不會可靠地傳進 Linux 容器，
+      #    少了這一行，--reload 會安靜地完全沒反應，改了程式碼卻以為沒生效。
+      WATCHFILES_FORCE_POLLING: "true"
+      # SENDER_EMAIL / SENDER_PASSWORD / MOENV_API_KEY 刻意不提供：
+      # 忘記密碼與空氣品質會走保底值，遊戲照常可玩，也不必把金鑰散出去。
+    volumes:
+      # 把原始碼掛進來，改檔案立即生效不用重建映像
+      - ./PyPoly:/app
+      # 但 __pycache__ 不要跟主機共用（Windows 產生的 .pyc 在 Linux 無效）
+      - /app/__pycache__
+    ports:
+      - "8000:8000"
+
+volumes:
+  pypoly_db_data:

@@ -1,19 +1,31 @@
+# PyPoly 後端相依套件
+#
+# ⚠️ 請不要把 mediapipe / opencv 加回來。
+#    手勢與姿態辨識（MediaPipe Hands / Pose / FaceDetection）是透過 CDN
+#    跑在**瀏覽器**裡的，後端只接收算好的 landmarks 座標，由 game_start.py
+#    用 numpy 做判定。沒有任何一支 .py 會 import mediapipe 或 cv2。
+#    這兩個套件曾佔掉映像約 220MB（opencv 單獨就 149MB），且 mediapipe
+#    在新版 Python 的 Linux wheel 未必存在，會讓 docker build 直接失敗。
+
+# --- Web 框架 ---
 fastapi
 uvicorn[standard]
-python-socketio
+python-socketio        # 進入點是 main:sio_app，不是 main:app
+python-multipart       # FastAPI 解析表單所需（間接相依）
+pydantic               # main.py 直接 import BaseModel 定義請求模型
+
+# --- 資料庫 ---
 sqlalchemy
-pymysql
-Pillow
-google-auth
-google-auth-oauthlib
-python-multipart
-pydantic
-passlib[bcrypt]
-bcrypt
+pymysql                # SQLAlchemy 的 mysql+pymysql:// 驅動（不會被直接 import）
+
+# --- 認證 ---
+passlib                # auth_utils.py 只用 pbkdf2_sha256，不需要 bcrypt
 python-jose[cryptography]
-mediapipe
-opencv-python-headless
-python-dotenv
-requests
-rsa
-pyasn1-modules
+
+# --- 影像處理（頭像上傳的取色分析）---
+Pillow
+numpy
+
+# --- 其他 ---
+requests               # air_quality.py 呼叫環境部 API
+python-dotenv          # 讀取 .env

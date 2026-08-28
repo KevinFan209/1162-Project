@@ -27,3 +27,7 @@
 *.ttf  binary
 *.woff binary
 *.woff2 binary
+
+# Shell 腳本一律 LF：容器裡的 entrypoint.sh 若帶著 CRLF 進到 Linux，
+# 會直接噴 "bad interpreter: No such file or directory"，而且訊息完全看不出原因。
+*.sh text eol=lf
