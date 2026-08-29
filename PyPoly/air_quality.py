@@ -1,6 +1,10 @@
 import os
 import requests
 from dotenv import load_dotenv
+import urllib3  # <-- 1. 新增這行
+
+# 2. 新增這行（關閉忽略 SSL 產生的警告）
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # 強制讀取當前檔案所在目錄或工作目錄的 .env 檔案
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -59,7 +63,7 @@ def fetch_aqi_by_name(station_name: str):
             "language": "zh",
             "api_key": API_KEY
         }
-        response = requests.get(ENV_API_URL, params=params, timeout=10)
+        response = requests.get(ENV_API_URL, params=params, timeout=10, verify=False)
 
         if response.status_code == 200:
             data = response.json()
