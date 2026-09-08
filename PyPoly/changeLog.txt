@@ -1396,3 +1396,21 @@ PyPoly 變更紀錄 (changeLog)
   ⚠️ ops/bin/cloudflared.exe（54 MB）已無用途，可自行刪除。
      它一直沒被 git 追蹤，所以不影響版控。
 ========================================================================
+
+[2026-09-08] #46 更換 Google OAuth client ID
+
+  舊的 client ID 所屬的 Google Cloud 專案權限不明，改為重新建立一個。
+  兩處寫死的值一併更新：
+    static/login.html:419   前端 initTokenClient 用的 client_id（真正生效的那個）
+    main.py:252             GOOGLE_CLIENT_ID —— 這其實是死程式碼，
+                            定義後沒有任何地方使用，但一併更新以免兩處不一致
+
+  驗證：搭配 ngrok 固定網域實測，Google 登入成功。
+        測試前確認經由隧道取回的 login.html 內含新的 client_id
+        （瀏覽器會快取這頁，測試時需強制重新整理）。
+
+  ⚠️ 新建的 client ID 必須在 Google Cloud Console 重新設定
+     「已授權的 JavaScript 來源」，舊 ID 的設定不會沿用：
+       https://headless-clutch-mangle.ngrok-free.dev
+       http://localhost:8000
+========================================================================

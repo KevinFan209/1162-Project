@@ -249,7 +249,7 @@ app.add_middleware(
 
 
 # --- 設定區 ---
-GOOGLE_CLIENT_ID = "111298973031-n8e4s6353pgiqpc74p5hl4vul2j6c7pt.apps.googleusercontent.com"
+GOOGLE_CLIENT_ID = "174084310746-5nhhblrrd4bii9nd6smf4oqb2a0j1ro1.apps.googleusercontent.com"
 ADMIN_EMAILS = ["admin@gmail.com"]
 
 # 📧 Gmail SMTP 設定（改由環境變數提供；請於 PyPoly/.env 填入，切勿寫死於程式碼）
