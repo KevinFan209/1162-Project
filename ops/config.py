@@ -21,10 +21,24 @@ PYPOLY_DIR = Path(_pypoly) if _pypoly else (REPO_ROOT / "PyPoly")
 SERVER_PORT = int(os.getenv("SERVER_PORT", "8000") or 8000)
 SERVER_LOCAL_URL = f"http://127.0.0.1:{SERVER_PORT}"
 
-# ── cloudflared ──
-# 優先用 ops/bin 下的獨立執行檔，找不到才退回 PATH
-_bundled = OPS_DIR / "bin" / ("cloudflared.exe" if os.name == "nt" else "cloudflared")
-CLOUDFLARED = str(_bundled) if _bundled.exists() else "cloudflared"
+# ── ngrok ──
+# 改用 ngrok 而非 cloudflared Quick Tunnel 的原因：
+#   Quick Tunnel 每次啟動都拿到隨機網址（https://<隨機字串>.trycloudflare.com），
+#   而 Google OAuth 要求「已授權的 JavaScript 來源」必須事先登記——
+#   一個每次都變的網址永遠登記不了，所以隧道下的 Google 登入結構上不可能成功。
+#   ngrok 免費方案每個帳號可領一個固定網域，登記一次就永久有效。
+#
+# authtoken 不放這裡：ngrok 有自己的設定檔（Windows 在
+# %LOCALAPPDATA% 底下的 ngrok/ngrok.yml），
+# 用 `ngrok config add-authtoken <token>` 設定即可，
+# 這樣機密不會經過本專案的 .env。
+_bundled = OPS_DIR / "bin" / ("ngrok.exe" if os.name == "nt" else "ngrok")
+NGROK = str(_bundled) if _bundled.exists() else "ngrok"
+
+# 固定網域。換帳號或換網域時改 ops/.env 的 NGROK_DOMAIN 即可，不必動程式。
+# 這不是機密——它就是組員要開的公開網址。
+NGROK_DOMAIN = os.getenv("NGROK_DOMAIN", "headless-clutch-mangle.ngrok-free.dev").strip()
+TUNNEL_URL = f"https://{NGROK_DOMAIN}"
 
 # ── 記錄檔 ──
 LOG_DIR = OPS_DIR / "logs"

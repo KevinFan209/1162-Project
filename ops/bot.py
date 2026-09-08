@@ -82,11 +82,11 @@ class OpsBot(commands.Bot):
     async def on_ready(self):
         print(f"🤖 已登入為 {self.user}")
         print(f"   PyPoly 目錄：{config.PYPOLY_DIR}")
-        print(f"   cloudflared：{config.CLOUDFLARED}")
+        print(f"   ngrok：{config.NGROK}  網域：{config.NGROK_DOMAIN}")
         await self.change_presence(activity=discord.Game(name="/start 開遊戲"))
 
     async def close(self):
-        # 關掉 bot 時一併收掉它啟動的子行程，避免留下孤兒 uvicorn / cloudflared
+        # 關掉 bot 時一併收掉它啟動的子行程，避免留下孤兒 uvicorn / ngrok
         tunnel_manager.stop()
         server_manager.stop()
         await super().close()

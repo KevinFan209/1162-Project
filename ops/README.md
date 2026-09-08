@@ -12,15 +12,18 @@
 
 ### 一次性準備
 
-下載 cloudflared 獨立執行檔到 `ops\bin\`（約 52 MB，已被 gitignore，每個人各自下載）：
+安裝 ngrok 並設定金鑰（只要做一次）：
 
 ```powershell
-New-Item -ItemType Directory -Force -Path .\ops\bin | Out-Null
-Invoke-WebRequest -UseBasicParsing -OutFile .\ops\bin\cloudflared.exe `
-  https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe
+winget install ngrok.ngrok
+ngrok config add-authtoken <你在 ngrok.com 儀表板拿到的 token>
 ```
 
-> 不建議用 `winget install --id Cloudflare.cloudflared` —— 實測在非互動的終端機下會卡住不動。
+> authtoken 存在 ngrok 自己的設定檔（Windows 在 `%LOCALAPPDATA%` 底下的 `ngrok/ngrok.yml`），
+> 不會經過本專案的 `.env`。
+>
+> 固定網域預設是 `headless-clutch-mangle.ngrok-free.dev`（免費方案每個帳號一個）。
+> 換帳號的話在 `ops/.env` 設 `NGROK_DOMAIN=你的網域` 即可，不必動程式。
 
 另外確認 `..\PyPoly\.env` 存在（沒有的話依 `.env.example` 建立，填入隨機 `SECRET_KEY`）。
 XAMPP 的 MySQL 也要先開起來。
@@ -36,7 +39,10 @@ XAMPP 的 MySQL 也要先開起來。
 
 按 `Ctrl+C` 會一併關掉伺服器與隧道。
 
-> **網址每次重新啟動都會變**，這是 Cloudflare Quick Tunnel 的特性。
+> **網址是固定的**，每次啟動都一樣，可以直接存書籤。
+> 這是從 Cloudflare Quick Tunnel 換成 ngrok 的主因——Google OAuth 要求
+> 「已授權的 JavaScript 來源」必須事先登記，而 Quick Tunnel 的隨機網址
+> 永遠登記不了，導致隧道下的 Google 登入結構上不可能成功。
 > 之後做了 Discord bot，就會由 bot 自動把新網址貼到頻道。
 
 ---
@@ -46,7 +52,7 @@ XAMPP 的 MySQL 也要先開起來。
 主持人會在 Discord 貼一個像這樣的網址：
 
 ```
-https://xxxx-xxxx-xxxx.trycloudflare.com/static/login.html
+https://headless-clutch-mangle.ngrok-free.dev/static/login.html
 ```
 
 點開就能玩，**不需要安裝任何東西**。
@@ -156,10 +162,10 @@ ops/
 │  └─ ask_cog.py              /ask（純文字，無執行權限）
 ├─ services/
 │  ├─ server_manager.py       uvicorn 子行程（固定指令）
-│  ├─ tunnel_manager.py       cloudflared 子行程 + 網址解析
+│  ├─ tunnel_manager.py       ngrok 子行程（固定網域，不需解析網址）
 │  └─ llm_client.py           llama.cpp 唯讀呼叫
 ├─ scripts/dev-tunnel.ps1     不透過 bot 的手動啟動方式
-├─ bin/                       cloudflared.exe（gitignore）
+├─ bin/                       選配：ngrok.exe（gitignore，裝在 PATH 也可以）
 └─ logs/                      子行程記錄（gitignore）
 ```
 

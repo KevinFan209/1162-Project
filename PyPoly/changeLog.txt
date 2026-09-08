@@ -1323,3 +1323,76 @@ PyPoly 變更紀錄 (changeLog)
      硬寫的是 localhost 的 XAMPP。要驗容器時必須放進容器裡跑，
      否則會拿本機資料庫的內容去比對容器 API 的回應。
 ========================================================================
+
+[2026-09-08] #45 隧道從 Cloudflare Quick Tunnel 換成 ngrok 固定網域
+
+  起因：Google 登入在隧道下跳「已封鎖存取權：授權錯誤」。
+
+  診斷：與 .env 金鑰完全無關。
+    後端 /auth/google_v2 (main.py:334) 不需要任何密鑰——它只是拿前端給的
+    access_token 去問 googleapis.com「這是誰」，整條路徑 os.getenv 出現 0 次。
+    client_id 寫死在 login.html:419，而 OAuth client ID 本來就是公開資訊。
+    那個錯誤畫面是 Google 自己的頁面，出現在請求送到後端之前。
+
+    真正的原因：Quick Tunnel 每次啟動都配一個隨機的
+    https://<隨機字串>.trycloudflare.com，而 Google 要求「已授權的
+    JavaScript 來源」必須事先登記在 Cloud Console。一個每次都變的網址
+    永遠登記不了——所以隧道下的 Google 登入在結構上就不可能成功，
+    不是哪裡設定錯了。
+
+  為什麼選 ngrok 而不是 Cloudflare 具名隧道：
+    具名隧道本身免費，但固定網址必須綁自有網域且該網域要改用 Cloudflare 的
+    DNS，等於要先買網域。ngrok 免費方案每個帳號可領一個固定網域
+    （本專案用 headless-clutch-mangle.ngrok-free.dev），登記一次永久有效。
+    另一個免費選項是 Tailscale Funnel，但主機要裝 Tailscale，步驟較多。
+
+  檔案：ops/config.py
+    - CLOUDFLARED 換成 NGROK，新增 NGROK_DOMAIN 與 TUNNEL_URL。
+    - 網域可由 ops/.env 的 NGROK_DOMAIN 覆寫，換帳號不必動程式。
+      網域不是機密，它就是組員要開的公開網址。
+    - authtoken 刻意不進本專案：ngrok 有自己的設定檔
+      （%LOCALAPPDATA% 底下的 ngrok/ngrok.yml），用
+      `ngrok config add-authtoken` 設定，機密不經過我們的 .env。
+
+  檔案：ops/services/tunnel_manager.py
+    改成固定網址之後這支簡單很多：
+    - 刪掉整段「掃子行程日誌、用正規表示式撈隨機網址」的邏輯，
+      網址現在是常數 config.TUNNEL_URL。
+    - current_url() 只需判斷行程是否還活著。
+    - _wait_reachable 的逾時從 90 秒降到 40 秒：先前那 90 秒是為了等
+      Quick Tunnel 新網域的 DNS 傳播，固定網域早就存在，不需要等。
+    - 保留「確認隧道真的通了」這一步，但語意變了——現在連不上幾乎
+      都代表後端伺服器沒起來，不再是 DNS 問題。
+
+  檔案：ops/cogs/ops_cog.py
+    - 未驗證成功時的提示改寫：舊文案講「新網域 DNS 還在傳播，等 1~2 分鐘」，
+      對固定網域是錯的，改成指向 /status 檢查後端。
+    - footer 從「網址每次重新啟動都會變」改成「網址是固定的」。
+    - /url 指令的說明同步更新。
+
+  檔案：ops/scripts/dev-tunnel.ps1
+    - 啟動指令換成 ngrok http 8000 --url <網域>，
+      同樣移除撈網址的正規表示式，改為直接驗證連線。
+    - 找不到執行檔時的提示改為 winget 安裝與 add-authtoken。
+    - 存檔仍為 UTF-8 with BOM：PowerShell 5.1 讀 .ps1 預設用 ANSI，
+      沒有 BOM 的話中文會被讀壞導致解析失敗。
+
+  檔案：ops/bot.py、ops/README.md、ops/.env.example
+    同步更新啟動訊息、安裝說明、目錄結構圖與環境變數範本。
+
+  驗證：實際啟動隧道測試。
+        - tunnel_manager.start() 回傳 True 與固定網址
+        - url_verified() 為 True（代表真的透過隧道連到 PyPoly，不只是行程活著）
+        - https://headless-clutch-mangle.ngrok-free.dev/static/login.html 回 200
+        - stop() 之後該網址回 404（ngrok 的 tunnel not found），確認確實關閉
+        - dev-tunnel.ps1 以 PowerShell 語法剖析器檢查，0 錯誤，中文讀取正常
+        - config / tunnel_manager / ops_cog / bot 全部 py_compile 通過
+
+  ⚠️ 還要在 Google Cloud Console 的「已授權的 JavaScript 來源」加入：
+       https://headless-clutch-mangle.ngrok-free.dev
+       http://localhost:8000
+     加完 Google 登入才會通。這一步在 Google 端，程式改不了。
+
+  ⚠️ ops/bin/cloudflared.exe（54 MB）已無用途，可自行刪除。
+     它一直沒被 git 追蹤，所以不影響版控。
+========================================================================

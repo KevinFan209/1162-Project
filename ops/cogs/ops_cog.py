@@ -45,16 +45,15 @@ class OpsCog(commands.Cog):
             GREEN if verified else 0xFFA502,
         )
         if not verified:
-            # 網址已產生但本機連不上，最常見原因是新網域的 DNS 還在傳播。
-            # 對 DNS 已更新的人往往是好的，所以照樣貼出網址，但要說清楚。
+            # 隧道行程活著但連不到 PyPoly。改用固定網域之後不再有
+            # DNS 傳播的問題，所以這種情況幾乎都是後端伺服器沒起來。
             e.add_field(
                 name="⚠️ 尚未驗證連線",
-                value=("網址已建立，但這台主機目前連不上它。\n"
-                       "通常是新網域的 DNS 還在傳播，**等 1～2 分鐘再試**即可；\n"
-                       "也可能是主機端的 DNS 只回 IPv6 而 IPv6 不通。\n"
-                       "其他人的網路可能已經通了，可以先試著開看看。"),
+                value=("隧道已建立，但這台主機透過它連不到 PyPoly。\n"
+                       "通常是後端伺服器沒有正常啟動，可用 `/status` 確認；\n"
+                       "網址本身是固定的，不會因為重啟而失效。"),
                 inline=False)
-        e.set_footer(text="網址每次重新啟動都會變，請以最新一則為準")
+        e.set_footer(text="網址是固定的，之後每次都一樣")
         return e
 
     # ── /start ───────────────────────────────────────────
@@ -85,7 +84,7 @@ class OpsCog(commands.Cog):
         await interaction.followup.send(embed=await self._bring_up("🔄 PyPoly 已重新啟動"))
 
     # ── /url ─────────────────────────────────────────────
-    @app_commands.command(name="url", description="查詢目前的遊戲網址（不會改變任何狀態）")
+    @app_commands.command(name="url", description="查詢遊戲網址（固定不變，不會改變任何狀態）")
     async def url(self, interaction: discord.Interaction):
         current = tunnel_manager.current_url()
         if not current:

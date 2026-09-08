@@ -1,8 +1,8 @@
 ﻿<#
   PyPoly 遠端測試一鍵啟動
 
-  啟動 uvicorn (main:sio_app) + Cloudflare Quick Tunnel，
-  並印出組員可以直接點開的 HTTPS 網址。
+  啟動 uvicorn (main:sio_app) + ngrok 隧道，
+  並印出組員可以直接點開的 HTTPS 網址（固定網址，每次都一樣）。
   Ctrl+C 或關閉視窗會一併收掉兩個行程。
 
   用法： .\ops\scripts\dev-tunnel.ps1
@@ -21,20 +21,23 @@ if (-not (Test-Path (Join-Path $PyPolyDir 'main.py'))) {
 }
 
 # ---------- 前置檢查 ----------
-# cloudflared 優先用 ops\bin 下的獨立執行檔，其次找 PATH
-$CfExe = Join-Path $OpsRoot 'bin\cloudflared.exe'
-if (-not (Test-Path $CfExe)) {
-    $cmd = Get-Command cloudflared -ErrorAction SilentlyContinue
+# ngrok 優先用 ops\bin 下的獨立執行檔，其次找 PATH
+$NgrokExe = Join-Path $OpsRoot 'bin\ngrok.exe'
+if (-not (Test-Path $NgrokExe)) {
+    $cmd = Get-Command ngrok -ErrorAction SilentlyContinue
     if ($cmd) {
-        $CfExe = $cmd.Source
+        $NgrokExe = $cmd.Source
     } else {
-        Write-Host "[X] 找不到 cloudflared。請執行以下指令下載（約 52 MB）：" -ForegroundColor Red
-        Write-Host '      New-Item -ItemType Directory -Force -Path .\ops\bin | Out-Null' -ForegroundColor Yellow
-        Write-Host '      Invoke-WebRequest -UseBasicParsing -OutFile .\ops\bin\cloudflared.exe `' -ForegroundColor Yellow
-        Write-Host '        https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe' -ForegroundColor Yellow
+        Write-Host "[X] 找不到 ngrok。安裝方式：" -ForegroundColor Red
+        Write-Host '      winget install ngrok.ngrok' -ForegroundColor Yellow
+        Write-Host '   或到 https://ngrok.com/download 下載後放進 .\ops\bin\' -ForegroundColor Yellow
+        Write-Host '   安裝後設定一次金鑰： ngrok config add-authtoken <你的 token>' -ForegroundColor Yellow
         exit 1
     }
 }
+
+# 固定網域。換帳號時改這裡，或設環境變數 NGROK_DOMAIN。
+$NgrokDomain = if ($env:NGROK_DOMAIN) { $env:NGROK_DOMAIN } else { 'headless-clutch-mangle.ngrok-free.dev' }
 
 if (-not (Test-Path (Join-Path $PyPolyDir '.env'))) {
     Write-Host "[!] PyPoly\.env 不存在，SECRET_KEY 會使用程式碼裡的公開預設值。" -ForegroundColor Yellow
@@ -51,8 +54,8 @@ $LogDir = Join-Path $env:TEMP 'pypoly-ops'
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 $UviOut = Join-Path $LogDir 'uvicorn.out.log'
 $UviErr = Join-Path $LogDir 'uvicorn.err.log'
-$CfOut  = Join-Path $LogDir 'cloudflared.out.log'
-$CfErr  = Join-Path $LogDir 'cloudflared.err.log'
+$CfOut  = Join-Path $LogDir 'ngrok.out.log'
+$CfErr  = Join-Path $LogDir 'ngrok.err.log'
 Remove-Item $UviOut, $UviErr, $CfOut, $CfErr -ErrorAction SilentlyContinue
 
 $uvicorn = $null
@@ -87,29 +90,32 @@ try {
     }
     Write-Host "      伺服器就緒 (PID $($uvicorn.Id))" -ForegroundColor Green
 
-    # ---------- 2. 建立 Cloudflare Quick Tunnel ----------
-    Write-Host "[2/2] 建立 Cloudflare 隧道 ..." -ForegroundColor Cyan
-    $tunnel = Start-Process -FilePath $CfExe `
-        -ArgumentList 'tunnel', '--url', 'http://localhost:8000' `
+    # ---------- 2. 建立 ngrok 隧道 ----------
+    # 網址是固定的，不必再像 Quick Tunnel 那樣從日誌裡撈隨機網址。
+    Write-Host "[2/2] 建立 ngrok 隧道 ..." -ForegroundColor Cyan
+    $tunnel = Start-Process -FilePath $NgrokExe `
+        -ArgumentList 'http', '8000', '--url', $NgrokDomain, '--log', 'stdout' `
         -PassThru -NoNewWindow `
         -RedirectStandardOutput $CfOut -RedirectStandardError $CfErr
 
-    # cloudflared 會把網址印在 stderr，兩個檔案都掃
-    $publicUrl = $null
-    foreach ($i in 1..60) {
+    $publicUrl = "https://$NgrokDomain"
+
+    # 確認隧道真的通了（authtoken 沒設、網域被占用都會讓 ngrok 立刻結束）
+    $tunnelOk = $false
+    foreach ($i in 1..40) {
         Start-Sleep -Milliseconds 500
         if ($tunnel.HasExited) { break }
-        $text = ''
-        foreach ($f in @($CfErr, $CfOut)) {
-            if (Test-Path $f) { $text += (Get-Content $f -Raw -ErrorAction SilentlyContinue) }
-        }
-        $m = [regex]::Match($text, 'https://[a-z0-9-]+\.trycloudflare\.com')
-        if ($m.Success) { $publicUrl = $m.Value; break }
+        try {
+            $r = Invoke-WebRequest -Uri "$publicUrl/static/login.html" -UseBasicParsing -TimeoutSec 5
+            if ($r.StatusCode -lt 500) { $tunnelOk = $true; break }
+        } catch { }
     }
 
-    if (-not $publicUrl) {
-        Write-Host "[X] 取不到隧道網址，cloudflared 輸出：" -ForegroundColor Red
-        if (Test-Path $CfErr) { Get-Content $CfErr -Tail 20 }
+    if (-not $tunnelOk) {
+        Write-Host "[X] 隧道無法連線，ngrok 輸出：" -ForegroundColor Red
+        foreach ($f in @($CfErr, $CfOut)) {
+            if (Test-Path $f) { Get-Content $f -Tail 20 -ErrorAction SilentlyContinue }
+        }
         exit 1
     }
 
@@ -125,7 +131,7 @@ try {
     Write-Host "  記錄檔　： $LogDir" -ForegroundColor DarkGray
     Write-Host "===============================================================" -ForegroundColor Green
     Write-Host ""
-    Write-Host "  這個網址每次重新啟動都會變，請重新貼給組員。"
+    Write-Host "  這個網址是固定的，之後每次啟動都一樣。"
     Write-Host "  按 Ctrl+C 停止伺服器與隧道。"
     Write-Host ""
 
