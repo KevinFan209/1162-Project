@@ -6,7 +6,7 @@ UI design/
 .claude/
 
 # 機敏設定不進映像，改由 compose 以環境變數注入
-**/.env
+# **/.env
 
 **/__pycache__/
 **/*.pyc
