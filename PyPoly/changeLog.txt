@@ -1492,3 +1492,95 @@ PyPoly 變更紀錄 (changeLog)
      但這代表 import 順序變成了會影響行為的隱性相依。
      Docker 端由 compose 以真環境變數注入，不需要這一行。
 ========================================================================
+
+
+[2026-09-11] #50 一個 bot 管所有分支：/start <分支> 決定要開哪一版
+
+  問題：要讓組員測某個分支，得切到另一個資料夾、git switch、再在那裡重開
+        bot.py。每換一個分支就要重來一次。遠端已經有 9 個分支且還在增加。
+
+  目標：只開一次 bot.py，之後用 /start <分支> 決定要服務哪一版。
+        「同時只能開一個分支」是先天限制不是要繞過的問題——ngrok 免費方案
+        只允許一條隧道，8000 埠也只有一個。切分支＝停掉舊的再起新的。
+
+  ── 為什麼用 git worktree ──
+
+  9 個分支各自 clone 要約 900MB（本專案的 .git 就 104MB），worktree 讓所有
+  分支共用同一個 .git，而且 git fetch 一次全部拿到新資料。
+
+  預期結構（每個分支一個資料夾，名稱就是分支名）：
+      Project\
+        ├── main\      ← 主 worktree，bot.py 固定從這裡跑
+        ├── Fan-map\
+        └── …
+
+  bot 服務哪個分支只由 uvicorn 子行程的 cwd 決定，bot 自己的程式碼不隨之改變。
+  server_manager 本來就是用 cwd=config.PYPOLY_DIR 啟動的，所以啟動邏輯不必動，
+  只要換掉那個 cwd。
+
+  ── 新增 ops/services/branch_manager.py ──
+
+    list_branches()     來源是 git branch -r，新分支一 push 就出現在 Discord
+                        的選單裡，不必手動維護清單
+    resolve_branch()    唯一的守門員：白名單比對，順便處理大小寫與前後空白
+    ensure_worktree()   沒有就用 git worktree add 建；分支已在別處 checkout
+                        （例如 main 就在主 worktree）則沿用那一個
+    update()            fetch 後只做快轉
+    ensure_env()        PyPoly/.env 被 gitignore，新 worktree 不會有，
+                        從主 worktree 複製一份過去
+    prepare()           以上一次做完，ops_cog 只要呼叫這一個
+
+  ⚠️ update() 刻意只做快轉。工作目錄有未提交的改動、或分支已分歧時一律跳過
+     並在 Discord 說明原因，絕不 reset --hard 或 checkout -- ——那會無聲地
+     毀掉別人正在做的事。這兩種情況仍然可以啟動，只是用磁碟上現有的版本。
+
+  ── 安全性 ──
+
+  server_manager 原本的設計前提是「啟動指令寫死，不接受任何來自 Discord 的
+  輸入」。加上分支參數等於打破這個前提，所以做了三道防線：
+    1. 分支名必須出現在 git branch -r 的結果裡，否則直接拒絕
+    2. 所有 git 指令用 list 形式呼叫，shell=False
+    3. 路徑組出來後再確認確實位於 PROJECT_ROOT 底下，擋掉 ../ 之類的字串
+  實測 11 種惡意輸入（路徑逃逸、指令串接、命令替換、換行注入）全部被擋，
+  且不會建出 PROJECT_ROOT 以外的任何資料夾。
+
+  ── 其他改動 ──
+
+  ops/config.py
+    新增 PROJECT_ROOT、CONTROL_WORKTREE、DEFAULT_BRANCH。
+    PROJECT_ROOT 由 ops/.env 覆寫，程式裡的預設值只是推算（bot 所在倉庫的
+    上一層）——絕對路徑因人而異，寫死在版控裡對組員沒意義。
+
+  ops/services/server_manager.py
+    start() 加 branch / workdir 參數，並記住目前服務的分支供 /status 顯示。
+    stop() 一併清掉分支狀態。其餘邏輯（socket.io 握手、記錄檔、owned 判定）
+    完全不動。
+
+  ops/cogs/ops_cog.py
+    /start、/restart 加選填的分支參數，用 autocomplete 而非寫死的 Choice——
+    新分支一 push 就會出現，不必改程式也不必重新註冊指令。
+    留空則沿用目前服務的分支，讓單純的 /restart 不會意外切走。
+    回覆的 embed 會顯示目前分支與該分支的最新 commit，讓組員知道測的是哪一版。
+    /status 加上分支與版本；新增 /branches 列出所有分支與服務狀態。
+
+  ops/README.md、ops/.env.example
+    更新指令表與設定說明。順便修掉 README 裡「網址每次都會變（Quick Tunnel
+    特性）」這句已經不成立的話——早就換成 ngrok 固定網域了。
+
+  驗證：三組測試共 75 項全數通過。
+    branch_manager 34 項：分支清單與 git 輸出一致（9 個，含中文分支名）、
+      合法輸入的解析、11 種惡意輸入全被拒、9 個分支的路徑都在 PROJECT_ROOT 底下。
+    worktree 實測 20 項：在暫存沙箱做一份完整的 Project 結構（不碰現有資料夾），
+      實際建立 worktree、複製 .env、快轉更新；並刻意弄髒工作目錄，
+      確認 update() 會跳過而不是覆蓋，改動確實還在。
+    cog 載入 21 項：6 個指令都註冊成功、分支參數是選填且有 autocomplete、
+      其餘指令沒有自由文字參數、autocomplete 實際篩選正確。
+
+  ⚠️ 尚未實機測試（需要 Discord bot 連線與 8000 埠）。要做的是：
+     開 bot，/start Fan-map 與 /start main 各一次，確認網址開出來的確實是
+     對應分支的版本；/branches 與 /status 顯示正確。
+
+  ⚠️ 使用前要先建立 Project\ 結構並在 ops/.env 設定 PROJECT_ROOT。
+     另外 docker compose 的專案名稱取自資料夾名，從新位置執行的話名稱會變，
+     現有的容器與資料庫 volume 會變成孤兒（資料還在，只是新專案名找不到它）。
+========================================================================

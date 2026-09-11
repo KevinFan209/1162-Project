@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import subprocess
 import sys
+from pathlib import Path
 
 import httpx
 
@@ -27,6 +28,21 @@ _ERR_LOG = config.LOG_DIR / "uvicorn.err.log"
 _proc: subprocess.Popen | None = None
 _logs: list = []   # 子行程的記錄檔控制代碼，stop() 時要一併關閉
 
+# 目前服務的是哪個分支、工作目錄在哪。
+# 這是本模組唯一「可變」的部分——指令本身仍然是寫死的，
+# 分支只影響子行程的 cwd，而且來源必須先通過 branch_manager 的白名單。
+_branch: str | None = None
+_workdir: Path | None = None
+
+
+def current_branch() -> str | None:
+    """目前服務的分支；伺服器不是由 bot 啟動時回 None。"""
+    return _branch if owned() else None
+
+
+def current_workdir() -> Path | None:
+    return _workdir if owned() else None
+
 
 async def is_up(timeout: float = 3.0) -> bool:
     """伺服器是否可服務（不論是誰啟動的）。以 socket.io 握手為準。"""
@@ -43,13 +59,26 @@ def owned() -> bool:
     return _proc is not None and _proc.poll() is None
 
 
-async def start(ready_timeout: float = 30.0) -> tuple[bool, str]:
-    """啟動伺服器。回傳 (成功, 訊息)。"""
-    global _proc, _logs
+async def start(ready_timeout: float = 30.0,
+                branch: str | None = None,
+                workdir: Path | None = None) -> tuple[bool, str]:
+    """啟動伺服器。回傳 (成功, 訊息)。
+
+    branch / workdir 由 branch_manager.prepare() 提供，代表要服務哪個分支。
+    兩者都省略時沿用 config.PYPOLY_DIR（單一分支時的舊行為）。
+
+    ⚠️ workdir 必須是已經通過 branch_manager 白名單驗證的路徑。
+       本模組不自行解析任何來自 Discord 的字串。
+    """
+    global _proc, _logs, _branch, _workdir
 
     if await is_up():
         who = "由 bot 啟動" if owned() else "由其他方式啟動（例如 dev-tunnel.ps1）"
         return True, f"伺服器已在執行中（{who}）"
+
+    target = Path(workdir) / "PyPoly" if workdir else config.PYPOLY_DIR
+    if not (target / "main.py").exists():
+        return False, f"找不到 {target / 'main.py'}"
 
     _OUT_LOG.write_text("", encoding="utf-8")
     _ERR_LOG.write_text("", encoding="utf-8")
@@ -58,10 +87,12 @@ async def start(ready_timeout: float = 30.0) -> tuple[bool, str]:
     _logs = [_OUT_LOG.open("a", encoding="utf-8"), _ERR_LOG.open("a", encoding="utf-8")]
     _proc = subprocess.Popen(
         _CMD,
-        cwd=str(config.PYPOLY_DIR),
+        cwd=str(target),
         stdout=_logs[0],
         stderr=_logs[1],
     )
+    _branch = branch
+    _workdir = Path(workdir) if workdir else None
 
     deadline = asyncio.get_event_loop().time() + ready_timeout
     while asyncio.get_event_loop().time() < deadline:
@@ -77,10 +108,11 @@ async def start(ready_timeout: float = 30.0) -> tuple[bool, str]:
 
 def stop() -> tuple[bool, str]:
     """停止由本 bot 啟動的伺服器。"""
-    global _proc
+    global _proc, _branch, _workdir
 
     if _proc is None or _proc.poll() is not None:
         _proc = None
+        _branch = _workdir = None
         _close_logs()
         return False, "伺服器不是由 bot 啟動的，請在原本啟動它的視窗按 Ctrl+C"
 
@@ -90,6 +122,7 @@ def stop() -> tuple[bool, str]:
     except subprocess.TimeoutExpired:
         _proc.kill()
     _proc = None
+    _branch = _workdir = None
     _close_logs()
     return True, "伺服器已停止"
 
