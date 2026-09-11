@@ -91,19 +91,39 @@ https://headless-clutch-mangle.ngrok-free.dev/static/login.html
 
 | 指令 | 行為 |
 |---|---|
-| `/start` | 啟動伺服器 + 建立隧道，回覆可直接點的遊戲網址 |
-| `/restart` | 重啟伺服器與隧道，回覆**新的**網址 |
+| `/start [分支]` | 啟動伺服器 + 建立隧道，回覆可直接點的遊戲網址 |
+| `/restart [分支]` | 重啟伺服器，可順便換分支 |
+| `/branches` | 列出所有分支，以及哪個正在服務 |
 | `/url` | 只查目前網址，不改變任何狀態 |
-| `/status` | 伺服器是否執行中、由誰啟動、房間內玩家數、目前網址 |
+| `/status` | 伺服器狀態、目前分支與版本、房間內玩家數、網址 |
 | `/stop` | 關掉隧道與伺服器 |
 | `/ask <問題>` | 問 AI 關於這個專案的問題，**只回文字** |
 
-前五個控制指令**都不接受任何自由文字參數**。`/ask` 是唯一吃文字的指令，
-因為它本質就是文字進、文字出，沒有任何副作用。
+### 切換分支
 
-> `/restart` 之後網址一定會變（Quick Tunnel 特性），bot 會把新網址貼出來，
-> 請組員以最新一則為準。若伺服器不是 bot 啟動的，`/restart` 會明確拒絕而
-> 不會去關別人的行程。
+`/start` 與 `/restart` 的分支參數有自動完成，打字時會即時篩選；留空則沿用
+目前正在服務的分支。
+
+第一次指定某個分支時，bot 會自動用 `git worktree` 在 `PROJECT_ROOT` 底下建好
+該分支的資料夾，並把 `PyPoly/.env` 複製過去。之後每次啟動都會先 `git fetch`
+並快轉到遠端最新——組員 push 完，你 `/restart` 就拿到新版本。
+
+**工作目錄有未提交的改動時會跳過更新**，改用磁碟上現有的版本並在回覆裡說明。
+bot 不會 `reset --hard` 或 `checkout --`，不會動到任何人正在做的事。
+
+> **同時只能服務一個分支。** ngrok 免費方案只允許一條隧道，8000 埠也只有一個，
+> 所以切分支就是停掉舊的、起新的。
+
+### 參數與安全性
+
+只有 `/start`、`/restart` 的分支參數與 `/ask` 的問題會吃自由文字。
+
+分支參數在進入 services 之前必須先通過 `branch_manager.resolve_branch()` 的
+**白名單比對**——分支名要真的出現在 `git branch -r` 的結果裡，否則直接拒絕。
+所有 git 指令都用 list 形式呼叫、不經過 shell，組出來的路徑還會再確認確實位於
+`PROJECT_ROOT` 底下。
+
+> 若伺服器不是 bot 啟動的，`/restart` 會明確拒絕而不會去關別人的行程。
 
 ### 一次性設定
 
@@ -158,10 +178,11 @@ ops/
 ├─ requirements.txt
 ├─ .env.example
 ├─ cogs/
-│  ├─ ops_cog.py              /start /restart /stop /status /url
+│  ├─ ops_cog.py              /start /restart /branches /stop /status /url
 │  └─ ask_cog.py              /ask（純文字，無執行權限）
 ├─ services/
-│  ├─ server_manager.py       uvicorn 子行程（固定指令）
+│  ├─ branch_manager.py       各分支的 git worktree（含分支名白名單）
+│  ├─ server_manager.py       uvicorn 子行程（固定指令，cwd 依分支決定）
 │  ├─ tunnel_manager.py       ngrok 子行程（固定網域，不需解析網址）
 │  └─ llm_client.py           llama.cpp 唯讀呼叫
 ├─ scripts/dev-tunnel.ps1     不透過 bot 的手動啟動方式

@@ -21,6 +21,30 @@ PYPOLY_DIR = Path(_pypoly) if _pypoly else (REPO_ROOT / "PyPoly")
 SERVER_PORT = int(os.getenv("SERVER_PORT", "8000") or 8000)
 SERVER_LOCAL_URL = f"http://127.0.0.1:{SERVER_PORT}"
 
+# ── 多分支工作區 ──
+# 讓一個 bot 就能服務不同分支：/start <分支> 會把 uvicorn 的工作目錄
+# 換成該分支的 worktree，不必再另開一個資料夾手動 git switch。
+#
+# 預期的結構（每個分支一個資料夾，名稱就是分支名）：
+#     Project\
+#       ├── main\        ← 主 worktree，bot.py 從這裡跑
+#       ├── Fan-map\     ← git worktree
+#       └── …
+#
+# 絕對路徑因人而異，寫死在版控裡對組員沒意義，所以由 ops/.env 的
+# PROJECT_ROOT 決定；未設定時推算為「bot 所在倉庫的上一層」，
+# 照上面的結構擺放時會自動正確。
+_root = os.getenv("PROJECT_ROOT", "").strip()
+PROJECT_ROOT = Path(_root).resolve() if _root else REPO_ROOT.parent
+
+# bot 自己所在的 worktree。它服務哪個分支由子行程的 cwd 決定，與這個
+# 路徑無關——只有要更新 bot 本身的程式碼時才需要動到它。
+CONTROL_WORKTREE = REPO_ROOT
+
+# 未指定分支時的預設。同時只能服務一個分支：ngrok 免費方案只允許
+# 一條隧道，8000 埠也只有一個，所以切分支＝停掉舊的再起新的。
+DEFAULT_BRANCH = os.getenv("DEFAULT_BRANCH", "main").strip() or "main"
+
 # ── ngrok ──
 # 改用 ngrok 而非 cloudflared Quick Tunnel 的原因：
 #   Quick Tunnel 每次啟動都拿到隨機網址（https://<隨機字串>.trycloudflare.com），
