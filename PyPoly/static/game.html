@@ -8,6 +8,9 @@
 	<script src="js/character-face.js"></script>
 	<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="js/board-layout.js"></script>
+    <script src="js/board-terrain.js"></script>
+    <script src="js/board-props.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
@@ -854,6 +857,9 @@ async function fetchMapConfig(mode, difficulty) {
     if (storedMap) {
         gameMap = JSON.parse(storedMap);
         window.mapBlocks = gameMap.blocks || gameMap;
+        // 地圖到齊後重套一次格子外觀：create3DBoard() 在 init3D() 執行時
+        // gameMap 可能還是空的，那時只會套到中性的鋪面貼圖。
+        if (typeof applyBoardAppearance === "function") applyBoardAppearance();
         console.log("✅ 從本地緩存讀取已同步之地圖");
         return;
     }
@@ -866,6 +872,9 @@ async function fetchMapConfig(mode, difficulty) {
             `${API_URL}/game/map_config?mode=${mode}&difficulty=${difficulty}${testFlag}`);
         gameMap = await response.json();
         window.mapBlocks = gameMap.blocks || gameMap;
+        // 地圖到齊後重套一次格子外觀：create3DBoard() 在 init3D() 執行時
+        // gameMap 可能還是空的，那時只會套到中性的鋪面貼圖。
+        if (typeof applyBoardAppearance === "function") applyBoardAppearance();
         
         localStorage.setItem(storedMapKey, JSON.stringify(gameMap));
         console.log("✅ 地圖初始化完成:", gameMap);
@@ -2219,6 +2228,8 @@ socket.on('dice_event_sync', (data) => {
             console.log("🗺️ 接收到房主同步的地圖！");
             gameMap = data.point;
             window.mapBlocks = gameMap.blocks || gameMap;
+            // 同上：房主同步的地圖到了，重新套用格子外觀
+            if (typeof applyBoardAppearance === "function") applyBoardAppearance();
             const roomCode = JSON.parse(localStorage.getItem('pypoly_active_room'))?.code || localStorage.getItem('room_code');
             localStorage.setItem(`pypoly_synced_map_${roomCode}`, JSON.stringify(gameMap));
         }
@@ -2553,27 +2564,132 @@ window.onload = async function() {
 		user: localStorage.getItem('username') 
 	});
 	
+// 裝飾物統一用這個名字，重新套用外觀時才知道哪些該清掉
+// （支柱與連接橋另有名字，屬於結構的一部分，不隨外觀重建）
+const BOARD_DECOR_NAME = "board_decor";
+
 function create3DBoard() {
     mapBlocks = [];
-    // 1. 格子尺寸放大為 5x5
-    const tileGeo = new THREE.BoxGeometry(5, 0.5, 5); 
-    const tileMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-    
-    // 2. 定義地圖路徑座標
-    // 將間距從 4 改為 6 (5格寬 + 1格空隙)，並等比例放大邊界偏移量 (16->24, 10->15)
-    const tiles = [];
-    for(let i=0; i<9; i++) tiles.push({x: -24 + (i*6), z: 15});      // 下邊
-    for(let i=1; i<6; i++) tiles.push({x: 24, z: 15 - (i*6)});       // 右邊
-    for(let i=1; i<9; i++) tiles.push({x: 24 - (i*6), z: -15});      // 上邊
-    for(let i=1; i<5; i++) tiles.push({x: -24, z: -15 + (i*6)});     // 左邊
+    // 重複呼叫時不要讓格子累積（原本只清 mapBlocks，allTileMeshes 會越疊越多）
+    allTileMeshes.length = 0;
 
-    tiles.forEach((pos, index) => {
-        const tile = new THREE.Mesh(tileGeo, tileMat.clone());
-        tile.position.set(pos.x, 0, pos.z);
-        if(index === 0) tile.material.color.set(0x00cdac); 
+    // 座標與高度改由 static/js/board-layout.js 提供。
+    // 抽成資料是為了讓版面看得懂也改得動，不再埋在四個 for 迴圈裡。
+    const layout = BOARD_LAYOUT.tiles;
+    const tileGeo = new THREE.BoxGeometry(BOARD_TILE_SIZE, BOARD_TILE_THICK, BOARD_TILE_SIZE);
+
+    layout.forEach((td) => {
+        // 每格各自的材質：買地後會改 material.color 當作擁有者標記，
+        // 共用材質的話會一次染到全部。
+        const tile = new THREE.Mesh(tileGeo, new THREE.MeshStandardMaterial({ color: 0xffffff }));
+        tile.position.set(td.x, td.y, td.z);
+        tile.userData.layout = td;
         scene.add(tile);
-        allTileMeshes.push(tile); 
-        mapBlocks.push(tile.position); 
+        allTileMeshes.push(tile);
+        mapBlocks.push(tile.position);
+
+        // 抬高的格子底下補一根支柱，看起來才像空中步道而不是浮空方塊。
+        // 掛在格子底下（tile.add）而不是 scene，才會跟著格子一起隱藏。
+        if (td.y > 0.4) {
+            const pillar = new THREE.Mesh(
+                new THREE.BoxGeometry(BOARD_TILE_SIZE * 0.62, td.y, BOARD_TILE_SIZE * 0.62),
+                new THREE.MeshStandardMaterial({ color: 0x78909c, roughness: 0.9 })
+            );
+            // 區域座標：從格子底面往下延伸 td.y
+            pillar.position.set(0, -td.y / 2 - BOARD_TILE_THICK / 2, 0);
+            pillar.name = "board_pillar";
+            tile.add(pillar);
+        }
+    });
+
+    buildBoardConnectors(layout);
+    applyBoardAppearance();
+}
+
+/**
+ * 相鄰格之間的連接橋。有高低差時會自然形成斜坡。
+ * 移植自 past/BoardEditor/game.html 的 buildTileConnectors，
+ * 但改成掛在「前一格」底下，這樣切到冒險全景時會跟著棋盤一起隱藏。
+ */
+function buildBoardConnectors(layout) {
+    const mat = new THREE.MeshStandardMaterial({ color: 0x8d9eab, roughness: 0.85, metalness: 0.05 });
+    const SLAB_H = 0.22;
+    const OVERLAP = 0.2;              // 插進格子邊緣的深度，讓接縫看不出來
+    const HALF = BOARD_TILE_SIZE / 2;
+
+    for (let i = 0; i < layout.length; i++) {
+        const a = layout[i];
+        const b = layout[(i + 1) % layout.length];
+        const tile = allTileMeshes[i];
+        if (!tile) continue;
+
+        const dx = b.x - a.x, dz = b.z - a.z;
+        const hd = Math.sqrt(dx * dx + dz * dz);
+        if (hd < 0.01) continue;
+        const nx = dx / hd, nz = dz / hd;
+
+        // 先用世界座標算出橋的兩端，再換算成 tile 的區域座標
+        const sx = a.x + nx * (HALF - OVERLAP), sy = a.y, sz = a.z + nz * (HALF - OVERLAP);
+        const ex = b.x - nx * (HALF - OVERLAP), ey = b.y, ez = b.z - nz * (HALF - OVERLAP);
+        const len = Math.sqrt((ex - sx) * (ex - sx) + (ey - sy) * (ey - sy) + (ez - sz) * (ez - sz));
+        if (len < 0.05) continue;
+
+        const conn = new THREE.Mesh(
+            new THREE.BoxGeometry(len, SLAB_H, BOARD_TILE_SIZE * 0.55), mat);
+        conn.position.set(
+            (sx + ex) / 2 - a.x,
+            (sy + ey) / 2 - a.y,
+            (sz + ez) / 2 - a.z
+        );
+        conn.setRotationFromQuaternion(
+            new THREE.Quaternion().setFromUnitVectors(
+                new THREE.Vector3(1, 0, 0),
+                new THREE.Vector3(ex - sx, ey - sy, ez - sz).normalize()
+            )
+        );
+        conn.name = "board_connector";
+        tile.add(conn);
+    }
+}
+
+/**
+ * 依 gameMap 決定每格的地形貼圖與裝飾。
+ *
+ * 為什麼要獨立成一個函式：create3DBoard() 是在 init3D() 裡呼叫的，
+ * 那時 gameMap 可能還沒到（它來自非同步的 /game/map_config，
+ * 也可能晚一步由房主的 SYNC_MAP 送來）。所以這裡設計成可以重複呼叫，
+ * 地圖到齊之後再套一次即可。
+ */
+function applyBoardAppearance() {
+    if (!allTileMeshes.length) return;
+    if (typeof terrainForTile !== "function") return;   // 模組沒載到就維持原樣
+
+    allTileMeshes.forEach((tile, idx) => {
+        const data = Array.isArray(gameMap) ? gameMap[idx] : null;
+        const terrain = terrainForTile(data);
+
+        tile.material.map = createTerrainTexture(terrain);
+        tile.material.needsUpdate = true;
+
+        // 先清掉上一輪的裝飾，避免重複套用時越疊越多
+        for (let i = tile.children.length - 1; i >= 0; i--) {
+            if (tile.children[i].name === BOARD_DECOR_NAME) tile.remove(tile.children[i]);
+        }
+
+        const glow = createTileEdgeGlow(terrain);
+        glow.name = BOARD_DECOR_NAME;
+        tile.add(glow);
+
+        const props = createTerrainProps(terrain);
+        props.name = BOARD_DECOR_NAME;
+        tile.add(props);
+
+        // 功能格（道具店／監獄／開合跳／獎勵／起點）放對應的建築
+        const facility = data ? createFacilityProp(data.type) : null;
+        if (facility) {
+            facility.name = BOARD_DECOR_NAME;
+            tile.add(facility);
+        }
     });
 }
 

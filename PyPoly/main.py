@@ -1235,6 +1235,9 @@ async def get_map_config(
                 "id": c.id,
                 "data": { 
                     "name": c.name,
+                    # 🏆 前端用鄉鎮決定格子的地形外觀（見 static/js/board-terrain.js）：
+                    #    魚池鄉→水岸、仁愛鄉→雪地、鹿谷鄉→森林…
+                    "township": c.township,
                     "scenario": c.scenario,
                     # 🏆 由 id 推導而非讀資料庫欄位：資料庫存檔名容易與實際檔案脫節
                     #    （實測 5 筆全指向不存在的圖，導致冒險格整局卡死）。
