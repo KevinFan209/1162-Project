@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ==============================================================
-# 設定區（API 金鑰填在此處，或寫在 PyPoly/.env 中）
+# 設定區
 # ==============================================================
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 LLM_URL = os.getenv("LLM_URL", "https://api.openai.com")
@@ -20,11 +20,7 @@ LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "30"))
 # 核心進入點
 # ==============================================================
 def generate_report(ai_context: dict) -> str:
-    """依學習統計產生給玩家看的分析文字。
-
-    優先呼叫外部 LLM，若 API 呼叫失敗或逾時，自動無縫切換至規則式文字。
-    """
-    # 從未完成過對局的玩家直接走引導文字，避免不必要的 API 消耗
+    """依玩家作答紀錄產生深度客製化的診斷建議。"""
     if (ai_context.get("games_played") or 0) == 0:
         return _rule_based(ai_context)
 
@@ -36,43 +32,53 @@ def generate_report(ai_context: dict) -> str:
 
 
 # ==============================================================
-# LLM 呼叫實作
+# 精準題意分析 LLM 實作
 # ==============================================================
 def _call_llm(ai_context: dict) -> str:
-    """呼叫 OpenAI 相容端點生成個人化學習回饋。"""
     name = ai_context.get("username", "探險者")
     accuracy = ai_context.get("accuracy", 0)
-    strongest = "、".join(ai_context.get("strongest", [])) or "暫無特別突出項目"
+    strongest = "、".join(ai_context.get("strongest", [])) or "基礎概念"
     weakest = "、".join(ai_context.get("weakest", [])) or "暫無明顯弱項"
 
-    # 提取最近答錯的具體題目資訊
+    # 1. 深入解析最近錯題，將題目、玩家選擇與正確答案重構成診斷線索
     recent_wrong = ai_context.get("recent_wrong", [])
-    wrong_detail = ""
+    wrong_analysis_block = ""
     if recent_wrong:
-        items = [
-            f"{i+1}. [{item.get('topic')}] {item.get('question')}"
-            for i, item in enumerate(recent_wrong[:3])
-        ]
-        wrong_detail = "\n最近答錯的題目：\n" + "\n".join(items)
+        details = []
+        for i, item in enumerate(recent_wrong[:3], 1):
+            topic = item.get("topic", "未分類")
+            q_text = item.get("question", "")
+            chosen = item.get("chosen", "?")
+            correct = item.get("correct", "?")
+            details.append(
+                f"錯題 {i} [{topic}]：\n"
+                f"  - 題目：{q_text}\n"
+                f"  - 玩家選了選項 {chosen}，但正解為選項 {correct}"
+            )
+        wrong_analysis_block = "【玩家具體失分題目與作答】\n" + "\n".join(details)
+    else:
+        wrong_analysis_block = "【作答表現】全數答對或尚無近期錯題紀錄。"
 
+    # 2. 系統提示詞：要求扮演解題教練，指出盲點核心
     system_prompt = (
-        "你是 PyPoly 大富翁的「AI 導師」，面向國中小學童。\n"
-        "語氣原則：極度溫暖、具啟發性、幽默。\n"
-        "分析指令：\n"
-        "1. 稱讚他在強項主題上的運算思維。\n"
-        "2. 針對他最近答錯的主題或具體題目，給予實用的 Python 觀念指引。\n"
-        "3. 巧妙融合南投山城、大富翁、數位公民等意象進行鼓勵。\n"
-        "4. 請直接輸出 HTML 片段（使用 <b>、<br>、<code> 標籤，絕對不要輸出 ```html 程式碼區塊外殼）。\n"
-        "5. 扣除 HTML 標籤後，字數控制在 120 字以內。"
+        "你是 PyPoly 大富翁的「Python 隨行 AI 導師」，對象是國中小學童。\n"
+        "你的目標是給出具體且具啟發性的『錯題盲點分析』，不要講空泛的客套話。\n\n"
+        "請依照以下架構給予回饋：\n"
+        "1. 肯定亮點：一句話肯定他在強項主題的表現。\n"
+        "2. 深度診斷（重點）：直接針對錯題的題目邏輯（例如 index 索引從 0 開始、range() 範圍不包含尾數、縮排規則等），溫和點出『你當時可能是把 X 誤記成 Y 了』，並給予 1 句好記的觀念口訣。\n"
+        "3. 冒險勉勵：融入 1 句南投山城大富翁或數位公民的情境激勵。\n\n"
+        "輸出規範：\n"
+        "- 直接輸出乾淨的 HTML 段落（使用 <b>、<code>、<br> 標籤，不使用 Markdown codeblock）。\n"
+        "- 總長度精簡在 130 字以內，口吻親切自然。"
     )
 
     user_prompt = (
-        f"學員名稱：{name}\n"
-        f"整體答題正確率：{accuracy}%\n"
-        f"掌握較佳主題：{strongest}\n"
-        f"待加強主題：{weakest}\n"
-        f"{wrong_detail}\n\n"
-        "請根據上述實際作答情況，給予一段專屬的學習反饋。"
+        f"學員帳號：{name}\n"
+        f"全體正確率：{accuracy}%\n"
+        f"熟練主題：{strongest}\n"
+        f"卡關主題：{weakest}\n"
+        f"{wrong_analysis_block}\n\n"
+        "請針對上述具體作答失誤進行點撥指導："
     )
 
     headers = {
@@ -86,8 +92,8 @@ def _call_llm(ai_context: dict) -> str:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        "max_tokens": 500,
-        "temperature": 0.6,
+        "max_tokens": 600,
+        "temperature": 0.5,
     }
 
     response = requests.post(
@@ -101,7 +107,7 @@ def _call_llm(ai_context: dict) -> str:
     msg = response.json()["choices"][0]["message"]
     text = (msg.get("content") or "").strip()
 
-    # 清理大模型可能自帶的 markdown 外框
+    # 清除 Markdown 外殼
     if text.startswith("```html"):
         text = text.replace("```html", "", 1)
     if text.startswith("```"):
@@ -113,7 +119,7 @@ def _call_llm(ai_context: dict) -> str:
 
 
 # ==============================================================
-# 規則式退路（安全防護）
+# 規則式保底機制
 # ==============================================================
 def _rule_based(ctx: dict) -> str:
     name = ctx.get("username") or "探險者"
@@ -122,29 +128,25 @@ def _rule_based(ctx: dict) -> str:
     if games == 0:
         return (
             f"嗨 <b>{name}</b>！你還沒有完成過任何一局。<br>"
-            "先去大廳開一局，答幾道題之後回來，這裡就會出現你的學習分析。"
+            "先去大廳開一局，答幾道題之後回來，這裡就會出現專屬於你的學習分析。"
         )
 
     acc = ctx.get("accuracy") or 0
     total = ctx.get("total_questions") or 0
     weakest = ctx.get("weakest") or []
     strongest = ctx.get("strongest") or []
-    avg_sec = ctx.get("avg_answer_sec") or 0
+    recent_wrong = ctx.get("recent_wrong") or []
 
-    if acc >= 80:
-        opening = f"嗨 <b>{name}</b>！{total} 題答對 {acc}%，表現相當穩。"
-    elif acc >= 50:
-        opening = f"嗨 <b>{name}</b>！{total} 題答對 {acc}%，基礎已經有了，再推一把。"
-    else:
-        opening = f"嗨 <b>{name}</b>！目前 {total} 題答對 {acc}%，還有不少進步空間，別氣餒。"
+    parts = [f"嗨 <b>{name}</b>！本局作答正確率 <b>{acc}%</b>。"]
 
-    parts = [opening]
     if strongest:
-        parts.append(f"你在 <b>{strongest[0]}</b> 上掌握得不錯。")
-    if weakest:
-        parts.append(f"目前的挑戰是 <b>{weakest[0]}</b>，建議針對這個主題多練幾題。")
-    if avg_sec and avg_sec > 15:
-        parts.append(f"平均每題花 {avg_sec} 秒，可以再熟悉一下語法來加快判斷。")
+        parts.append(f"你在 <b>{strongest[0]}</b> 概念掌握得非常扎實！")
 
-    parts.append("繼續保持開合跳，對專注力很有幫助！")
+    if recent_wrong:
+        q_topic = recent_wrong[0].get("topic", "語法")
+        parts.append(f"剛才在 <b>{q_topic}</b> 題目中有點可惜選錯了，注意題目裡的邊界條件與符號細節。")
+    elif weakest:
+        parts.append(f"接下來可以多挑戰 <b>{weakest[0]}</b> 相關的格子，把弱項補齊。")
+
+    parts.append("整理好邏輯，下一把繼續開拓南投數位地圖！")
     return "<br>".join(parts)
