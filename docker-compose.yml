@@ -49,8 +49,6 @@ services:
         # 等 healthcheck 真的通過才啟動，否則第一次 up 幾乎必定連線失敗
         condition: service_healthy
 
-    env_file:             # 👈 1. 加上這兩行
-      - .env              # 👈 讓 Docker Compose 自動讀取專案根目錄的 .env 檔案
     environment:
       # 容器裡的 localhost 是容器自己，主機名必須是 compose 的服務名 db
       DATABASE_URL: mysql+pymysql://root:pypoly@db:3306/pypoly_db

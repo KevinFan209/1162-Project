@@ -1414,3 +1414,81 @@ PyPoly 變更紀錄 (changeLog)
        https://headless-clutch-mangle.ngrok-free.dev
        http://localhost:8000
 ========================================================================
+
+[2026-09-09] #47 合併 teca 分支，修正合併帶進來的三個問題
+
+  teca 分支修好了環境部 AQI 的解析（那是它的主要貢獻），
+  但同時帶進三個問題。因為兩邊改的檔案完全沒有重疊，
+  git 合併零衝突——問題會安靜地進入 main，不會有任何提示。
+
+  ── 合併本身 ──
+
+  git merge origin/teca 零衝突，只動三個檔案：
+    .dockerignore / PyPoly/air_quality.py / docker-compose.yml
+  main 這邊的成果（ngrok 那整套、新的 Google client ID）完整保留。
+
+  ── 修正一：docker-compose.yml 的 env_file ──
+
+  teca 加了 env_file: - .env，指向專案根目錄，但根目錄沒有 .env
+  （只有 PyPoly/.env）。實測 docker compose up 直接失敗：
+      env file ...Nproject-范植鈞\.env not found
+  他自己機器上有一份沒進版控的根目錄 .env，所以他能跑、其他人全掛。
+
+  這三行本來就不需要：compose 已用 environment: 注入 DATABASE_URL，
+  且 ./PyPoly:/app 的掛載讓 PyPoly/.env 本來就在容器裡看得到。已整段移除。
+
+  ── 修正二：.dockerignore 的 **/.env ──
+
+  teca 把它註解掉了。在開發模式下這毫無作用（掛載會蓋過映像內容），
+  唯一的效果是把 SECRET_KEY、Gmail 應用程式密碼、環境部金鑰
+  烤進映像的層裡。已還原。
+
+  ── 修正三：air_quality.py 合成正確版本 ──
+
+  teca 用 verify=False + urllib3.disable_warnings 繞過 SSL 問題，
+  等於整個關閉憑證驗證且不留痕跡。改回 main 的 _MoenvAdapter——
+  只放寬 Python 3.13 新增的 VERIFY_X509_STRICT 這一項形式檢查
+  （環境部憑證缺 Subject Key Identifier 欄位），CA 鏈、主機名、
+  有效期的驗證全部保留。
+
+  保留 teca 的正確部分：
+    - isinstance(data, list) 的解析。環境部 API 頂層回的是 84 筆裸 list，
+      不是 {"records": [...]}，舊版在此拋 AttributeError，
+      永遠取不到真實資料（而保底值 35 剛好等於南投站的常見值，所以看不出來）。
+    - 取不到資料時回 None 而非保底值。main.py:1416 的 has_env_event
+      會是 False、倍率退回 1.0、介面顯示 --，比假裝有資料誠實。
+    - 「包含即命中」的地點比對，讓情境名稱也能對應到測站。
+    - 細分的 AQI 狀態文字（六級，原本只有三級）。
+
+  另修掉 teca 版的兩個問題：
+    - 站名誤中：原本用 matched_station in sitename，而環境部的
+      「南投（鹿谷）」也包含「南投」，查南投時兩站都符合，
+      只是靠 API 回傳順序僥倖正確。改為明確的站名對應表 STATION_SITENAMES
+      並精準比對。實測南投 122、鹿谷 104，確認是不同測站。
+    - 除錯輸出：每次查詢印 5 行（含兩條分隔線），冒險格每踩一次
+      就洗一波伺服器日誌，收斂成一行。
+
+  另補上 cp950 主控台的 UTF-8 保險（直接執行本檔手動測試時會用到，
+  與 main.py / seed_data.py 開頭相同的處理），並還原被 teca 刪掉的
+  模組 docstring（註明移植自 vamos 的 990e880 與原作者）。
+
+  驗證：17 項針對性整合測試全數通過。
+        - 五個冒險格端點：南投 122、埔里 112、竹山 132 都套用 ×0.85 加成，
+          日月潭正確回 aqi=None、倍率 1.0（非四大測站）
+        - 價格確認有乘上倍率：竹山 (1500+674)×0.85 = 1847
+        - 南投與鹿谷回傳不同測站的不同數值，確認誤中問題已解決
+        - air_quality.py 中無 verify=False 的實際呼叫、無 disable_warnings
+        - /socket.io 回 200（進入點仍是 sio_app）、登入正常（pbkdf2）
+        - docker compose config 通過（先前因 env_file 而失敗）
+
+  ⚠️ 這次沒有跑既有的 70/17/12/21 項回歸測試——那四支測試腳本放在暫存
+     目錄，已被系統清除。本次改動只涉及 air_quality.py 與兩個 Docker
+     設定檔，已改用上述針對性測試涵蓋。測試腳本需要時得重建。
+
+  ⚠️ PyPoly/.env 裡的 DATABASE_URL 建議移除。
+     它指向 Docker 的 db 主機，本機直接跑時是錯的值。
+     目前不會出事是因為 main.py 的 import 順序讓 database 先於
+     air_quality 載入（air_quality 會呼叫 load_dotenv），
+     但這代表 import 順序變成了會影響行為的隱性相依。
+     Docker 端由 compose 以真環境變數注入，不需要這一行。
+========================================================================
