@@ -25,8 +25,8 @@ SERVER_LOCAL_URL = f"http://127.0.0.1:{SERVER_PORT}"
 # 讓一個 bot 就能服務不同分支：/start <分支> 會把 uvicorn 的工作目錄
 # 換成該分支的 worktree，不必再另開一個資料夾手動 git switch。
 #
-# 預期的結構（每個分支一個資料夾，名稱就是分支名）：
-#     Project\
+# 預期的結構（頂層資料夾與 GitHub 上的 repo 同名，底下每個分支一個資料夾）：
+#     1162-Project\
 #       ├── main\        ← 主 worktree，bot.py 從這裡跑
 #       ├── Fan-map\     ← git worktree
 #       └── …

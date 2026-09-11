@@ -1584,3 +1584,38 @@ PyPoly 變更紀錄 (changeLog)
      另外 docker compose 的專案名稱取自資料夾名，從新位置執行的話名稱會變，
      現有的容器與資料庫 volume 會變成孤兒（資料還在，只是新專案名找不到它）。
 ========================================================================
+
+[2026-09-11] #51 專案名稱統一為 1162-Project，Docker 專案名寫死
+
+  問題：docker compose 沒有指定 name，預設會拿「所在資料夾的名稱」當專案名，
+        目前是 116project-（非 ASCII 被去掉後的結果）。
+        這代表資料夾一改名或搬家，專案名就跟著變，既有的容器與資料庫 volume
+        會變成孤兒——資料還在，只是新專案名找不到它。
+        多分支 worktree 的做法會讓每個分支各有一個資料夾，這個問題會被放大。
+
+  檔案：docker-compose.yml
+    新增最上層的 name: 1162-project。寫死之後，不管從哪個分支的資料夾執行，
+    用到的都是同一組容器與同一份資料。
+
+    ⚠️ 只能小寫。實測 Compose 會拒絕含大寫的專案名：
+         invalid project name "1162-Project": must consist only of
+         lowercase alphanumeric characters, hyphens, and underscores
+       所以 Docker 用 1162-project，資料夾與 repo 用 1162-Project。
+       這個差異是 Compose 的規定造成的，不是筆誤。
+
+  檔案：ops/config.py、ops/.env.example
+    多分支工作區的結構圖從 Project\ 改為 1162-Project\，與 repo 同名。
+
+  檔案：DOCKER.md
+    補上說明，讓組員知道專案名是固定的、以及為什麼不是 repo 名的大寫版本。
+
+  驗證：compose 解析通過，專案名為 1162-project；從不同資料夾執行都得到
+        同一個名稱（實測在原資料夾與 /tmp 各跑一次）。
+        ops 的 34 項與 21 項測試重跑仍全過。
+
+  ⚠️ 舊專案名（116project-）底下的容器與 volume 會變成孤兒。
+     Docker 當時沒啟動所以無法確認實際狀況。要清掉的話：
+         docker volume rm 116project-_pypoly_db_data
+     或直接留著不管——容器內的資料庫本來就與本機 XAMPP 分開，
+     重新 docker compose up 會建一份新的並自動 seed。
+========================================================================

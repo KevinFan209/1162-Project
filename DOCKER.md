@@ -72,6 +72,13 @@ SQLAlchemy 的 `create_all()` 只會建**不存在的資料表**，不會替既�
 - 想用 HeidiSQL / DBeaver 連進去看資料：把 `docker-compose.yml` 裡 `db` 服務的
   `ports` 兩行註解拿掉，重啟後連 `localhost:3307`，帳號 `root` 密碼 `pypoly`。
 
+> **專案名稱固定為 `1162-project`**（寫在 `docker-compose.yml` 的 `name:`）。
+> Compose 預設拿「所在資料夾的名稱」當專案名，資料夾一改名或搬家，既有的容器
+> 與資料庫 volume 就會變成孤兒。寫死之後，不管 repo 放在哪、或從哪個分支的
+> 資料夾執行，用到的都是同一組容器與同一份資料。
+>
+> 只能小寫是 Compose 的規定，所以是 `1162-project` 而不是 repo 名的 `1162-Project`。
+
 ## 六、有哪些功能在容器裡是關掉的
 
 以下需要金鑰，容器刻意不提供（避免把金鑰散出去），**不影響遊戲主流程**：
