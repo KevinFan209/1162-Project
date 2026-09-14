@@ -1619,3 +1619,69 @@ PyPoly 變更紀錄 (changeLog)
      或直接留著不管——容器內的資料庫本來就與本機 XAMPP 分開，
      重新 docker compose up 會建一份新的並自動 seed。
 ========================================================================
+
+[2026-09-14] #52 修正平板走 ngrok 時房間列表永遠空白
+
+  回報：用電腦開房間後，平板上一直看不到那間房；反過來平板開房電腦就看得到。
+        平板的房間列表只顯示靜態的「房間列表」，沒有變成「公開房間列表」，
+        也沒有出現「目前沒有冒險教室」。平板沒有除錯介面，看不到 console。
+
+  診斷：不是平板的問題，是 ngrok 免費方案的行為。
+
+    ngrok 免費方案會對「看起來像瀏覽器」的 GET 請求回一頁 HTML 警告頁，
+    而不是後端真正的回應。實測（帶 iPad 的 User-Agent）：
+
+        GET  /rooms/public   → text/html   Ngrok-Error-Code: ERR_NGROK_6024
+        POST /rooms/public   → application/json
+        帶 ngrok-skip-browser-warning 標頭 → application/json  []
+
+    這正好解釋了使用者觀察到的不對稱：建房間是 POST（不被攔，所以平板開房
+    成功），列房間是 GET（被攔，所以列表永遠是空的）。
+
+    接著是為什麼「連標題都沒換」：lobby.html 的 renderRooms() 把標題與房間
+    內容組進同一個 newHtml 字串，最後才一次寫入 grid。fetch 拿到 HTML 之後
+    res.ok 仍是 true（HTTP 200），過了第一道檢查，卡在 res.json() 解析失敗，
+    被 catch 接住後只做 console.error——畫面完全沒動。
+
+    電腦之所以正常，是因為先前點過警告頁的 Visit Site 拿到 cookie；
+    平板沒點過，或 Safari 的跨站追蹤防護讓 fetch 帶不上那個 cookie。
+
+    另外實測發現靜態頁面與 socket.io 的 polling 握手（都是 GET）同樣會被攔。
+
+  檔案：static/js/ngrok-fetch.js（新增）
+    包裝 window.fetch，替所有請求補上 ngrok-skip-browser-warning 標頭。
+    只在 ngrok 網域下生效，本機與區網的行為完全不變。
+
+    為什麼用包裝而不是逐一修改：全專案有 81 處 fetch 散在 17 個檔案裡，
+    逐一加標頭一定會漏，日後新增的也會忘記。包一層就一勞永逸。
+
+    同時提供 window.NGROK_SOCKET_OPTS 給 socket.io 用——它不走 window.fetch，
+    包裝救不到，必須用 transportOptions.polling.extraHeaders 另外帶。
+
+  檔案：17 個 static/*.html
+    加上 <script src="js/ngrok-fetch.js">，且一律插在第一個 script 之前，
+    確保包裝在任何程式碼呼叫 fetch 之前就完成。
+    question.html 與 settings.html 沒有發任何請求，略過。
+
+  檔案：static/game.html
+    io(API_URL) 改為 io(API_URL, window.NGROK_SOCKET_OPTS || {})。
+    這是全專案唯一用 socket.io 的地方；兩處 new WebSocket 不受影響，
+    因為警告頁是 HTTP 層的機制。
+
+  檔案：static/lobby.html
+    renderRooms() 的錯誤處理改寫：
+      - 檢查回應的 content-type，不是 JSON 就給出看得懂的訊息，
+        並在偵測到 ngrok-error-code 時明說是被警告頁攔截
+      - 失敗時把訊息寫進畫面而不是只印 console。先前只有 console.error，
+        平板沒有除錯介面，使用者看到的是一個永遠停在靜態標題的畫面，
+        完全無從判斷哪裡出錯——這次的問題就是這樣被隱藏了兩層
+
+  驗證：14 項靜態檢查全過（模組語法、17 個頁面都載入且順序正確、
+        socket.io 有帶 extraHeaders、lobby 的錯誤處理完整且有跳脫）。
+        ngrok 的行為以 curl 帶 iPad User-Agent 實測確認，帶標頭前後
+        Content-Type 從 text/html 變成 application/json。
+
+  ⚠️ 瀏覽器端的 fetch 包裝沒有實際執行驗證（環境沒有 Node，也無法操作平板）。
+     需要在平板上實測：用 ngrok 網址進大廳，確認房間列表會顯示
+     「公開房間列表」以及電腦建立的房間。
+========================================================================
