@@ -111,6 +111,26 @@
         .btn-action:active { transform: translateY(4px); box-shadow: none; }
         
         @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.5); opacity: 0.5; } }
+		
+		.ai-chip-btn {
+			display: inline-block;
+			margin: 6px 4px 2px 0;
+			padding: 6px 12px;
+			background: #e6fffa;
+			border: 1px solid var(--success-green);
+			border-radius: 20px;
+			color: var(--success-green-shadow);
+			font-size: 0.85rem;
+			font-weight: 700;
+			cursor: pointer;
+			transition: 0.2s;
+		}
+
+		.ai-chip-btn:hover {
+			background: var(--success-green);
+			color: white;
+			transform: translateY(-1px);
+		}
     </style>
 </head>
 <body>
