@@ -346,13 +346,10 @@
 
 <script>
     const API_URL = location.origin;
-    // ⚠️ 填入你的真實 OpenAI API Key
-    const OPENAI_API_KEY = "";
-	
     let syncTimer = null;
     let questionHistoryData = [];
     
-    // 💬 對話歷史紀錄陣列（保持連續上下文）
+    // 💬 對話歷史清單
     let conversationMessages = [];
 
     function toggleMenu() {
@@ -502,7 +499,7 @@
         }).join('');
     }
 
-    // --- 首次載入：維持原案呼叫後端開場總評 ---
+    // --- 首次進入：取得後端 AI 導師初始總評 ---
     async function loadAiReport(token) {
         const greeting = document.getElementById('initialAiGreeting');
         try {
@@ -515,27 +512,11 @@
             const report = data.report || '你好！我是你的 Python AI 導師，有任何問題隨時在下方問我！';
             greeting.innerHTML = report;
 
-            // 初始化系統提示詞與第一句回覆
             conversationMessages = [
-                {
-                    role: 'system',
-                    content: `你是國中小學童的 Python 大富翁隨行 AI 導師。
-【交談規則】
-1. 像真人導師一樣進行連續對話，必須參考先前的對話內容。
-2. 當你出了一題挑戰題，而學生回答（例如輸入 A、B、C 或答案文字）：
-   - 立刻批改答案（告訴他回答正確還是錯誤）。
-   - 簡明解釋為什麼對或錯，並給予熱情肯定。
-   - 不要連續狂出新題目，先好好給予這題的回饋！
-3. 當學生點擊「出一題類似題目」：出一題具體有 code 和 A, B, C 選項的題目。
-4. 使用 HTML 標籤（<b>、<code>、<br>），不要輸出 \`\`\`html 外框，字數 140 字內。`
-                },
-                {
-                    role: 'assistant',
-                    content: report
-                }
+                { role: 'assistant', content: report }
             ];
         } catch (err) {
-            greeting.textContent = 'AI 導師暫時離線中，但你依然可以在下方直接發問！';
+            greeting.textContent = 'AI 導師連線稍微延遲，但你依然可以在下方發問！';
         }
     }
 
@@ -583,54 +564,34 @@
         return bubble;
     }
 
-    // --- 連續上下文對話核心 ---
+    // --- 連續上下文對話核心（走後端 /learn/ai_report，安全免 Key） ---
     async function chatWithTutor(userText) {
+        const token = localStorage.getItem('token');
         const loadingBubble = appendMessage('tutor', '💭 導師正在思考中...');
 
-        // 加入使用者發問至歷史
         conversationMessages.push({ role: 'user', content: userText });
 
-        // 只保留最近 8 輪對話，防止 token 超標
-        if (conversationMessages.length > 10) {
-            conversationMessages = [
-                conversationMessages[0], // 保留 system prompt
-                ...conversationMessages.slice(-8)
-            ];
-        }
-
         try {
-            const res = await fetch('https://api.openai.com/v1/chat/completions', {
+            const res = await fetch(`${API_URL}/learn/ai_report`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${OPENAI_API_KEY}`
+                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
-                    model: 'gpt-4o-mini',
-                    messages: conversationMessages,
-                    max_tokens: 450,
-                    temperature: 0.5
+                    message: userText,
+                    history: conversationMessages
                 })
             });
 
-            if (!res.ok) throw new Error(`OpenAI HTTP ${res.status}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
-            let text = data.choices[0].message.content.trim();
-            if (text.startsWith("```html")) text = text.replace("```html", "");
-            if (text.startsWith("```")) text = text.replace("```", "");
-            if (text.endswith && text.endswith("```")) text = text.slice(0, -3);
-            if (text.endsWith("```")) text = text.slice(0, -3);
-
-            loadingBubble.innerHTML = text;
-
-            // 把導師回覆加入歷史清單
-            conversationMessages.push({ role: 'assistant', content: text });
+            const reply = data.report || '回答完成！繼續加油！';
+            loadingBubble.innerHTML = reply;
+            conversationMessages.push({ role: 'assistant', content: reply });
         } catch (err) {
-            console.error("對話異常:", err);
-            // 本地 fallback
-            let fallbackText = "針對你的回答，太棒了！有認真思考。記得 <code>append()</code> 會讓串列長度加 1，而 <code>not False</code> 是 True 喔！";
-            loadingBubble.innerHTML = fallbackText;
-            conversationMessages.push({ role: 'assistant', content: fallbackText });
+            console.error("對話連線異常:", err);
+            loadingBubble.innerHTML = "導師正在整理思緒，請稍後再試一次！";
         }
 
         const container = document.getElementById('chatContainer');

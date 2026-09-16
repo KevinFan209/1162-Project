@@ -1,4 +1,4 @@
-"""AI 導師分析與智慧問答 —— learn.html 右側面板"""
+"""AI 導師對話引擎 —— PyPoly/learn_ai.py"""
 from __future__ import annotations
 
 import json
@@ -12,63 +12,67 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 LLM_URL = os.getenv("LLM_URL", "https://api.openai.com")
 LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "30"))
 
-# 用來記錄對話輪次的記憶體計數（無需改動資料庫與 main.py）
-_CALL_COUNTER: dict[str, int] = {}
+# 本地記憶體對話歷史快取（依照使用者名稱維護多輪對話）
+_USER_CHATS: dict[str, list[dict]] = {}
 
 
 def generate_report(ai_context: dict) -> str:
-    """依玩家作答紀錄產生深度回饋；第二次被呼叫時自動出題！"""
-    username = ai_context.get("username", "default_user")
-    
-    # 計算這個使用者點擊/請求的次數
-    count = _CALL_COUNTER.get(username, 0)
-    _CALL_COUNTER[username] = count + 1
-
+    """供後端調用的進入點。"""
     try:
-        return _call_llm(ai_context, call_turn=count)
+        return _call_llm(ai_context)
     except Exception as e:
-        print(f"⚠️ [AI 導師] 呼叫外部 API 失敗，啟用退路機制: {e}")
-        return _rule_based(ai_context, call_turn=count)
+        print(f"⚠️ [AI 導師] 呼叫異常: {e}")
+        return _rule_based(ai_context)
 
 
-def _call_llm(ai_context: dict, call_turn: int = 0) -> str:
+def _call_llm(ai_context: dict) -> str:
+    username = ai_context.get("username", "default_user")
     name = ai_context.get("username", "探險者")
-    weakest = "、".join(ai_context.get("weakest", [])) or "串列與布林值"
-    recent_wrong = ai_context.get("recent_wrong", [])
+    user_msg = (ai_context.get("message") or "").strip()
+    history = ai_context.get("history") or _USER_CHATS.get(username, [])
 
     # 提取做錯的題目資訊
-    wrong_examples = []
+    recent_wrong = ai_context.get("recent_wrong", [])
+    wrong_lines = []
     for item in recent_wrong[:3]:
         q = item.get("question", "")
         chosen = item.get("chosen_text") or item.get("chosen", "")
         correct = item.get("correct_text") or item.get("correct", "")
-        wrong_examples.append(f"錯題：{q} (學生選: {chosen}, 正確答案: {correct})")
-    wrong_str = "\n".join(wrong_examples) if wrong_examples else "包含 not True 與 append 概念"
+        wrong_lines.append(f"錯題：{q} (學生選了: {chosen}, 正解: {correct})")
+    wrong_str = "\n".join(wrong_lines) if wrong_lines else "包含 not True 與 append 概念"
 
-    # 關鍵切換：第 0 次呼叫是剛進頁面的「總評」，第 1 次之後都是玩家點按鈕發問！
-    if call_turn == 0:
-        system_prompt = (
-            "你是 Python 大富翁遊戲的隨行 AI 導師。\n"
-            "請給學生一段精簡熱情的學習總評（100 字內）。\n"
-            "使用 HTML 標籤（<b>、<code>、<br>），不要包裹 ```html 外框。"
-        )
-        user_prompt = f"學生：{name}，弱項：{weakest}。\n錯題紀錄：\n{wrong_str}\n請給出鼓勵與概念提示："
-    else:
-        # 玩家點擊了「出一題類似題目」或發問
-        system_prompt = (
-            "你是 Python 大富翁的隨行 AI 導師。\n"
-            "【最高指令】\n"
-            "1. 學生要求『出一題類似題目考考我』或想進一步挑戰！\n"
-            "2. 嚴禁重複輸出開場白（絕對不要說『親愛的學生』、『你的正確率是50%』等廢話）。\n"
-            "3. 請直接根據學生答錯的 concept（如 list.append 串列增長 或 not True 布林值），出一道簡單有趣的 Python 單選挑戰題！\n"
-            "4. 題目格式：\n"
-            "   - 標題：🎯 <b>挑戰題來囉！</b><br>\n"
-            "   - 程式碼區塊（使用 <code> 標籤）<br>\n"
-            "   - 選項：A) ...  B) ...  C) ...<br>\n"
-            "   - 結尾：一句話引導學生在對話框輸入答案。<br>\n"
-            "5. 請輸出 HTML 格式，不要包裹 ```html 外框。"
-        )
-        user_prompt = f"請針對此錯題觀念出一題全新的練習題給學生：\n{wrong_str}"
+    system_prompt = (
+        "你是專為國中小學童解答的「PyPoly Python AI 導師」。\n"
+        "【嚴格交談規則】\n"
+        "1. 你必須像真人導師一樣進行連續對話，參考先前的聊天紀錄！\n"
+        "2. 當你先前出了一題挑戰題，學生現在回答了選項（例如輸入 A、B、C 或答案文字）：\n"
+        "   - **第一句話立刻批改**：明確告訴他「答對了 🎉」或「答錯了 💡」！\n"
+        "   - 具體拆解各選項為什麼對或錯，並解釋解題思路。\n"
+        "   - 不要連續主動狂出新題目，先好好給予這題的回饋與肯定！\n"
+        "3. 當學生點擊「出一題類似題目」：請出一道包含簡短程式碼、A) B) C) 選項的單選挑戰題，不要先公佈答案！\n"
+        "4. 當學生問「口訣」：給予一句押韻好記的語法口訣。\n"
+        "5. 格式：輸出 HTML（使用 <b>、<code>、<br>），不要包裹 ```html 外框，字數 140 字以內。"
+    )
+
+    messages = [{"role": "system", "content": system_prompt}]
+
+    # 將過往對話放入 messages
+    for msg in history[-8:]:
+        if isinstance(msg, dict) and "role" in msg and "content" in msg:
+            messages.append({"role": msg["role"], "content": msg["content"]})
+
+    # 如果有新傳進來的使用者訊息
+    if user_msg and (not messages or messages[-1].get("content") != user_msg):
+        messages.append({
+            "role": "user",
+            "content": f"學生錯題背景：{wrong_str}\n學生最新發言：{user_msg}"
+        })
+    elif len(messages) == 1:
+        # 首次載入頁面開場
+        messages.append({
+            "role": "user",
+            "content": f"學生錯題紀錄：\n{wrong_str}\n請給出親切簡短的開場評語與鼓勵："
+        })
 
     headers = {
         "Content-Type": "application/json",
@@ -77,11 +81,8 @@ def _call_llm(ai_context: dict, call_turn: int = 0) -> str:
 
     payload = {
         "model": "gpt-4o-mini",
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        "max_tokens": 500,
+        "messages": messages,
+        "max_tokens": 400,
         "temperature": 0.4,
     }
 
@@ -93,26 +94,28 @@ def _call_llm(ai_context: dict, call_turn: int = 0) -> str:
     )
     response.raise_for_status()
 
-    msg = response.json()["choices"][0]["message"]
-    text = (msg.get("content") or "").strip()
+    reply = response.json()["choices"][0]["message"]["content"].strip()
+    if reply.startswith("```html"):
+        reply = reply.replace("```html", "", 1)
+    if reply.startswith("```"):
+        reply = reply.replace("```", "", 1)
+    if reply.endswith("```"):
+        reply = reply[:-3]
 
-    if text.startswith("```html"):
-        text = text.replace("```html", "", 1)
-    if text.startswith("```"):
-        text = text.replace("```", "", 1)
-    if text.endswith("```"):
-        text = text[:-3]
+    reply = reply.strip()
 
-    return text.strip()
+    # 記錄到記憶體快取
+    if username not in _USER_CHATS:
+        _USER_CHATS[username] = []
+    if user_msg:
+        _USER_CHATS[username].append({"role": "user", "content": user_msg})
+    _USER_CHATS[username].append({"role": "assistant", "content": reply})
+
+    return reply
 
 
-def _rule_based(ctx: dict, call_turn: int = 0) -> str:
-    if call_turn > 0:
-        return (
-            "🎯 <b>挑戰題來囉！</b><br>"
-            "執行以下程式碼後，列表長度是多少呢？<br>"
-            "<code>fruits = ['蘋果', '香蕉']<br>fruits.append('芭樂')</code><br><br>"
-            "A) 2 &nbsp;&nbsp;&nbsp;&nbsp; B) 3 &nbsp;&nbsp;&nbsp;&nbsp; C) 4<br><br>"
-            "在下方輸入你的選項（A、B 或 C）試試看！"
-        )
-    return "歡迎來到學習分析！在串列操作中記得 <code>append()</code> 會讓元素加一，而 <code>not True</code> 就是 False 喔！"
+def _rule_based(ctx: dict) -> str:
+    user_msg = (ctx.get("message") or "").strip().upper()
+    if user_msg in ["A", "B", "C"]:
+        return f"你選擇了 <b>{user_msg}</b>！太棒了，有積極思考。記得 <code>len()</code> 會算長度，而 <code>not False</code> 是 True 喔！"
+    return "歡迎來到學習分析！有任何問題隨時在下方輸入，導師為你一一解惑！"
