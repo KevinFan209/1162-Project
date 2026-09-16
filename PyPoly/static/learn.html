@@ -25,7 +25,7 @@
             justify-content: space-between;
             align-items: center;
             height: 85px;
-            z-index: 1001; /* 確保高於所有內容 */
+            z-index: 1001;
             border-bottom: 1.5px solid var(--border-light); 
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
             position: relative;
@@ -92,45 +92,111 @@
         .summary-value { font-size: 2.5rem; font-weight: 900; color: var(--text-dark); }
         .summary-unit { font-size: 1rem; color: var(--success-green); margin-left: 5px; }
 
-        .chart-section { background: white; border-radius: 35px; padding: 40px; border: 1.5px solid var(--border-light); }
-        .chart-header { font-weight: 900; font-size: 1.5rem; margin-bottom: 30px; border-left: 8px solid var(--success-green); padding-left: 15px; }
-        .progress-item { display: flex; align-items: center; gap: 20px; margin-bottom: 25px; }
-        .skill-name { width: 140px; font-weight: 900; color: var(--text-dark); font-size: 1.1rem; }
+        .chart-section { background: white; border-radius: 35px; padding: 30px 40px; border: 1.5px solid var(--border-light); display: flex; flex-direction: column; gap: 20px; }
+        .chart-header { font-weight: 900; font-size: 1.4rem; border-left: 8px solid var(--success-green); padding-left: 15px; }
+        .progress-item { display: flex; align-items: center; gap: 20px; margin-bottom: 18px; }
+        .skill-name { width: 140px; font-weight: 900; color: var(--text-dark); font-size: 1.05rem; }
         .progress-bar-bg { flex: 1; height: 16px; background: var(--bg-gray); border-radius: 10px; overflow: hidden; }
         .progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--success-green), #55efc4); border-radius: 10px; transition: width 0.6s cubic-bezier(0.165, 0.84, 0.44, 1); }
-        /* 正確率偏低的主題改用暖色，讓弱項在圖表上一眼看得出來 */
         .progress-bar-fill.weak { background: linear-gradient(90deg, #ff7675, #fdcb6e); }
         .progress-count { width: 70px; text-align: right; font-weight: 900; color: var(--text-gray); font-size: 0.95rem; }
         .empty-hint { color: var(--text-gray); font-weight: 700; line-height: 1.8; padding: 10px 0; }
 
+        /* 作答歷史卡片樣式 */
+        .q-history-container { display: flex; flex-direction: column; gap: 14px; max-height: 380px; overflow-y: auto; padding-right: 6px; }
+        .q-card {
+            background: #f8fafc;
+            border-radius: 20px;
+            border: 1.5px solid var(--border-light);
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            transition: transform 0.15s ease, border-color 0.15s ease;
+        }
+        .q-card:hover { transform: translateY(-2px); border-color: #cbd5e1; }
+        .q-card.is-wrong { border-left: 6px solid #ff7675; }
+        .q-card.is-correct { border-left: 6px solid var(--success-green); }
+        .q-card-top { display: flex; justify-content: space-between; align-items: center; }
+        .q-badge { font-size: 0.8rem; font-weight: 900; padding: 4px 10px; border-radius: 8px; }
+        .q-badge.correct { background: #e6fffa; color: var(--success-green-shadow); }
+        .q-badge.wrong { background: #ffeaa7; color: #d63031; }
+        .q-topic-tag { font-size: 0.85rem; font-weight: 800; color: var(--text-gray); }
+        .q-text { font-weight: 900; font-size: 1.05rem; color: var(--text-dark); line-height: 1.5; }
+        .q-choices-info { font-size: 0.9rem; font-weight: 700; color: #475569; display: flex; flex-direction: column; gap: 4px; }
+        .q-card-bottom { display: flex; justify-content: flex-end; margin-top: 4px; }
+
+        .btn-ask-item {
+            padding: 8px 18px;
+            background: white;
+            border: 1.5px solid var(--success-green);
+            color: var(--success-green-shadow);
+            border-radius: 12px;
+            font-size: 0.9rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-ask-item:hover {
+            background: var(--success-green);
+            color: white;
+            box-shadow: 0 4px 10px rgba(0, 205, 172, 0.3);
+        }
+
         .side-ai-panel { background: white; border-radius: 35px; border: 1.5px solid var(--border-light); padding: 30px; display: flex; flex-direction: column; gap: 20px; }
         .ai-header { font-weight: 900; font-size: 1.4rem; color: var(--text-dark); display: flex; align-items: center; gap: 10px; }
         .ai-status-dot { width: 10px; height: 10px; background: var(--success-green); border-radius: 50%; animation: pulse 1.5s infinite; }
-        .ai-report-box { flex: 1; background: #f8fafc; border-radius: 25px; padding: 25px; overflow-y: auto; color: var(--text-gray); font-weight: 700; line-height: 1.8; }
+        
+        .ai-report-box { 
+            flex: 1; 
+            background: #f8fafc; 
+            border-radius: 25px; 
+            padding: 22px; 
+            overflow-y: auto; 
+            color: var(--text-gray); 
+            font-weight: 700; 
+            line-height: 1.8;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .quick-chips-wrapper {
+            margin-top: 8px;
+            padding-top: 12px;
+            border-top: 1px dashed var(--border-light);
+            display: none;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .quick-chips-title { font-size: 0.8rem; font-weight: 900; color: var(--text-gray); }
+        .quick-chips-list { display: flex; flex-wrap: wrap; gap: 6px; }
+
+        .ai-chip-btn {
+            display: inline-block;
+            padding: 6px 12px;
+            background: #ffffff;
+            border: 1.5px solid var(--success-green);
+            border-radius: 20px;
+            color: var(--success-green-shadow);
+            font-size: 0.82rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .ai-chip-btn:hover {
+            background: var(--success-green);
+            color: white;
+            transform: translateY(-1px);
+        }
+
         .btn-action { padding: 22px; background: var(--success-green); color: white; border: none; border-radius: 25px; font-size: 1.3rem; font-weight: 900; cursor: pointer; box-shadow: 0 8px 0 var(--success-green-shadow); transition: 0.1s; }
         .btn-action:active { transform: translateY(4px); box-shadow: none; }
         
         @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.5); opacity: 0.5; } }
-		
-		.ai-chip-btn {
-			display: inline-block;
-			margin: 6px 4px 2px 0;
-			padding: 6px 12px;
-			background: #e6fffa;
-			border: 1px solid var(--success-green);
-			border-radius: 20px;
-			color: var(--success-green-shadow);
-			font-size: 0.85rem;
-			font-weight: 700;
-			cursor: pointer;
-			transition: 0.2s;
-		}
-
-		.ai-chip-btn:hover {
-			background: var(--success-green);
-			color: white;
-			transform: translateY(-1px);
-		}
     </style>
 </head>
 <body>
@@ -146,8 +212,7 @@
 </div>
 
 <header>
-    <div class="header-left"><h1>PyPoly</h1>
-    </div>
+    <div class="header-left"><h1>PyPoly</h1></div>
     <div class="header-right">
         <div class="page-tag">學習統計 📊</div>
         <button class="menu-btn" onclick="toggleMenu()">
@@ -165,7 +230,7 @@
         <div class="summary-grid">
             <div class="summary-card">
                 <div class="summary-label">PYTHON 正確率</div>
-                <div class="summary-value" id="statAccuracy">85<span class="summary-unit">%</span></div>
+                <div class="summary-value" id="statAccuracy">0<span class="summary-unit">%</span></div>
             </div>
             <div class="summary-card">
                 <div class="summary-label">累積淨賺</div>
@@ -179,10 +244,15 @@
 
         <div class="chart-section">
             <div class="chart-header">Python 知識維度分析</div>
-            <!-- 內容由 renderDimensions() 依 /learn/stats 的實際作答紀錄動態產生。
-                 原本這裡是三條寫死的進度條（基礎變數 95% / 條件判斷 80% / 迴圈控制 65%）。 -->
             <div class="progress-list" id="dimensionList">
                 <div class="empty-hint">載入中...</div>
+            </div>
+        </div>
+
+        <div class="chart-section">
+            <div class="chart-header">遊戲作答紀錄與盲點診斷</div>
+            <div class="q-history-container" id="questionHistoryList">
+                <div class="empty-hint">作答歷史整理中...</div>
             </div>
         </div>
     </div>
@@ -190,28 +260,31 @@
     <div class="side-ai-panel">
         <div class="ai-header"><div class="ai-status-dot"></div> AI 導師即時分析</div>
         <div class="ai-report-box" id="aiMentorReport">
-            載入中...
+            <div id="aiReportContent">載入中...</div>
+            <div class="quick-chips-wrapper" id="quickChipsWrapper">
+                <div class="quick-chips-title">💡 想進一步了解這題？點擊快速詢問：</div>
+                <div class="quick-chips-list">
+                    <button class="ai-chip-btn" onclick="sendQuickPrompt('similar')">🎯 出一題類似的考我</button>
+                    <button class="ai-chip-btn" onclick="sendQuickPrompt('why_wrong')">🔍 為什麼不能選那個？</button>
+                    <button class="ai-chip-btn" onclick="sendQuickPrompt('analogy')">🌱 用生活情境舉例</button>
+                </div>
+            </div>
         </div>
         <button class="btn-action" onclick="location.href='lobby.html'">返回大廳</button>
     </div>
 </div>
 
 <script>
-    // ⚠️ 這頁原本把 API 位址寫死成 http://<host>:8000，其餘 17 個頁面都是用
-    //    location.origin。走 Cloudflare 隧道時會變成 http://xxx.trycloudflare.com:8000
-    //    ——連不上，而且 HTTPS 頁面發 HTTP 請求會被瀏覽器擋掉（mixed content），
-    //    結果是心跳失效、停在這頁的人會被誤判斷線。
     const API_URL = location.origin;
     let syncTimer = null;
+    let questionHistoryData = [];
+    let currentSelectedQuestion = null;
 
     function toggleMenu() {
         document.getElementById('sideMenu').classList.toggle('open');
         document.getElementById('overlay').classList.toggle('open');
     }
 
-    // ⚠️ 這頁原本有兩個 window.onload，後者直接覆蓋前者，
-    //    導致被覆蓋的那段（AI 報告 + 登入保護）從來沒有執行過。
-    //    現在合併成單一進入點，寫法比照 guide.html。
     window.onload = async () => {
         const username = localStorage.getItem('username');
         const token = localStorage.getItem('token');
@@ -221,7 +294,6 @@
             return;
         }
 
-        // 進場報到，避免看統計看太久被判定為離線
         try {
             const res = await fetch(`${API_URL}/auth/verify_and_refresh?username=${encodeURIComponent(username)}`, {
                 method: 'POST',
@@ -238,7 +310,6 @@
             console.error('驗證失敗:', err);
         }
 
-        // 兩塊各自載入：AI 那邊要等 LLM，不該卡住統計數字的顯示
         loadStats(token);
         loadAiReport(token);
     };
@@ -266,7 +337,7 @@
         }, 5000);
     }
 
-    // --- 統計數字 ---
+    // --- 統計數據與題目清單渲染 ---
     async function loadStats(token) {
         try {
             const res = await fetch(`${API_URL}/learn/stats`, {
@@ -278,23 +349,36 @@
             const s = data.summary || {};
             document.getElementById('statAccuracy').innerHTML =
                 `${s.accuracy || 0}<span class="summary-unit">%</span>`;
-            // 淨賺可能是負的（買地買太兇），要保留負號
             document.getElementById('statAssets').textContent =
                 (s.net_profit || 0).toLocaleString();
             document.getElementById('statExercise').textContent =
                 (s.jump_count || 0).toLocaleString();
 
             renderDimensions(data.dimensions || [], data.games_played || 0);
+
+            // 處理歷史答題紀錄（相容後端 questions 或 recent_wrong 結構）
+            if (Array.isArray(data.questions) && data.questions.length > 0) {
+                questionHistoryData = data.questions;
+            } else if (Array.isArray(data.recent_wrong) && data.recent_wrong.length > 0) {
+                questionHistoryData = data.recent_wrong.map(q => ({
+                    ...q,
+                    is_correct: false
+                }));
+            } else {
+                questionHistoryData = [];
+            }
+            renderQuestionHistory(questionHistoryData, data.games_played || 0);
         } catch (err) {
             console.warn('⚠️ 載入學習統計失敗', err);
             document.getElementById('dimensionList').innerHTML =
                 '<div class="empty-hint">統計載入失敗，請稍後重新整理。</div>';
+            document.getElementById('questionHistoryList').innerHTML =
+                '<div class="empty-hint">作答紀錄載入失敗。</div>';
         }
     }
 
     function renderDimensions(dimensions, gamesPlayed) {
         const box = document.getElementById('dimensionList');
-
         if (!dimensions.length) {
             box.innerHTML = gamesPlayed
                 ? '<div class="empty-hint">這幾局還沒有答題紀錄，多走幾格冒險格就會出現分析。</div>'
@@ -313,9 +397,46 @@
         `).join('');
     }
 
-    // --- AI 導師分析（實作在後端的 learn_ai.py，由組員維護） ---
+    function renderQuestionHistory(questions, gamesPlayed) {
+        const box = document.getElementById('questionHistoryList');
+        if (!questions.length) {
+            box.innerHTML = gamesPlayed
+                ? '<div class="empty-hint">目前沒有詳細的歷史題卡資料，在遊戲中觸發冒險格作答後將在此列出。</div>'
+                : '<div class="empty-hint">尚未進行過冒險挑戰，快去開局答題累積戰果吧！</div>';
+            return;
+        }
+
+        box.innerHTML = questions.map((q, idx) => {
+            const isCorrect = q.is_correct === true || (q.chosen !== undefined && q.chosen === q.correct);
+            const statusBadge = isCorrect 
+                ? '<span class="q-badge correct">作答正確 ✅</span>' 
+                : '<span class="q-badge wrong">需要複習 ❌</span>';
+            
+            const chosenText = q.chosen_text || (q.chosen !== undefined ? `選項 ${q.chosen}` : '未記錄');
+            const correctText = q.correct_text || (q.correct !== undefined ? `選項 ${q.correct}` : '未記錄');
+
+            return `
+                <div class="q-card ${isCorrect ? 'is-correct' : 'is-wrong'}">
+                    <div class="q-card-top">
+                        <span class="q-topic-tag">🏷️ ${escapeHtml(q.topic || 'Python 概念')}</span>
+                        ${statusBadge}
+                    </div>
+                    <div class="q-text">${escapeHtml(q.question || '程式題')}</div>
+                    <div class="q-choices-info">
+                        <div>當時選擇：<b style="color: ${isCorrect ? 'var(--success-green-shadow)' : '#e74c3c'};">${escapeHtml(chosenText)}</b></div>
+                        ${!isCorrect ? `<div>正確答案：<b style="color: var(--success-green-shadow);">${escapeHtml(correctText)}</b></div>` : ''}
+                    </div>
+                    <div class="q-card-bottom">
+                        <button class="btn-ask-item" onclick="askQuestionTutor(${idx})">💡 詢問 AI 導師</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // --- AI 導師全域總評 ---
     async function loadAiReport(token) {
-        const box = document.getElementById('aiMentorReport');
+        const reportContent = document.getElementById('aiReportContent');
         try {
             const res = await fetch(`${API_URL}/learn/ai_report`, {
                 method: 'POST',
@@ -323,10 +444,91 @@
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
-            box.innerHTML = data.report || '目前沒有可顯示的分析。';
+            reportContent.innerHTML = data.report || '目前沒有可顯示的分析。';
         } catch (err) {
             console.warn('⚠️ 載入 AI 分析失敗', err);
-            box.textContent = 'AI 導師暫時無法連線，稍後再試試看。';
+            reportContent.textContent = 'AI 導師暫時無法連線，稍後再試試看。';
+        }
+    }
+
+    // --- 針對單題詢問 AI 導師 ---
+    async function askQuestionTutor(index) {
+        const token = localStorage.getItem('token');
+        const q = questionHistoryData[index];
+        if (!q) return;
+
+        currentSelectedQuestion = q;
+        const reportContent = document.getElementById('aiReportContent');
+        const chipsWrapper = document.getElementById('quickChipsWrapper');
+
+        reportContent.innerHTML = `
+            <div style="color: var(--text-dark); margin-bottom: 8px;">
+                🔍 <b>正在診斷題目：</b>${escapeHtml(q.question)}
+            </div>
+            <div style="color: var(--text-gray);">AI 導師正在梳理你的作答邏輯與盲點...</div>
+        `;
+        chipsWrapper.style.display = 'none';
+
+        try {
+            const res = await fetch(`${API_URL}/learn/ai_report`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ question_context: q, prompt_type: 'diagnose' })
+            });
+
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            reportContent.innerHTML = data.report || data.reply || '分析完成。';
+            chipsWrapper.style.display = 'flex';
+        } catch (err) {
+            console.warn('⚠️ 單題診斷失敗，切換至前端解惑說明:', err);
+            // 本地即時 fallback 邏輯
+            const isCorrect = q.is_correct === true || (q.chosen !== undefined && q.chosen === q.correct);
+            reportContent.innerHTML = `
+                <p>針對【<b>${escapeHtml(q.topic || '此概念')}</b>】：</p>
+                <p style="margin-top: 6px;">
+                    ${isCorrect 
+                        ? `🎉 這題你判斷得很準確！代表你對 <code>${escapeHtml(q.topic)}</code> 的語法掌握度很高。` 
+                        : `💡 你當時選了 <b>${escapeHtml(q.chosen_text || q.chosen)}</b>，通常是容易在概念邊界或符號上產生混淆。記得 Python 中索引或計數規則的特性，再細心核對一次！`}
+                </p>
+            `;
+            chipsWrapper.style.display = 'flex';
+        }
+    }
+
+    // --- 快捷引導追問 ---
+    async function sendQuickPrompt(type) {
+        if (!currentSelectedQuestion) return;
+        const token = localStorage.getItem('token');
+        const reportContent = document.getElementById('aiReportContent');
+
+        const loadingHints = {
+            similar: '🎯 正在根據你的弱點產生全新挑戰題...',
+            why_wrong: '🔍 正在深入解析各個選項陷阱...',
+            analogy: '🌱 正在為你準備生活化比喻...'
+        };
+
+        const existingHtml = reportContent.innerHTML;
+        reportContent.innerHTML = existingHtml + `<div style="margin-top: 10px; color: var(--success-green-shadow);">⏳ ${loadingHints[type] || '正在思考中...'}</div>`;
+
+        try {
+            const res = await fetch(`${API_URL}/learn/ai_report`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ question_context: currentSelectedQuestion, prompt_type: type })
+            });
+
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            reportContent.innerHTML = data.report || data.reply || '生成完成。';
+        } catch (err) {
+            reportContent.innerHTML = existingHtml + `<div style="margin-top: 8px; color: #e74c3c;">⚠️ 無法生成追問內容，請確認伺服器連線狀態。</div>`;
         }
     }
 
@@ -339,8 +541,7 @@
         const username = localStorage.getItem('username');
         if (syncTimer) clearInterval(syncTimer);
         try {
-            await fetch(`${API_URL}/auth/logout?username=${encodeURIComponent(username)}&confirm=true`,
-                        { method: 'POST' });
+            await fetch(`${API_URL}/auth/logout?username=${encodeURIComponent(username)}&confirm=true`, { method: 'POST' });
         } catch (err) {}
         localStorage.clear();
         window.location.href = 'login.html';
