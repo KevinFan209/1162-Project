@@ -1754,28 +1754,20 @@ def learn_stats(username: str = None, authorization: str = Header(None),
 
 
 @app.post("/learn/ai_report")
-def learn_ai_report(username: str = None, authorization: str = Header(None),
-                    db: Session = Depends(database.get_db)):
-    """AI 導師分析。實作在 learn_ai.py，那是留給組員的交接點。
-
-    用 POST 而非 GET：這會觸發一次昂貴的外部呼叫，
-    不希望瀏覽器或代理把結果快取起來、或做預先擷取。
-
-    刻意包上 try/except：learn_ai.py 由另一位組員維護，
-    他改壞或 LLM 連不上時，這頁應該退回規則式文字，
-    而不是回 500 讓整個學習統計頁都打不開。
-    """
-    if not username:
-        username = auth_utils.get_current_user(authorization)
-
-    ctx = _build_learn_stats(username, db)["ai_context"]
-
+async def learn_ai_report(request: Request, db: Session = Depends(get_db)):
+    # 1. 取得當前使用者與原本的統計資料 ai_context
+    # (保留你們原本建立 ai_context 的程式碼)
+    
+    # 2. 關鍵加入：解析前端傳來的 JSON 訊息並放入 ai_context
     try:
-        report = learn_ai.generate_report(ctx)
-        if not report or not str(report).strip():
-            raise ValueError("generate_report 回傳空內容")
-        return {"status": "success", "source": "ai", "report": str(report)}
-    except Exception as e:
-        print(f"⚠️ AI 導師分析失敗，改用規則式退路：{e}")
-        return {"status": "success", "source": "fallback",
-                "report": learn_ai._rule_based(ctx)}
+        body = await request.json()
+        if body and "message" in body:
+            ai_context["message"] = body["message"]
+        if body and "question_context" in body:
+            ai_context["question_context"] = body["question_context"]
+    except Exception:
+        pass  # 第一次載入沒有 body 屬正常
+
+    # 3. 呼叫 learn_ai
+    report_text = learn_ai.generate_report(ai_context)
+    return {"status": "success", "report": report_text}

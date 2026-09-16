@@ -1,4 +1,4 @@
-"""AI 導師分析與多輪對話 —— learn.html 右側面板"""
+"""AI 導師分析與精準問答 —— learn.html 右側面板"""
 from __future__ import annotations
 
 import json
@@ -14,76 +14,63 @@ LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "30"))
 
 
 def generate_report(ai_context: dict) -> str:
-    """依學習統計或使用者即時提問，回傳個人化分析與解答。"""
+    """依學習統計或使用者即時提問產生精準解答。"""
     try:
         return _call_llm(ai_context)
     except Exception as e:
-        print(f"⚠️ [AI 導師] 呼叫外部 API 失敗，啟用退路機制: {e}")
+        print(f"⚠️ [AI 導師] 呼叫外部 API 失敗，切換至退路: {e}")
         return _rule_based(ai_context)
 
 
 def _call_llm(ai_context: dict) -> str:
     name = ai_context.get("username", "探險者")
-    user_message = ai_context.get("message")  # 接收使用者的對話輸入
-    question_context = ai_context.get("question_context")
+    user_msg = (ai_context.get("message") or "").strip()
     accuracy = ai_context.get("accuracy", 0)
-    strongest = "、".join(ai_context.get("strongest", [])) or "基礎觀念"
-    weakest = "、".join(ai_context.get("weakest", [])) or "暫無明顯弱項"
-
-    # 彙整玩家最近錯題
+    weakest = "、".join(ai_context.get("weakest", [])) or "串列"
+    
+    # 解析錯題
     recent_wrong = ai_context.get("recent_wrong", [])
-    wrong_summary = []
-    if recent_wrong:
-        for idx, item in enumerate(recent_wrong[:5], 1):
-            q_topic = item.get("topic", "語法")
-            q_text = item.get("question", "")
-            chosen = item.get("chosen_text") or item.get("chosen", "?")
-            correct = item.get("correct_text") or item.get("correct", "?")
-            wrong_summary.append(
-                f"{idx}. [{q_topic}] 題目：{q_text} | 玩家選了：{chosen} | 正確答案：{correct}"
-            )
-    wrong_text = "\n".join(wrong_summary) if wrong_summary else "目前無答錯紀錄"
+    wrong_lines = []
+    for idx, item in enumerate(recent_wrong[:5], 1):
+        q = item.get("question", "")
+        chosen = item.get("chosen_text") or item.get("chosen", "?")
+        correct = item.get("correct_text") or item.get("correct", "?")
+        wrong_lines.append(f"{idx}. 題目：{q} | 學生選：{chosen} | 正解：{correct}")
+    wrong_summary = "\n".join(wrong_lines) if wrong_lines else "目前無近期錯題紀錄"
 
-    system_prompt = (
-        "你是專門引導國中小學童學習 Python 的「PyPoly 大富翁隨行 AI 導師」。\n"
-        "特質：溫暖親切、善於比喻、對話精準、不講冗長廢話。\n\n"
-        "回答原則：\n"
-        "1. 若學生在對話框主動提問（例如問『我選錯了什麼題目』、『這題為什麼錯』）：\n"
-        "   - **務必直接且正面回答學生的問題**，不可回答無關的固定模組套話。\n"
-        "   - 參考【學生近期錯題紀錄】，具體指稱他做錯的題目敘述與選項，並用淺顯易懂的生活例子或觀念口訣解釋。\n"
-        "2. 若未提供學生留言（為首次載入統計報表）：\n"
-        "   - 先肯定其強項，再針對其弱項給予 1~2 點具體解惑建議。\n"
-        "3. 請輸出 HTML 格式（使用 <b>、<code>、<br> 標籤，絕對不要包裹 ```html 外框）。\n"
-        "4. 字數精準控制在 160 字以內。"
-    )
-
-    # 判斷是否為使用者主動發起的即時對話
-    if user_message:
+    # 1. 判斷是否有使用者發問
+    if user_msg:
+        system_prompt = (
+            "你是國中小學童的 Python 大富翁 AI 導師。\n"
+            "【嚴格執行規則】\n"
+            "1. 必須 100% 針對使用者的「最新問題/需求」直接作答！\n"
+            "2. 嚴禁重複輸出開場白（例如『你好！你的基礎觀念很不錯』）。\n"
+            "3. 如果學生要求「出類似題目」：請立刻根據他做錯的主題（如串列 append、布林值），直接出一道好玩的 Python 單選挑戰題（含 A, B, C 選項），並鼓勵他回答，不要直接給答案！\n"
+            "4. 如果學生問「我錯了什麼」：直接列出他做錯的具體題目並解釋核心觀念。\n"
+            "5. 使用簡單 HTML 排版（<b>、<code>、<br>），不要使用 ```html 程式碼外框，150 字內。"
+        )
         user_prompt = f"""
-【學生基本資訊】
-姓名：{name}
-歷史錯題紀錄：
-{wrong_text}
+學生姓名：{name}
+學生弱項：{weakest}
+學生做錯的題目紀錄：
+{wrong_summary}
 
-【學生目前關注的題目資訊】
-{json.dumps(question_context, ensure_ascii=False) if question_context else "無指定特定題目"}
+學生發送的問題：
+"{user_msg}"
 
-【學生的問題】
-"{user_message}"
-
-請直接且具體地回答學生的問題，點出對應的錯題與概念：
+請直接回答該問題：
 """
     else:
+        system_prompt = (
+            "你是 Python 大富翁的 AI 導師。請根據統計數據寫一段親切、簡短的開場學習評語。\n"
+            "使用 HTML 標籤（<b>、<code>、<br>），不要包裹 ```html 外框，120 字內。"
+        )
         user_prompt = f"""
-【學生作答概況】
-姓名：{name}
+學生：{name}
 正確率：{accuracy}%
-強項：{strongest}
 待加強主題：{weakest}
 錯題紀錄：
-{wrong_text}
-
-請為該學生產出一份溫暖且具啟發性的學習總評：
+{wrong_summary}
 """
 
     headers = {
@@ -98,7 +85,7 @@ def _call_llm(ai_context: dict) -> str:
             {"role": "user", "content": user_prompt},
         ],
         "max_tokens": 500,
-        "temperature": 0.5,
+        "temperature": 0.4,
     }
 
     response = requests.post(
@@ -112,7 +99,6 @@ def _call_llm(ai_context: dict) -> str:
     msg = response.json()["choices"][0]["message"]
     text = (msg.get("content") or "").strip()
 
-    # 清理 markdown 外框
     if text.startswith("```html"):
         text = text.replace("```html", "", 1)
     if text.startswith("```"):
@@ -124,18 +110,13 @@ def _call_llm(ai_context: dict) -> str:
 
 
 def _rule_based(ctx: dict) -> str:
-    user_msg = ctx.get("message", "")
-    recent_wrong = ctx.get("recent_wrong", [])
-
-    if user_msg and "錯" in user_msg:
-        if recent_wrong:
-            first = recent_wrong[0]
-            return (
-                f"你剛才在【{first.get('topic', '語法')}】這題失分囉！<br>"
-                f"題目是：<b>{first.get('question', '')}</b>。<br>"
-                f"記得再仔細核對選項中的邊界條件與運算符號！"
-            )
-        return "你目前表現很好，近幾局沒有記錄到嚴重失分的題目喔！繼續保持！"
-
-    acc = ctx.get("accuracy") or 0
-    return f"目前正確率為 <b>{acc}%</b>。在下方對話框輸入你想問的問題，我會針對你的作答進行解說！"
+    user_msg = (ctx.get("message") or "").strip()
+    if "類似" in user_msg or "題" in user_msg:
+        return (
+            "🎯 <b>挑戰題來囉！</b><br>"
+            "如果執行以下程式碼，結果長度是多少呢？<br>"
+            "<code>nums = [1, 2]<br>nums.append(3)</code><br>"
+            "A) 2 &nbsp;&nbsp; B) 3 &nbsp;&nbsp; C) 4<br>"
+            "在下方輸入你的答案試試看！"
+        )
+    return "針對 Python 概念，記得串列長度會隨 append 增加，而 <code>not True</code> 就是 False 喔！"
