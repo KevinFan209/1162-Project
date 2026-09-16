@@ -8,9 +8,12 @@
 	<script src="js/character-face.js"></script>
 	<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="js/player-model.js"></script>
     <script src="js/board-layout.js"></script>
     <script src="js/board-terrain.js"></script>
     <script src="js/board-props.js"></script>
+    <script src="js/board-build.js"></script>
+    <script src="js/minimap.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
@@ -494,52 +497,7 @@
     .shop-item-price { font-size: 1.5rem; font-weight: 900; color: #f08c00; background: #fff9db; padding: 2px 15px; border-radius: 12px; border: 1px solid #ffe066; }
 
 
-        #minimap-overlay {
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: rgba(255, 255, 255, 0.4); backdrop-filter: blur(10px);
-            z-index: 999999; /* 🏆 修正：層級開到最大，蓋過所有大字卡與動畫 */
-            display: none; align-items: center; justify-content: center;
-        }
-
-        .minimap-container {
-            background: #ffffff; border-radius: 25px; padding: 30px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.4); border: 5px solid #e2e8f0;
-            display: grid; gap: 8px; width: 850px; max-width: 95vw;
-            grid-template-columns: repeat(9, 1fr);
-            grid-template-rows: repeat(6, 1fr);
-            position: relative;
-        }
-
-        .minimap-tile {
-            aspect-ratio: 1 / 1; border-radius: 12px; border: 3px solid #e2e8f0;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 1.8rem; cursor: pointer; transition: 0.2s;
-            background: #f8fafc; position: relative; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        }
-
-        .minimap-tile:hover {
-            transform: scale(1.15); z-index: 10;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.15);
-            border-color: #ffde59;
-        }
-
-        /* 隱藏地圖中間沒有格子的區域 */
-        .minimap-empty { visibility: hidden; }
-
-        /* 小地圖資訊彈窗 */
-        #minimap-info-modal {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: rgba(30, 41, 59, 0.98); color: white; padding: 25px 35px;
-            border-radius: 20px; border: 3px solid #ffde59; display: none;
-            z-index: 9999999; /* 🏆 修正：彈窗必須比小地圖本身還要更高層 */
-            width: 400px; box-shadow: 0 15px 40px rgba(0,0,0,0.5);
-            text-align: left; pointer-events: none;
-        }
-
-        .minimap-info-title { font-size: 1.8rem; color: #ffde59; font-weight: 900; margin-bottom: 15px; border-bottom: 2px dashed #475569; padding-bottom: 10px;}
-        .minimap-info-desc { font-size: 1.1rem; line-height: 1.6; color: #e2e8f0; font-weight: 800; }
-        .minimap-info-highlight { color: #00cdac; font-size: 1.3rem; font-weight: 900; }
-        .minimap-info-danger { color: #ff4757; font-size: 1.3rem; font-weight: 900; }
+        /* 小地圖樣式已抽至 static/css/minimap.css（預覽頁共用） */
 
         .close-minimap-btn {
             position: absolute; top: -20px; right: -20px; background: #ff4757;
@@ -552,6 +510,7 @@
 
 
     </style>
+    <link rel="stylesheet" href="css/minimap.css">
 </head>
 <body>
 
@@ -2566,131 +2525,19 @@ window.onload = async function() {
 	
 // 裝飾物統一用這個名字，重新套用外觀時才知道哪些該清掉
 // （支柱與連接橋另有名字，屬於結構的一部分，不隨外觀重建）
-const BOARD_DECOR_NAME = "board_decor";
+// 棋盤的組裝邏輯已抽至 static/js/board-build.js
+// （預覽頁 static/preview/game_board.html 也用同一份）
+// 這裡只留轉接層，維持既有的全域變數與呼叫點不變。
 
 function create3DBoard() {
-    mapBlocks = [];
-    // 重複呼叫時不要讓格子累積（原本只清 mapBlocks，allTileMeshes 會越疊越多）
+    const r = buildBoard(scene, gameMap);
     allTileMeshes.length = 0;
-
-    // 座標與高度改由 static/js/board-layout.js 提供。
-    // 抽成資料是為了讓版面看得懂也改得動，不再埋在四個 for 迴圈裡。
-    const layout = BOARD_LAYOUT.tiles;
-    const tileGeo = new THREE.BoxGeometry(BOARD_TILE_SIZE, BOARD_TILE_THICK, BOARD_TILE_SIZE);
-
-    layout.forEach((td) => {
-        // 每格各自的材質：買地後會改 material.color 當作擁有者標記，
-        // 共用材質的話會一次染到全部。
-        const tile = new THREE.Mesh(tileGeo, new THREE.MeshStandardMaterial({ color: 0xffffff }));
-        tile.position.set(td.x, td.y, td.z);
-        tile.userData.layout = td;
-        scene.add(tile);
-        allTileMeshes.push(tile);
-        mapBlocks.push(tile.position);
-
-        // 抬高的格子底下補一根支柱，看起來才像空中步道而不是浮空方塊。
-        // 掛在格子底下（tile.add）而不是 scene，才會跟著格子一起隱藏。
-        if (td.y > 0.4) {
-            const pillar = new THREE.Mesh(
-                new THREE.BoxGeometry(BOARD_TILE_SIZE * 0.62, td.y, BOARD_TILE_SIZE * 0.62),
-                new THREE.MeshStandardMaterial({ color: 0x78909c, roughness: 0.9 })
-            );
-            // 區域座標：從格子底面往下延伸 td.y
-            pillar.position.set(0, -td.y / 2 - BOARD_TILE_THICK / 2, 0);
-            pillar.name = "board_pillar";
-            tile.add(pillar);
-        }
-    });
-
-    buildBoardConnectors(layout);
-    applyBoardAppearance();
+    r.tiles.forEach(t => allTileMeshes.push(t));
+    mapBlocks = r.positions;
 }
 
-/**
- * 相鄰格之間的連接橋。有高低差時會自然形成斜坡。
- * 移植自 past/BoardEditor/game.html 的 buildTileConnectors，
- * 但改成掛在「前一格」底下，這樣切到冒險全景時會跟著棋盤一起隱藏。
- */
-function buildBoardConnectors(layout) {
-    const mat = new THREE.MeshStandardMaterial({ color: 0x8d9eab, roughness: 0.85, metalness: 0.05 });
-    const SLAB_H = 0.22;
-    const OVERLAP = 0.2;              // 插進格子邊緣的深度，讓接縫看不出來
-    const HALF = BOARD_TILE_SIZE / 2;
-
-    for (let i = 0; i < layout.length; i++) {
-        const a = layout[i];
-        const b = layout[(i + 1) % layout.length];
-        const tile = allTileMeshes[i];
-        if (!tile) continue;
-
-        const dx = b.x - a.x, dz = b.z - a.z;
-        const hd = Math.sqrt(dx * dx + dz * dz);
-        if (hd < 0.01) continue;
-        const nx = dx / hd, nz = dz / hd;
-
-        // 先用世界座標算出橋的兩端，再換算成 tile 的區域座標
-        const sx = a.x + nx * (HALF - OVERLAP), sy = a.y, sz = a.z + nz * (HALF - OVERLAP);
-        const ex = b.x - nx * (HALF - OVERLAP), ey = b.y, ez = b.z - nz * (HALF - OVERLAP);
-        const len = Math.sqrt((ex - sx) * (ex - sx) + (ey - sy) * (ey - sy) + (ez - sz) * (ez - sz));
-        if (len < 0.05) continue;
-
-        const conn = new THREE.Mesh(
-            new THREE.BoxGeometry(len, SLAB_H, BOARD_TILE_SIZE * 0.55), mat);
-        conn.position.set(
-            (sx + ex) / 2 - a.x,
-            (sy + ey) / 2 - a.y,
-            (sz + ez) / 2 - a.z
-        );
-        conn.setRotationFromQuaternion(
-            new THREE.Quaternion().setFromUnitVectors(
-                new THREE.Vector3(1, 0, 0),
-                new THREE.Vector3(ex - sx, ey - sy, ez - sz).normalize()
-            )
-        );
-        conn.name = "board_connector";
-        tile.add(conn);
-    }
-}
-
-/**
- * 依 gameMap 決定每格的地形貼圖與裝飾。
- *
- * 為什麼要獨立成一個函式：create3DBoard() 是在 init3D() 裡呼叫的，
- * 那時 gameMap 可能還沒到（它來自非同步的 /game/map_config，
- * 也可能晚一步由房主的 SYNC_MAP 送來）。所以這裡設計成可以重複呼叫，
- * 地圖到齊之後再套一次即可。
- */
 function applyBoardAppearance() {
-    if (!allTileMeshes.length) return;
-    if (typeof terrainForTile !== "function") return;   // 模組沒載到就維持原樣
-
-    allTileMeshes.forEach((tile, idx) => {
-        const data = Array.isArray(gameMap) ? gameMap[idx] : null;
-        const terrain = terrainForTile(data);
-
-        tile.material.map = createTerrainTexture(terrain);
-        tile.material.needsUpdate = true;
-
-        // 先清掉上一輪的裝飾，避免重複套用時越疊越多
-        for (let i = tile.children.length - 1; i >= 0; i--) {
-            if (tile.children[i].name === BOARD_DECOR_NAME) tile.remove(tile.children[i]);
-        }
-
-        const glow = createTileEdgeGlow(terrain);
-        glow.name = BOARD_DECOR_NAME;
-        tile.add(glow);
-
-        const props = createTerrainProps(terrain);
-        props.name = BOARD_DECOR_NAME;
-        tile.add(props);
-
-        // 功能格（道具店／監獄／開合跳／獎勵／起點）放對應的建築
-        const facility = data ? createFacilityProp(data.type) : null;
-        if (facility) {
-            facility.name = BOARD_DECOR_NAME;
-            tile.add(facility);
-        }
-    });
+    applyBoardAppearanceTo(allTileMeshes, gameMap);
 }
 
 
@@ -2824,70 +2671,8 @@ function updateModelAppearance(model, colors, faceDataUrl) {
 	
 
 	
-function createCustomBoxCharacter(colors, faceDataUrl) {
-    const group = new THREE.Group();
-
-    const headMat  = new THREE.MeshStandardMaterial({ color: colors.head, roughness: 0.6 });
-    const bodyMat  = new THREE.MeshStandardMaterial({ color: colors.body, roughness: 0.6 });
-    const armMat   = new THREE.MeshStandardMaterial({ color: colors.arm,  roughness: 0.6 });
-    const legsMat  = new THREE.MeshStandardMaterial({ color: colors.legs, roughness: 0.6 });
-    const feetMat  = new THREE.MeshStandardMaterial({ color: colors.feet, roughness: 0.6 });
-
-    // 1. 🏆 頭部多重材質處理：Index 4 是正前方 (+Z)
-    const headGeo = new THREE.BoxGeometry(0.8, 0.8, 0.8);
-    let headMaterialSetting = headMat;
-
-    if (faceDataUrl) {
-        const img = new Image();
-        img.src = faceDataUrl;
-        const faceTex = new THREE.Texture(img);
-        img.onload = () => { faceTex.needsUpdate = true; };
-        
-        const faceMat = new THREE.MeshStandardMaterial({ 
-            map: faceTex,
-            roughness: 0.5
-        });
-        // 🚀 關鍵：[右, 左, 上, 下, 前(人臉貼圖), 後]
-        headMaterialSetting = [headMat, headMat, headMat, headMat, faceMat, headMat];
-    }
-
-    const headMesh = new THREE.Mesh(headGeo, headMaterialSetting);
-    headMesh.position.set(0, 2.4, 0);
-    headMesh.name = "head"; 
-    group.add(headMesh);
-
-    // 2. 身體
-    const bodyGeo = new THREE.BoxGeometry(0.8, 1.0, 0.4);
-    const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
-    bodyMesh.position.set(0, 1.5, 0);
-    bodyMesh.name = "body";
-    group.add(bodyMesh);
-
-    // 3. 手臂
-    const armGeo = new THREE.BoxGeometry(0.24, 1.0, 0.4);
-    const leftArm = new THREE.Mesh(armGeo, armMat); leftArm.position.set(-0.52, 1.5, 0); leftArm.name = "leftArm"; group.add(leftArm);
-    const rightArm = new THREE.Mesh(armGeo, armMat); rightArm.position.set(0.52, 1.5, 0); rightArm.name = "rightArm"; group.add(rightArm);
-
-    // 4. 腿部
-    const legGeo = new THREE.BoxGeometry(0.36, 0.8, 0.4);
-    const leftLeg = new THREE.Mesh(legGeo, legsMat); leftLeg.position.set(-0.2, 0.6, 0); leftLeg.name = "leftLeg"; group.add(leftLeg);
-    const rightLeg = new THREE.Mesh(legGeo, legsMat); rightLeg.position.set(0.2, 0.6, 0); rightLeg.name = "rightLeg"; group.add(rightLeg);
-
-    // 5. 鞋子
-    const footGeo = new THREE.BoxGeometry(0.38, 0.2, 0.48);
-    const leftFoot = new THREE.Mesh(footGeo, feetMat); leftFoot.position.set(-0.2, 0.1, 0.04); leftFoot.name = "leftFoot"; group.add(leftFoot);
-    const rightFoot = new THREE.Mesh(footGeo, feetMat); rightFoot.position.set(0.2, 0.1, 0.04); rightFoot.name = "rightFoot"; group.add(rightFoot);
-
-    group.traverse((child) => {
-        if (child.isMesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
-            child.layers.set(0); 
-        }
-    });
-
-    return group;
-}
+// createCustomBoxCharacter 已抽至 static/js/player-model.js
+// （預覽頁 static/preview/game_player.html 也用同一份）
 
 function updateModelColors(model, colors, faceDataUrl) {
     model.traverse((child) => {
@@ -7720,74 +7505,16 @@ function showGameNotice(msg, duration = 3000) {
 // =========================================================
 
 // 將大富翁的 26 個 Index 對應到 9x6 的 CSS Grid (row / column)
-const miniMapGridPositions = [
-    "6/1", "6/2", "6/3", "6/4", "6/5", "6/6", "6/7", "6/8", "6/9", // 0-8: 下邊
-    "5/9", "4/9", "3/9", "2/9", "1/9",                             // 9-13: 右邊
-    "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1/1",        // 14-21: 上邊
-    "2/1", "3/1", "4/1", "5/1"                                     // 22-25: 左邊
-];
-
-function openMiniMap() {
-    if (!gameMap || gameMap.length === 0) {
-        showGameNotice("地圖尚未載入完成！", 2000);
-        return;
-    }
-    const overlay = document.getElementById('minimap-overlay');
-    overlay.style.display = 'flex';
-    renderMiniMapTiles(); // 每次打開都重新渲染最新狀態
-}
-
-function closeMiniMap() {
-    document.getElementById('minimap-overlay').style.display = 'none';
-    closeTileInfo();
-}
-
-function closeTileInfo() {
-    document.getElementById('minimap-info-modal').style.display = 'none';
-}
-
+// 小地圖的渲染已抽至 static/js/minimap.js（預覽頁共用）
+// 這裡只留轉接層，把原本的全域變數接上去。
 function renderMiniMapTiles() {
-    const container = document.getElementById('minimap-grid-content');
-    container.innerHTML = ''; // 清空重建
-
-    gameMap.forEach((tile, idx) => {
-        const gridArea = miniMapGridPositions[idx];
-        const landData = window.landOwnership[idx];
-        
-        let bgColor = "#f8fafc"; // 預設空地顏色
-        let icon = "";
-        let borderColor = "#e2e8f0";
-
-        // 判斷特殊格子圖示
-        if (tile.type === 'START') { bgColor = "#dcfce7"; borderColor = "#22c55e"; icon = "🎈"; }
-        else if (tile.type === 'JAIL') { bgColor = "#e2e8f0"; borderColor = "#64748b"; icon = "⛓️"; }
-        else if (tile.type === 'SHOP') { bgColor = "#fef9c3"; borderColor = "#eab308"; icon = "🛒"; }
-        else if (tile.type === 'PUNISH') { bgColor = "#fee2e2"; borderColor = "#ef4444"; icon = "💦"; }
-        else if (tile.type === 'REWARD') { bgColor = "#e0f2fe"; borderColor = "#0ea5e9"; icon = "🦅"; }
-        else if (tile.type === 'ADVENTURE') {
-            // 如果是被買走的土地，同步 3D 棋盤的顏色！
-            if (landData && landData.owner) {
-                bgColor = getPlayerLandColor(landData.owner);
-                borderColor = "#ffffff";
-                icon = "🏠";
-            }
-        }
-
-        const tileEl = document.createElement('div');
-        tileEl.className = 'minimap-tile';
-        tileEl.style.gridArea = gridArea;
-        tileEl.style.backgroundColor = bgColor;
-        tileEl.style.borderColor = borderColor;
-        tileEl.innerHTML = icon;
-        
-        // 綁定點擊事件
-        tileEl.onclick = (e) => {
-            e.stopPropagation(); // 防止點擊穿透關閉地圖
-            showTileInfo(idx, tile);
-        };
-        
-        container.appendChild(tileEl);
-    });
+    renderMiniMapTilesInto(
+        document.getElementById('minimap-grid-content'),
+        gameMap,
+        window.landOwnership,
+        getPlayerLandColor,
+        (idx, tile) => showTileInfo(idx, tile)
+    );
 }
 
 function showTileInfo(idx, tile) {

@@ -1,0 +1,54 @@
+/* =============================================================
+   小地圖樣式
+
+   從 game.html 的 <style> 抽出來的共用檔案。抽離的原因是
+   static/preview/game_minimap.html 要用同一份樣式——複製一份的話，
+   之後改配色就得記得改兩處，預覽頁會慢慢與遊戲裡長得不一樣。
+   ============================================================= */
+
+#minimap-overlay {
+    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(255, 255, 255, 0.4); backdrop-filter: blur(10px);
+    z-index: 999999; /* 🏆 修正：層級開到最大，蓋過所有大字卡與動畫 */
+    display: none; align-items: center; justify-content: center;
+}
+
+.minimap-container {
+    background: #ffffff; border-radius: 25px; padding: 30px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4); border: 5px solid #e2e8f0;
+    display: grid; gap: 8px; width: 850px; max-width: 95vw;
+    grid-template-columns: repeat(9, 1fr);
+    grid-template-rows: repeat(6, 1fr);
+    position: relative;
+}
+
+.minimap-tile {
+    aspect-ratio: 1 / 1; border-radius: 12px; border: 3px solid #e2e8f0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.8rem; cursor: pointer; transition: 0.2s;
+    background: #f8fafc; position: relative; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+.minimap-tile:hover {
+    transform: scale(1.15); z-index: 10;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+    border-color: #ffde59;
+}
+
+/* 隱藏地圖中間沒有格子的區域 */
+.minimap-empty { visibility: hidden; }
+
+/* 小地圖資訊彈窗 */
+#minimap-info-modal {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: rgba(30, 41, 59, 0.98); color: white; padding: 25px 35px;
+    border-radius: 20px; border: 3px solid #ffde59; display: none;
+    z-index: 9999999; /* 🏆 修正：彈窗必須比小地圖本身還要更高層 */
+    width: 400px; box-shadow: 0 15px 40px rgba(0,0,0,0.5);
+    text-align: left; pointer-events: none;
+}
+
+.minimap-info-title { font-size: 1.8rem; color: #ffde59; font-weight: 900; margin-bottom: 15px; border-bottom: 2px dashed #475569; padding-bottom: 10px;}
+.minimap-info-desc { font-size: 1.1rem; line-height: 1.6; color: #e2e8f0; font-weight: 800; }
+.minimap-info-highlight { color: #00cdac; font-size: 1.3rem; font-weight: 900; }
+.minimap-info-danger { color: #ff4757; font-size: 1.3rem; font-weight: 900; }

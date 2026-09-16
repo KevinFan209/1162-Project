@@ -1772,3 +1772,78 @@ PyPoly 變更紀錄 (changeLog)
      或直接留著不管——容器內的資料庫本來就與本機 XAMPP 分開，
      重新 docker compose up 會建一份新的並自動 seed。
 ========================================================================
+
+[2026-09-16] #52 抽出三個共用模組，並建立預覽頁機制
+
+  目的：要看棋盤長什麼樣、角色模型對不對，原本都得實際開一局、等配對、
+        走到定點才看得到，改一行樣式就要重來。建一套預覽頁讓這些視覺元素
+        能單獨觀察，改完重整瀏覽器就看得到。
+
+  ── 為什麼要先抽模組 ──
+
+  預覽頁若自己複製一份渲染程式，兩邊會各自演化，最後變成「預覽好看但遊戲裡
+  不是那樣」——那就失去意義了。所以先把要觀察的東西抽成共用模組，讓
+  game.html 與預覽頁呼叫同一份。
+
+  ── 抽出的三個模組 ──
+
+  static/js/player-model.js
+    createCustomBoxCharacter 原樣搬出。它本來就是純函式（實測確認完全不讀
+    scene / camera / gameMap 等全域），所以零行為改變，風險最低。
+
+  static/js/board-build.js
+    create3DBoard 的內容、buildBoardConnectors、applyBoardAppearance 三段
+    （共 126 行）搬出並改成接參數：
+        buildBoard(scene, gameMap) → { tiles, positions }
+        applyBoardAppearanceTo(tiles, gameMap)
+    原本它們直接讀 scene / allTileMeshes / mapBlocks / gameMap，預覽頁沒有
+    這些全域就用不了。
+
+    game.html 留薄轉接層，把全域接上去。這樣先前接在三個「地圖到齊」時機點
+    （localStorage 快取、後端 fetch、SYNC_MAP）的 applyBoardAppearance()
+    呼叫完全不用動。
+
+  static/js/minimap.js + static/css/minimap.css
+    miniMapGridPositions 與 renderMiniMapTiles 搬出。後者原本讀 gameMap、
+    window.landOwnership，並呼叫 getPlayerLandColor 與 showTileInfo，
+    改成五個參數（container / gameMap / landOwnership / colorFn / onTileClick）。
+    CSS 也一併抽出，否則預覽頁得複製樣式，配色一改就會不同步。
+
+  game.html 從 304KB 降到 293KB。
+
+  ── 預覽資料夾 ──
+
+  PyPoly/static/preview/（已加入 .gitignore，不進版控）
+
+  放在 static/ 底下是因為要能被伺服器提供，相對路徑 ../js/xxx.js 才解析得到。
+  必須走 http 而不是直接開檔案——file:// 底下同源政策會擋掉模組載入。
+
+    game_board.html    3D 棋盤。假的 gameMap 刻意讓六種格子類型與五種地形
+                       全部出現在同一張圖上，一頁看完不用反覆重整。
+                       有 OrbitControls 可旋轉縮放，並列出用到的地形圖例。
+    game_player.html   角色模型。即時調整五個部位顏色與四個五官，
+                       旁邊顯示 buildFaceDataUrl 合成出來的臉部貼圖。
+    game_minimap.html  2D 小地圖。可切換「買了幾格地」看擁有者配色。
+    README.md          命名規則、新增步驟、可用的共用模組清單。
+
+  命名規則是「來源檔名_觀察的部分.html」，例如 game.html 的棋盤 → game_board.html。
+
+  ⚠️ 寫 game_player.html 時本來憑印象填五官選項（thin / star / line / open…），
+     核對 character-face.js 後發現大多不存在。實際支援的是
+     eyebrow: standard/thick/arch/angry/sad、eye: round/big/half/squint/wink、
+     nose: dot/button/cat、mouth: smile/grin/neutral/frown/smirk/surprise。
+     填錯的值不會報錯，只會安靜地畫不出東西——所以驗證裡加了一項，
+     逐一比對每個選項在 drawFaceFeatures 裡是否真的有對應分支。
+
+  驗證：32 項結構檢查（模組括號平衡、抽出的東西不留在 game.html、
+        轉接層與三個呼叫點都在、載入順序正確）+ 14 項 HTTP 驗證
+        （三個預覽頁與它們引用的每個資源都回 200、確實引用共用模組而非
+        複製實作、五官選項全部有效、preview/ 不在版控裡），共 46 項全過。
+        另確認 game.html 引用的 8 個模組透過 HTTP 都拿得到。
+
+  ⚠️ 尚未用瀏覽器實際開過。需要確認的是：
+       1. 三個預覽頁畫面正常且可互動
+       2. **開一局實際遊戲**，確認抽模組後棋盤、角色、小地圖都跟以前一樣
+     第 2 項是這次的主要風險——動到了 game.html 三處，而棋盤美化本身
+     也還沒經過瀏覽器驗收。
+========================================================================
