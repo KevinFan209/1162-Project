@@ -1,4 +1,4 @@
-"""AI 導師分析 —— learn.html 右側面板的文字產生器。"""
+"""AI 導師分析與多輪對話 —— learn.html 右側面板"""
 from __future__ import annotations
 
 import json
@@ -8,116 +8,83 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ==============================================================
-# 設定區
-# ==============================================================
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 LLM_URL = os.getenv("LLM_URL", "https://api.openai.com")
 LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "30"))
 
 
-# ==============================================================
-# 核心進入點
-# ==============================================================
 def generate_report(ai_context: dict) -> str:
-    """依學習統計或單題提問產生分析回饋。
-
-    - 若 context 包含 'selected_question' 或 'question'，執行單題診斷模式。
-    - 若無，則執行整局學習成就總覽診斷。
-    """
-    is_single_q = "selected_question" in ai_context or "question" in ai_context
-    
-    # 總覽模式下，若一局都沒玩過，直接返回引導文字
-    if not is_single_q and (ai_context.get("games_played") or 0) == 0:
-        return _rule_based(ai_context)
-
+    """依學習統計或使用者即時提問，回傳個人化分析與解答。"""
     try:
         return _call_llm(ai_context)
     except Exception as e:
-        print(f"⚠️ [AI 導師] 外部 API 調用異常，切換至退路: {e}")
+        print(f"⚠️ [AI 導師] 呼叫外部 API 失敗，啟用退路機制: {e}")
         return _rule_based(ai_context)
 
 
-# ==============================================================
-# LLM 核心診斷實作
-# ==============================================================
 def _call_llm(ai_context: dict) -> str:
     name = ai_context.get("username", "探險者")
-    
-    # 判斷是否為單題提問 / 追問模式
-    target_q = ai_context.get("selected_question") or (ai_context if "question" in ai_context else None)
-    follow_up = ai_context.get("follow_up_prompt", "")
+    user_message = ai_context.get("message")  # 接收使用者的對話輸入
+    question_context = ai_context.get("question_context")
+    accuracy = ai_context.get("accuracy", 0)
+    strongest = "、".join(ai_context.get("strongest", [])) or "基礎觀念"
+    weakest = "、".join(ai_context.get("weakest", [])) or "暫無明顯弱項"
 
-    if target_q:
-        # 模式 A：單題深度解構模式（點擊題目旁的「詢問老師」按鈕）
-        q_text = target_q.get("question", "未知題目")
-        topic = target_q.get("topic", "Python 觀念")
-        options = target_q.get("options", [])
-        chosen = target_q.get("chosen", "")
-        correct = target_q.get("correct", "")
-        is_correct = target_q.get("is_correct", False)
+    # 彙整玩家最近錯題
+    recent_wrong = ai_context.get("recent_wrong", [])
+    wrong_summary = []
+    if recent_wrong:
+        for idx, item in enumerate(recent_wrong[:5], 1):
+            q_topic = item.get("topic", "語法")
+            q_text = item.get("question", "")
+            chosen = item.get("chosen_text") or item.get("chosen", "?")
+            correct = item.get("correct_text") or item.get("correct", "?")
+            wrong_summary.append(
+                f"{idx}. [{q_topic}] 題目：{q_text} | 玩家選了：{chosen} | 正確答案：{correct}"
+            )
+    wrong_text = "\n".join(wrong_summary) if wrong_summary else "目前無答錯紀錄"
 
-        opt_desc = "、".join([f"選項 {idx+1}: {opt}" for idx, opt in enumerate(options)]) if options else "無選項紀錄"
-        status_text = "回答正確" if is_correct else "回答錯誤"
+    system_prompt = (
+        "你是專門引導國中小學童學習 Python 的「PyPoly 大富翁隨行 AI 導師」。\n"
+        "特質：溫暖親切、善於比喻、對話精準、不講冗長廢話。\n\n"
+        "回答原則：\n"
+        "1. 若學生在對話框主動提問（例如問『我選錯了什麼題目』、『這題為什麼錯』）：\n"
+        "   - **務必直接且正面回答學生的問題**，不可回答無關的固定模組套話。\n"
+        "   - 參考【學生近期錯題紀錄】，具體指稱他做錯的題目敘述與選項，並用淺顯易懂的生活例子或觀念口訣解釋。\n"
+        "2. 若未提供學生留言（為首次載入統計報表）：\n"
+        "   - 先肯定其強項，再針對其弱項給予 1~2 點具體解惑建議。\n"
+        "3. 請輸出 HTML 格式（使用 <b>、<code>、<br> 標籤，絕對不要包裹 ```html 外框）。\n"
+        "4. 字數精準控制在 160 字以內。"
+    )
 
-        system_prompt = (
-            "你是 PyPoly 程式大富翁的隨行「AI 程式家教」，專門引導國中小學童。\n"
-            "你的目標是剖析題目思維，引導孩子從題目中學會邏輯，不要長篇大論。\n\n"
-            "回答架構：\n"
-            "1. 選項思維剖析：溫和指出他選【{chosen}】時可能的思考盲點（例如是不是把 0-indexed 搞混了，或是誤會了條件邊界）。若答對，則提點該題核心考點。\n"
-            "2. 正解思路指引：用最直白的方式解釋為什麼【{correct}】才是對的，並附上 1 行簡短的程式邏輯或記憶口訣。\n"
-            "3. 延伸追問引導（核心）：在段落最末尾，以特定標籤格式輸出 2 個學童可能想繼續問的問題：\n"
-            "   格式範例：[SUGGEST: 出一題類似的題目考考我] [SUGGEST: 這題的記憶口訣是什麼？]\n\n"
-            "輸出要求：\n"
-            "- 本文採用精簡 HTML（使用 <b>、<code>、<br>），不使用 Markdown 區塊標記。\n"
-            "- 解題說明文字控制在 130 字以內，語氣生動溫暖。"
-        )
+    # 判斷是否為使用者主動發起的即時對話
+    if user_message:
+        user_prompt = f"""
+【學生基本資訊】
+姓名：{name}
+歷史錯題紀錄：
+{wrong_text}
 
-        user_content = (
-            f"學生：{name}\n"
-            f"題目觀念：{topic}\n"
-            f"題目：{q_text}\n"
-            f"所有選項：{opt_desc}\n"
-            f"學生當時選擇：{chosen}\n"
-            f"正確解答：{correct}\n"
-            f"作答狀態：{status_text}\n"
-        )
-        if follow_up:
-            user_content += f"學生當前追問：{follow_up}\n"
+【學生目前關注的題目資訊】
+{json.dumps(question_context, ensure_ascii=False) if question_context else "無指定特定題目"}
 
-        user_prompt = user_content + "\n請針對上述題目與選擇進行解構回饋："
+【學生的問題】
+"{user_message}"
 
+請直接且具體地回答學生的問題，點出對應的錯題與概念：
+"""
     else:
-        # 模式 B：全局總結報表模式
-        accuracy = ai_context.get("accuracy", 0)
-        strongest = "、".join(ai_context.get("strongest", [])) or "基礎語法"
-        weakest = "、".join(ai_context.get("weakest", [])) or "暫無明顯弱項"
-        recent_wrong = ai_context.get("recent_wrong", [])
-        
-        wrong_block = ""
-        if recent_wrong:
-            details = [
-                f"錯題 {i+1} [{item.get('topic', '未分類')}]：{item.get('question')} (學生選 {item.get('chosen')}，正解為 {item.get('correct')})"
-                for i, item in enumerate(recent_wrong[:3])
-            ]
-            wrong_block = "【近期失分題】\n" + "\n".join(details)
+        user_prompt = f"""
+【學生作答概況】
+姓名：{name}
+正確率：{accuracy}%
+強項：{strongest}
+待加強主題：{weakest}
+錯題紀錄：
+{wrong_text}
 
-        system_prompt = (
-            "你是 PyPoly 大富翁的「Python 隨行 AI 導師」，面向國中小學童。\n"
-            "1. 一句話肯定他在強項主題的邏輯表現。\n"
-            "2. 針對失分弱項，給予具體觀念盲點點撥與 1 句記憶口訣。\n"
-            "3. 融入南投山城、大富翁闖關情境進行激勵。\n"
-            "4. 直接輸出乾淨 HTML（<b>、<code>、<br>），字數控制在 120 字內。"
-        )
-
-        user_prompt = (
-            f"學員名稱：{name}\n"
-            f"總體正確率：{accuracy}%\n"
-            f"掌握較佳：{strongest}\n"
-            f"待加強：{weakest}\n"
-            f"{wrong_block}\n\n"
-            "請給予精簡的全局回饋："
-        )
+請為該學生產出一份溫暖且具啟發性的學習總評：
+"""
 
     headers = {
         "Content-Type": "application/json",
@@ -130,7 +97,7 @@ def _call_llm(ai_context: dict) -> str:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        "max_tokens": 600,
+        "max_tokens": 500,
         "temperature": 0.5,
     }
 
@@ -145,7 +112,7 @@ def _call_llm(ai_context: dict) -> str:
     msg = response.json()["choices"][0]["message"]
     text = (msg.get("content") or "").strip()
 
-    # 清理外層 Markdown 格式標籤
+    # 清理 markdown 外框
     if text.startswith("```html"):
         text = text.replace("```html", "", 1)
     if text.startswith("```"):
@@ -153,60 +120,22 @@ def _call_llm(ai_context: dict) -> str:
     if text.endswith("```"):
         text = text[:-3]
 
-    # 將 [SUGGEST: ...] 轉換為前端可點擊的追問按鈕 HTML
-    import re
-    def make_chip(match):
-        label = match.group(1).strip()
-        return f'<button class="ai-chip-btn" onclick="sendFollowUp(\'{label}\')">💬 {label}</button>'
-
-    text = re.sub(r"\[SUGGEST:\s*(.*?)\]", make_chip, text)
-
     return text.strip()
 
 
-# ==============================================================
-# 規則式保底機制
-# ==============================================================
 def _rule_based(ctx: dict) -> str:
-    name = ctx.get("username") or "探險者"
-    target_q = ctx.get("selected_question") or (ctx if "question" in ctx else None)
+    user_msg = ctx.get("message", "")
+    recent_wrong = ctx.get("recent_wrong", [])
 
-    # 單題模式的離線保底
-    if target_q:
-        q_text = target_q.get("question", "")
-        chosen = target_q.get("chosen", "")
-        correct = target_q.get("correct", "")
-        is_correct = target_q.get("is_correct", False)
-
-        if is_correct:
+    if user_msg and "錯" in user_msg:
+        if recent_wrong:
+            first = recent_wrong[0]
             return (
-                f"太棒了 <b>{name}</b>！這題「{q_text}」你選擇 <code>{chosen}</code> 是完全正確的。<br>"
-                "解題關鍵在於掌握了語法的邊界與執行順序，繼續保持！"
+                f"你剛才在【{first.get('topic', '語法')}】這題失分囉！<br>"
+                f"題目是：<b>{first.get('question', '')}</b>。<br>"
+                f"記得再仔細核對選項中的邊界條件與運算符號！"
             )
-        else:
-            return (
-                f"這題「{q_text}」稍微可惜了！<br>"
-                f"你選擇了 <code>{chosen}</code>，但正確答案其實是 <code>{correct}</code>。<br>"
-                "建議注意變數初值或是迴圈是否包含最後一個數字喔！"
-            )
-
-    # 全局模式保底
-    games = ctx.get("games_played") or 0
-    if games == 0:
-        return (
-            f"嗨 <b>{name}</b>！你還沒有完成過任何一局。<br>"
-            "先去大廳開一局，答幾道題之後回來，這裡就會出現專屬於你的學習分析。"
-        )
+        return "你目前表現很好，近幾局沒有記錄到嚴重失分的題目喔！繼續保持！"
 
     acc = ctx.get("accuracy") or 0
-    total = ctx.get("total_questions") or 0
-    weakest = ctx.get("weakest") or []
-    strongest = ctx.get("strongest") or []
-
-    parts = [f"嗨 <b>{name}</b>！本局作答正確率 <b>{acc}%</b>（共答 {total} 題）。"]
-    if strongest:
-        parts.append(f"你在 <b>{strongest[0]}</b> 概念掌握得相當穩固！")
-    if weakest:
-        parts.append(f"目前可以多針對 <b>{weakest[0]}</b> 多練習，點擊左側題目旁按鈕，我可以為你單獨解說！")
-
-    return "<br>".join(parts)
+    return f"目前正確率為 <b>{acc}%</b>。在下方對話框輸入你想問的問題，我會針對你的作答進行解說！"
