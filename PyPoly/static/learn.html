@@ -136,12 +136,8 @@
             cursor: pointer;
             transition: 0.2s;
         }
-        .btn-ask-item:hover {
-            background: var(--success-green);
-            color: white;
-        }
+        .btn-ask-item:hover { background: var(--success-green); color: white; }
 
-        /* 導師面板與對話框 */
         .side-ai-panel { 
             background: white; 
             border-radius: 35px; 
@@ -149,7 +145,7 @@
             padding: 24px; 
             display: flex; 
             flex-direction: column; 
-            gap: 16px;
+            gap: 14px;
             height: 100%;
             overflow: hidden;
         }
@@ -190,7 +186,6 @@
             align-self: flex-end;
         }
 
-        /* 快捷晶片 */
         .quick-chips-area {
             display: flex;
             flex-wrap: wrap;
@@ -213,7 +208,6 @@
             color: white;
         }
 
-        /* 底部輸入列 */
         .chat-input-bar {
             display: flex;
             gap: 8px;
@@ -323,27 +317,24 @@
         </div>
     </div>
 
-    <!-- 右側：AI 導師對話視窗 -->
+    <!-- 右側：AI 導師解惑室 -->
     <div class="side-ai-panel">
         <div class="ai-header"><div class="ai-status-dot"></div> AI 導師解惑室</div>
         
-        <!-- 對話訊息串流 -->
         <div class="chat-messages-container" id="chatContainer">
             <div class="chat-bubble tutor" id="initialAiGreeting">
                 正在為你分析學習紀錄...
             </div>
         </div>
 
-        <!-- 推薦快捷問題晶片 -->
         <div class="quick-chips-area" id="quickChipsArea">
             <button class="ai-chip-btn" onclick="sendChipMessage('🎯 出一題類似的題目考考我')">🎯 類似題目挑戰</button>
             <button class="ai-chip-btn" onclick="sendChipMessage('💡 告訴我這題好記的語法口訣')">💡 記誦口訣</button>
             <button class="ai-chip-btn" onclick="sendChipMessage('🌱 用日常生活情境來比喻這概念')">🌱 生活比喻</button>
         </div>
 
-        <!-- 底部對話輸入框 -->
         <div class="chat-input-bar">
-            <input type="text" id="userInputMsg" class="chat-input" placeholder="問導師任何 Python 疑問..." onkeydown="handleInputKey(event)">
+            <input type="text" id="userInputMsg" class="chat-input" placeholder="問導師任何 Python 疑問或輸入選項..." onkeydown="handleInputKey(event)">
             <button class="btn-send-msg" onclick="sendUserMessage()">
                 <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
             </button>
@@ -355,9 +346,14 @@
 
 <script>
     const API_URL = location.origin;
+    // ⚠️ 填入你的真實 OpenAI API Key
+    const OPENAI_API_KEY = "";
+	
     let syncTimer = null;
     let questionHistoryData = [];
-    let currentFocusContext = null;
+    
+    // 💬 對話歷史紀錄陣列（保持連續上下文）
+    let conversationMessages = [];
 
     function toggleMenu() {
         document.getElementById('sideMenu').classList.toggle('open');
@@ -416,7 +412,6 @@
         }, 5000);
     }
 
-    // --- 統計數據與題目清單 ---
     async function loadStats(token) {
         try {
             const res = await fetch(`${API_URL}/learn/stats`, {
@@ -507,7 +502,7 @@
         }).join('');
     }
 
-    // --- AI 導師初始分析 ---
+    // --- 首次載入：維持原案呼叫後端開場總評 ---
     async function loadAiReport(token) {
         const greeting = document.getElementById('initialAiGreeting');
         try {
@@ -517,17 +512,36 @@
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
-            greeting.innerHTML = data.report || '你好！我是你的 Python AI 導師，有任何問題隨時在下方輸入或點選題目問我！';
+            const report = data.report || '你好！我是你的 Python AI 導師，有任何問題隨時在下方問我！';
+            greeting.innerHTML = report;
+
+            // 初始化系統提示詞與第一句回覆
+            conversationMessages = [
+                {
+                    role: 'system',
+                    content: `你是國中小學童的 Python 大富翁隨行 AI 導師。
+【交談規則】
+1. 像真人導師一樣進行連續對話，必須參考先前的對話內容。
+2. 當你出了一題挑戰題，而學生回答（例如輸入 A、B、C 或答案文字）：
+   - 立刻批改答案（告訴他回答正確還是錯誤）。
+   - 簡明解釋為什麼對或錯，並給予熱情肯定。
+   - 不要連續狂出新題目，先好好給予這題的回饋！
+3. 當學生點擊「出一題類似題目」：出一題具體有 code 和 A, B, C 選項的題目。
+4. 使用 HTML 標籤（<b>、<code>、<br>），不要輸出 \`\`\`html 外框，字數 140 字內。`
+                },
+                {
+                    role: 'assistant',
+                    content: report
+                }
+            ];
         } catch (err) {
-            greeting.textContent = 'AI 導師暫時離線中，但你依然可以在下方問我問題！';
+            greeting.textContent = 'AI 導師暫時離線中，但你依然可以在下方直接發問！';
         }
     }
 
-    // --- 點擊題目的「詢問 AI 導師」---
     function askQuestionTutor(index) {
         const q = questionHistoryData[index];
         if (!q) return;
-        currentFocusContext = q;
 
         const isCorrect = q.is_correct === true || (q.chosen !== undefined && q.chosen === q.correct);
         const chosenText = q.chosen_text || (q.chosen !== undefined ? `選項 ${q.chosen}` : '該選項');
@@ -535,16 +549,14 @@
         const questionPrompt = `老師，請幫我分析題目：「${q.question}」。我當時選了【${chosenText}】（結果：${isCorrect ? '答對' : '答錯'}），解題思路是什麼？`;
         
         appendMessage('user', questionPrompt);
-        requestTutorReply(questionPrompt, q);
+        chatWithTutor(questionPrompt);
     }
 
-    // --- 快捷晶片點擊 ---
     function sendChipMessage(text) {
         appendMessage('user', text);
-        requestTutorReply(text, currentFocusContext);
+        chatWithTutor(text);
     }
 
-    // --- 輸入框送出 ---
     function handleInputKey(e) {
         if (e.key === 'Enter') {
             sendUserMessage();
@@ -558,10 +570,9 @@
 
         appendMessage('user', text);
         input.value = '';
-        requestTutorReply(text, currentFocusContext);
+        chatWithTutor(text);
     }
 
-    // --- 訊息渲染與發送至後端 ---
     function appendMessage(role, htmlContent) {
         const container = document.getElementById('chatContainer');
         const bubble = document.createElement('div');
@@ -572,31 +583,54 @@
         return bubble;
     }
 
-    async function requestTutorReply(userPrompt, contextData) {
-        const token = localStorage.getItem('token');
+    // --- 連續上下文對話核心 ---
+    async function chatWithTutor(userText) {
         const loadingBubble = appendMessage('tutor', '💭 導師正在思考中...');
 
+        // 加入使用者發問至歷史
+        conversationMessages.push({ role: 'user', content: userText });
+
+        // 只保留最近 8 輪對話，防止 token 超標
+        if (conversationMessages.length > 10) {
+            conversationMessages = [
+                conversationMessages[0], // 保留 system prompt
+                ...conversationMessages.slice(-8)
+            ];
+        }
+
         try {
-            const res = await fetch(`${API_URL}/learn/ai_report`, {
+            const res = await fetch('https://api.openai.com/v1/chat/completions', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
+                    'Authorization': `Bearer ${OPENAI_API_KEY}`
                 },
                 body: JSON.stringify({
-                    message: userPrompt,
-                    question_context: contextData
+                    model: 'gpt-4o-mini',
+                    messages: conversationMessages,
+                    max_tokens: 450,
+                    temperature: 0.5
                 })
             });
 
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            if (!res.ok) throw new Error(`OpenAI HTTP ${res.status}`);
             const data = await res.json();
-            loadingBubble.innerHTML = data.report || data.reply || '解說完成！隨時提出你的其他問題喔！';
+            let text = data.choices[0].message.content.trim();
+            if (text.startsWith("```html")) text = text.replace("```html", "");
+            if (text.startsWith("```")) text = text.replace("```", "");
+            if (text.endswith && text.endswith("```")) text = text.slice(0, -3);
+            if (text.endsWith("```")) text = text.slice(0, -3);
+
+            loadingBubble.innerHTML = text;
+
+            // 把導師回覆加入歷史清單
+            conversationMessages.push({ role: 'assistant', content: text });
         } catch (err) {
-            loadingBubble.innerHTML = `
-                針對你的問題，導師建議先確認基本語法邏輯！<br>
-                例如在字串或串列中，<b>索引是從 0 開始計算</b>；而在條件判斷中要注意冒號 <code>:</code> 與縮排。繼續保持提問的好習慣！
-            `;
+            console.error("對話異常:", err);
+            // 本地 fallback
+            let fallbackText = "針對你的回答，太棒了！有認真思考。記得 <code>append()</code> 會讓串列長度加 1，而 <code>not False</code> 是 True 喔！";
+            loadingBubble.innerHTML = fallbackText;
+            conversationMessages.push({ role: 'assistant', content: fallbackText });
         }
 
         const container = document.getElementById('chatContainer');
