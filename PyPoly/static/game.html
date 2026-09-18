@@ -1541,88 +1541,109 @@ function startAdvCodeTimer(seconds) {
 }
 
 // --- 修正後的啟動判斷邏輯 ---
+// --- 核心分流邏輯 ---
 function startAdventureRecognition(questionObj) {
     const myName = localStorage.getItem('username');
     const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
 
-    // 🏆 致命修正：只要 mode 包含「進階」就走程式碼模式，無關難度 (easy/normal/hard)！
-    const isAdvancedMode = (roomData && roomData.mode && roomData.mode.includes('進階'));
+    // 🏆 終極精準判定：直接看後端傳來的「題目類別」！完全不依賴可能遺失的房間設定
+    const isAdvancedMode = (questionObj && questionObj.category === 'advanced');
+    
+    console.log("🎮 進入題目階段 - 判定為進階模式?", isAdvancedMode, "題目資料:", questionObj);
 
-    console.log("🎮 當前遊戲模式:", roomData?.mode, "判定進階:", isAdvancedMode);
+    const advancedUI = document.getElementById('advanced-task-ui');
+    const basicUI = document.getElementById('adventure-task-ui');
 
     if (isAdvancedMode) {
-        // --- 🟢 進階版流程：手寫程式碼 ---
+        // ==========================================
+        // 🟢 進階版流程 (程式碼編譯)
+        // ==========================================
         socket.emit('sync_adventure_phase', { 
-            room: roomCode, 
-            user: myName, 
-            phase: 'QUIZ_CODE',
-            payload: { question: questionObj } 
+            room: roomCode, user: myName, phase: 'QUIZ_CODE', payload: { question: questionObj } 
         });
 
-        const taskUI = document.getElementById('advanced-task-ui');
-        document.getElementById('adv-code-question').innerText = questionObj.content;
-        document.getElementById('adv-code-editor').value = ""; 
-        document.getElementById('adv-code-feedback').innerText = "";
-        
-        window.currentCodeAttempts = 3;
-        document.getElementById('adv-code-attempts').innerText = window.currentCodeAttempts;
-        
-        const submitBtn = document.getElementById('adv-code-submit-btn');
-        if(submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.style.opacity = "1";
+        if (basicUI) basicUI.style.display = 'none'; // 確保基礎版介面關閉
+
+        if (advancedUI) {
+            advancedUI.style.display = 'block';
+            
+            // 上面題目，中間是編譯器
+            document.getElementById('adv-code-question').innerText = questionObj.content;
+            document.getElementById('adv-code-editor').value = ""; 
+            
+            const feedbackEl = document.getElementById('adv-code-feedback');
+            if (feedbackEl) {
+                feedbackEl.innerText = "💡 請在下方編譯器輸入程式碼，並點擊執行驗證";
+                feedbackEl.style.color = "#00cdac";
+            }
+            
+            window.currentCodeAttempts = 3;
+            const attemptsEl = document.getElementById('adv-code-attempts');
+            if (attemptsEl) attemptsEl.innerText = window.currentCodeAttempts;
+            
+            const submitBtn = document.getElementById('adv-code-submit-btn');
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.style.opacity = "1"; }
+            
+            window.currentAdventureQuestion = questionObj;
+            window.uiState = "CODING"; 
+            window.questionShownAt = Date.now();
+
+            // 左邊是計時器 -> 啟動 5 分鐘計時
+            startAdvCodeTimer(300);
+            if (typeof showAdventureCharacter === "function") showAdventureCharacter(); 
+        } else {
+            console.error("❌ 找不到進階版 UI (advanced-task-ui)！");
         }
-        
-        taskUI.style.display = 'block';
-        currentAdventureQuestion = questionObj;
-        window.uiState = "CODING"; 
-        window.questionShownAt = Date.now();
 
-        // 🕒 啟動 5 分鐘計時器 (300 秒)
-        startAdvCodeTimer(300);
-
-        showAdventureCharacter(); // 顯示 3D 人物，但不開相機
     } else {
-        // --- 🔵 基礎版流程：原本的手勢辨識 ---
+        // ==========================================
+        // 🔵 基礎版流程 (手勢辨識)
+        // ==========================================
         socket.emit('sync_adventure_phase', { 
             room: roomCode, user: myName, phase: 'QUIZ', payload: { question: questionObj } 
         });
 
-        const taskUI = document.getElementById('adventure-task-ui');
+        if (advancedUI) advancedUI.style.display = 'none'; // 確保進階版介面關閉
+
         const questionText = document.getElementById('adv-question-text');
         const optionsArea = document.getElementById('adv-options');
 
-        questionText.innerHTML = "✋ 請用手勢比出答案";
-        questionText.style.display = "block";
-        optionsArea.style.display = 'none'; 
-        taskUI.style.display = 'block';
-        currentAdventureQuestion = questionObj;
+        if (basicUI && questionText && optionsArea) {
+            // 情境展示 -> 開啟辨識畫面並在上面給提示提醒玩家對鏡頭比手勢
+            basicUI.style.display = 'block';
+            questionText.innerHTML = "✋ 準備辨識，請用手勢比出答案";
+            questionText.style.display = "block";
+            optionsArea.style.display = 'none'; 
 
-        setTimeout(() => {
-            questionText.innerHTML = `【挑戰題目】${questionObj.content}`;
-            window.questionShownAt = Date.now(); 
-            optionsArea.innerHTML = questionObj.options.map((opt, idx) => 
-                `<div class="opt-pill">(${idx + 1}) ${opt}</div>`
-            ).join("");
-            optionsArea.style.display = 'flex';
-        }, 2500);
+            setTimeout(() => {
+                // 上面有題目，辨識畫面中出現選項
+                questionText.innerHTML = `【挑戰題目】${questionObj.content}`;
+                window.questionShownAt = Date.now(); 
+                optionsArea.innerHTML = questionObj.options.map((opt, idx) => 
+                    `<div class="opt-pill">(${idx + 1}) ${opt}</div>`
+                ).join("");
+                optionsArea.style.display = 'flex';
+            }, 2500);
 
-        window.lockedDiceVal = parseInt(questionObj.answer); 
-        window.uiState = "GESTURE";
-        currentGameState.status = "READY";
-        
-        initCameraAndStartVision(); // 開啟視訊
-        
-        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-        const screenPos = new THREE.Vector3().copy(camera.position).addScaledVector(forward, 2.8); 
-        virtualScreen.position.copy(screenPos);
-        virtualScreen.position.y -= 0.48;
-        virtualScreen.quaternion.copy(camera.quaternion);
-        virtualScreen.scale.set(1.0, 1.0, 1.0);
-        virtualScreen.visible = true;
-
-        showAdventureCharacter();
+            window.lockedDiceVal = parseInt(questionObj.answer); 
+            window.uiState = "GESTURE";
+            if(typeof currentGameState !== 'undefined') currentGameState.status = "READY";
+            
+            // 玩家對著鏡頭比出對應答案的手勢
+            if (typeof initCameraAndStartVision === "function") initCameraAndStartVision(); 
+            
+            if (typeof virtualScreen !== "undefined" && virtualScreen) {
+                const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+                const screenPos = new THREE.Vector3().copy(camera.position).addScaledVector(forward, 2.8); 
+                virtualScreen.position.copy(screenPos);
+                virtualScreen.position.y -= 0.48;
+                virtualScreen.quaternion.copy(camera.quaternion);
+                virtualScreen.scale.set(1.0, 1.0, 1.0);
+                virtualScreen.visible = true;
+            }
+            if (typeof showAdventureCharacter === "function") showAdventureCharacter();
+        }
     }
 }
 
