@@ -60,6 +60,24 @@ os.makedirs("models", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/models", StaticFiles(directory="models"), name="models")
 
+
+# 🏆 靜態檔一律要求瀏覽器重新驗證。
+#
+# StaticFiles 只回 last-modified 與 etag，不回 Cache-Control。沒有明確
+# 有效期時，瀏覽器會套用「啟發式快取」（RFC 9111 §4.2.2）——一般取
+# 「檔案最後修改到現在」的 10% 當作新鮮期，期間內連問都不問伺服器。
+# 於是改完程式碼重開伺服器，畫面還是舊的，要 Ctrl+Shift+R 才看得到；
+# 在不同分支的 worktree 之間切換時尤其明顯，因為網址完全一樣。
+#
+# no-cache 不是不快取（那是 no-store）：瀏覽器照樣存，但每次都必須拿
+# etag 回來問一次。沒改動就回 304，只有幾百 bytes，成本很低。
+@app.middleware("http")
+async def no_cache_static(request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith(("/static/", "/models/")):
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return response
+
 # 🏆 用來存放所有線上房間的「記憶體筆記本」
 # 只要伺服器沒關，房間資料都會存在這
 active_rooms = {}
