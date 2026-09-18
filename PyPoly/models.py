@@ -43,12 +43,28 @@ class Question(Base):
     category = Column(String(50))    # basic / advanced（遊戲模式）
     topic = Column(String(50))       # 語法主題（變數/迴圈/條件判斷/函式…）需求⑨結算統計用
     difficulty = Column(String(50))  # easy / normal / hard
-    content = Column(String(500))    # 題目內容
-    opt1 = Column(String(200))       # 選項 1
-    opt2 = Column(String(200))       # 選項 2
-    opt3 = Column(String(200))       # 選項 3
+    content = Column(Text)           # 題目內容（程式碼題常附一段程式碼，500 字不夠）
+
+    # 🏆 qtype 是「作答方式」，category 是「遊戲模式」，兩者是不同的軸。
+    #    原本只靠 category 分基礎/進階，但進階底下實際上有兩種完全不同的題型
+    #    （手勢比數字、手打程式碼），欄位需求互相衝突，所以獨立出這一欄。
+    #      choice  → 四選一，用 opt1~opt4 + answer(1~4)
+    #      gesture → 直接算出答案並比手勢，只用 answer(1~9)，無選項
+    #      code    → 手打 Python 程式碼，交給 AI 判分，無選項也無 answer
+    qtype = Column(String(20), nullable=False, server_default="choice")
+
+    opt1 = Column(String(200))       # 選項 1（僅 choice）
+    opt2 = Column(String(200))       # 選項 2（僅 choice）
+    opt3 = Column(String(200))       # 選項 3（僅 choice）
     opt4 = Column(String(200))       # 選項 4 (需求①：新增第四選項)
-    answer = Column(Integer)         # 儲存 1, 2, 3 或 4
+    answer = Column(Integer)         # choice 為 1~4；gesture 為 1~9；code 不使用
+
+    # --- 以下僅 qtype='code' 使用 ---
+    starter_code = Column(Text)           # 編輯器的預填內容
+    expected_output = Column(Text)        # 預期印出什麼 ⚠️ 不可回傳給前端
+    reference_solution = Column(Text)     # 老師的標準寫法 ⚠️ 不可回傳給前端
+    time_limit_sec = Column(Integer)      # 作答秒數（前端原本寫死 300）
+    max_attempts = Column(Integer)        # 可驗證次數（前端原本寫死 3）
 
 # models.py
 class CountryScenario(Base):
