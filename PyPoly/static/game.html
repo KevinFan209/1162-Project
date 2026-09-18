@@ -1331,6 +1331,7 @@ async function submitQuizAnswer(chosen) {
     }
 }
 
+// --- 進階版驗證按鈕邏輯 (已修復變數 null 與 ngrok 跨域問題) ---
 async function submitCodeAnswer() {
     if (window.currentCodeAttempts <= 0 || window.uiState === "FINISHED") return;
     
@@ -1344,7 +1345,8 @@ async function submitCodeAnswer() {
         return;
     }
     
-    const questionText = currentAdventureQuestion.content; 
+    // 🏆 修正 1：直接從網頁畫面上抓取題目，徹底避開變數變成 null 的問題！
+    const questionText = document.getElementById('adv-code-question').innerText;
     
     feedbackEl.innerText = "🧠 AI 助教正在驗證你的程式碼...";
     feedbackEl.style.color = "#ffde59";
@@ -1354,7 +1356,10 @@ async function submitCodeAnswer() {
     try {
         const response = await fetch(`${API_URL}/game/verify_code`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'ngrok-skip-browser-warning': 'true' // 🏆 修正 2：加入這行，強制繞過 ngrok 的 CORS 警告攔截！
+            },
             body: JSON.stringify({ 
                 question_content: questionText,
                 code: userCode 
@@ -1364,12 +1369,12 @@ async function submitCodeAnswer() {
         const result = await response.json();
 
         if (result.status === "success") {
-            // GPT 判定正確
+            // 時間內驗證成功後進到收購階段
             document.getElementById('advanced-task-ui').style.display = 'none';
-            showGameNotice(`✅ ${result.message}`, 3500); 
-            handleCodeSuccess(); 
+            if (typeof showGameNotice === "function") showGameNotice(`✅ ${result.message}`, 3500); 
+            if (typeof handleCodeSuccess === "function") window.handleCodeSuccess(); 
         } else {
-            // GPT 判定錯誤
+            // 驗證失敗扣除次數
             window.currentCodeAttempts--;
             attemptsEl.innerText = window.currentCodeAttempts;
             feedbackEl.innerText = `❌ ${result.message}`;
@@ -1377,16 +1382,17 @@ async function submitCodeAnswer() {
             submitBtn.disabled = false;
             submitBtn.style.opacity = "1";
 
+            // 當驗證次數用完，玩家還是沒有答對則算回答錯誤換人
             if (window.currentCodeAttempts <= 0) {
                 setTimeout(() => {
                     document.getElementById('advanced-task-ui').style.display = 'none';
-                    handleCodeFail(); 
+                    if (typeof handleCodeFail === "function") window.handleCodeFail(); 
                 }, 2500);
             }
         }
     } catch (err) {
         console.error(err);
-        feedbackEl.innerText = "⚠️ 伺服器連線失敗，請重試";
+        feedbackEl.innerText = "⚠️ 伺服器連線失敗或跨域攔截，請重試";
         submitBtn.disabled = false;
         submitBtn.style.opacity = "1";
     }
