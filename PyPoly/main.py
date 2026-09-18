@@ -68,6 +68,24 @@ os.makedirs("models", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/models", StaticFiles(directory="models"), name="models")
 
+
+# 🏆 靜態檔一律要求瀏覽器重新驗證。
+#
+# StaticFiles 只回 last-modified 與 etag，不回 Cache-Control。沒有明確
+# 有效期時，瀏覽器會套用「啟發式快取」（RFC 9111 §4.2.2）——一般取
+# 「檔案最後修改到現在」的 10% 當作新鮮期，期間內連問都不問伺服器。
+# 於是改完程式碼重開伺服器，畫面還是舊的，要 Ctrl+Shift+R 才看得到；
+# 在不同分支的 worktree 之間切換時尤其明顯，因為網址完全一樣。
+#
+# no-cache 不是不快取（那是 no-store）：瀏覽器照樣存，但每次都必須拿
+# etag 回來問一次。沒改動就回 304，只有幾百 bytes，成本很低。
+@app.middleware("http")
+async def no_cache_static(request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith(("/static/", "/models/")):
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return response
+
 # 🏆 用來存放所有線上房間的「記憶體筆記本」
 # 只要伺服器沒關，房間資料都會存在這
 active_rooms = {}
@@ -480,6 +498,223 @@ def update_user_role(target_username: str, data: dict, db: Session = Depends(dat
         
     db.commit()
     return {"message": "success"}
+
+# ==========================================================
+# 🏆 題庫後台 CRUD（給 question.html 用）
+#
+# qtype 決定哪些欄位有意義，這也是驗證的分流依據：
+#   choice  四選一     opt1~opt4 必填、answer 1~4
+#   gesture 手勢比數字  answer 1~9（手勢辨識只認得 1~9）、不可有選項
+#   code    手打程式碼  expected_output 與 reference_solution 必填、
+#                      不可有 answer 也不可有選項
+#
+# 沒有這層驗證的話，後台存得出一筆「code 題但沒有參考解答」，
+# 而遊戲中不會報錯，只會安靜地讓 AI 拿不到判分依據去亂判。
+# ==========================================================
+
+QTYPES = ("choice", "gesture", "code")
+DIFFICULTIES = ("easy", "normal", "hard")
+CATEGORIES = ("basic", "advanced")
+
+
+class QuestionPayload(BaseModel):
+    category: str
+    qtype: str
+    topic: str
+    difficulty: str
+    content: str
+    opt1: Optional[str] = None
+    opt2: Optional[str] = None
+    opt3: Optional[str] = None
+    opt4: Optional[str] = None
+    answer: Optional[int] = None
+    starter_code: Optional[str] = None
+    expected_output: Optional[str] = None
+    reference_solution: Optional[str] = None
+    time_limit_sec: Optional[int] = None
+    max_attempts: Optional[int] = None
+
+
+def _blank(v) -> bool:
+    return v is None or (isinstance(v, str) and not v.strip())
+
+
+def validate_question(q: QuestionPayload) -> dict:
+    """依 qtype 檢查並正規化，回傳可直接塞進 models.Question 的 dict。
+
+    刻意不用 pydantic 的 validator：錯誤訊息要中文、而且要一次列出全部問題，
+    前端才能一口氣標在對應欄位上，不必讓使用者改一個存一次。
+    """
+    errors = []
+    if q.category not in CATEGORIES:
+        errors.append("遊戲模式只能是 " + " / ".join(CATEGORIES))
+    if q.qtype not in QTYPES:
+        errors.append("題型只能是 " + " / ".join(QTYPES))
+    if q.difficulty not in DIFFICULTIES:
+        errors.append("難度只能是 " + " / ".join(DIFFICULTIES))
+    if _blank(q.topic):
+        errors.append("語法主題不可空白")
+    if _blank(q.content):
+        errors.append("題目內容不可空白")
+
+    data = q.model_dump()
+    opts = [q.opt1, q.opt2, q.opt3, q.opt4]
+
+    if q.qtype == "choice":
+        missing = [str(i + 1) for i, o in enumerate(opts) if _blank(o)]
+        if missing:
+            errors.append("選擇題四個選項都必填，缺少選項 " + "、".join(missing))
+        if q.answer is None or not 1 <= q.answer <= 4:
+            errors.append("選擇題的正解必須是 1~4")
+        # 用不到的程式碼題欄位一律清掉，避免改過題型之後留下髒資料
+        for f in ("starter_code", "expected_output", "reference_solution",
+                  "time_limit_sec", "max_attempts"):
+            data[f] = None
+
+    elif q.qtype == "gesture":
+        if q.answer is None or not 1 <= q.answer <= 9:
+            errors.append("手勢題的答案必須是 1~9（手勢辨識只支援 1~9）")
+        if any(not _blank(o) for o in opts):
+            errors.append("手勢題不應該有選項")
+        for f in ("opt1", "opt2", "opt3", "opt4", "starter_code",
+                  "expected_output", "reference_solution",
+                  "time_limit_sec", "max_attempts"):
+            data[f] = None
+
+    elif q.qtype == "code":
+        if _blank(q.expected_output):
+            errors.append("程式碼題必須填寫預期輸出（AI 判分的依據）")
+        if _blank(q.reference_solution):
+            errors.append("程式碼題必須填寫參考解答（AI 判分的依據）")
+        if any(not _blank(o) for o in opts):
+            errors.append("程式碼題不應該有選項")
+        if q.answer is not None:
+            errors.append("程式碼題不使用 answer 欄位")
+        for f in ("opt1", "opt2", "opt3", "opt4"):
+            data[f] = None
+        data["answer"] = None
+        # 前端原本把這兩個值寫死成 300 秒 / 3 次，這裡沿用為預設
+        data["time_limit_sec"] = q.time_limit_sec or 300
+        data["max_attempts"] = q.max_attempts or 3
+        if data["time_limit_sec"] <= 0:
+            errors.append("作答時限必須大於 0 秒")
+        if data["max_attempts"] <= 0:
+            errors.append("可驗證次數必須大於 0")
+
+    if errors:
+        raise HTTPException(status_code=400, detail="；".join(errors))
+
+    data["topic"] = data["topic"].strip()
+    data["content"] = data["content"].strip()
+    return data
+
+
+def question_to_dict(q: models.Question) -> dict:
+    """後台用的完整表示。含答案欄位，所以只給掛了 require_admin 的端點用。"""
+    return {
+        "id": q.id,
+        "category": q.category,
+        "qtype": q.qtype or "choice",
+        "topic": q.topic,
+        "difficulty": q.difficulty,
+        "content": q.content,
+        "opt1": q.opt1, "opt2": q.opt2, "opt3": q.opt3, "opt4": q.opt4,
+        "answer": q.answer,
+        "starter_code": q.starter_code,
+        "expected_output": q.expected_output,
+        "reference_solution": q.reference_solution,
+        "time_limit_sec": q.time_limit_sec,
+        "max_attempts": q.max_attempts,
+    }
+
+
+@app.get("/admin/questions")
+def list_questions(
+    category: Optional[str] = None,
+    difficulty: Optional[str] = None,
+    topic: Optional[str] = None,
+    qtype: Optional[str] = None,
+    q: Optional[str] = None,
+    db: Session = Depends(database.get_db),
+    admin: models.User = Depends(require_admin),
+):
+    query = db.query(models.Question)
+    if category:
+        query = query.filter(models.Question.category == category)
+    if difficulty:
+        query = query.filter(models.Question.difficulty == difficulty)
+    if topic:
+        query = query.filter(models.Question.topic == topic)
+    if qtype:
+        query = query.filter(models.Question.qtype == qtype)
+    if q and q.strip():
+        query = query.filter(models.Question.content.like("%" + q.strip() + "%"))
+
+    rows = query.order_by(models.Question.id.desc()).all()
+    return {"total": len(rows), "items": [question_to_dict(r) for r in rows]}
+
+
+@app.get("/admin/questions/meta")
+def question_meta(db: Session = Depends(database.get_db),
+                  admin: models.User = Depends(require_admin)):
+    """下拉選單要用的選項。
+
+    topic 一律從現有資料撈，不在前端寫死——question.html 原本寫死
+    Variables / Loops，但資料庫裡其實是中文主題，兩邊早就對不上了。
+    """
+    topics = [t for (t,) in db.query(models.Question.topic)
+              .filter(models.Question.topic.isnot(None))
+              .distinct().order_by(models.Question.topic).all()]
+    rows = db.query(models.Question.qtype,
+                    func.count(models.Question.id)).group_by(
+                        models.Question.qtype).all()
+    return {
+        "topics": topics,
+        "qtypes": list(QTYPES),
+        "difficulties": list(DIFFICULTIES),
+        "categories": list(CATEGORIES),
+        "counts": {(qt or "choice"): n for qt, n in rows},
+    }
+
+
+@app.post("/admin/questions")
+def create_question(payload: QuestionPayload,
+                    db: Session = Depends(database.get_db),
+                    admin: models.User = Depends(require_admin)):
+    row = models.Question(**validate_question(payload))
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return question_to_dict(row)
+
+
+@app.put("/admin/questions/{question_id}")
+def update_question(question_id: int, payload: QuestionPayload,
+                    db: Session = Depends(database.get_db),
+                    admin: models.User = Depends(require_admin)):
+    row = db.query(models.Question).filter(
+        models.Question.id == question_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="找不到這一題")
+    for k, v in validate_question(payload).items():
+        setattr(row, k, v)
+    db.commit()
+    db.refresh(row)
+    return question_to_dict(row)
+
+
+@app.delete("/admin/questions/{question_id}")
+def delete_question(question_id: int,
+                    db: Session = Depends(database.get_db),
+                    admin: models.User = Depends(require_admin)):
+    row = db.query(models.Question).filter(
+        models.Question.id == question_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="找不到這一題")
+    db.delete(row)
+    db.commit()
+    return {"message": "success", "id": question_id}
+
 
 # 8. 註冊與 ID 檢查
 @app.get("/auth/check-id")
@@ -1216,6 +1451,7 @@ async def get_map_config(
     mode: str,
     difficulty: str,
     test: bool = False,
+    qtype: str = None,
     db: Session = Depends(database.get_db),
 ):
     """組出 26 格地圖。
@@ -1227,17 +1463,28 @@ async def get_map_config(
     try:
         # 修正中文模式轉為資料庫 Key
         db_mode = "basic" if "基礎" in mode else "advanced"
+
+        # 🏆 進階模式底下同時存在兩種題型（gesture 手勢比數字 / code 手打程式碼），
+        #    只依 category 撈會兩種混著出現，玩家上一格比手勢、下一格要寫程式。
+        #    不指定時：基礎 -> choice、進階 -> code（進階模式的現行走向）。
+        #    要跑舊的手勢題請明確帶 ?qtype=gesture。
+        db_qtype = qtype or ("choice" if db_mode == "basic" else "code")
         
         # 🏆 修正點：直接使用 func.random()，不要透過 models.database
         questions = db.query(models.Question).filter(
             models.Question.category == db_mode,
+            models.Question.qtype == db_qtype,
             models.Question.difficulty == difficulty
         ).order_by(func.random()).limit(20).all()
         
         countries = db.query(models.CountryScenario).order_by(func.random()).limit(20).all()
 
         if not questions or not countries:
-             return {"error": "資料庫資料不足", "q_count": len(questions), "c_count": len(countries)}
+             return {"error": "資料庫資料不足",
+                     "q_count": len(questions), "c_count": len(countries),
+                     "qtype": db_qtype,
+                     "hint": f"找不到 {db_mode}/{db_qtype}/{difficulty} 的題目，"
+                             f"請到後台 question.html 新增，或在 PyPoly/ 底下跑 python seed_data.py"}
 
         adventure_tiles = []
         for i in range(20):
@@ -1257,14 +1504,21 @@ async def get_map_config(
                     "skybox_url": f"scenarios/{c.id}.jpg",
                     "base_price": c.base_price,  # 🏆 補上收購價
                     "base_toll": c.base_toll,    # 🏆 補上過路費
+                    # ⚠️ 這裡絕對不可以放 expected_output 與 reference_solution。
+                    #    那是程式碼題的答案，前端拿到等於 DevTools 一開就看得到。
+                    #    判分要用的時候，由 /game/verify_code 憑題目 id 自己查資料庫。
                     "question": {
                         "id": q.id,                # 🏆 需求⑨：作答紀錄用
                         "category": q.category,    # basic / advanced（模式）
+                        "qtype": q.qtype or "choice",   # choice / gesture / code：前端據此決定作答介面
                         "topic": q.topic,          # 🏆 需求⑨：真正的語法主題，供結算「最常出現語法」統計
                         "content": q.content,
                         # 🏆 需求①：加入 opt4，並濾掉 None（進階題無選項時才不會出現空泡泡）
                         "options": [o for o in [q.opt1, q.opt2, q.opt3, q.opt4] if o],
-                        "answer": q.answer
+                        "answer": q.answer,
+                        "starter_code": q.starter_code,       # 程式碼題：編輯器預填
+                        "time_limit_sec": q.time_limit_sec,   # 程式碼題：作答秒數
+                        "max_attempts": q.max_attempts        # 程式碼題：可驗證次數
                     }
                 }
             })

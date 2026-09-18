@@ -300,6 +300,7 @@
 
 
 
+<script src="js/ngrok-fetch.js"></script>
 <script>
     const API_URL = location.origin;
     let syncTimer = null; 
@@ -497,7 +498,17 @@ if (avatarContainer && myFace) {
 
 		try {
 			const res = await fetch(`${API_URL}/rooms/public`);
-			if (!res.ok) throw new Error("伺服器回應錯誤");
+			if (!res.ok) throw new Error(`伺服器回應 ${res.status}`);
+
+			// 回應不是 JSON 時給出看得懂的錯誤。
+			// 實際踩過：走 ngrok 免費方案時，GET 會被它的瀏覽器警告頁攔下而回一頁
+			// HTML，res.ok 仍是 true，直接 res.json() 只會拋出看不出原因的解析錯誤。
+			const ctype = res.headers.get('content-type') || '';
+			if (!ctype.includes('application/json')) {
+				throw new Error(res.headers.get('ngrok-error-code')
+					? '被 ngrok 警告頁攔截（請確認 js/ngrok-fetch.js 有載入）'
+					: `回應不是 JSON（${ctype || '無 content-type'}）`);
+			}
 			const rooms = await res.json();
 
 			let newHtml = `<div style="font-weight: 900; font-size: 1.4rem; color: var(--text-dark); margin-bottom: 20px;">公開房間列表</div>`;
@@ -539,7 +550,22 @@ if (avatarContainer && myFace) {
 
 			if (grid.innerHTML !== newHtml) grid.innerHTML = newHtml;
 		} catch (err) {
-			console.error("刷新列表失敗");
+			// 把失敗顯示在畫面上，不要只丟進 console。
+			// 先前這裡只有 console.error，平板沒有除錯介面，使用者看到的是
+			// 一個永遠停在靜態「房間列表」的畫面，完全無從判斷哪裡出錯。
+			console.error("刷新列表失敗", err);
+			grid.innerHTML =
+				`<div style="font-weight:900; font-size:1.4rem; color:var(--text-dark); margin-bottom:20px;">公開房間列表</div>
+				 <div style="color:#ef4444; padding:20px; font-weight:700; line-height:1.7;">
+					⚠️ 房間列表載入失敗<br>
+					<span style="font-size:0.85rem; color:var(--text-gray); font-weight:600;">
+						${String(err && err.message || err).replace(/[&<>"']/g, c =>
+							({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+					</span><br>
+					<span style="font-size:0.8rem; color:var(--text-gray); font-weight:600;">
+						10 秒後會自動重試
+					</span>
+				 </div>`;
 		}
 	}
 	

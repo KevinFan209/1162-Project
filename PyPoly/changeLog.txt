@@ -1492,3 +1492,335 @@ PyPoly 變更紀錄 (changeLog)
      但這代表 import 順序變成了會影響行為的隱性相依。
      Docker 端由 compose 以真環境變數注入，不需要這一行。
 ========================================================================
+
+
+[2026-09-11] #50 一個 bot 管所有分支：/start <分支> 決定要開哪一版
+
+  問題：要讓組員測某個分支，得切到另一個資料夾、git switch、再在那裡重開
+        bot.py。每換一個分支就要重來一次。遠端已經有 9 個分支且還在增加。
+
+  目標：只開一次 bot.py，之後用 /start <分支> 決定要服務哪一版。
+        「同時只能開一個分支」是先天限制不是要繞過的問題——ngrok 免費方案
+        只允許一條隧道，8000 埠也只有一個。切分支＝停掉舊的再起新的。
+
+  ── 為什麼用 git worktree ──
+
+  9 個分支各自 clone 要約 900MB（本專案的 .git 就 104MB），worktree 讓所有
+  分支共用同一個 .git，而且 git fetch 一次全部拿到新資料。
+
+  預期結構（每個分支一個資料夾，名稱就是分支名）：
+      Project\
+        ├── main\      ← 主 worktree，bot.py 固定從這裡跑
+        ├── Fan-map\
+        └── …
+
+  bot 服務哪個分支只由 uvicorn 子行程的 cwd 決定，bot 自己的程式碼不隨之改變。
+  server_manager 本來就是用 cwd=config.PYPOLY_DIR 啟動的，所以啟動邏輯不必動，
+  只要換掉那個 cwd。
+
+  ── 新增 ops/services/branch_manager.py ──
+
+    list_branches()     來源是 git branch -r，新分支一 push 就出現在 Discord
+                        的選單裡，不必手動維護清單
+    resolve_branch()    唯一的守門員：白名單比對，順便處理大小寫與前後空白
+    ensure_worktree()   沒有就用 git worktree add 建；分支已在別處 checkout
+                        （例如 main 就在主 worktree）則沿用那一個
+    update()            fetch 後只做快轉
+    ensure_env()        PyPoly/.env 被 gitignore，新 worktree 不會有，
+                        從主 worktree 複製一份過去
+    prepare()           以上一次做完，ops_cog 只要呼叫這一個
+
+  ⚠️ update() 刻意只做快轉。工作目錄有未提交的改動、或分支已分歧時一律跳過
+     並在 Discord 說明原因，絕不 reset --hard 或 checkout -- ——那會無聲地
+     毀掉別人正在做的事。這兩種情況仍然可以啟動，只是用磁碟上現有的版本。
+
+  ── 安全性 ──
+
+  server_manager 原本的設計前提是「啟動指令寫死，不接受任何來自 Discord 的
+  輸入」。加上分支參數等於打破這個前提，所以做了三道防線：
+    1. 分支名必須出現在 git branch -r 的結果裡，否則直接拒絕
+    2. 所有 git 指令用 list 形式呼叫，shell=False
+    3. 路徑組出來後再確認確實位於 PROJECT_ROOT 底下，擋掉 ../ 之類的字串
+  實測 11 種惡意輸入（路徑逃逸、指令串接、命令替換、換行注入）全部被擋，
+  且不會建出 PROJECT_ROOT 以外的任何資料夾。
+
+  ── 其他改動 ──
+
+  ops/config.py
+    新增 PROJECT_ROOT、CONTROL_WORKTREE、DEFAULT_BRANCH。
+    PROJECT_ROOT 由 ops/.env 覆寫，程式裡的預設值只是推算（bot 所在倉庫的
+    上一層）——絕對路徑因人而異，寫死在版控裡對組員沒意義。
+
+  ops/services/server_manager.py
+    start() 加 branch / workdir 參數，並記住目前服務的分支供 /status 顯示。
+    stop() 一併清掉分支狀態。其餘邏輯（socket.io 握手、記錄檔、owned 判定）
+    完全不動。
+
+  ops/cogs/ops_cog.py
+    /start、/restart 加選填的分支參數，用 autocomplete 而非寫死的 Choice——
+    新分支一 push 就會出現，不必改程式也不必重新註冊指令。
+    留空則沿用目前服務的分支，讓單純的 /restart 不會意外切走。
+    回覆的 embed 會顯示目前分支與該分支的最新 commit，讓組員知道測的是哪一版。
+    /status 加上分支與版本；新增 /branches 列出所有分支與服務狀態。
+
+  ops/README.md、ops/.env.example
+    更新指令表與設定說明。順便修掉 README 裡「網址每次都會變（Quick Tunnel
+    特性）」這句已經不成立的話——早就換成 ngrok 固定網域了。
+
+  驗證：三組測試共 75 項全數通過。
+    branch_manager 34 項：分支清單與 git 輸出一致（9 個，含中文分支名）、
+      合法輸入的解析、11 種惡意輸入全被拒、9 個分支的路徑都在 PROJECT_ROOT 底下。
+    worktree 實測 20 項：在暫存沙箱做一份完整的 Project 結構（不碰現有資料夾），
+      實際建立 worktree、複製 .env、快轉更新；並刻意弄髒工作目錄，
+      確認 update() 會跳過而不是覆蓋，改動確實還在。
+    cog 載入 21 項：6 個指令都註冊成功、分支參數是選填且有 autocomplete、
+      其餘指令沒有自由文字參數、autocomplete 實際篩選正確。
+
+  ⚠️ 尚未實機測試（需要 Discord bot 連線與 8000 埠）。要做的是：
+     開 bot，/start Fan-map 與 /start main 各一次，確認網址開出來的確實是
+     對應分支的版本；/branches 與 /status 顯示正確。
+
+  ⚠️ 使用前要先建立 Project\ 結構並在 ops/.env 設定 PROJECT_ROOT。
+     另外 docker compose 的專案名稱取自資料夾名，從新位置執行的話名稱會變，
+     現有的容器與資料庫 volume 會變成孤兒（資料還在，只是新專案名找不到它）。
+========================================================================
+
+[2026-09-11] #51 專案名稱統一為 1162-Project，Docker 專案名寫死
+
+  問題：docker compose 沒有指定 name，預設會拿「所在資料夾的名稱」當專案名，
+        目前是 116project-（非 ASCII 被去掉後的結果）。
+        這代表資料夾一改名或搬家，專案名就跟著變，既有的容器與資料庫 volume
+        會變成孤兒——資料還在，只是新專案名找不到它。
+        多分支 worktree 的做法會讓每個分支各有一個資料夾，這個問題會被放大。
+
+  檔案：docker-compose.yml
+    新增最上層的 name: 1162-project。寫死之後，不管從哪個分支的資料夾執行，
+    用到的都是同一組容器與同一份資料。
+
+    ⚠️ 只能小寫。實測 Compose 會拒絕含大寫的專案名：
+         invalid project name "1162-Project": must consist only of
+         lowercase alphanumeric characters, hyphens, and underscores
+       所以 Docker 用 1162-project，資料夾與 repo 用 1162-Project。
+       這個差異是 Compose 的規定造成的，不是筆誤。
+
+  檔案：ops/config.py、ops/.env.example
+    多分支工作區的結構圖從 Project\ 改為 1162-Project\，與 repo 同名。
+
+  檔案：DOCKER.md
+    補上說明，讓組員知道專案名是固定的、以及為什麼不是 repo 名的大寫版本。
+
+  驗證：compose 解析通過，專案名為 1162-project；從不同資料夾執行都得到
+        同一個名稱（實測在原資料夾與 /tmp 各跑一次）。
+        ops 的 34 項與 21 項測試重跑仍全過。
+
+  ⚠️ 舊專案名（116project-）底下的容器與 volume 會變成孤兒。
+     Docker 當時沒啟動所以無法確認實際狀況。要清掉的話：
+         docker volume rm 116project-_pypoly_db_data
+     或直接留著不管——容器內的資料庫本來就與本機 XAMPP 分開，
+     重新 docker compose up 會建一份新的並自動 seed。
+========================================================================
+
+[2026-09-14] #52 修正平板走 ngrok 時房間列表永遠空白
+
+  回報：用電腦開房間後，平板上一直看不到那間房；反過來平板開房電腦就看得到。
+        平板的房間列表只顯示靜態的「房間列表」，沒有變成「公開房間列表」，
+        也沒有出現「目前沒有冒險教室」。平板沒有除錯介面，看不到 console。
+
+  診斷：不是平板的問題，是 ngrok 免費方案的行為。
+
+    ngrok 免費方案會對「看起來像瀏覽器」的 GET 請求回一頁 HTML 警告頁，
+    而不是後端真正的回應。實測（帶 iPad 的 User-Agent）：
+
+        GET  /rooms/public   → text/html   Ngrok-Error-Code: ERR_NGROK_6024
+        POST /rooms/public   → application/json
+        帶 ngrok-skip-browser-warning 標頭 → application/json  []
+
+    這正好解釋了使用者觀察到的不對稱：建房間是 POST（不被攔，所以平板開房
+    成功），列房間是 GET（被攔，所以列表永遠是空的）。
+
+    接著是為什麼「連標題都沒換」：lobby.html 的 renderRooms() 把標題與房間
+    內容組進同一個 newHtml 字串，最後才一次寫入 grid。fetch 拿到 HTML 之後
+    res.ok 仍是 true（HTTP 200），過了第一道檢查，卡在 res.json() 解析失敗，
+    被 catch 接住後只做 console.error——畫面完全沒動。
+
+    電腦之所以正常，是因為先前點過警告頁的 Visit Site 拿到 cookie；
+    平板沒點過，或 Safari 的跨站追蹤防護讓 fetch 帶不上那個 cookie。
+
+    另外實測發現靜態頁面與 socket.io 的 polling 握手（都是 GET）同樣會被攔。
+
+  檔案：static/js/ngrok-fetch.js（新增）
+    包裝 window.fetch，替所有請求補上 ngrok-skip-browser-warning 標頭。
+    只在 ngrok 網域下生效，本機與區網的行為完全不變。
+
+    為什麼用包裝而不是逐一修改：全專案有 81 處 fetch 散在 17 個檔案裡，
+    逐一加標頭一定會漏，日後新增的也會忘記。包一層就一勞永逸。
+
+    同時提供 window.NGROK_SOCKET_OPTS 給 socket.io 用——它不走 window.fetch，
+    包裝救不到，必須用 transportOptions.polling.extraHeaders 另外帶。
+
+  檔案：17 個 static/*.html
+    加上 <script src="js/ngrok-fetch.js">，且一律插在第一個 script 之前，
+    確保包裝在任何程式碼呼叫 fetch 之前就完成。
+    question.html 與 settings.html 沒有發任何請求，略過。
+
+  檔案：static/game.html
+    io(API_URL) 改為 io(API_URL, window.NGROK_SOCKET_OPTS || {})。
+    這是全專案唯一用 socket.io 的地方；兩處 new WebSocket 不受影響，
+    因為警告頁是 HTTP 層的機制。
+
+  檔案：static/lobby.html
+    renderRooms() 的錯誤處理改寫：
+      - 檢查回應的 content-type，不是 JSON 就給出看得懂的訊息，
+        並在偵測到 ngrok-error-code 時明說是被警告頁攔截
+      - 失敗時把訊息寫進畫面而不是只印 console。先前只有 console.error，
+        平板沒有除錯介面，使用者看到的是一個永遠停在靜態標題的畫面，
+        完全無從判斷哪裡出錯——這次的問題就是這樣被隱藏了兩層
+
+  驗證：14 項靜態檢查全過（模組語法、17 個頁面都載入且順序正確、
+        socket.io 有帶 extraHeaders、lobby 的錯誤處理完整且有跳脫）。
+        ngrok 的行為以 curl 帶 iPad User-Agent 實測確認，帶標頭前後
+        Content-Type 從 text/html 變成 application/json。
+
+  ⚠️ 瀏覽器端的 fetch 包裝沒有實際執行驗證（環境沒有 Node，也無法操作平板）。
+     需要在平板上實測：用 ngrok 網址進大廳，確認房間列表會顯示
+     「公開房間列表」以及電腦建立的房間。
+========================================================================
+
+[2026-09-18] #53 靜態檔改為強制重新驗證，不用再按 Ctrl+Shift+R
+
+  症狀：改完程式碼重開伺服器，瀏覽器顯示的還是上一份，尤其在不同分支的
+        worktree 之間切換時特別明顯——網址一模一樣，看到的卻是別條分支的畫面。
+
+  原因：StaticFiles 只回 last-modified 與 etag，不回 Cache-Control。
+        沒有明確有效期時，瀏覽器會套用「啟發式快取」（RFC 9111 §4.2.2），
+        一般取「檔案最後修改到現在」的 10% 當新鮮期。檔案是十天前改的，
+        瀏覽器就自行認定它一天內都新鮮，期間內連問都不問伺服器。
+        Ctrl+Shift+R 之所以有效，正是因為它強制略過這個判斷。
+
+  作法：加一個 middleware，替 /static/ 與 /models/ 補上
+        Cache-Control: no-cache, must-revalidate。
+
+        no-cache 不是不快取（那是 no-store）：瀏覽器照樣存，但每次都必須
+        拿 etag 回來問一次。沒改動就回 304、傳輸 0 bytes，成本很低。
+
+  驗證：四項實測——回應確實帶上該標頭；未改動時帶 etag 回問得到 304／0 bytes；
+        **檔案改動後帶舊 etag 會拿到 200 與新內容**；其他 API 路徑不受影響。
+========================================================================
+
+[2026-09-18] #54 題庫後台接上資料庫，並把題型從 category 獨立出來
+
+  起因：hsuan_advance 的組員在做對局中的進階題，但他看不到也改不了題庫。
+        question.html 是一份純靜態的樣板——182 行裡一行 JavaScript 都沒有，
+        三筆題目直接寫死在 HTML 內，也完全沒有權限檢查，
+        知道網址的人都進得去。
+
+  ── 為什麼要動資料表 ──
+
+  questions 用單一 category 欄位分基礎/進階，但實際上已經有三種
+  作答方式完全不同的題型，欄位需求互相衝突：
+
+      四選一      category='basic'      opt1~4 + answer(1~4)
+      手勢比數字   category='advanced'   只有 answer(1~9)，選項全 NULL
+      手打程式碼   組員新做的            資料庫完全沒有對應欄位
+
+  組員的 /game/verify_code 只送 questionObj.content 給 GPT-4o-mini，
+  等於讓 AI 自己猜標準答案是什麼——同一份學生程式碼這次判過、
+  下次可能判不過。而資料庫裡那 18 筆進階題的 answer（手勢數字）
+  在他的流程裡根本用不到。
+
+  ── 資料表改動（models.py / db_migrate.py）──
+
+  category 語意固定為「遊戲模式」，新增 qtype 表示「作答方式」，
+  兩者是不同的軸：
+
+      qtype = choice / gesture / code
+
+  程式碼題專用的可空欄位：
+      starter_code        編輯器預填內容
+      expected_output     預期印出什麼   ⚠️ 判分依據，不可回傳前端
+      reference_solution  老師的標準寫法 ⚠️ 判分依據，不可回傳前端
+      time_limit_sec      作答秒數（前端原本寫死 300）
+      max_attempts        可驗證次數（前端原本寫死 3）
+
+  content 從 VARCHAR(500) 放寬為 TEXT。程式碼題的敘述常會附一段程式碼，
+  500 字塞不下，而且超長時 MySQL 是直接報錯讓整筆存不進去。
+
+  db_migrate.py 除了既有的「加欄位」清單，多了一個 post_migrate()
+  處理改型別與回填 qtype（basic→choice、advanced 且無選項→gesture）。
+  一樣可以重複執行，實測跑第二次全部顯示「跳過」，36 筆資料一筆沒少。
+
+  ── 舊的手勢題保留 ──
+
+  那 18 筆不刪也不改寫，標成 qtype='gesture' 成為第三種題型。
+  手勢答題的流程本來就還在，之後想用隨時能用。
+
+  ── 新增 12 筆程式碼題（seed_data.py）──
+
+  easy/normal/hard 各 4 筆，都附參考解答與預期輸出。
+  驗證時把 12 份參考解答逐一丟進 Python 實際執行，
+  比對輸出是否真的等於 expected_output——12 筆全對。
+  這件事一定要自動驗：參考解答本身跑不出預期輸出的話，
+  遊戲中不會報錯，只會安靜地讓 GPT 拿到互相矛盾的資訊去判學生的程式碼。
+
+  ⚠️ seed_data.py 原本開頭就 db.query(Question).delete() 把整表清空。
+     題庫現在可以從後台編輯，再這樣做會把老師出的題目一起洗掉。
+     改成以 content 比對、只補上還沒有的題目，既有的一律不動。
+     真的要重建請帶 --reset。
+
+  ── 後端 CRUD（main.py）──
+
+      GET    /admin/questions        列表，可依 qtype/topic/difficulty/關鍵字篩選
+      GET    /admin/questions/meta   下拉選單用的 topic 清單與各題型筆數
+      POST   /admin/questions        新增
+      PUT    /admin/questions/{id}   編輯
+      DELETE /admin/questions/{id}   刪除
+
+  全部掛既有的 require_admin。驗證依 qtype 分流（choice 四個選項必填且
+  answer 1~4、gesture answer 必須 1~9、code 必須有參考解答與預期輸出），
+  而且用不到的欄位會主動清成 NULL——把一題從程式碼題改成手勢題時，
+  不會留下孤兒的 expected_output。
+
+  沒有這層驗證的話，後台存得出一筆「code 題但沒有參考解答」，
+  遊戲中不會報錯，只會安靜地讓 AI 拿不到判分依據去亂判。
+
+  ── map_config 配合改 ──
+
+  原本只依 category 撈題，進階底下現在同時有 gesture 與 code，
+  撈到哪種是隨機的——玩家會上一格比手勢、下一格要寫程式。
+  加了可選的 qtype 參數，不帶時 基礎→choice、進階→code，
+  要跑舊的手勢題就明確帶 ?qtype=gesture。
+
+  回傳的題目物件多了 qtype / starter_code / time_limit_sec / max_attempts。
+  ⚠️ expected_output 與 reference_solution 刻意不放進去，那就是答案本身，
+     前端拿得到等於 DevTools 一開就看得見。驗證裡有一項專門檢查
+     整包 map_config 回應的原始字串裡不含這兩個欄位名。
+
+  ── 前端 question.html ──
+
+  補上與 admin.html 相同的權限守衛（token/role 檢查、verify_and_refresh、
+  heartbeat、跨分頁監聽），這頁原本完全沒有。
+  列表改由 API 產生，並顯示題型標籤；篩選的 topic 從 meta 動態填入
+  （原本寫死 Variables / Loops，資料庫裡其實是中文主題，兩邊早就對不上）。
+  新增/編輯 modal 依題型切換欄位，前端先驗一次並把錯誤標在欄位上。
+
+  ⚠️ 失敗一律顯示在畫面上，不只 console.error。走 ngrok 時 res.ok 可能是
+     true 但內容是警告頁，res.json() 會直接拋——這正是先前平板看不到
+     房間列表的成因（見 #48）。
+
+  驗證：70 項端對端全過（5 個端點 × 未帶 token/一般使用者的權限檢查、
+        10 種壞資料都被擋下、三種題型的新增→編輯→改題型→刪除、
+        map_config 兩種模式的題型正確且不洩漏答案、question.html
+        不再含任何寫死的假題目），另加 17 項題庫資料檢查。
+
+  ⚠️ 尚未用瀏覽器實際開過。需要確認的是：
+       1. 用 admin 開 question.html，實際新增／編輯／刪除各一次
+       2. 用非 admin 帳號開同一頁，應該被導回登入頁
+
+  ⚠️ 要跟 hsuan_advance 的組員對齊兩件事：
+       1. 他前端是靠 roomData.mode.includes('進階') 判斷要不要出程式碼題，
+          後端現在是靠 qtype，兩邊的判定來源要一致。
+       2. /game/verify_code 目前只收 question_content + code。
+          建議改成多收 question_id，由後端自己去資料庫撈
+          expected_output / reference_solution 放進 system prompt——
+          不要讓前端傳答案過來，那等於把答案交給瀏覽器再拿回來。
+========================================================================

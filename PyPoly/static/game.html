@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PyPoly - Battle</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
+	<script src="js/ngrok-fetch.js"></script>
 	<script src="js/character-face.js"></script>
 	<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -825,7 +826,11 @@
 	}
 
 	// 2. 其次：初始化 Socket 連線 (現在它能抓到 API_URL 了)
-	const socket = io(API_URL); 
+	// ⚠️ socket.io 的 polling 握手是 GET，走 ngrok 時會被免費方案的警告頁攔下
+	//    （回一頁 HTML 而不是握手回應）。它不經過 window.fetch，所以 ngrok-fetch.js
+	//    的包裝救不到，必須用 extraHeaders 另外帶標頭。
+	//    NGROK_SOCKET_OPTS 只在 ngrok 網域下才存在，本機與區網連線不受影響。
+	const socket = io(API_URL, window.NGROK_SOCKET_OPTS || {});
 	
 	window.renderOwnedLandsList = function() {
     // 防呆空包彈，保護系統不崩潰
