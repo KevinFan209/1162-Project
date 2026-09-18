@@ -1685,3 +1685,121 @@ PyPoly 變更紀錄 (changeLog)
      需要在平板上實測：用 ngrok 網址進大廳，確認房間列表會顯示
      「公開房間列表」以及電腦建立的房間。
 ========================================================================
+
+[2026-09-18] #53 題庫後台接上資料庫，並把題型從 category 獨立出來
+
+  起因：hsuan_advance 的組員在做對局中的進階題，但他看不到也改不了題庫。
+        question.html 是一份純靜態的樣板——182 行裡一行 JavaScript 都沒有，
+        三筆題目直接寫死在 HTML 內，也完全沒有權限檢查，
+        知道網址的人都進得去。
+
+  ── 為什麼要動資料表 ──
+
+  questions 用單一 category 欄位分基礎/進階，但實際上已經有三種
+  作答方式完全不同的題型，欄位需求互相衝突：
+
+      四選一      category='basic'      opt1~4 + answer(1~4)
+      手勢比數字   category='advanced'   只有 answer(1~9)，選項全 NULL
+      手打程式碼   組員新做的            資料庫完全沒有對應欄位
+
+  組員的 /game/verify_code 只送 questionObj.content 給 GPT-4o-mini，
+  等於讓 AI 自己猜標準答案是什麼——同一份學生程式碼這次判過、
+  下次可能判不過。而資料庫裡那 18 筆進階題的 answer（手勢數字）
+  在他的流程裡根本用不到。
+
+  ── 資料表改動（models.py / db_migrate.py）──
+
+  category 語意固定為「遊戲模式」，新增 qtype 表示「作答方式」，
+  兩者是不同的軸：
+
+      qtype = choice / gesture / code
+
+  程式碼題專用的可空欄位：
+      starter_code        編輯器預填內容
+      expected_output     預期印出什麼   ⚠️ 判分依據，不可回傳前端
+      reference_solution  老師的標準寫法 ⚠️ 判分依據，不可回傳前端
+      time_limit_sec      作答秒數（前端原本寫死 300）
+      max_attempts        可驗證次數（前端原本寫死 3）
+
+  content 從 VARCHAR(500) 放寬為 TEXT。程式碼題的敘述常會附一段程式碼，
+  500 字塞不下，而且超長時 MySQL 是直接報錯讓整筆存不進去。
+
+  db_migrate.py 除了既有的「加欄位」清單，多了一個 post_migrate()
+  處理改型別與回填 qtype（basic→choice、advanced 且無選項→gesture）。
+  一樣可以重複執行，實測跑第二次全部顯示「跳過」，36 筆資料一筆沒少。
+
+  ── 舊的手勢題保留 ──
+
+  那 18 筆不刪也不改寫，標成 qtype='gesture' 成為第三種題型。
+  手勢答題的流程本來就還在，之後想用隨時能用。
+
+  ── 新增 12 筆程式碼題（seed_data.py）──
+
+  easy/normal/hard 各 4 筆，都附參考解答與預期輸出。
+  驗證時把 12 份參考解答逐一丟進 Python 實際執行，
+  比對輸出是否真的等於 expected_output——12 筆全對。
+  這件事一定要自動驗：參考解答本身跑不出預期輸出的話，
+  遊戲中不會報錯，只會安靜地讓 GPT 拿到互相矛盾的資訊去判學生的程式碼。
+
+  ⚠️ seed_data.py 原本開頭就 db.query(Question).delete() 把整表清空。
+     題庫現在可以從後台編輯，再這樣做會把老師出的題目一起洗掉。
+     改成以 content 比對、只補上還沒有的題目，既有的一律不動。
+     真的要重建請帶 --reset。
+
+  ── 後端 CRUD（main.py）──
+
+      GET    /admin/questions        列表，可依 qtype/topic/difficulty/關鍵字篩選
+      GET    /admin/questions/meta   下拉選單用的 topic 清單與各題型筆數
+      POST   /admin/questions        新增
+      PUT    /admin/questions/{id}   編輯
+      DELETE /admin/questions/{id}   刪除
+
+  全部掛既有的 require_admin。驗證依 qtype 分流（choice 四個選項必填且
+  answer 1~4、gesture answer 必須 1~9、code 必須有參考解答與預期輸出），
+  而且用不到的欄位會主動清成 NULL——把一題從程式碼題改成手勢題時，
+  不會留下孤兒的 expected_output。
+
+  沒有這層驗證的話，後台存得出一筆「code 題但沒有參考解答」，
+  遊戲中不會報錯，只會安靜地讓 AI 拿不到判分依據去亂判。
+
+  ── map_config 配合改 ──
+
+  原本只依 category 撈題，進階底下現在同時有 gesture 與 code，
+  撈到哪種是隨機的——玩家會上一格比手勢、下一格要寫程式。
+  加了可選的 qtype 參數，不帶時 基礎→choice、進階→code，
+  要跑舊的手勢題就明確帶 ?qtype=gesture。
+
+  回傳的題目物件多了 qtype / starter_code / time_limit_sec / max_attempts。
+  ⚠️ expected_output 與 reference_solution 刻意不放進去，那就是答案本身，
+     前端拿得到等於 DevTools 一開就看得見。驗證裡有一項專門檢查
+     整包 map_config 回應的原始字串裡不含這兩個欄位名。
+
+  ── 前端 question.html ──
+
+  補上與 admin.html 相同的權限守衛（token/role 檢查、verify_and_refresh、
+  heartbeat、跨分頁監聽），這頁原本完全沒有。
+  列表改由 API 產生，並顯示題型標籤；篩選的 topic 從 meta 動態填入
+  （原本寫死 Variables / Loops，資料庫裡其實是中文主題，兩邊早就對不上）。
+  新增/編輯 modal 依題型切換欄位，前端先驗一次並把錯誤標在欄位上。
+
+  ⚠️ 失敗一律顯示在畫面上，不只 console.error。走 ngrok 時 res.ok 可能是
+     true 但內容是警告頁，res.json() 會直接拋——這正是先前平板看不到
+     房間列表的成因（見 #48）。
+
+  驗證：70 項端對端全過（5 個端點 × 未帶 token/一般使用者的權限檢查、
+        10 種壞資料都被擋下、三種題型的新增→編輯→改題型→刪除、
+        map_config 兩種模式的題型正確且不洩漏答案、question.html
+        不再含任何寫死的假題目），另加 17 項題庫資料檢查。
+
+  ⚠️ 尚未用瀏覽器實際開過。需要確認的是：
+       1. 用 admin 開 question.html，實際新增／編輯／刪除各一次
+       2. 用非 admin 帳號開同一頁，應該被導回登入頁
+
+  ⚠️ 要跟 hsuan_advance 的組員對齊兩件事：
+       1. 他前端是靠 roomData.mode.includes('進階') 判斷要不要出程式碼題，
+          後端現在是靠 qtype，兩邊的判定來源要一致。
+       2. /game/verify_code 目前只收 question_content + code。
+          建議改成多收 question_id，由後端自己去資料庫撈
+          expected_output / reference_solution 放進 system prompt——
+          不要讓前端傳答案過來，那等於把答案交給瀏覽器再拿回來。
+========================================================================
