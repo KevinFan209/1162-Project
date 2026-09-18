@@ -8,7 +8,13 @@ database.py 用的是 SQLAlchemy 的 create_all()，它只會建立「不存在�
 
 處理兩類事情：
   · MIGRATIONS：新增欄位（users 的角色外觀、questions 的題型與程式碼題欄位）
-  · post_migrate()：改型別與回填既有資料（content 放寬成 TEXT、qtype 回填）
+  · post_migrate()：改型別、回填既有資料，以及淘汰已移除的題型
+
+⚠️ 這支腳本會「刪資料」：「手勢比數字」題型已廢除，post_migrate() 會把
+   questions 裡屬於該題型的列刪掉。刪之前會先匯出成
+   removed_gesture_questions.sql（不進版控）當備份。
+   game_answer_logs 不會被動到——它存有 question_text 快照，
+   歷史作答紀錄與結算報表仍讀得到題目內容。
 
 用法（在 PyPoly 目錄下）：
     python db_migrate.py
@@ -16,7 +22,11 @@ database.py 用的是 SQLAlchemy 的 create_all()，它只會建立「不存在�
 刻意設計成可重複執行：每個欄位都先問過 information_schema，已存在就跳過，
 所以不確定自己跑過沒有的時候，再跑一次是安全的。
 """
+import io
+import os
 import sys
+from datetime import datetime
+
 from sqlalchemy import text
 
 sys.stdout.reconfigure(encoding="utf-8")
@@ -58,8 +68,38 @@ def column_type(db, table: str, column: str) -> str:
     """), {"t": table, "c": column}).scalar() or ""
 
 
+BACKUP_FILE = "removed_gesture_questions.sql"
+
+
+def _sql_str(v) -> str:
+    if v is None:
+        return "NULL"
+    if isinstance(v, (int, float)):
+        return str(v)
+    return "'" + str(v).replace("\\", "\\\\").replace("'", "''") + "'"
+
+
+def backup_rows(db, rows, cols) -> str:
+    """把要刪掉的列寫成可重新匯入的 INSERT，萬一刪錯還救得回來。"""
+    lines = [
+        "-- 「手勢比數字」題型已廢除，以下是被 db_migrate.py 刪掉的題目備份。",
+        f"-- 產生時間：{datetime.now():%Y-%m-%d %H:%M:%S}　共 {len(rows)} 筆",
+        "-- 要還原的話直接匯入本檔即可（欄位含 id，會回到原本的編號）。",
+        "",
+        "SET NAMES utf8mb4;",
+        "",
+    ]
+    for r in rows:
+        vals = ", ".join(_sql_str(v) for v in r)
+        lines.append(f"INSERT INTO questions ({', '.join(cols)}) VALUES ({vals});")
+    lines.append("")
+    io.open(BACKUP_FILE, "w", encoding="utf-8", newline="\n").write(
+        "\n".join(lines))
+    return os.path.abspath(BACKUP_FILE)
+
+
 def post_migrate(db) -> int:
-    """欄位補齊之後才能做的事：改型別 + 回填 qtype。"""
+    """欄位補齊之後才能做的事：改型別、回填 qtype、刪除已廢除的題型。"""
     done = 0
 
     # 1) content 放寬成 TEXT。程式碼題的敘述常會附一段程式碼，
@@ -72,26 +112,49 @@ def post_migrate(db) -> int:
     else:
         print("  [跳過] questions.content 已是 TEXT")
 
-    # 2) 回填 qtype。舊資料的判斷依據：
-    #      category='basic'                  -> 四選一
-    #      category='advanced' 且無任何選項   -> 手勢比數字
-    #    只填還沒被分類過的（qtype 為空字串或 NULL），
+    # 2) 回填 qtype。只填還沒被分類過的（qtype 為空字串或 NULL），
     #    所以在後台改過題型的資料不會被蓋回去。
     r1 = db.execute(text("""
         UPDATE questions SET qtype='choice'
         WHERE category='basic' AND (qtype IS NULL OR qtype='')
     """)).rowcount
-    r2 = db.execute(text("""
-        UPDATE questions SET qtype='gesture'
-        WHERE category='advanced' AND opt1 IS NULL
-          AND (qtype IS NULL OR qtype='' OR qtype='choice')
-    """)).rowcount
     db.commit()
-    if r1 or r2:
-        print(f"  [回填] qtype: choice {r1} 筆、gesture {r2} 筆")
+    if r1:
+        print(f"  [回填] qtype='choice' {r1} 筆")
         done += 1
     else:
         print("  [跳過] qtype 已回填過")
+
+    # 3) 刪除「手勢比數字」題型。
+    #
+    #    這個題型已廢除：進階模式一律改為手寫程式碼，題型只剩
+    #    choice（基礎四選一）與 code（進階手寫）。
+    #
+    #    條件要同時涵蓋兩種資料庫：
+    #      · 已經跑過上一版遷移的 -> qtype 已經是 'gesture'
+    #      · 還沒跑過的舊資料庫   -> 沒有 qtype，靠「進階且無選項」辨識
+    #    所以這裡不先回填再刪，直接用一組條件一次認完。
+    WHERE = ("qtype = 'gesture' "
+             "OR (category = 'advanced' AND opt1 IS NULL "
+             "    AND (qtype IS NULL OR qtype = '' OR qtype = 'choice') "
+             "    AND reference_solution IS NULL)")
+
+    cols = ["id", "category", "qtype", "topic", "difficulty", "content",
+            "opt1", "opt2", "opt3", "opt4", "answer"]
+    rows = db.execute(text(
+        f"SELECT {', '.join(cols)} FROM questions WHERE {WHERE} ORDER BY id"
+    )).fetchall()
+
+    if rows:
+        path = backup_rows(db, rows, cols)
+        n = db.execute(text(f"DELETE FROM questions WHERE {WHERE}")).rowcount
+        db.commit()
+        print(f"  [刪除] 手勢比數字題型 {n} 筆（該題型已廢除）")
+        print(f"         備份：{path}")
+        print("         作答紀錄未動，game_answer_logs 有 question_text 快照")
+        done += 1
+    else:
+        print("  [跳過] 已無手勢比數字題型的資料")
 
     return done
 

@@ -17,15 +17,16 @@ models.Base.metadata.create_all(bind=engine)
 # ==========================================================
 # 正式題庫（Python 程式教學）
 # 說明：
-#   category 是「遊戲模式」(basic/advanced)，qtype 是「作答方式」，兩者是不同的軸：
+#   category 是「遊戲模式」(basic/advanced)，qtype 是「作答方式」：
 #     choice  基礎模式  四選一，answer 為正確「選項編號」1~4，玩家比手勢 1~4
-#     gesture 進階模式  直接算出答案，answer 為個位數字 1~9（手勢僅支援 1~9），無選項
 #     code    進階模式  手打 Python 程式碼，交給 AI 判分，無選項也無 answer
 #   - topic：語法主題，供需求⑨結算報表「最常出現語法」統計用。
+#
+#   曾有第三種 gesture（直接算出答案並比手勢），已於 2026-09-18 廢除。
+#   題目由 db_migrate.py 從資料庫刪除，這裡也不再產生，否則會又長回來。
 # 每筆格式：
-#   BASIC_QUESTIONS    -> (topic, content, [opt1, opt2, opt3, opt4], answer)
-#   ADVANCED_QUESTIONS -> (topic, content, answer)
-#   CODE_QUESTIONS     -> (topic, content, starter_code, expected_output, reference_solution)
+#   BASIC_QUESTIONS -> (topic, content, [opt1, opt2, opt3, opt4], answer)
+#   CODE_QUESTIONS  -> (topic, content, starter_code, expected_output, reference_solution)
 # ==========================================================
 
 BASIC_QUESTIONS = {
@@ -54,34 +55,6 @@ BASIC_QUESTIONS = {
         ("切片",   "s = 'PYTHON'，s[1:4] 的結果是？",                      ["PYT", "YTH", "YTHO", "THO"], 2),
     ],
 }
-
-ADVANCED_QUESTIONS = {
-    "easy": [
-        ("運算子", "請算出 3 + 4 的結果，並用手勢比出該數字。", 7),
-        ("運算子", "請算出 2 * 3 的結果。",                     6),
-        ("運算子", "請算出 10 - 5 的結果。",                    5),
-        ("串列",   "lst = [4, 8, 15]，len(lst) 是多少？",       3),
-        ("運算子", "請算出 9 // 2（整數除法）的結果。",          4),
-        ("運算子", "請算出 8 % 5 的結果。",                     3),
-    ],
-    "normal": [
-        ("迴圈",   "for i in range(5): 迴圈總共會執行幾次？",                 5),
-        ("運算子", "請算出 2 ** 3 的結果。",                                 8),
-        ("串列",   "lst = [1, 2, 3, 4]，執行 lst.append(9) 後 len(lst) 為？", 5),
-        ("字串",   "s = 'HELLO'，len(s) 是多少？",                          5),
-        ("運算子", "請算出 (2 + 3) * 1 的結果。",                           5),
-        ("條件判斷", "x = 6，若 x > 3 則 y = 9 否則 y = 1，執行後 y 是多少？",  9),
-    ],
-    "hard": [
-        ("函式",   "def f(n): return n + 2，f(5) 的回傳值是多少？",           7),
-        ("迴圈",   "sum = 0，for i in range(4): sum += i，結束後 sum 是多少？", 6),
-        ("串列",   "lst = [2, 4, 6, 8]，lst[2] 的值是多少？",                6),
-        ("字串",   "s = 'PYTHON'，len(s) 是多少？",                         6),
-        ("函式",   "def add(a, b): return a + b，add(4, 5) 的結果是多少？",   9),
-        ("迴圈",   "range(1, 4) 總共會產生幾個數字？",                       3),
-    ],
-}
-
 
 # ==========================================================
 # 程式碼題（qtype='code'）
@@ -184,13 +157,6 @@ def seed_data():
                 put(category="basic", qtype="choice",
                     topic=topic, difficulty=difficulty, content=content,
                     opt1=opts[0], opt2=opts[1], opt3=opts[2], opt4=opts[3],
-                    answer=answer)
-
-        for difficulty, items in ADVANCED_QUESTIONS.items():
-            for topic, content, answer in items:
-                put(category="advanced", qtype="gesture",
-                    topic=topic, difficulty=difficulty, content=content,
-                    opt1=None, opt2=None, opt3=None, opt4=None,
                     answer=answer)
 
         for difficulty, items in CODE_QUESTIONS.items():

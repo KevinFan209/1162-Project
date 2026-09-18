@@ -48,16 +48,20 @@ class Question(Base):
     # 🏆 qtype 是「作答方式」，category 是「遊戲模式」，兩者是不同的軸。
     #    原本只靠 category 分基礎/進階，但進階底下實際上有兩種完全不同的題型
     #    （手勢比數字、手打程式碼），欄位需求互相衝突，所以獨立出這一欄。
-    #      choice  → 四選一，用 opt1~opt4 + answer(1~4)
-    #      gesture → 直接算出答案並比手勢，只用 answer(1~9)，無選項
-    #      code    → 手打 Python 程式碼，交給 AI 判分，無選項也無 answer
+    #      choice  → 四選一（基礎模式），用 opt1~opt4 + answer(1~4)
+    #      code    → 手打 Python 程式碼（進階模式），交給 AI 判分，
+    #                無選項也無 answer
+    #
+    #    曾有第三種 gesture（直接算出答案並比手勢，answer 1~9、無選項），
+    #    已於 2026-09-18 廢除，題目也一併從資料庫刪除。欄位保留是因為
+    #    前端靠它決定要開哪種作答介面，而且之後要再加題型不必再遷移一次。
     qtype = Column(String(20), nullable=False, server_default="choice")
 
     opt1 = Column(String(200))       # 選項 1（僅 choice）
     opt2 = Column(String(200))       # 選項 2（僅 choice）
     opt3 = Column(String(200))       # 選項 3（僅 choice）
     opt4 = Column(String(200))       # 選項 4 (需求①：新增第四選項)
-    answer = Column(Integer)         # choice 為 1~4；gesture 為 1~9；code 不使用
+    answer = Column(Integer)         # choice 為 1~4；code 不使用（判分交給 AI）
 
     # --- 以下僅 qtype='code' 使用 ---
     starter_code = Column(Text)           # 編輯器的預填內容

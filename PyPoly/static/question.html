@@ -88,9 +88,8 @@
         .tag-easy { background: #ebfffa; color: var(--difficulty-easy); }
         .tag-normal { background: #fffbeb; color: #b45309; }
         .tag-hard { background: #fff5f5; color: var(--difficulty-hard); }
-        /* 題型標籤：三種作答方式一眼看得出來 */
+        /* 題型標籤：兩種作答方式一眼看得出來 */
         .tag-choice { background: #e0f2fe; color: #0369a1; }
-        .tag-gesture { background: #fdf2f8; color: #be185d; }
         .tag-code { background: #1e293b; color: #7dd3fc; }
         .tag-id { background: #f1f5f9; color: var(--text-gray); }
 
@@ -162,9 +161,8 @@
                 <div class="filter-group">
                     <select class="select-filter" id="filterQtype">
                         <option value="">所有題型</option>
-                        <option value="choice">四選一</option>
-                        <option value="gesture">手勢比數字</option>
-                        <option value="code">手打程式碼</option>
+                        <option value="choice">基礎（選擇題）</option>
+                        <option value="code">進階（手寫程式碼）</option>
                     </select>
                     <select class="select-filter" id="filterTopic"><option value="">所有語法分類</option></select>
                     <select class="select-filter" id="filterDifficulty">
@@ -195,20 +193,15 @@
             <div class="field" data-f="qtype">
                 <label>題型</label>
                 <select id="fQtype">
-                    <option value="choice">四選一（基礎模式）</option>
-                    <option value="gesture">手勢比數字（進階模式）</option>
-                    <option value="code">手打程式碼（進階模式）</option>
+                    <option value="choice">基礎（選擇題）</option>
+                    <option value="code">進階（手寫程式碼）</option>
                 </select>
+                <div class="hint">基礎＝四選一比手勢，進階＝手打 Python 交給 AI 判分。</div>
                 <div class="err"></div>
             </div>
-            <div class="field" data-f="category">
-                <label>遊戲模式</label>
-                <select id="fCategory">
-                    <option value="basic">基礎 basic</option>
-                    <option value="advanced">進階 advanced</option>
-                </select>
-                <div class="err"></div>
-            </div>
+            <!-- 遊戲模式與題型一對一，由 onQtypeChange() 自動帶入，
+                 不讓出題者自己選，少一個能填錯的地方 -->
+            <input type="hidden" id="fCategory" value="basic">
             <div class="field" data-f="difficulty">
                 <label>難度</label>
                 <select id="fDifficulty">
@@ -248,18 +241,6 @@
                 <div class="field" data-f="answerChoice">
                     <label>正確答案</label>
                     <div class="answer-row" id="answerChoiceRow"></div>
-                    <div class="err"></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 手勢比數字 -->
-        <div id="blockGesture">
-            <div class="form-row">
-                <div class="field" data-f="answerGesture">
-                    <label>答案（玩家要比出的數字）</label>
-                    <input id="fAnswerGesture" type="number" min="1" max="9">
-                    <div class="hint">手勢辨識只認得 1~9，超出範圍的題目玩家永遠答不對。</div>
                     <div class="err"></div>
                 </div>
             </div>
@@ -317,7 +298,7 @@
     let editingId = null;          // null 代表新增
     let allQuestions = [];
 
-    const QTYPE_LABEL = { choice: '四選一', gesture: '手勢比數字', code: '手打程式碼' };
+    const QTYPE_LABEL = { choice: '選擇題', code: '手寫程式碼' };
 
     // ==========================================================
     // 1. 權限守衛（與 admin.html 相同的流程）
@@ -471,8 +452,6 @@
                 body = `<p class="q-meta">${opts.map((o, i) =>
                     `(${'ABCD'[i]}) ${escapeHtml(o || '')}`).join(' ')}
                     　<strong>正解：${'ABCD'[(q.answer || 1) - 1] || '?'}</strong></p>`;
-            } else if (qtype === 'gesture') {
-                body = `<p class="q-meta">答案（要比出的手勢）：<strong>${q.answer ?? '?'}</strong></p>`;
             } else {
                 body = `<div class="q-code">${escapeHtml(q.reference_solution || '（未填參考解答）')}</div>
                         <p class="q-meta">預期輸出：<strong>${escapeHtml(q.expected_output || '（未填）')}</strong>
@@ -537,12 +516,11 @@
             `<label><input type="radio" name="answerChoice" value="${n}"> 選項 ${n}</label>`).join('');
     }
 
-    // 題型決定哪些欄位有意義，也決定遊戲模式——三種題型的欄位需求互斥，
+    // 題型決定哪些欄位有意義，也決定遊戲模式——兩種題型的欄位需求互斥，
     // 全部同時顯示只會讓出題者填到不該填的格子。
     function onQtypeChange() {
         const t = document.getElementById('fQtype').value;
         document.getElementById('blockChoice').style.display = t === 'choice' ? '' : 'none';
-        document.getElementById('blockGesture').style.display = t === 'gesture' ? '' : 'none';
         document.getElementById('blockCode').style.display = t === 'code' ? '' : 'none';
         document.getElementById('fCategory').value = t === 'choice' ? 'basic' : 'advanced';
     }
@@ -557,14 +535,12 @@
 
         const q = id ? allQuestions.find(x => x.id === id) : null;
         document.getElementById('fQtype').value = q ? (q.qtype || 'choice') : 'choice';
-        onQtypeChange();
-        setVal('fCategory', q ? q.category : 'basic');
+        onQtypeChange();  // 會依題型自動設定 fCategory，不再讀 q.category（避免帶回舊分類）
         setVal('fDifficulty', q ? q.difficulty : 'easy');
         setVal('fTopic', q ? q.topic : '');
         setVal('fContent', q ? q.content : '');
         setVal('fOpt1', q ? q.opt1 : ''); setVal('fOpt2', q ? q.opt2 : '');
         setVal('fOpt3', q ? q.opt3 : ''); setVal('fOpt4', q ? q.opt4 : '');
-        setVal('fAnswerGesture', q && q.qtype === 'gesture' ? q.answer : '');
         setVal('fSolution', q ? q.reference_solution : '');
         setVal('fExpected', q ? q.expected_output : '');
         setVal('fStarter', q ? q.starter_code : '');
@@ -575,7 +551,6 @@
             r.checked = !!(q && q.qtype === 'choice' && String(q.answer) === r.value);
         });
 
-        if (q) document.getElementById('fCategory').value = q.category;
         document.getElementById('modalMask').classList.add('open');
     }
 
@@ -617,9 +592,6 @@
             p.opt4 = document.getElementById('fOpt4').value;
             const picked = document.querySelector('input[name="answerChoice"]:checked');
             p.answer = picked ? Number(picked.value) : null;
-        } else if (qtype === 'gesture') {
-            const v = document.getElementById('fAnswerGesture').value;
-            p.answer = v === '' ? null : Number(v);
         } else {
             p.reference_solution = document.getElementById('fSolution').value;
             p.expected_output = document.getElementById('fExpected').value;
@@ -641,10 +613,6 @@
                 if (!String(p['opt' + n] || '').trim()) { markError('opt' + n, '必填'); ok = false; }
             });
             if (!p.answer) { markError('answerChoice', '請選出正解'); ok = false; }
-        } else if (p.qtype === 'gesture') {
-            if (p.answer === null || p.answer < 1 || p.answer > 9) {
-                markError('answerGesture', '必須是 1~9'); ok = false;
-            }
         } else {
             if (!String(p.reference_solution || '').trim()) { markError('reference_solution', '必填，AI 判分要用'); ok = false; }
             if (!String(p.expected_output || '').trim()) { markError('expected_output', '必填，AI 判分要用'); ok = false; }

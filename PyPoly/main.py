@@ -495,16 +495,15 @@ def update_user_role(target_username: str, data: dict, db: Session = Depends(dat
 # 🏆 題庫後台 CRUD（給 question.html 用）
 #
 # qtype 決定哪些欄位有意義，這也是驗證的分流依據：
-#   choice  四選一     opt1~opt4 必填、answer 1~4
-#   gesture 手勢比數字  answer 1~9（手勢辨識只認得 1~9）、不可有選項
-#   code    手打程式碼  expected_output 與 reference_solution 必填、
-#                      不可有 answer 也不可有選項
+#   choice  四選一（基礎）   opt1~opt4 必填、answer 1~4
+#   code    手打程式碼（進階）expected_output 與 reference_solution 必填、
+#                           不可有 answer 也不可有選項
 #
 # 沒有這層驗證的話，後台存得出一筆「code 題但沒有參考解答」，
 # 而遊戲中不會報錯，只會安靜地讓 AI 拿不到判分依據去亂判。
 # ==========================================================
 
-QTYPES = ("choice", "gesture", "code")
+QTYPES = ("choice", "code")
 DIFFICULTIES = ("easy", "normal", "hard")
 CATEGORIES = ("basic", "advanced")
 
@@ -560,16 +559,6 @@ def validate_question(q: QuestionPayload) -> dict:
             errors.append("選擇題的正解必須是 1~4")
         # 用不到的程式碼題欄位一律清掉，避免改過題型之後留下髒資料
         for f in ("starter_code", "expected_output", "reference_solution",
-                  "time_limit_sec", "max_attempts"):
-            data[f] = None
-
-    elif q.qtype == "gesture":
-        if q.answer is None or not 1 <= q.answer <= 9:
-            errors.append("手勢題的答案必須是 1~9（手勢辨識只支援 1~9）")
-        if any(not _blank(o) for o in opts):
-            errors.append("手勢題不應該有選項")
-        for f in ("opt1", "opt2", "opt3", "opt4", "starter_code",
-                  "expected_output", "reference_solution",
                   "time_limit_sec", "max_attempts"):
             data[f] = None
 
@@ -1437,7 +1426,6 @@ async def get_map_config(
     mode: str,
     difficulty: str,
     test: bool = False,
-    qtype: str = None,
     db: Session = Depends(database.get_db),
 ):
     """組出 26 格地圖。
@@ -1450,11 +1438,11 @@ async def get_map_config(
         # 修正中文模式轉為資料庫 Key
         db_mode = "basic" if "基礎" in mode else "advanced"
 
-        # 🏆 進階模式底下同時存在兩種題型（gesture 手勢比數字 / code 手打程式碼），
-        #    只依 category 撈會兩種混著出現，玩家上一格比手勢、下一格要寫程式。
-        #    不指定時：基礎 -> choice、進階 -> code（進階模式的現行走向）。
-        #    要跑舊的手勢題請明確帶 ?qtype=gesture。
-        db_qtype = qtype or ("choice" if db_mode == "basic" else "code")
+        # 🏆 題型與遊戲模式一對一：基礎 -> choice（四選一）、
+        #    進階 -> code（手打程式碼）。
+        #    仍然明確帶上 qtype 條件而不是只靠 category，是為了讓後台若不小心
+        #    存出「進階但不是程式碼題」的資料時，不會被撈進對局裡。
+        db_qtype = "choice" if db_mode == "basic" else "code"
         
         # 🏆 修正點：直接使用 func.random()，不要透過 models.database
         questions = db.query(models.Question).filter(
@@ -1496,7 +1484,7 @@ async def get_map_config(
                     "question": {
                         "id": q.id,                # 🏆 需求⑨：作答紀錄用
                         "category": q.category,    # basic / advanced（模式）
-                        "qtype": q.qtype or "choice",   # choice / gesture / code：前端據此決定作答介面
+                        "qtype": q.qtype or "choice",   # choice / code：前端據此決定作答介面
                         "topic": q.topic,          # 🏆 需求⑨：真正的語法主題，供結算「最常出現語法」統計
                         "content": q.content,
                         # 🏆 需求①：加入 opt4，並濾掉 None（進階題無選項時才不會出現空泡泡）

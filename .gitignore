@@ -7,3 +7,6 @@ __pycache__/
 
 # 機敏設定（環境變數）
 .env
+
+# db_migrate.py 刪除已廢除題型時自動產生的備份，含題目原文不必進版控
+PyPoly/removed_gesture_questions.sql
