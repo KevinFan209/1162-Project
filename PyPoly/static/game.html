@@ -637,7 +637,10 @@
     
     <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-weight: 800;">
         <span id="adv-code-feedback" style="color: #ff4757; font-size: 1.1rem;"></span>
-        <span style="color: #94a3b8; font-size: 1.1rem;">剩餘驗證機會：<span id="adv-code-attempts" style="color: #f08c00; font-size: 1.4rem;">3</span> / 3</span>
+        <div style="display: flex; gap: 25px;">
+            <span style="color: #ef4444; font-size: 1.1rem;">⏳ 剩餘時間：<span id="adv-code-timer" style="font-size: 1.4rem; font-family: monospace;">05:00</span></span>
+            <span style="color: #94a3b8; font-size: 1.1rem;">剩餘驗證機會：<span id="adv-code-attempts" style="color: #f08c00; font-size: 1.4rem;">3</span> / 3</span>
+        </div>
     </div>
 
     <!-- 程式碼輸入區 -->
@@ -1482,16 +1485,65 @@ function showAdventureCharacter() {
 
 window.currentCodeAttempts = 3;
 
+let advCodeTimerInterval = null;
+
+function startAdvCodeTimer(seconds) {
+    if (advCodeTimerInterval) clearInterval(advCodeTimerInterval);
+    
+    let timeLeft = seconds;
+    const timerEl = document.getElementById('adv-code-timer');
+    
+    const updateDisplay = () => {
+        const m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+        const s = (timeLeft % 60).toString().padStart(2, '0');
+        timerEl.innerText = `${m}:${s}`;
+        
+        if (timeLeft <= 60) {
+            timerEl.style.color = "#ff4757"; 
+            timerEl.style.opacity = (timeLeft % 2 === 0) ? "1" : "0.5"; // 最後一分鐘閃爍
+        } else {
+            timerEl.style.color = "#f08c00";
+            timerEl.style.opacity = "1";
+        }
+    };
+
+    updateDisplay(); // 初始顯示
+
+    advCodeTimerInterval = setInterval(() => {
+        timeLeft--;
+        updateDisplay();
+
+        if (timeLeft <= 0) {
+            clearInterval(advCodeTimerInterval);
+            advCodeTimerInterval = null;
+            
+            document.getElementById('adv-code-feedback').innerText = "⏰ 時間到！驗證失敗。";
+            document.getElementById('adv-code-submit-btn').disabled = true;
+            
+            setTimeout(() => {
+                document.getElementById('advanced-task-ui').style.display = 'none';
+                handleCodeFail();
+            }, 2000);
+        }
+    }, 1000);
+}
+
+
+window.currentCodeAttempts = 3;
+
 function startAdventureRecognition(questionObj) {
     const myName = localStorage.getItem('username');
     const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
 
-    // 判斷是否為進階模式 (難度為 hard)
-    const isAdvancedMode = (roomData && roomData.difficulty === 'hard');
+    // 🏆 關鍵修正：對齊後端的判斷邏輯，看 "mode" 是否包含 "進階"
+    const isAdvancedMode = (roomData && roomData.mode && roomData.mode.includes('進階'));
+    
+    // 🔍 偵錯神器：在 F12 Console 觀察這局到底是什麼模式，以及後端派了哪一題
+    console.log("🎮 房間模式:", roomData?.mode, "判定進階:", isAdvancedMode);
+    console.log("📝 抽到的題目資料庫:", questionObj);
 
     if (isAdvancedMode) {
-        // --- 🟢 進階版流程：手寫程式碼 ---
         socket.emit('sync_adventure_phase', { 
             room: roomCode, 
             user: myName, 
@@ -1518,9 +1570,12 @@ function startAdventureRecognition(questionObj) {
         window.uiState = "CODING"; 
         window.questionShownAt = Date.now();
 
-        showAdventureCharacter(); // 顯示 3D 人物，但不開相機
+        // 🕒 啟動 5 分鐘計時器
+        startAdvCodeTimer(5 * 60);
+
+        showAdventureCharacter(); 
     } else {
-        // --- 🔵 基礎版流程：原本的手勢辨識 ---
+        // ... (保持你原本的基礎版流程)
         socket.emit('sync_adventure_phase', { 
             room: roomCode, user: myName, phase: 'QUIZ', payload: { question: questionObj } 
         });
@@ -1548,7 +1603,7 @@ function startAdventureRecognition(questionObj) {
         window.uiState = "GESTURE";
         currentGameState.status = "READY";
         
-        initCameraAndStartVision(); // 開啟視訊
+        initCameraAndStartVision(); 
         
         const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
         const screenPos = new THREE.Vector3().copy(camera.position).addScaledVector(forward, 2.8); 
@@ -7011,6 +7066,8 @@ function resetToGodViewState() {
     resetChoiceUI(); // 清理按鈕亮燈
     if (virtualScreen) virtualScreen.visible = false;
     stopAllVision();
+	
+	if (advCodeTimerInterval) { clearInterval(advCodeTimerInterval); advCodeTimerInterval = null; }
 }
 
 // 🏆 修正版：確保轉場後看得到格子且角度正確
