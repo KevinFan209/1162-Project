@@ -635,6 +635,7 @@
         題目載入中...
     </div>
     
+    <!-- 加入了計時器顯示區塊 -->
     <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-weight: 800;">
         <span id="adv-code-feedback" style="color: #ff4757; font-size: 1.1rem;"></span>
         <div style="display: flex; gap: 25px;">
@@ -1387,6 +1388,9 @@ async function submitCodeAnswer() {
 }
 
 async function handleCodeSuccess() {
+
+	if (advCodeTimerInterval) { clearInterval(advCodeTimerInterval); advCodeTimerInterval = null; }
+
     window.uiState = "FINISHED";
     const myName = localStorage.getItem('username');
     const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
@@ -1440,6 +1444,9 @@ async function handleCodeSuccess() {
 }
 
 function handleCodeFail() {
+
+	if (advCodeTimerInterval) { clearInterval(advCodeTimerInterval); advCodeTimerInterval = null; }
+
     window.uiState = "FINISHED";
     const myName = localStorage.getItem('username');
     const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
@@ -1484,9 +1491,9 @@ function showAdventureCharacter() {
 }
 
 window.currentCodeAttempts = 3;
-
 let advCodeTimerInterval = null;
 
+// --- 5 分鐘計時器函式 ---
 function startAdvCodeTimer(seconds) {
     if (advCodeTimerInterval) clearInterval(advCodeTimerInterval);
     
@@ -1528,22 +1535,19 @@ function startAdvCodeTimer(seconds) {
     }, 1000);
 }
 
-
-window.currentCodeAttempts = 3;
-
+// --- 修正後的啟動判斷邏輯 ---
 function startAdventureRecognition(questionObj) {
     const myName = localStorage.getItem('username');
     const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
 
-    // 🏆 關鍵修正：對齊後端的判斷邏輯，看 "mode" 是否包含 "進階"
+    // 🏆 致命修正：只要 mode 包含「進階」就走程式碼模式，無關難度 (easy/normal/hard)！
     const isAdvancedMode = (roomData && roomData.mode && roomData.mode.includes('進階'));
-    
-    // 🔍 偵錯神器：在 F12 Console 觀察這局到底是什麼模式，以及後端派了哪一題
-    console.log("🎮 房間模式:", roomData?.mode, "判定進階:", isAdvancedMode);
-    console.log("📝 抽到的題目資料庫:", questionObj);
+
+    console.log("🎮 當前遊戲模式:", roomData?.mode, "判定進階:", isAdvancedMode);
 
     if (isAdvancedMode) {
+        // --- 🟢 進階版流程：手寫程式碼 ---
         socket.emit('sync_adventure_phase', { 
             room: roomCode, 
             user: myName, 
@@ -1570,12 +1574,12 @@ function startAdventureRecognition(questionObj) {
         window.uiState = "CODING"; 
         window.questionShownAt = Date.now();
 
-        // 🕒 啟動 5 分鐘計時器
-        startAdvCodeTimer(5 * 60);
+        // 🕒 啟動 5 分鐘計時器 (300 秒)
+        startAdvCodeTimer(300);
 
-        showAdventureCharacter(); 
+        showAdventureCharacter(); // 顯示 3D 人物，但不開相機
     } else {
-        // ... (保持你原本的基礎版流程)
+        // --- 🔵 基礎版流程：原本的手勢辨識 ---
         socket.emit('sync_adventure_phase', { 
             room: roomCode, user: myName, phase: 'QUIZ', payload: { question: questionObj } 
         });
@@ -1603,7 +1607,7 @@ function startAdventureRecognition(questionObj) {
         window.uiState = "GESTURE";
         currentGameState.status = "READY";
         
-        initCameraAndStartVision(); 
+        initCameraAndStartVision(); // 開啟視訊
         
         const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
         const screenPos = new THREE.Vector3().copy(camera.position).addScaledVector(forward, 2.8); 
@@ -7022,6 +7026,7 @@ function resetToGodViewState() {
     document.getElementById('back-to-god-btn').style.display = 'none';
     document.getElementById('god-view-status-ui').style.display = 'none';
 	document.getElementById('advanced-task-ui').style.display = 'none'; // 新增這行
+	if (advCodeTimerInterval) { clearInterval(advCodeTimerInterval); advCodeTimerInterval = null; }
 	
 	// 清除全域的 3D 動畫
     if (window.spec3DAnimId) {
