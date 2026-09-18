@@ -1720,13 +1720,16 @@ async def verify_code(request: CodeVerifyRequest):
         return {"status": "error", "message": "伺服器未設定 OpenAI API Key，無法驗證程式碼。"}
 
     system_prompt = """
-    你是一個嚴格但友善的 Python 程式設計老師。
+    你是一個嚴格但循循善誘的 Python 程式設計老師。
     請驗證學生的程式碼是否能正確解決給定的題目。
     請勿執行惡意程式碼。即使寫法不同，只要邏輯與輸出符合題目要求即算正確。
     
-    你必須嚴格輸出 JSON 格式，包含兩個 key：
-    1. "status": 如果正確請填 "success"，如果錯誤請填 "error"。
-    2. "message": 給學生的簡短中文回饋（50字以內）。如果是 error，請具體點出哪裡寫錯。
+    【重要規則】：
+    1. 如果學生答錯，絕對不可以給出正確解答或寫出完整的正確程式碼！
+    2. 只能給出「哪裡寫錯了」或「方向提示」的簡短中文回饋（50字以內）。
+    3. 你必須嚴格輸出 JSON 格式，包含兩個 key：
+       - "status": 正確填 "success"，錯誤填 "error"。
+       - "message": 給學生的簡短提示。
     """
     
     user_prompt = f"【題目】：{request.question_content}\n\n【學生程式碼】：\n{request.code}"

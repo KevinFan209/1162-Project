@@ -1331,7 +1331,7 @@ async function submitQuizAnswer(chosen) {
     }
 }
 
-// --- 進階版驗證按鈕邏輯 (已修復變數 null 與 ngrok 跨域問題) ---
+// --- 進階版驗證按鈕邏輯 ---
 async function submitCodeAnswer() {
     if (window.currentCodeAttempts <= 0 || window.uiState === "FINISHED") return;
     
@@ -1341,11 +1341,11 @@ async function submitCodeAnswer() {
     const submitBtn = document.getElementById('adv-code-submit-btn');
 
     if (!userCode) {
-        feedbackEl.innerText = "⚠️ 請先輸入程式碼再驗證！！！";
+        feedbackEl.innerText = "⚠️ 請先輸入程式碼再驗證！";
         return;
     }
     
-    // 🏆 修正 1：直接從網頁畫面上抓取題目，徹底避開變數變成 null 的問題！
+    // 🏆 修正 2：直接從 DOM 抓取題目，徹底避開變數變成 null 導致程式中斷的問題
     const questionText = document.getElementById('adv-code-question').innerText;
     
     feedbackEl.innerText = "🧠 AI 助教正在驗證你的程式碼...";
@@ -1358,7 +1358,7 @@ async function submitCodeAnswer() {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
-                'ngrok-skip-browser-warning': 'true' // 🏆 修正 2：加入這行，強制繞過 ngrok 的 CORS 警告攔截！
+                'ngrok-skip-browser-warning': 'true' // 解決 ngrok CORS 攔截
             },
             body: JSON.stringify({ 
                 question_content: questionText,
@@ -1369,12 +1369,10 @@ async function submitCodeAnswer() {
         const result = await response.json();
 
         if (result.status === "success") {
-            // 時間內驗證成功後進到收購階段
             document.getElementById('advanced-task-ui').style.display = 'none';
             if (typeof showGameNotice === "function") showGameNotice(`✅ ${result.message}`, 3500); 
-            if (typeof handleCodeSuccess === "function") window.handleCodeSuccess(); 
+            handleCodeSuccess(); 
         } else {
-            // 驗證失敗扣除次數
             window.currentCodeAttempts--;
             attemptsEl.innerText = window.currentCodeAttempts;
             feedbackEl.innerText = `❌ ${result.message}`;
@@ -1382,19 +1380,115 @@ async function submitCodeAnswer() {
             submitBtn.disabled = false;
             submitBtn.style.opacity = "1";
 
-            // 當驗證次數用完，玩家還是沒有答對則算回答錯誤換人
             if (window.currentCodeAttempts <= 0) {
                 setTimeout(() => {
                     document.getElementById('advanced-task-ui').style.display = 'none';
-                    if (typeof handleCodeFail === "function") window.handleCodeFail(); 
+                    handleCodeFail(); 
                 }, 2500);
             }
         }
     } catch (err) {
         console.error(err);
-        feedbackEl.innerText = "⚠️ 伺服器連線失敗或跨域攔截，請重試";
+        feedbackEl.innerText = "⚠️ 伺服器連線失敗，請重試";
         submitBtn.disabled = false;
         submitBtn.style.opacity = "1";
+    }
+}
+
+// --- 核心分流邏輯 ---
+function startAdventureRecognition(questionObj) {
+    const myName = localStorage.getItem('username');
+    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
+
+    // 🏆 修正 1：終極精準判定，直接看後端撈出的題目類別，完全不依賴會遺失的 roomData
+    const qCategory = questionObj ? questionObj.category : 'basic';
+    const isAdvancedMode = (qCategory === 'advanced');
+
+    console.log("🎮 進入題目階段 - 判定為進階模式?", isAdvancedMode, "題目類別:", qCategory);
+
+    if (isAdvancedMode) {
+        // ==========================================
+        // 🟢 進階版流程 (程式碼編譯)
+        // ==========================================
+        socket.emit('sync_adventure_phase', { 
+            room: roomCode, 
+            user: myName, 
+            phase: 'QUIZ_CODE',
+            payload: { question: questionObj } 
+        });
+
+        // 確保基礎版相機介面關閉，並關閉視訊資源
+        const basicUI = document.getElementById('adventure-task-ui');
+        if (basicUI) basicUI.style.display = 'none';
+        stopAllVision(); 
+
+        const taskUI = document.getElementById('advanced-task-ui');
+        document.getElementById('adv-code-question').innerText = questionObj.content;
+        document.getElementById('adv-code-editor').value = ""; 
+        document.getElementById('adv-code-feedback').innerText = "💡 請在下方編譯器輸入程式碼，並點擊執行驗證";
+        document.getElementById('adv-code-feedback').style.color = "#00cdac";
+        
+        window.currentCodeAttempts = 3;
+        document.getElementById('adv-code-attempts').innerText = window.currentCodeAttempts;
+        
+        const submitBtn = document.getElementById('adv-code-submit-btn');
+        if(submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = "1";
+        }
+        
+        taskUI.style.display = 'block';
+        window.currentAdventureQuestion = questionObj;
+        window.uiState = "CODING"; 
+        window.questionShownAt = Date.now();
+
+        // 啟動 5 分鐘計時器
+        if (typeof startAdvCodeTimer === "function") startAdvCodeTimer(300);
+        showAdventureCharacter(); 
+
+    } else {
+        // ==========================================
+        // 🔵 基礎版流程 (手勢辨識)
+        // ==========================================
+        socket.emit('sync_adventure_phase', { 
+            room: roomCode, user: myName, phase: 'QUIZ', payload: { question: questionObj } 
+        });
+
+        const taskUI = document.getElementById('adventure-task-ui');
+        const questionText = document.getElementById('adv-question-text');
+        const optionsArea = document.getElementById('adv-options');
+
+        questionText.innerHTML = "✋ 請用手勢比出答案";
+        questionText.style.display = "block";
+        optionsArea.style.display = 'none'; 
+        taskUI.style.display = 'block';
+        window.currentAdventureQuestion = questionObj;
+
+        setTimeout(() => {
+            questionText.innerHTML = `【挑戰題目】${questionObj.content}`;
+            window.questionShownAt = Date.now(); 
+            optionsArea.innerHTML = questionObj.options.map((opt, idx) => 
+                `<div class="opt-pill">(${idx + 1}) ${opt}</div>`
+            ).join("");
+            optionsArea.style.display = 'flex';
+        }, 2500);
+
+        window.lockedDiceVal = parseInt(questionObj.answer); 
+        window.uiState = "GESTURE";
+        currentGameState.status = "READY";
+        
+        initCameraAndStartVision(); 
+        
+        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+        const screenPos = new THREE.Vector3().copy(camera.position).addScaledVector(forward, 2.8); 
+        virtualScreen.position.copy(screenPos);
+        virtualScreen.position.y -= 0.48;
+        virtualScreen.quaternion.copy(camera.quaternion);
+        virtualScreen.scale.set(1.0, 1.0, 1.0);
+        virtualScreen.visible = true;
+
+        showAdventureCharacter();
     }
 }
 
