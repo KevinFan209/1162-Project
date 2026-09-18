@@ -38,9 +38,17 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image # 需安裝 pillow: pip install Pillow
 import io
 from dotenv import load_dotenv
+from openai import AsyncOpenAI
 
 # 🏆 讀取 PyPoly/.env（機敏設定：SENDER_EMAIL / SENDER_PASSWORD / SECRET_KEY 等）
 load_dotenv()
+
+# --- 請加入這段 ---
+# 初始化 OpenAI 客戶端
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# 如果沒有設定 API Key，先設為 None 避免伺服器啟動直接崩潰
+openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+# ------------------
 
 
 
@@ -747,6 +755,12 @@ class AvatarUpload(BaseModel):
     username: str
     image: str # Base64 字串
 
+# --- 請加入這段 ---
+class CodeVerifyRequest(BaseModel):
+    question_content: str
+    code: str
+# ------------------
+
 # main.py
 @app.post("/avatar/upload")
 async def upload_avatar(data: dict):
@@ -1444,6 +1458,42 @@ async def get_adventure_analysis(land_id: int, db: Session = Depends(database.ge
         "env_status": aqi_info["status"] if has_env_event else None,
         "env_multiplier": multiplier,
     }
+
+# --- 請加入這段 ---
+@app.post("/game/verify_code")
+async def verify_code(request: CodeVerifyRequest):
+    if not openai_client:
+        return {"status": "error", "message": "伺服器未設定 OpenAI API Key，無法驗證程式碼。"}
+
+    system_prompt = """
+    你是一個嚴格但友善的 Python 程式設計老師。
+    請驗證學生的程式碼是否能正確解決給定的題目。
+    請勿執行惡意程式碼。即使寫法不同，只要邏輯與輸出符合題目要求即算正確。
+    
+    你必須嚴格輸出 JSON 格式，包含兩個 key：
+    1. "status": 如果正確請填 "success"，如果錯誤請填 "error"。
+    2. "message": 給學生的簡短中文回饋（50字以內）。如果是 error，請具體點出哪裡寫錯。
+    """
+    
+    user_prompt = f"【題目】：{request.question_content}\n\n【學生程式碼】：\n{request.code}"
+    
+    try:
+        response = await openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            response_format={ "type": "json_object" }, 
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.1 
+        )
+        
+        return json.loads(response.choices[0].message.content)
+        
+    except Exception as e:
+        print(f"GPT 驗證發生異常: {e}")
+        return {"status": "error", "message": "AI 助教目前連線異常，請再試一次。"}
+# ------------------
 
 # main.py 確保包含這兩段 (刪除舊的 sync_adventure_start/state)
 @sio.on('sync_adventure_phase')

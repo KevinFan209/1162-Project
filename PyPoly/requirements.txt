@@ -29,3 +29,4 @@ numpy
 # --- 其他 ---
 requests               # air_quality.py 呼叫環境部 API
 python-dotenv          # 讀取 .env
+openai                 #進階版遊戲題目判斷
