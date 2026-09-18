@@ -624,6 +624,31 @@
         </div>
 </div>
 
+<!-- === 新增：進階版程式碼編輯 UI === -->
+<div id="advanced-task-ui" style="display:none; position:fixed; top:80px; left:50%; transform:translateX(-50%); z-index:10001; width: 800px; max-width: 95vw; background: rgba(30, 41, 59, 0.98); border: 4px solid #ffde59; border-radius: 20px; box-shadow: 0 15px 50px rgba(0,0,0,0.5); padding: 30px;">
+    
+    <div style="font-size: 1.6rem; font-weight: 900; color: #ffde59; margin-bottom: 15px; text-align: center; border-bottom: 2px dashed #475569; padding-bottom: 15px;">
+        【進階程式設計挑戰】
+    </div>
+    
+    <div id="adv-code-question" style="font-size: 1.4rem; color: white; margin-bottom: 20px; line-height: 1.6; font-weight: 800;">
+        題目載入中...
+    </div>
+    
+    <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-weight: 800;">
+        <span id="adv-code-feedback" style="color: #ff4757; font-size: 1.1rem;"></span>
+        <span style="color: #94a3b8; font-size: 1.1rem;">剩餘驗證機會：<span id="adv-code-attempts" style="color: #f08c00; font-size: 1.4rem;">3</span> / 3</span>
+    </div>
+
+    <!-- 程式碼輸入區 -->
+    <textarea id="adv-code-editor" style="width: 100%; height: 220px; font-family: 'Consolas', monospace; font-size: 1.3rem; padding: 15px; border-radius: 12px; border: 3px solid #64748b; background: #0f172a; color: #00ff88; resize: none; line-height: 1.5;" placeholder="# 在此輸入你的 Python 程式碼..."></textarea>
+    
+    <div style="display: flex; justify-content: center; margin-top: 25px;">
+        <button id="adv-code-submit-btn" onclick="submitCodeAnswer()" style="background: #00cdac; color: white; border: 3px solid white; padding: 12px 50px; font-size: 1.4rem; font-weight: 900; border-radius: 50px; cursor: pointer; transition: 0.2s; box-shadow: 0 5px 15px rgba(0,205,172,0.4);">🚀 執行驗證</button>
+    </div>
+</div>
+<!-- === 新增結束 === -->
+
 <div id="adventure-decision-ui" style="display: none;">
     <div id="decision-split-layout">
         
@@ -1297,6 +1322,138 @@ async function submitQuizAnswer(chosen) {
     }
 }
 
+async function submitCodeAnswer() {
+    if (window.currentCodeAttempts <= 0 || window.uiState === "FINISHED") return;
+    
+    const userCode = document.getElementById('adv-code-editor').value.trim();
+    const feedbackEl = document.getElementById('adv-code-feedback');
+    const attemptsEl = document.getElementById('adv-code-attempts');
+    const submitBtn = document.getElementById('adv-code-submit-btn');
+
+    if (!userCode) {
+        feedbackEl.innerText = "⚠️ 請先輸入程式碼再驗證！";
+        return;
+    }
+    
+    const questionText = currentAdventureQuestion.content; 
+    
+    feedbackEl.innerText = "🧠 AI 助教正在驗證你的程式碼...";
+    feedbackEl.style.color = "#ffde59";
+    submitBtn.disabled = true;
+    submitBtn.style.opacity = "0.5";
+
+    try {
+        const response = await fetch(`${API_URL}/game/verify_code`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                question_content: questionText,
+                code: userCode 
+            })
+        });
+        
+        const result = await response.json();
+
+        if (result.status === "success") {
+            // GPT 判定正確
+            document.getElementById('advanced-task-ui').style.display = 'none';
+            showGameNotice(`✅ ${result.message}`, 3500); 
+            handleCodeSuccess(); 
+        } else {
+            // GPT 判定錯誤
+            window.currentCodeAttempts--;
+            attemptsEl.innerText = window.currentCodeAttempts;
+            feedbackEl.innerText = `❌ ${result.message}`;
+            feedbackEl.style.color = "#ff4757";
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = "1";
+
+            if (window.currentCodeAttempts <= 0) {
+                setTimeout(() => {
+                    document.getElementById('advanced-task-ui').style.display = 'none';
+                    handleCodeFail(); 
+                }, 2500);
+            }
+        }
+    } catch (err) {
+        console.error(err);
+        feedbackEl.innerText = "⚠️ 伺服器連線失敗，請重試";
+        submitBtn.disabled = false;
+        submitBtn.style.opacity = "1";
+    }
+}
+
+async function handleCodeSuccess() {
+    window.uiState = "FINISHED";
+    const myName = localStorage.getItem('username');
+    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
+
+    if (currentAdventureQuestion) markQuestionAsUsed(currentAdventureQuestion.content);
+    logAnswerToServer(true, "CODE_CORRECT"); 
+
+    setTimeout(async () => {
+        try {
+            const targetLandId = window.currentAdventureTile?.id;
+            if (!targetLandId) { endMyTurn(); return; }
+
+            const res = await fetch(`${API_URL}/game/adventure_analysis/${targetLandId}`);
+            const analysisData = await res.json();
+
+            socket.emit('sync_adventure_phase', {
+                room: roomCode, user: myName, phase: 'DECISION', payload: analysisData
+            });
+
+            document.getElementById('adventure-decision-ui').style.display = 'flex';
+
+            if (panoSphere) {
+                panoSphere.visible = true;
+                panoSphere.material.opacity = 1;
+                panoSphere.position.copy(camera.position);
+            }
+
+            fillDecisionUI(analysisData, myName);
+
+            // 定位收購面板的螢幕
+            const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+            const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+            const screenPos = new THREE.Vector3().copy(camera.position)
+                .addScaledVector(forward, 2.8).addScaledVector(right, 0.5);
+
+            virtualScreen.position.copy(screenPos);
+            virtualScreen.quaternion.copy(camera.quaternion);
+            virtualScreen.scale.set(0.75, 0.75, 0.75);
+            virtualScreen.visible = true;
+
+            window.uiState = "PURCHASE_DECISION";
+            window.uiTimer = Date.now();
+
+            initCameraAndStartVision(); // 收購階段依然要開相機比讚
+        } catch (err) {
+            console.error("🚨 進入收購決策失敗，強制換人：", err);
+            endMyTurn();
+        }
+    }, 2000);
+}
+
+function handleCodeFail() {
+    window.uiState = "FINISHED";
+    const myName = localStorage.getItem('username');
+    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
+
+    logAnswerToServer(false, "CODE_WRONG");
+    showGameNotice(`❌ 3次機會已用盡，挑戰失敗！`, 3500);
+
+    socket.emit('broadcast_dice_event', {
+        room: roomCode, user: myName, type: "QUIZ_WRONG", point: "程式碼錯誤"
+    });
+
+    setTimeout(() => {
+        endMyTurn();
+    }, 3500);
+}
+
 // game.html 修正版
 // 🏆 需求④：答題階段顯示並定位「自己」的 3D 虛擬人物。
 //   冒險時 setBoardVisibility(false) 會把所有人物藏起來，導致題目階段看不到虛擬人物。
@@ -1323,63 +1480,86 @@ function showAdventureCharacter() {
     myModel.lookAt(camera.position.x, myModel.position.y, camera.position.z);
 }
 
+window.currentCodeAttempts = 3;
+
 function startAdventureRecognition(questionObj) {
-    // 🏆 1. 解決變數作用域問題：重新獲取 roomCode 與 myName
     const myName = localStorage.getItem('username');
     const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
 
-    // 🏆 2. 同步廣播：告訴觀戰者我進入「回答問題」階段了
-    // 必須包含 questionObj，觀戰者才能顯示題目文字
-    socket.emit('sync_adventure_phase', { 
-        room: roomCode, 
-        user: myName, 
-        phase: 'QUIZ',
-        payload: { question: questionObj } 
-    });
+    // 判斷是否為進階模式 (難度為 hard)
+    const isAdvancedMode = (roomData && roomData.difficulty === 'hard');
 
-    const taskUI = document.getElementById('adventure-task-ui');
-    const questionText = document.getElementById('adv-question-text');
-    const optionsArea = document.getElementById('adv-options');
+    if (isAdvancedMode) {
+        // --- 🟢 進階版流程：手寫程式碼 ---
+        socket.emit('sync_adventure_phase', { 
+            room: roomCode, 
+            user: myName, 
+            phase: 'QUIZ_CODE',
+            payload: { question: questionObj } 
+        });
 
-    // 🏆 3. 初始階段：顯示手勢操作提示
-    questionText.innerHTML = "✋ 請用手勢比出答案";
-    questionText.style.display = "block";
-    optionsArea.style.display = 'none'; // 初始先隱藏選項，讓提示明顯
-    taskUI.style.display = 'block';
-    
-    currentAdventureQuestion = questionObj;
+        const taskUI = document.getElementById('advanced-task-ui');
+        document.getElementById('adv-code-question').innerText = questionObj.content;
+        document.getElementById('adv-code-editor').value = ""; 
+        document.getElementById('adv-code-feedback').innerText = "";
+        
+        window.currentCodeAttempts = 3;
+        document.getElementById('adv-code-attempts').innerText = window.currentCodeAttempts;
+        
+        const submitBtn = document.getElementById('adv-code-submit-btn');
+        if(submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = "1";
+        }
+        
+        taskUI.style.display = 'block';
+        currentAdventureQuestion = questionObj;
+        window.uiState = "CODING"; 
+        window.questionShownAt = Date.now();
 
-    // 🏆 4. 延遲 2.5 秒後，切換為正式題目內容
-    setTimeout(() => {
-        questionText.innerHTML = `【挑戰題目】${questionObj.content}`;
-        window.questionShownAt = Date.now(); // 🏆 需求⑨：記錄題目出現時間，供計算作答用時
-        // 顯示選項按鈕 (主角看得到內容)
-        optionsArea.innerHTML = questionObj.options.map((opt, idx) => 
-            `<div class="opt-pill">(${idx + 1}) ${opt}</div>`
-        ).join("");
-        optionsArea.style.display = 'flex';
-    }, 2500);
+        showAdventureCharacter(); // 顯示 3D 人物，但不開相機
+    } else {
+        // --- 🔵 基礎版流程：原本的手勢辨識 ---
+        socket.emit('sync_adventure_phase', { 
+            room: roomCode, user: myName, phase: 'QUIZ', payload: { question: questionObj } 
+        });
 
-    // 🏆 5. 設定辨識狀態與目標
-    window.lockedDiceVal = parseInt(questionObj.answer); 
-    window.uiState = "GESTURE";
-    currentGameState.status = "READY";
-    
-    // 開啟視訊辨識
-    initCameraAndStartVision();
-    
-    // 🏆 6. 調整 3D 辨識螢幕位置：對齊玩家視線
-    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-    const screenPos = new THREE.Vector3().copy(camera.position).addScaledVector(forward, 2.8); 
-    virtualScreen.position.copy(screenPos);
-    virtualScreen.position.y -= 0.48;
-    virtualScreen.quaternion.copy(camera.quaternion);
-    virtualScreen.scale.set(1.0, 1.0, 1.0);
-    virtualScreen.visible = true;
+        const taskUI = document.getElementById('adventure-task-ui');
+        const questionText = document.getElementById('adv-question-text');
+        const optionsArea = document.getElementById('adv-options');
 
-    // 🏆 需求④：讓自己的虛擬人物在題目階段出現
-    showAdventureCharacter();
+        questionText.innerHTML = "✋ 請用手勢比出答案";
+        questionText.style.display = "block";
+        optionsArea.style.display = 'none'; 
+        taskUI.style.display = 'block';
+        currentAdventureQuestion = questionObj;
+
+        setTimeout(() => {
+            questionText.innerHTML = `【挑戰題目】${questionObj.content}`;
+            window.questionShownAt = Date.now(); 
+            optionsArea.innerHTML = questionObj.options.map((opt, idx) => 
+                `<div class="opt-pill">(${idx + 1}) ${opt}</div>`
+            ).join("");
+            optionsArea.style.display = 'flex';
+        }, 2500);
+
+        window.lockedDiceVal = parseInt(questionObj.answer); 
+        window.uiState = "GESTURE";
+        currentGameState.status = "READY";
+        
+        initCameraAndStartVision(); // 開啟視訊
+        
+        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+        const screenPos = new THREE.Vector3().copy(camera.position).addScaledVector(forward, 2.8); 
+        virtualScreen.position.copy(screenPos);
+        virtualScreen.position.y -= 0.48;
+        virtualScreen.quaternion.copy(camera.quaternion);
+        virtualScreen.scale.set(1.0, 1.0, 1.0);
+        virtualScreen.visible = true;
+
+        showAdventureCharacter();
+    }
 }
 
 // 🏆 修正版：徹底解決內容亂碼與多重執行問題
@@ -6786,6 +6966,7 @@ function resetToGodViewState() {
     document.getElementById('adventure-decision-ui').style.display = 'none';
     document.getElementById('back-to-god-btn').style.display = 'none';
     document.getElementById('god-view-status-ui').style.display = 'none';
+	document.getElementById('advanced-task-ui').style.display = 'none'; // 新增這行
 	
 	// 清除全域的 3D 動畫
     if (window.spec3DAnimId) {
@@ -7219,6 +7400,19 @@ function updateSpectatorUI(data) {
         }, 2500);
 		
 		renderPlayerModelInActiveVisionFrame(data.user);
+    }
+	else if (data.phase === 'QUIZ_CODE') {
+        taskUI.style.display = 'block';
+        decisionUI.style.display = 'none';
+        
+        const questionText = document.getElementById('adv-question-text');
+        const optionsArea = document.getElementById('adv-options');
+
+        questionText.innerText = `【進階觀戰】題目：${data.payload?.question?.content || "回答問題中"}`;
+        optionsArea.innerHTML = `<div class="opt-pill" style="width: 100%; background: #1e293b; color: #ffde59; border-color: #ffde59;">🧑‍💻 玩家正在手寫程式碼解題中...</div>`;
+        optionsArea.style.display = 'flex';
+        
+        renderPlayerModelInActiveVisionFrame(data.user);
     }
     else if (data.phase === 'DECISION') {
         taskUI.style.display = 'none';
