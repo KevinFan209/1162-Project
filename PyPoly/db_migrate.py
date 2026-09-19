@@ -37,6 +37,13 @@ MIGRATIONS = [
     ("questions", "reference_solution", "TEXT NULL"),
     ("questions", "time_limit_sec",     "INT NULL"),
     ("questions", "max_attempts",       "INT NULL"),
+
+    # 棋盤真實地理化：記錄每個地點的座標與海拔，之後用來決定
+    # 棋盤格的相對位置與高度（目前 BOARD_LAYOUT 是寫死的固定形狀）。
+    # 資料由使用者之後自行查找並匯入，這裡只先建欄位。
+    ("scenarios", "latitude",     "DECIMAL(9,6) NULL"),
+    ("scenarios", "longitude",    "DECIMAL(9,6) NULL"),
+    ("scenarios", "elevation_m",  "INT NULL"),
 ]
 
 # 除了「加欄位」之外還要做的事：改型別與回填既有資料。
