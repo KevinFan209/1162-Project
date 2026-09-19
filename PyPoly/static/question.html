@@ -28,7 +28,7 @@
         header {
             background: linear-gradient(to bottom, #ffffff 0%, #fcfcfc 100%);
             padding: 0 40px; display: flex; justify-content: space-between; align-items: center;
-            height: 85px; z-index: 100; border-bottom: 1.5px solid var(--border-light); 
+            height: 85px; z-index: 100; border-bottom: 1.5px solid var(--border-light);
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
         }
         .header-left h1 { font-size: 2.5rem; font-weight: 900; margin-bottom: 10px; color: var(--text-dark); }
@@ -45,8 +45,8 @@
             display: flex; flex-direction: column; gap: 12px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #f1f2f6;
         }
-        .nav-link { 
-            width: 100%; padding: 16px; border: none; border-radius: 15px; 
+        .nav-link {
+            width: 100%; padding: 16px; border: none; border-radius: 15px;
             font-weight: 900; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 12px;
             background: #f8fafc; color: var(--text-gray); transition: 0.2s; text-decoration: none;
         }
@@ -55,19 +55,20 @@
 
         /* Main Board */
         .admin-board { flex: 1; display: flex; flex-direction: column; gap: 20px; overflow: hidden; }
-        
-        .board-header { 
-            background: white; padding: 20px 30px; border-radius: 25px; 
-            display: flex; justify-content: space-between; align-items: center; 
-            box-shadow: 0 4px 20px rgba(0,0,0,0.03); border: 1px solid #f1f2f6; 
+
+        .board-header {
+            background: white; padding: 20px 30px; border-radius: 25px;
+            display: flex; justify-content: space-between; align-items: center; gap: 15px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.03); border: 1px solid #f1f2f6;
         }
-        .filter-group { display: flex; gap: 10px; }
+        .filter-group { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
         .select-filter { padding: 10px 15px; border-radius: 10px; border: 1.5px solid var(--border-light); font-weight: 800; background: #f8fafc; }
-        .btn-add { padding: 12px 25px; background: var(--success-green); color: white; border: none; border-radius: 12px; font-weight: 900; cursor: pointer; box-shadow: 0 6px 0 var(--success-green-shadow); }
+        .search-input { padding: 10px 15px; border-radius: 10px; border: 1.5px solid var(--border-light); font-weight: 700; background: #f8fafc; width: 180px; }
+        .btn-add { padding: 12px 25px; background: var(--success-green); color: white; border: none; border-radius: 12px; font-weight: 900; cursor: pointer; box-shadow: 0 6px 0 var(--success-green-shadow); white-space: nowrap; }
         .btn-add:active { transform: translateY(4px); box-shadow: none; }
 
-        .question-list { 
-            background: white; flex: 1; border-radius: 40px; padding: 30px; 
+        .question-list {
+            background: white; flex: 1; border-radius: 40px; padding: 30px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #f1f2f6;
             overflow-y: auto;
         }
@@ -80,20 +81,60 @@
         }
         .q-item:hover { transform: translateY(-3px); box-shadow: 0 5px 15px rgba(0,0,0,0.05); border-color: var(--primary-blue); }
 
-        .q-content { flex: 1; }
-        .q-tag-row { display: flex; gap: 8px; margin-bottom: 12px; }
+        .q-content { flex: 1; min-width: 0; }
+        .q-tag-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
         .q-tag { padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 900; text-transform: uppercase; }
         .tag-category { background: #eef2ff; color: #4338ca; }
         .tag-easy { background: #ebfffa; color: var(--difficulty-easy); }
+        .tag-normal { background: #fffbeb; color: #b45309; }
         .tag-hard { background: #fff5f5; color: var(--difficulty-hard); }
+        /* 題型標籤：三種作答方式一眼看得出來 */
+        .tag-choice { background: #e0f2fe; color: #0369a1; }
+        .tag-gesture { background: #fdf2f8; color: #be185d; }
+        .tag-code { background: #1e293b; color: #7dd3fc; }
+        .tag-id { background: #f1f5f9; color: var(--text-gray); }
 
-        .q-text { font-weight: 900; font-size: 1.1rem; color: var(--text-dark); line-height: 1.4; margin-bottom: 10px; }
-        .q-code { background: #1e293b; color: #f8fafc; padding: 12px; border-radius: 10px; font-family: 'Consolas', monospace; font-size: 0.9rem; margin-bottom: 10px; }
+        .q-text { font-weight: 900; font-size: 1.1rem; color: var(--text-dark); line-height: 1.4; margin-bottom: 10px; white-space: pre-wrap; }
+        .q-code { background: #1e293b; color: #f8fafc; padding: 12px; border-radius: 10px; font-family: 'Consolas', monospace; font-size: 0.9rem; margin-bottom: 10px; white-space: pre-wrap; overflow-x: auto; }
+        .q-meta { color: var(--text-gray); font-weight: 700; font-size: 0.9rem; }
 
         .action-btns { display: flex; flex-direction: column; gap: 8px; margin-left: 20px; }
         .btn-q { padding: 10px 20px; border: none; border-radius: 10px; cursor: pointer; font-weight: 800; font-size: 0.85rem; width: 100px; }
         .btn-edit { background: #e2e8f0; color: var(--text-dark); }
         .btn-del { background: #fff5f5; color: var(--danger-red); }
+
+        .list-state { text-align: center; padding: 60px 20px; color: var(--text-gray); font-weight: 800; }
+        .list-state.error { color: var(--danger-red); }
+
+        /* 🏆 新增／編輯視窗 */
+        .modal-mask {
+            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.55);
+            display: none; justify-content: center; align-items: center; z-index: 500; padding: 20px;
+        }
+        .modal-mask.open { display: flex; }
+        .modal-card {
+            background: white; border-radius: 30px; padding: 30px 35px;
+            width: 100%; max-width: 720px; max-height: 88vh; overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+        }
+        .modal-card h2 { font-weight: 900; font-size: 1.6rem; margin-bottom: 20px; }
+        .form-row { display: flex; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+        .field { flex: 1; min-width: 150px; display: flex; flex-direction: column; gap: 6px; }
+        .field label { font-weight: 900; font-size: 0.85rem; color: var(--text-gray); }
+        .field input, .field select, .field textarea {
+            padding: 11px 14px; border-radius: 12px; border: 1.5px solid var(--border-light);
+            font-weight: 700; background: #f8fafc; font-family: inherit; font-size: 0.95rem;
+        }
+        .field textarea { resize: vertical; min-height: 70px; }
+        .field textarea.mono { font-family: 'Consolas', monospace; background: #0f172a; color: #7dd3fc; min-height: 110px; }
+        .field.invalid input, .field.invalid select, .field.invalid textarea { border-color: var(--danger-red); background: #fff5f5; }
+        .field .err { color: var(--danger-red); font-weight: 800; font-size: 0.78rem; min-height: 1em; }
+        .hint { color: var(--text-gray); font-weight: 700; font-size: 0.8rem; }
+        .modal-err { color: var(--danger-red); font-weight: 800; margin-bottom: 12px; min-height: 1.2em; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; }
+        .btn-cancel { padding: 12px 25px; background: #e2e8f0; color: var(--text-dark); border: none; border-radius: 12px; font-weight: 900; cursor: pointer; }
+        .answer-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+        .answer-row label { font-weight: 800; display: flex; align-items: center; gap: 5px; }
     </style>
 </head>
 <body>
@@ -119,65 +160,554 @@
         <main class="admin-board">
             <div class="board-header">
                 <div class="filter-group">
-                    <select class="select-filter"><option>所有語法分類</option><option>Variables</option><option>Loops</option></select>
-                    <select class="select-filter"><option>所有難度</option><option>Easy</option><option>Hard</option></select>
+                    <select class="select-filter" id="filterQtype">
+                        <option value="">所有題型</option>
+                        <option value="choice">四選一</option>
+                        <option value="gesture">手勢比數字</option>
+                        <option value="code">手打程式碼</option>
+                    </select>
+                    <select class="select-filter" id="filterTopic"><option value="">所有語法分類</option></select>
+                    <select class="select-filter" id="filterDifficulty">
+                        <option value="">所有難度</option>
+                        <option value="easy">Easy</option>
+                        <option value="normal">Normal</option>
+                        <option value="hard">Hard</option>
+                    </select>
+                    <input class="search-input" id="filterKeyword" placeholder="搜尋題目內容…">
                 </div>
-                <button class="btn-add">+ 新增考題</button>
+                <button class="btn-add" id="btnAdd">+ 新增考題</button>
             </div>
 
-            <div class="question-list">
-                <div class="q-item">
-                    <div class="q-content">
-                        <div class="q-tag-row">
-                            <span class="q-tag tag-category">Variables</span>
-                            <span class="q-tag tag-easy">Easy</span>
-                        </div>
-                        <p class="q-text">下列哪一個變數名稱在 Python 中是合法的？</p>
-                        <p style="color: var(--text-gray); font-weight: 700; font-size: 0.9rem;">(A) 2_variable (B) _my_var (C) class (D) my-var</p>
-                    </div>
-                    <div class="action-btns">
-                        <button class="btn-q btn-edit">編輯</button>
-                        <button class="btn-q btn-del">刪除</button>
-                    </div>
-                </div>
-
-                <div class="q-item">
-                    <div class="q-content">
-                        <div class="q-tag-row">
-                            <span class="q-tag tag-category">Loops</span>
-                            <span class="q-tag tag-hard">Hard</span>
-                        </div>
-                        <p class="q-text">請預測下列程式碼的輸出結果為何？</p>
-                        <div class="q-code">
-                            for i in range(1, 4):<br>
-                            &nbsp;&nbsp;print(i * 2, end=" ")
-                        </div>
-                        <p style="color: var(--text-gray); font-weight: 700; font-size: 0.9rem;">(A) 1 2 3 (B) 2 4 6 (C) 2 4 (D) 0 2 4</p>
-                    </div>
-                    <div class="action-btns">
-                        <button class="btn-q btn-edit">編輯</button>
-                        <button class="btn-q btn-del">刪除</button>
-                    </div>
-                </div>
-
-                <div class="q-item">
-                    <div class="q-content">
-                        <div class="q-tag-row">
-                            <span class="q-tag tag-category">Conditions</span>
-                            <span class="q-tag tag-easy">Easy</span>
-                        </div>
-                        <p class="q-text">Python 中使用哪一個關鍵字來處理多重條件判斷？</p>
-                        <p style="color: var(--text-gray); font-weight: 700; font-size: 0.9rem;">(A) else if (B) elseif (C) elif (D) switch</p>
-                    </div>
-                    <div class="action-btns">
-                        <button class="btn-q btn-edit">編輯</button>
-                        <button class="btn-q btn-del">刪除</button>
-                    </div>
-                </div>
+            <div class="question-list" id="questionList">
+                <div class="list-state">載入中…</div>
             </div>
         </main>
     </div>
 </div>
+
+<!-- 新增／編輯 -->
+<div class="modal-mask" id="modalMask">
+    <div class="modal-card">
+        <h2 id="modalTitle">新增考題</h2>
+        <div class="modal-err" id="modalErr"></div>
+
+        <div class="form-row">
+            <div class="field" data-f="qtype">
+                <label>題型</label>
+                <select id="fQtype">
+                    <option value="choice">四選一（基礎模式）</option>
+                    <option value="gesture">手勢比數字（進階模式）</option>
+                    <option value="code">手打程式碼（進階模式）</option>
+                </select>
+                <div class="err"></div>
+            </div>
+            <div class="field" data-f="category">
+                <label>遊戲模式</label>
+                <select id="fCategory">
+                    <option value="basic">基礎 basic</option>
+                    <option value="advanced">進階 advanced</option>
+                </select>
+                <div class="err"></div>
+            </div>
+            <div class="field" data-f="difficulty">
+                <label>難度</label>
+                <select id="fDifficulty">
+                    <option value="easy">easy</option>
+                    <option value="normal">normal</option>
+                    <option value="hard">hard</option>
+                </select>
+                <div class="err"></div>
+            </div>
+            <div class="field" data-f="topic">
+                <label>語法主題</label>
+                <input id="fTopic" list="topicOptions" placeholder="例：迴圈">
+                <datalist id="topicOptions"></datalist>
+                <div class="err"></div>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="field" data-f="content">
+                <label>題目內容</label>
+                <textarea id="fContent" placeholder="題目敘述"></textarea>
+                <div class="err"></div>
+            </div>
+        </div>
+
+        <!-- 四選一 -->
+        <div id="blockChoice">
+            <div class="form-row">
+                <div class="field" data-f="opt1"><label>選項 1</label><input id="fOpt1"><div class="err"></div></div>
+                <div class="field" data-f="opt2"><label>選項 2</label><input id="fOpt2"><div class="err"></div></div>
+            </div>
+            <div class="form-row">
+                <div class="field" data-f="opt3"><label>選項 3</label><input id="fOpt3"><div class="err"></div></div>
+                <div class="field" data-f="opt4"><label>選項 4</label><input id="fOpt4"><div class="err"></div></div>
+            </div>
+            <div class="form-row">
+                <div class="field" data-f="answerChoice">
+                    <label>正確答案</label>
+                    <div class="answer-row" id="answerChoiceRow"></div>
+                    <div class="err"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 手勢比數字 -->
+        <div id="blockGesture">
+            <div class="form-row">
+                <div class="field" data-f="answerGesture">
+                    <label>答案（玩家要比出的數字）</label>
+                    <input id="fAnswerGesture" type="number" min="1" max="9">
+                    <div class="hint">手勢辨識只認得 1~9，超出範圍的題目玩家永遠答不對。</div>
+                    <div class="err"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 手打程式碼 -->
+        <div id="blockCode">
+            <div class="form-row">
+                <div class="field" data-f="reference_solution">
+                    <label>參考解答（AI 判分依據，不會給玩家看到）</label>
+                    <textarea id="fSolution" class="mono" spellcheck="false"></textarea>
+                    <div class="err"></div>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="field" data-f="expected_output">
+                    <label>預期輸出（AI 判分依據，不會給玩家看到）</label>
+                    <textarea id="fExpected" class="mono" spellcheck="false"></textarea>
+                    <div class="hint">程式執行後應該印出什麼。少了它，AI 等於要自己猜標準答案。</div>
+                    <div class="err"></div>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="field" data-f="starter_code">
+                    <label>預填程式碼（選填，會出現在玩家的編輯器裡）</label>
+                    <textarea id="fStarter" class="mono" spellcheck="false"></textarea>
+                    <div class="err"></div>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="field" data-f="time_limit_sec">
+                    <label>作答時限（秒）</label>
+                    <input id="fTimeLimit" type="number" min="1" value="300">
+                    <div class="err"></div>
+                </div>
+                <div class="field" data-f="max_attempts">
+                    <label>可驗證次數</label>
+                    <input id="fMaxAttempts" type="number" min="1" value="3">
+                    <div class="err"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn-cancel" id="btnCancel">取消</button>
+            <button class="btn-add" id="btnSave">儲存</button>
+        </div>
+    </div>
+</div>
+
+<script src="js/ngrok-fetch.js"></script>
+<script>
+    const API_URL = location.origin;
+    let syncTimer = null;
+    let editingId = null;          // null 代表新增
+    let allQuestions = [];
+
+    const QTYPE_LABEL = { choice: '四選一', gesture: '手勢比數字', code: '手打程式碼' };
+
+    // ==========================================================
+    // 1. 權限守衛（與 admin.html 相同的流程）
+    //    這一頁原本完全沒有驗證，任何人知道網址就看得到整份題庫與答案。
+    // ==========================================================
+    window.addEventListener('storage', (e) => {
+        if (e.key === 'token' && !e.newValue) window.location.href = 'login.html';
+    });
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        const token = localStorage.getItem('token');
+        const role = localStorage.getItem('role');
+        const username = localStorage.getItem('username');
+
+        if (!token || role !== 'admin' || !username) {
+            window.location.href = 'login.html';
+            return;
+        }
+
+        try {
+            const verifyRes = await fetch(`${API_URL}/auth/verify_and_refresh?username=${encodeURIComponent(username)}`, {
+                method: "POST",
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const verifyData = await verifyRes.json();
+            if (verifyData.status !== "success") {
+                localStorage.clear();
+                window.location.href = "login.html";
+                return;
+            }
+
+            await fetch(`${API_URL}/auth/heartbeat?username=${encodeURIComponent(username)}`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            startAdminLoop(username, token);
+            bindEvents();
+            await loadMeta();
+            await fetchQuestions();
+        } catch (err) {
+            console.error("初始化失敗:", err);
+            window.location.href = 'login.html';
+        }
+    });
+
+    function startAdminLoop(username, token) {
+        if (syncTimer) clearInterval(syncTimer);
+        // 只做心跳與身分校對，不自動刷新列表——正在打字編輯時被洗掉會很惱人
+        syncTimer = setInterval(async () => {
+            try {
+                fetch(`${API_URL}/auth/heartbeat?username=${encodeURIComponent(username)}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const res = await fetch(`${API_URL}/auth/me?username=${encodeURIComponent(username)}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.is_online === 0 || data.role === 'banned') {
+                        clearInterval(syncTimer);
+                        localStorage.clear();
+                        window.location.href = 'login.html';
+                    }
+                }
+            } catch (err) {
+                console.error("監控連線異常");
+            }
+        }, 5000);
+    }
+
+    function authHeaders(json) {
+        const h = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
+        if (json) h['Content-Type'] = 'application/json';
+        return h;
+    }
+
+    // 後端錯誤一律轉成看得懂的訊息。
+    // ⚠️ 走 ngrok 時 res.ok 可能是 true 但內容是警告頁，res.json() 會直接拋，
+    //    所以這裡一定要把失敗顯示在畫面上，不能只 console.error。
+    async function readError(res) {
+        try {
+            const d = await res.json();
+            if (d && d.detail) return typeof d.detail === 'string' ? d.detail : JSON.stringify(d.detail);
+        } catch (e) { /* 不是 JSON，往下走 */ }
+        return `伺服器回應 ${res.status}`;
+    }
+
+    // ==========================================================
+    // 2. 下拉選單資料
+    // ==========================================================
+    async function loadMeta() {
+        try {
+            const res = await fetch(`${API_URL}/admin/questions/meta`, { headers: authHeaders() });
+            if (!res.ok) return;
+            const meta = await res.json();
+            const topicSel = document.getElementById('filterTopic');
+            const datalist = document.getElementById('topicOptions');
+            topicSel.innerHTML = '<option value="">所有語法分類</option>';
+            datalist.innerHTML = '';
+            (meta.topics || []).forEach(t => {
+                topicSel.insertAdjacentHTML('beforeend', `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`);
+                datalist.insertAdjacentHTML('beforeend', `<option value="${escapeHtml(t)}">`);
+            });
+        } catch (err) {
+            console.error('載入分類失敗', err);
+        }
+    }
+
+    // ==========================================================
+    // 3. 題目列表
+    // ==========================================================
+    async function fetchQuestions() {
+        const list = document.getElementById('questionList');
+        const params = new URLSearchParams();
+        const qtype = document.getElementById('filterQtype').value;
+        const topic = document.getElementById('filterTopic').value;
+        const diff = document.getElementById('filterDifficulty').value;
+        const kw = document.getElementById('filterKeyword').value.trim();
+        if (qtype) params.set('qtype', qtype);
+        if (topic) params.set('topic', topic);
+        if (diff) params.set('difficulty', diff);
+        if (kw) params.set('q', kw);
+
+        try {
+            const res = await fetch(`${API_URL}/admin/questions?${params}`, { headers: authHeaders() });
+            if (!res.ok) {
+                list.innerHTML = `<div class="list-state error">載入失敗：${escapeHtml(await readError(res))}</div>`;
+                return;
+            }
+            const data = await res.json();
+            allQuestions = data.items || [];
+            renderQuestions();
+        } catch (err) {
+            list.innerHTML = `<div class="list-state error">載入失敗：${escapeHtml(err.message || String(err))}</div>`;
+        }
+    }
+
+    function renderQuestions() {
+        const list = document.getElementById('questionList');
+        if (!allQuestions.length) {
+            list.innerHTML = '<div class="list-state">沒有符合條件的題目。</div>';
+            return;
+        }
+        list.innerHTML = allQuestions.map(q => {
+            const qtype = q.qtype || 'choice';
+            let body = '';
+            if (qtype === 'choice') {
+                const opts = [q.opt1, q.opt2, q.opt3, q.opt4];
+                body = `<p class="q-meta">${opts.map((o, i) =>
+                    `(${'ABCD'[i]}) ${escapeHtml(o || '')}`).join(' ')}
+                    　<strong>正解：${'ABCD'[(q.answer || 1) - 1] || '?'}</strong></p>`;
+            } else if (qtype === 'gesture') {
+                body = `<p class="q-meta">答案（要比出的手勢）：<strong>${q.answer ?? '?'}</strong></p>`;
+            } else {
+                body = `<div class="q-code">${escapeHtml(q.reference_solution || '（未填參考解答）')}</div>
+                        <p class="q-meta">預期輸出：<strong>${escapeHtml(q.expected_output || '（未填）')}</strong>
+                        　時限 ${q.time_limit_sec ?? '—'} 秒　可驗證 ${q.max_attempts ?? '—'} 次</p>`;
+            }
+            return `
+                <div class="q-item">
+                    <div class="q-content">
+                        <div class="q-tag-row">
+                            <span class="q-tag tag-id">#${q.id}</span>
+                            <span class="q-tag tag-${qtype}">${QTYPE_LABEL[qtype] || qtype}</span>
+                            <span class="q-tag tag-category">${escapeHtml(q.topic || '')}</span>
+                            <span class="q-tag tag-${q.difficulty}">${escapeHtml(q.difficulty || '')}</span>
+                        </div>
+                        <p class="q-text">${escapeHtml(q.content || '')}</p>
+                        ${body}
+                    </div>
+                    <div class="action-btns">
+                        <button class="btn-q btn-edit" data-edit="${q.id}">編輯</button>
+                        <button class="btn-q btn-del" data-del="${q.id}">刪除</button>
+                    </div>
+                </div>`;
+        }).join('');
+    }
+
+    function escapeHtml(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c =>
+            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    // ==========================================================
+    // 4. 新增／編輯
+    // ==========================================================
+    function bindEvents() {
+        ['filterQtype', 'filterTopic', 'filterDifficulty'].forEach(id =>
+            document.getElementById(id).addEventListener('change', fetchQuestions));
+
+        let kwTimer = null;
+        document.getElementById('filterKeyword').addEventListener('input', () => {
+            clearTimeout(kwTimer);
+            kwTimer = setTimeout(fetchQuestions, 300);
+        });
+
+        document.getElementById('btnAdd').addEventListener('click', () => openModal(null));
+        document.getElementById('btnCancel').addEventListener('click', closeModal);
+        document.getElementById('btnSave').addEventListener('click', saveQuestion);
+        document.getElementById('fQtype').addEventListener('change', onQtypeChange);
+
+        document.getElementById('questionList').addEventListener('click', (e) => {
+            const edit = e.target.closest('[data-edit]');
+            if (edit) return openModal(Number(edit.dataset.edit));
+            const del = e.target.closest('[data-del]');
+            if (del) return deleteQuestion(Number(del.dataset.del));
+        });
+
+        document.getElementById('modalMask').addEventListener('click', (e) => {
+            if (e.target.id === 'modalMask') closeModal();
+        });
+
+        // 四個正解選項
+        document.getElementById('answerChoiceRow').innerHTML = [1, 2, 3, 4].map(n =>
+            `<label><input type="radio" name="answerChoice" value="${n}"> 選項 ${n}</label>`).join('');
+    }
+
+    // 題型決定哪些欄位有意義，也決定遊戲模式——三種題型的欄位需求互斥，
+    // 全部同時顯示只會讓出題者填到不該填的格子。
+    function onQtypeChange() {
+        const t = document.getElementById('fQtype').value;
+        document.getElementById('blockChoice').style.display = t === 'choice' ? '' : 'none';
+        document.getElementById('blockGesture').style.display = t === 'gesture' ? '' : 'none';
+        document.getElementById('blockCode').style.display = t === 'code' ? '' : 'none';
+        document.getElementById('fCategory').value = t === 'choice' ? 'basic' : 'advanced';
+    }
+
+    function setVal(id, v) { document.getElementById(id).value = v ?? ''; }
+
+    function openModal(id) {
+        editingId = id;
+        clearFieldErrors();
+        document.getElementById('modalErr').textContent = '';
+        document.getElementById('modalTitle').textContent = id ? `編輯考題 #${id}` : '新增考題';
+
+        const q = id ? allQuestions.find(x => x.id === id) : null;
+        document.getElementById('fQtype').value = q ? (q.qtype || 'choice') : 'choice';
+        onQtypeChange();
+        setVal('fCategory', q ? q.category : 'basic');
+        setVal('fDifficulty', q ? q.difficulty : 'easy');
+        setVal('fTopic', q ? q.topic : '');
+        setVal('fContent', q ? q.content : '');
+        setVal('fOpt1', q ? q.opt1 : ''); setVal('fOpt2', q ? q.opt2 : '');
+        setVal('fOpt3', q ? q.opt3 : ''); setVal('fOpt4', q ? q.opt4 : '');
+        setVal('fAnswerGesture', q && q.qtype === 'gesture' ? q.answer : '');
+        setVal('fSolution', q ? q.reference_solution : '');
+        setVal('fExpected', q ? q.expected_output : '');
+        setVal('fStarter', q ? q.starter_code : '');
+        setVal('fTimeLimit', q && q.time_limit_sec ? q.time_limit_sec : 300);
+        setVal('fMaxAttempts', q && q.max_attempts ? q.max_attempts : 3);
+
+        document.querySelectorAll('input[name="answerChoice"]').forEach(r => {
+            r.checked = !!(q && q.qtype === 'choice' && String(q.answer) === r.value);
+        });
+
+        if (q) document.getElementById('fCategory').value = q.category;
+        document.getElementById('modalMask').classList.add('open');
+    }
+
+    function closeModal() {
+        document.getElementById('modalMask').classList.remove('open');
+        editingId = null;
+    }
+
+    function clearFieldErrors() {
+        document.querySelectorAll('.field').forEach(f => {
+            f.classList.remove('invalid');
+            const e = f.querySelector('.err');
+            if (e) e.textContent = '';
+        });
+    }
+
+    function markError(name, msg) {
+        const f = document.querySelector(`.field[data-f="${name}"]`);
+        if (!f) return false;
+        f.classList.add('invalid');
+        const e = f.querySelector('.err');
+        if (e) e.textContent = msg;
+        return true;
+    }
+
+    function collectPayload() {
+        const qtype = document.getElementById('fQtype').value;
+        const p = {
+            qtype,
+            category: document.getElementById('fCategory').value,
+            difficulty: document.getElementById('fDifficulty').value,
+            topic: document.getElementById('fTopic').value,
+            content: document.getElementById('fContent').value,
+        };
+        if (qtype === 'choice') {
+            p.opt1 = document.getElementById('fOpt1').value;
+            p.opt2 = document.getElementById('fOpt2').value;
+            p.opt3 = document.getElementById('fOpt3').value;
+            p.opt4 = document.getElementById('fOpt4').value;
+            const picked = document.querySelector('input[name="answerChoice"]:checked');
+            p.answer = picked ? Number(picked.value) : null;
+        } else if (qtype === 'gesture') {
+            const v = document.getElementById('fAnswerGesture').value;
+            p.answer = v === '' ? null : Number(v);
+        } else {
+            p.reference_solution = document.getElementById('fSolution').value;
+            p.expected_output = document.getElementById('fExpected').value;
+            p.starter_code = document.getElementById('fStarter').value;
+            p.time_limit_sec = Number(document.getElementById('fTimeLimit').value) || 300;
+            p.max_attempts = Number(document.getElementById('fMaxAttempts').value) || 3;
+        }
+        return p;
+    }
+
+    // 前端先擋一次，錯誤直接標在欄位上；後端還是會再驗一次（那才是真正的防線）
+    function validateLocal(p) {
+        clearFieldErrors();
+        let ok = true;
+        if (!p.topic.trim()) { markError('topic', '必填'); ok = false; }
+        if (!p.content.trim()) { markError('content', '必填'); ok = false; }
+        if (p.qtype === 'choice') {
+            [1, 2, 3, 4].forEach(n => {
+                if (!String(p['opt' + n] || '').trim()) { markError('opt' + n, '必填'); ok = false; }
+            });
+            if (!p.answer) { markError('answerChoice', '請選出正解'); ok = false; }
+        } else if (p.qtype === 'gesture') {
+            if (p.answer === null || p.answer < 1 || p.answer > 9) {
+                markError('answerGesture', '必須是 1~9'); ok = false;
+            }
+        } else {
+            if (!String(p.reference_solution || '').trim()) { markError('reference_solution', '必填，AI 判分要用'); ok = false; }
+            if (!String(p.expected_output || '').trim()) { markError('expected_output', '必填，AI 判分要用'); ok = false; }
+            if (p.time_limit_sec <= 0) { markError('time_limit_sec', '必須大於 0'); ok = false; }
+            if (p.max_attempts <= 0) { markError('max_attempts', '必須大於 0'); ok = false; }
+        }
+        return ok;
+    }
+
+    async function saveQuestion() {
+        const p = collectPayload();
+        const errBox = document.getElementById('modalErr');
+        errBox.textContent = '';
+        if (!validateLocal(p)) {
+            errBox.textContent = '有欄位還沒填好，請看下方紅字。';
+            return;
+        }
+
+        const btn = document.getElementById('btnSave');
+        btn.disabled = true;
+        try {
+            const url = editingId
+                ? `${API_URL}/admin/questions/${editingId}`
+                : `${API_URL}/admin/questions`;
+            const res = await fetch(url, {
+                method: editingId ? 'PUT' : 'POST',
+                headers: authHeaders(true),
+                body: JSON.stringify(p)
+            });
+            if (!res.ok) {
+                errBox.textContent = await readError(res);
+                return;
+            }
+            closeModal();
+            await loadMeta();
+            await fetchQuestions();
+        } catch (err) {
+            errBox.textContent = err.message || String(err);
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async function deleteQuestion(id) {
+        const q = allQuestions.find(x => x.id === id);
+        const preview = q ? (q.content || '').slice(0, 60) : '';
+        if (!confirm(`確定要刪除這一題嗎？此動作無法復原。\n\n#${id}　${preview}`)) return;
+
+        try {
+            const res = await fetch(`${API_URL}/admin/questions/${id}`, {
+                method: 'DELETE',
+                headers: authHeaders()
+            });
+            if (!res.ok) {
+                alert('刪除失敗：' + await readError(res));
+                return;
+            }
+            await fetchQuestions();
+        } catch (err) {
+            alert('刪除失敗：' + (err.message || String(err)));
+        }
+    }
+</script>
 
 </body>
 </html>
