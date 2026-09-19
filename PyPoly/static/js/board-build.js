@@ -28,9 +28,17 @@ function buildBoard(scene, gameMap) {
     const tiles = [];
     const positions = [];
 
-    // 座標與高度由 board-layout.js 提供。
-    // 抽成資料是為了讓版面看得懂也改得動，不再埋在四個 for 迴圈裡。
-    const layout = BOARD_LAYOUT.tiles;
+    // 🏆 座標與高度優先用 gameMap 帶來的真實地理座標（main.py 的
+    //    /game/map_config 依每局實際抽到的地點座標/海拔算出來，每格
+    //    都會有 x/y/z）。gameMap 沒有座標資訊時（例如預覽頁傳的假資料）
+    //    才退回 board-layout.js 那份寫死的固定形狀，不會讓現有呼叫點
+    //    忽然壞掉。
+    const hasRealPositions = Array.isArray(gameMap) && gameMap.length === 26 &&
+        gameMap.every((t) => t && typeof t.x === "number" &&
+                             typeof t.y === "number" && typeof t.z === "number");
+    const layout = hasRealPositions
+        ? gameMap.map((t) => ({ x: t.x, y: t.y, z: t.z, size: 1 }))
+        : BOARD_LAYOUT.tiles;
     const tileGeo = new THREE.BoxGeometry(BOARD_TILE_SIZE, BOARD_TILE_THICK, BOARD_TILE_SIZE);
 
     layout.forEach((td) => {
