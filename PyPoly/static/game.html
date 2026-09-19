@@ -821,9 +821,11 @@ async function fetchMapConfig(mode, difficulty) {
     if (storedMap) {
         gameMap = JSON.parse(storedMap);
         window.mapBlocks = gameMap.blocks || gameMap;
-        // 地圖到齊後重套一次格子外觀：create3DBoard() 在 init3D() 執行時
-        // gameMap 可能還是空的，那時只會套到中性的鋪面貼圖。
-        if (typeof applyBoardAppearance === "function") applyBoardAppearance();
+        // 🏆 地圖到齊，要整個重蓋棋盤才會真的套用真實座標：
+        //    create3DBoard() 在 init3D() 執行時 gameMap 可能還是空的，
+        //    那時只用退回形狀蓋一次；單純呼叫 applyBoardAppearance()
+        //    只換貼圖，不會搬動格子位置，所以這裡要呼叫 create3DBoard()。
+        if (typeof create3DBoard === "function") create3DBoard();
         console.log("✅ 從本地緩存讀取已同步之地圖");
         return;
     }
@@ -836,10 +838,9 @@ async function fetchMapConfig(mode, difficulty) {
             `${API_URL}/game/map_config?mode=${mode}&difficulty=${difficulty}${testFlag}`);
         gameMap = await response.json();
         window.mapBlocks = gameMap.blocks || gameMap;
-        // 地圖到齊後重套一次格子外觀：create3DBoard() 在 init3D() 執行時
-        // gameMap 可能還是空的，那時只會套到中性的鋪面貼圖。
-        if (typeof applyBoardAppearance === "function") applyBoardAppearance();
-        
+        // 🏆 地圖到齊，要整個重蓋棋盤才會真的套用真實座標（理由同上）
+        if (typeof create3DBoard === "function") create3DBoard();
+
         localStorage.setItem(storedMapKey, JSON.stringify(gameMap));
         console.log("✅ 地圖初始化完成:", gameMap);
 
@@ -2192,8 +2193,11 @@ socket.on('dice_event_sync', (data) => {
             console.log("🗺️ 接收到房主同步的地圖！");
             gameMap = data.point;
             window.mapBlocks = gameMap.blocks || gameMap;
-            // 同上：房主同步的地圖到了，重新套用格子外觀
-            if (typeof applyBoardAppearance === "function") applyBoardAppearance();
+            // 🏆 房主同步的地圖到了，要整個重蓋棋盤才會套用真實座標（理由同上）。
+            //    這也是「兩邊玩家棋盤長相不同步」的修正點：非房主在這之前
+            //    可能已經用自己獨立抓到的地圖蓋過一次棋盤，收到房主這份
+            //    才是兩邊真正該顯示的同一份，一定要重蓋而不是只換貼圖。
+            if (typeof create3DBoard === "function") create3DBoard();
             const roomCode = JSON.parse(localStorage.getItem('pypoly_active_room'))?.code || localStorage.getItem('room_code');
             localStorage.setItem(`pypoly_synced_map_${roomCode}`, JSON.stringify(gameMap));
         }
@@ -2535,8 +2539,17 @@ window.onload = async function() {
 // 這裡只留轉接層，維持既有的全域變數與呼叫點不變。
 
 function create3DBoard() {
+    // 🏆 棋盤格的座標現在依 gameMap 的真實經緯度/海拔決定，而 gameMap
+    //    是非同步到齊的（init3D() 時可能還是空的，先用 board-layout.js
+    //    的退回形狀蓋一次；地圖資料到齊後要整個重蓋才會真的搬到新位置——
+    //    單純呼叫 applyBoardAppearance() 只會換貼圖，不會動 tile.position）。
+    //    所以這裡做成可以安全重複呼叫：先清掉舊的 26 格再重建，
+    //    不會疊出兩份棋盤。
+    if (allTileMeshes.length) {
+        allTileMeshes.forEach(t => scene.remove(t));
+        allTileMeshes.length = 0;
+    }
     const r = buildBoard(scene, gameMap);
-    allTileMeshes.length = 0;
     r.tiles.forEach(t => allTileMeshes.push(t));
     mapBlocks = r.positions;
 }
@@ -7512,6 +7525,30 @@ function showGameNotice(msg, duration = 3000) {
 // 將大富翁的 26 個 Index 對應到 9x6 的 CSS Grid (row / column)
 // 小地圖的渲染已抽至 static/js/minimap.js（預覽頁共用）
 // 這裡只留轉接層，把原本的全域變數接上去。
+
+// 🏆 補回：抽出共用模組那次（fd32f63）不小心把這三個函式刪掉了，
+//    只留下按鈕的 onclick="openMiniMap()"，導致按下去 console 噴
+//    ReferenceError（openMiniMap is not defined）。內容照抽模組前的
+//    版本原樣復原。
+function openMiniMap() {
+    if (!gameMap || gameMap.length === 0) {
+        showGameNotice("地圖尚未載入完成！", 2000);
+        return;
+    }
+    const overlay = document.getElementById('minimap-overlay');
+    overlay.style.display = 'flex';
+    renderMiniMapTiles(); // 每次打開都重新渲染最新狀態
+}
+
+function closeMiniMap() {
+    document.getElementById('minimap-overlay').style.display = 'none';
+    closeTileInfo();
+}
+
+function closeTileInfo() {
+    document.getElementById('minimap-info-modal').style.display = 'none';
+}
+
 function renderMiniMapTiles() {
     renderMiniMapTilesInto(
         document.getElementById('minimap-grid-content'),
