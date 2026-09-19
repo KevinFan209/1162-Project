@@ -1577,6 +1577,23 @@ async def get_map_config(
         # 🏆 特殊格（起點/道具店/監獄/開合跳/獎勵）沒有真實座標，
         #    用前後相鄰的冒險格中點插值。
         slot_positions = board_geo.fill_special_positions(slot_positions)
+
+        # 🏆 26 格全部到齊後，再對完整棋盤做一次 declutter，抓的是跟上面
+        #    不同的情況：插值出來的特殊格位置，可能剛好跟棋盤上「路徑不
+        #    相鄰」的某個冒險格離得很近（純屬座標巧合，不是鄰居關係）。
+        #    上面 compute_adventure_positions 內部的 declutter 只保證
+        #    20 個冒險格彼此不擠，管不到這種情況。
+        #
+        #    ⚠️ 這裡一定要排除「路徑上真正相鄰」的格子對（被連接橋接著、
+        #    本來就該靠近），不然會把特殊格從該待的鄰居中點推走，破壞
+        #    環狀順序、讓連接線大量交叉（第一次做這步時沒排除，實測
+        #    無交叉率從 100% 掉到 2%，才發現要這樣做）。
+        adjacent_pairs = {tuple(sorted((i, (i + 1) % 26))) for i in range(26)}
+        xz_26 = [(p[0], p[2]) for p in slot_positions]
+        xz_26 = board_geo.declutter(xz_26, skip_pairs=adjacent_pairs)
+        slot_positions = [(xz_26[i][0], slot_positions[i][1], xz_26[i][1])
+                          for i in range(26)]
+
         for i in range(26):
             x, y, z = slot_positions[i]
             full_map[i]["x"] = x

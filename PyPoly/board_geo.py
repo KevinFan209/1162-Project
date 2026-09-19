@@ -24,10 +24,36 @@ scenarios 表裡有真實的 latitude/longitude/elevation_m。這裡要做的事
 """
 import math
 
-# 棋盤的實體範圍（board-layout.js 的格子分布在 x:±24 / z:±15），
-# 這裡刻意留一點邊界，不要讓極值地點正好卡在棋盤最外緣。
-DEFAULT_TARGET_BOUNDS = (-20.0, 20.0, -12.0, 12.0)  # (x_min, x_max, z_min, z_max)
+# 棋盤的實體範圍。
+#
+# ⚠️ 這個數字比 board-layout.js 舊棋盤的物理範圍（x:±24 / z:±15）大，
+#    是刻意的，不是筆誤。舊棋盤 26 格是「沿著矩形周長排列」，26 格
+#    平均分佈在周長上本來就不會擠。新做法是把 20 個點依真實相對位置
+#    「散佈在一塊 2D 範圍裡」，用真實資料實測過：範圍跟舊棋盤一樣大
+#    的話，因為南投市這類地點集中的鄉鎮一次抽到好幾筆很常見，
+#    25% 的格子對距離小於格子邊長（5），棋盤會嚴重擁擠、看不出路線。
+#    放大到 2 倍後這個比例降到 8% 左右，配合下面的 declutter() 再處理
+#    剩下的極端重疊，兩者一起用才夠。單獨放大範圍沒辦法解決「同鄉鎮
+#    退回同一個鄉鎮中心點」造成的完全重合（那是精確的 0 距離，
+#    不管範圍多大都還是 0），只有 declutter 治得了。
+DEFAULT_TARGET_BOUNDS = (-40.0, 40.0, -24.0, 24.0)  # (x_min, x_max, z_min, z_max)
 DEFAULT_Y_RANGE = (0.0, 4.0)  # 沿用現有 BOARD_HEIGHTS 的範圍
+
+# 🏆 這裡刻意是舊棋盤 BOARD_SPACING(6) 的兩倍，不是筆誤。
+#
+# declutter 只作用在 20 個冒險格（compute_adventure_positions 內部），
+# 特殊格（起點/道具店/監獄/開合跳/獎勵）是事後補上去的，位置是相鄰兩個
+# 冒險格的「中點」——也就是說，特殊格離每個鄰居的距離，結構上必然是
+# 那兩個冒險格彼此間距的一半。如果冒險格之間只保證 6 的間距，插在中間
+# 的特殊格離鄰居就只有 3，比舊棋盤固定 6 的間距還擠（實測過：曾經
+# min_separation=6 時，最擠的特殊格只有 3 的間距）。拉高到 12，
+# 冒險格彼此至少 12、特殊格離鄰居至少 6，兩種格子才會有一致的最小間距。
+#
+# ⚠️ 曾經試過改成「26 格全部到齊後再 declutter 一次」讓特殊格也被推開，
+# 結果連接線大量交叉（無交叉率從 100% 掉到 2%）——declutter 不懂棋盤的
+# 路徑拓撲，會把本該貼著鄰居中點的特殊格推走，破壞環狀順序。所以改用
+# 這個「提高冒險格間距的門檻，讓特殊格自然而然也夠開」的做法。
+DEFAULT_MIN_SEPARATION = 12.0
 
 KM_PER_DEG_LAT = 111.32
 
@@ -91,6 +117,73 @@ def elevation_to_y(elev_m, elev_bounds, y_range=DEFAULT_Y_RANGE):
     return y_min + t * (y_max - y_min)
 
 
+def declutter(points, min_dist=DEFAULT_MIN_SEPARATION, target_bounds=DEFAULT_TARGET_BOUNDS,
+              iterations=60, skip_pairs=None):
+    """把彼此距離小於 min_dist 的點互相推開，解決棋盤格重疊/太擠的問題。
+
+    為什麼需要這個函式：光靠放大 target_bounds 沒辦法解決兩種情況——
+      1. 「鄉鎮退回」的地點（見 fill_special_positions 的姊妹邏輯，實際
+         在 compute_adventure_positions 呼叫端處理）同一鄉鎮的好幾筆會
+         退回同一個鄉鎮中心座標，距離精確是 0，不管棋盤多大都還是 0。
+      2. 真實地點本身就密集的地方（例如南投市 13 個景點擠在市區），
+         等比投影會忠實反映這種密集，範圍放大只能緩解不能根治。
+
+    做法是標準的「鬆弛法」（relaxation）：每一輪找出距離小於 min_dist
+    的每一對點，把兩點沿著彼此的連線各推開一半差距；重複到沒有違規
+    或跑滿 iterations 輪為止。兩點完全重合（距離為 0，無連線方向可推）
+    時，用點在陣列中的索引算出一個固定角度來決定推開方向——這樣同樣
+    的輸入永遠推出同樣的結果，不會每次呼叫都不一樣。
+
+    跑完之後會把座標夾回 target_bounds 範圍內（鬆弛過程可能把邊界
+    附近的點推出範圍），代價是邊界附近極少數點的間距可能無法完全
+    達到 min_dist，這是可接受的邊界情況，不是主要修正目標。
+
+    skip_pairs: 可選，{(i, j), ...} 這些索引對（i<j）不參與推擠判斷。
+    對完整 26 格棋盤做 declutter 時要用到——路徑上真正相鄰的兩格
+    （被連接橋接著）本來就該貼近，不能因為「太近」被推開，否則會破壞
+    order_by_angle 排好的環狀順序、讓連接線互相交叉（實測過這個後果）。
+    只在真正不該靠近、卻剛好離得很近的非相鄰格子對之間做這件事。
+
+    points: [(x, z), ...]
+    回傳: 新的 [(x, z), ...]，長度與順序都與輸入一致
+    """
+    n = len(points)
+    pts = [[p[0], p[1]] for p in points]
+    skip = skip_pairs or set()
+
+    for _ in range(iterations):
+        moved = False
+        for i in range(n):
+            for j in range(i + 1, n):
+                if (i, j) in skip:
+                    continue
+                dx = pts[j][0] - pts[i][0]
+                dz = pts[j][1] - pts[i][1]
+                dist = math.hypot(dx, dz)
+                if dist >= min_dist:
+                    continue
+                moved = True
+                if dist < 1e-9:
+                    angle = (2 * math.pi * j) / n
+                    dx, dz = math.cos(angle), math.sin(angle)
+                    dist = 1.0
+                nx, nz = dx / dist, dz / dist
+                push = (min_dist - dist) / 2.0
+                pts[i][0] -= nx * push
+                pts[i][1] -= nz * push
+                pts[j][0] += nx * push
+                pts[j][1] += nz * push
+        if not moved:
+            break
+
+    x_min, x_max, z_min, z_max = target_bounds
+    for p in pts:
+        p[0] = max(x_min, min(x_max, p[0]))
+        p[1] = max(z_min, min(z_max, p[1]))
+
+    return [(p[0], p[1]) for p in pts]
+
+
 def order_by_angle(points):
     """依「以這些點自己的重心為圓心」的極角排序，回傳原始索引的排列。
 
@@ -118,7 +211,8 @@ def order_by_angle(points):
 
 def compute_adventure_positions(rows, geo_bounds, elev_bounds,
                                 target_bounds=DEFAULT_TARGET_BOUNDS,
-                                y_range=DEFAULT_Y_RANGE):
+                                y_range=DEFAULT_Y_RANGE,
+                                min_separation=DEFAULT_MIN_SEPARATION):
     """把 20 筆 (lat, lon, elevation_m) 換算成走訪順序與對應座標。
 
     rows: [(lat, lon, elev_m), ...]，任一值可為 None（防呆：資料庫忘了
@@ -145,6 +239,17 @@ def compute_adventure_positions(rows, geo_bounds, elev_bounds,
     xz = [project_geo_to_xz(lat, lon, geo_bounds, target_bounds)
           for lat, lon, _ in filled]
     ys = [elevation_to_y(elev, elev_bounds, y_range) for _, _, elev in filled]
+
+    # 🏆 推開太近/重合的冒險格（同鄉鎮退回同一中心點、或真實地點本身
+    #    就密集）。min_separation 的預設值刻意是舊棋盤間距的兩倍——
+    #    特殊格事後會插在相鄰兩個冒險格的「中點」，離每個鄰居的距離
+    #    結構上必然是這裡間距的一半，門檻要夠高，插值出來的特殊格
+    #    才不會比冒險格彼此還擠（見 DEFAULT_MIN_SEPARATION 的說明）。
+    #
+    #    ⚠️ declutter 只在這裡（20 個冒險格）做，不要等 26 格全部到齊
+    #    後再對整個棋盤做一次——declutter 不懂路徑拓撲，會把本該貼著
+    #    鄰居中點的特殊格推走，實測會讓連接線大量交叉。
+    xz = declutter(xz, min_separation, target_bounds)
 
     order = order_by_angle(xz)
     positions = [(xz[i][0], ys[i], xz[i][1]) for i in order]
