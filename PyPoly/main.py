@@ -1478,9 +1478,19 @@ async def get_map_config(
             func.min(models.CountryScenario.elevation_m),
             func.max(models.CountryScenario.elevation_m),
         ).one()
-        geo_bounds = (float(geo_bounds_row[0]), float(geo_bounds_row[1]),
-                     float(geo_bounds_row[2]), float(geo_bounds_row[3]))
-        elev_bounds = (float(geo_bounds_row[4]), float(geo_bounds_row[5]))
+        # 🏆 防呆：SQL 的 MIN/MAX 會忽略 NULL，但如果 scenarios 裡「一整欄
+        #    都是 NULL」（例如資料庫還沒匯入座標，只有舊版沒有經緯度的
+        #    冒險格資料），這裡查回來的整組會是 None，float(None) 會直接
+        #    噴例外讓整個 /game/map_config 500——不只是棋盤形狀退化，
+        #    是連遊戲都開不了。用 0.0 當退化預設值：project_geo_to_xz /
+        #    elevation_to_y 本來就有處理「範圍是 0」的退化情況（回傳目標
+        #    範圍正中央），所以座標會退回舊棋盤那種每格都差不多的樣子，
+        #    但至少能正常開局，不會整個掛掉。
+        def _safe_bound(v):
+            return float(v) if v is not None else 0.0
+        geo_bounds = (_safe_bound(geo_bounds_row[0]), _safe_bound(geo_bounds_row[1]),
+                     _safe_bound(geo_bounds_row[2]), _safe_bound(geo_bounds_row[3]))
+        elev_bounds = (_safe_bound(geo_bounds_row[4]), _safe_bound(geo_bounds_row[5]))
 
         if not questions or not countries:
              return {"error": "資料庫資料不足",
