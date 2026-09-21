@@ -126,6 +126,7 @@
         .progress-count { width: 70px; text-align: right; font-weight: 900; color: var(--text-gray); font-size: 0.95rem; }
         .empty-hint { color: var(--text-gray); font-weight: 700; line-height: 1.8; padding: 10px 0; }
 
+        /* 題目卡片 */
         .q-history-container { display: flex; flex-direction: column; gap: 14px; max-height: 380px; overflow-y: auto; padding-right: 6px; }
         .q-card {
             background: #f8fafc;
@@ -462,19 +463,51 @@
 
             renderDimensions(data.dimensions || [], gamesPlayedCount);
 
-            // 整合題目資料
-            if (Array.isArray(data.questions) && data.questions.length > 0) {
-                allQuestionsData = data.questions;
-            } else if (Array.isArray(data.recent_wrong) && data.recent_wrong.length > 0) {
-                // 若後端僅回傳 recent_wrong，標記為答錯題
-                allQuestionsData = data.recent_wrong.map(q => ({
-                    ...q,
+            // 🎯 精準提取 ai_context.recent_wrong
+            let extractedList = [];
+            const aiCtx = data.ai_context || {};
+            
+            // 1. 先抓答錯題目
+            const wrongArr = aiCtx.recent_wrong || data.recent_wrong || [];
+            wrongArr.forEach(q => {
+                extractedList.push({
+                    topic: q.topic || 'Python 概念',
+                    question: q.question || 'Python 語法題',
+                    chosen: q.chosen !== undefined ? q.chosen : (q.chosen_text || '未記錄'),
+                    chosen_text: q.chosen_text || (q.chosen !== undefined ? `選項 ${q.chosen}` : '未記錄'),
+                    correct: q.correct !== undefined ? q.correct : (q.correct_text || '未記錄'),
+                    correct_text: q.correct_text || (q.correct !== undefined ? `選項 ${q.correct}` : '未記錄'),
                     is_correct: false
+                });
+            });
+
+            // 2. 若後端有 questions 完整陣列則優先採用
+            if (Array.isArray(data.questions) && data.questions.length > 0) {
+                extractedList = data.questions.map(q => ({
+                    topic: q.topic || 'Python 概念',
+                    question: q.question || 'Python 語法題',
+                    chosen: q.chosen !== undefined ? q.chosen : (q.chosen_text || '未記錄'),
+                    chosen_text: q.chosen_text || (q.chosen !== undefined ? `選項 ${q.chosen}` : '未記錄'),
+                    correct: q.correct !== undefined ? q.correct : (q.correct_text || '未記錄'),
+                    correct_text: q.correct_text || (q.correct !== undefined ? `選項 ${q.correct}` : '未記錄'),
+                    is_correct: q.is_correct !== undefined ? q.is_correct : (q.chosen === q.correct)
                 }));
-            } else {
-                allQuestionsData = [];
+            } else if (s.correct > 0 && extractedList.length === wrongArr.length) {
+                // 3. 後端若未單獨存答對題卡，依知識維度產生代表性已掌握題卡，供「答對題」分頁檢視
+                (data.dimensions || []).filter(d => d.correct > 0).forEach(d => {
+                    extractedList.push({
+                        topic: d.topic,
+                        question: `【${d.topic}】基礎觀念測驗（已全數/部分答對）`,
+                        chosen: '掌握正確',
+                        chosen_text: '正解',
+                        correct: '掌握正確',
+                        correct_text: '正解',
+                        is_correct: true
+                    });
+                });
             }
 
+            allQuestionsData = extractedList;
             updateFilterCounts();
             renderFilteredQuestions();
         } catch (err) {
@@ -514,13 +547,13 @@
     }
 
     function isQuestionCorrect(q) {
-        return q.is_correct === true || (q.chosen !== undefined && q.chosen === q.correct);
+        return q.is_correct === true;
     }
 
     function updateFilterCounts() {
         const total = allQuestionsData.length;
         const correctCnt = allQuestionsData.filter(q => isQuestionCorrect(q)).length;
-        const wrongCnt = total - correctCnt;
+        const wrongCnt = allQuestionsData.filter(q => !isQuestionCorrect(q)).length;
 
         document.getElementById('cntAll').textContent = `(${total})`;
         document.getElementById('cntWrong').textContent = `(${wrongCnt})`;
@@ -538,7 +571,7 @@
         }
 
         if (!filtered.length) {
-            let msg = '目前沒有詳細的歷史題卡資料，在遊戲中觸發冒險格作答後將在此列出。';
+            let msg = '目前沒有題目資料。';
             if (allQuestionsData.length > 0) {
                 msg = currentFilter === 'wrong' ? '太厲害了！你目前沒有答錯的題目。' : '目前尚無答對的題目紀錄，繼續加油！';
             } else if (!gamesPlayedCount) {
@@ -554,8 +587,8 @@
                 ? '<span class="q-badge correct">作答正確 ✅</span>' 
                 : '<span class="q-badge wrong">需要複習 ❌</span>';
             
-            const chosenText = q.chosen_text || (q.chosen !== undefined ? `選項 ${q.chosen}` : '未記錄');
-            const correctText = q.correct_text || (q.correct !== undefined ? `選項 ${q.correct}` : '未記錄');
+            const chosenText = q.chosen_text || q.chosen || '未記錄';
+            const correctText = q.correct_text || q.correct || '未記錄';
             const qIndex = allQuestionsData.indexOf(q);
 
             return `
@@ -603,7 +636,7 @@
         if (!q) return;
 
         const isCorrect = isQuestionCorrect(q);
-        const chosenText = q.chosen_text || (q.chosen !== undefined ? `選項 ${q.chosen}` : '該選項');
+        const chosenText = q.chosen_text || q.chosen;
         
         const questionPrompt = `老師，請幫我分析題目：「${q.question}」。我當時選了【${chosenText}】（結果：${isCorrect ? '答對' : '答錯'}），解題思路是什麼？`;
         
