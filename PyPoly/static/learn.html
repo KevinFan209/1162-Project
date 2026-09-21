@@ -98,7 +98,6 @@
         .chart-header-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
         .chart-header { font-weight: 900; font-size: 1.4rem; border-left: 8px solid var(--success-green); padding-left: 15px; }
         
-        /* 篩選標籤按鈕列 */
         .filter-tabs { display: inline-flex; background: var(--bg-gray); padding: 4px; border-radius: 14px; gap: 4px; }
         .filter-tab-btn {
             border: none;
@@ -147,7 +146,7 @@
         .q-badge.wrong { background: #ffeaa7; color: var(--wrong-dark); }
         .q-topic-tag { font-size: 0.85rem; font-weight: 800; color: var(--text-gray); }
         .q-text { font-weight: 900; font-size: 1.05rem; color: var(--text-dark); line-height: 1.5; }
-        .q-choices-info { font-size: 0.9rem; font-weight: 700; color: #475569; display: flex; flex-direction: column; gap: 4px; }
+        .q-choices-info { font-size: 0.95rem; font-weight: 700; color: #475569; display: flex; flex-direction: column; gap: 5px; }
         .q-card-bottom { display: flex; justify-content: flex-end; margin-top: 4px; }
 
         .btn-ask-item {
@@ -381,11 +380,53 @@
     const API_URL = location.origin;
     let syncTimer = null;
     let allQuestionsData = [];
-    let currentFilter = 'all'; // 'all' | 'wrong' | 'correct'
+    let currentFilter = 'all';
     let gamesPlayedCount = 0;
     
-    // 💬 對話歷史紀錄陣列
     let conversationMessages = [];
+
+    // 💡 題目選項自動對照表（當後端只存選項索引時，自動還原成直觀的選項代碼/文字內容）
+    const OPTION_FALLBACK_MAP = {
+        "not True": {
+            1: "True",
+            2: "False",
+            3: "None",
+            4: "語法錯誤 (SyntaxError)"
+        },
+        "lst.append(4)": {
+            1: "3 (未更新)",
+            2: "4 (元素個數)",
+            3: "5",
+            4: "[1, 2, 3, 4] (回傳串列)"
+        }
+    };
+
+    function resolveOptionText(q, valKey, textKey) {
+        if (q[textKey] && !String(q[textKey]).startsWith("選項")) {
+            return String(q[textKey]);
+        }
+
+        const val = q[valKey];
+
+        // 1. 如果資料本身附帶 options 陣列
+        if (Array.isArray(q.options) && q.options.length > 0) {
+            const num = Number(val);
+            if (!isNaN(num)) {
+                if (q.options[num] !== undefined) return String(q.options[num]);
+                if (q.options[num - 1] !== undefined) return String(q.options[num - 1]);
+            }
+        }
+
+        // 2. 透過題幹關鍵字做智能映射
+        const qText = q.question || "";
+        for (const [kw, map] of Object.entries(OPTION_FALLBACK_MAP)) {
+            if (qText.includes(kw) && map[val]) {
+                return map[val];
+            }
+        }
+
+        return val !== undefined ? `選項 ${val}` : "未記錄";
+    }
 
     function toggleMenu() {
         document.getElementById('sideMenu').classList.toggle('open');
@@ -463,43 +504,47 @@
 
             renderDimensions(data.dimensions || [], gamesPlayedCount);
 
-            // 🎯 精準提取 ai_context.recent_wrong
+            // 🎯 解析題目：將數字還原成具體的答案文字
             let extractedList = [];
             const aiCtx = data.ai_context || {};
-            
-            // 1. 先抓答錯題目
             const wrongArr = aiCtx.recent_wrong || data.recent_wrong || [];
+
             wrongArr.forEach(q => {
+                const chosenReal = resolveOptionText(q, 'chosen', 'chosen_text');
+                const correctReal = resolveOptionText(q, 'correct', 'correct_text');
+
                 extractedList.push({
                     topic: q.topic || 'Python 概念',
                     question: q.question || 'Python 語法題',
-                    chosen: q.chosen !== undefined ? q.chosen : (q.chosen_text || '未記錄'),
-                    chosen_text: q.chosen_text || (q.chosen !== undefined ? `選項 ${q.chosen}` : '未記錄'),
-                    correct: q.correct !== undefined ? q.correct : (q.correct_text || '未記錄'),
-                    correct_text: q.correct_text || (q.correct !== undefined ? `選項 ${q.correct}` : '未記錄'),
+                    chosen: q.chosen,
+                    chosen_text: chosenReal,
+                    correct: q.correct,
+                    correct_text: correctReal,
                     is_correct: false
                 });
             });
 
-            // 2. 若後端有 questions 完整陣列則優先採用
             if (Array.isArray(data.questions) && data.questions.length > 0) {
-                extractedList = data.questions.map(q => ({
-                    topic: q.topic || 'Python 概念',
-                    question: q.question || 'Python 語法題',
-                    chosen: q.chosen !== undefined ? q.chosen : (q.chosen_text || '未記錄'),
-                    chosen_text: q.chosen_text || (q.chosen !== undefined ? `選項 ${q.chosen}` : '未記錄'),
-                    correct: q.correct !== undefined ? q.correct : (q.correct_text || '未記錄'),
-                    correct_text: q.correct_text || (q.correct !== undefined ? `選項 ${q.correct}` : '未記錄'),
-                    is_correct: q.is_correct !== undefined ? q.is_correct : (q.chosen === q.correct)
-                }));
+                extractedList = data.questions.map(q => {
+                    const isCorrect = q.is_correct !== undefined ? q.is_correct : (q.chosen === q.correct);
+                    return {
+                        topic: q.topic || 'Python 概念',
+                        question: q.question || 'Python 語法題',
+                        chosen: q.chosen,
+                        chosen_text: resolveOptionText(q, 'chosen', 'chosen_text'),
+                        correct: q.correct,
+                        correct_text: resolveOptionText(q, 'correct', 'correct_text'),
+                        is_correct: isCorrect
+                    };
+                });
             } else if (s.correct > 0 && extractedList.length === wrongArr.length) {
-                // 3. 後端若未單獨存答對題卡，依知識維度產生代表性已掌握題卡，供「答對題」分頁檢視
+                // 自動為已答對的項目產生掌握卡片
                 (data.dimensions || []).filter(d => d.correct > 0).forEach(d => {
                     extractedList.push({
                         topic: d.topic,
-                        question: `【${d.topic}】基礎觀念測驗（已全數/部分答對）`,
+                        question: `【${d.topic}】基礎觀念掌握良好（答對 ${d.correct}/${d.total} 題）`,
                         chosen: '掌握正確',
-                        chosen_text: '正解',
+                        chosen_text: '觀念正確',
                         correct: '掌握正確',
                         correct_text: '正解',
                         is_correct: true
@@ -537,7 +582,6 @@
         `).join('');
     }
 
-    // --- 篩選分頁邏輯 ---
     function setFilter(filterType) {
         currentFilter = filterType;
         document.getElementById('tabAll').classList.toggle('active', filterType === 'all');
@@ -553,7 +597,7 @@
     function updateFilterCounts() {
         const total = allQuestionsData.length;
         const correctCnt = allQuestionsData.filter(q => isQuestionCorrect(q)).length;
-        const wrongCnt = allQuestionsData.filter(q => !isQuestionCorrect(q)).length;
+        const wrongCnt = total - correctCnt;
 
         document.getElementById('cntAll').textContent = `(${total})`;
         document.getElementById('cntWrong').textContent = `(${wrongCnt})`;
@@ -587,8 +631,8 @@
                 ? '<span class="q-badge correct">作答正確 ✅</span>' 
                 : '<span class="q-badge wrong">需要複習 ❌</span>';
             
-            const chosenText = q.chosen_text || q.chosen || '未記錄';
-            const correctText = q.correct_text || q.correct || '未記錄';
+            const chosenDisplay = q.chosen_text || q.chosen || '未記錄';
+            const correctDisplay = q.correct_text || q.correct || '未記錄';
             const qIndex = allQuestionsData.indexOf(q);
 
             return `
@@ -599,8 +643,8 @@
                     </div>
                     <div class="q-text">${escapeHtml(q.question || '程式題')}</div>
                     <div class="q-choices-info">
-                        <div>當時選擇：<b style="color: ${isCorrect ? 'var(--success-green-shadow)' : 'var(--wrong-dark)'};">${escapeHtml(chosenText)}</b></div>
-                        ${!isCorrect ? `<div>正確答案：<b style="color: var(--success-green-shadow);">${escapeHtml(correctText)}</b></div>` : ''}
+                        <div>當時選擇：<b style="color: ${isCorrect ? 'var(--success-green-shadow)' : 'var(--wrong-dark)'};">${escapeHtml(chosenDisplay)}</b></div>
+                        ${!isCorrect ? `<div>正確答案：<b style="color: var(--success-green-shadow);">${escapeHtml(correctDisplay)}</b></div>` : ''}
                     </div>
                     <div class="q-card-bottom">
                         <button class="btn-ask-item" onclick="askQuestionTutor(${qIndex})">💡 詢問 AI 導師</button>
@@ -610,7 +654,6 @@
         }).join('');
     }
 
-    // --- 首次進入：取得後端 AI 導師開場總評 ---
     async function loadAiReport(token) {
         const greeting = document.getElementById('initialAiGreeting');
         try {
@@ -637,8 +680,9 @@
 
         const isCorrect = isQuestionCorrect(q);
         const chosenText = q.chosen_text || q.chosen;
+        const correctText = q.correct_text || q.correct;
         
-        const questionPrompt = `老師，請幫我分析題目：「${q.question}」。我當時選了【${chosenText}】（結果：${isCorrect ? '答對' : '答錯'}），解題思路是什麼？`;
+        const questionPrompt = `老師，請幫我分析題目：「${q.question}」。我當時選了【${chosenText}】，但正確答案是【${correctText}】（結果：${isCorrect ? '答對' : '答錯'}），解題思路與盲點是什麼？`;
         
         appendMessage('user', questionPrompt);
         chatWithTutor(questionPrompt);
@@ -675,7 +719,6 @@
         return bubble;
     }
 
-    // --- 連續對話核心（直接走後端 /learn/ai_report） ---
     async function chatWithTutor(userText) {
         const token = localStorage.getItem('token');
         const loadingBubble = appendMessage('tutor', '💭 導師正在思考中...');
