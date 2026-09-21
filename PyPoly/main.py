@@ -38,6 +38,7 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image # 需安裝 pillow: pip install Pillow
 import io
 from dotenv import load_dotenv
+from fastapi import Request
 
 # 🏆 讀取 PyPoly/.env（機敏設定：SENDER_EMAIL / SENDER_PASSWORD / SECRET_KEY 等）
 load_dotenv()
@@ -1754,21 +1755,24 @@ def learn_stats(username: str = None, authorization: str = Header(None),
 
 
 @app.post("/learn/ai_report")
-def learn_ai_report(username: str = None, authorization: str = Header(None),
-                    db: Session = Depends(database.get_db)):
-    """AI 導師分析。實作在 learn_ai.py，那是留給組員的交接點。
-
-    用 POST 而非 GET：這會觸發一次昂貴的外部呼叫，
-    不希望瀏覽器或代理把結果快取起來、或做預先擷取。
-
-    刻意包上 try/except：learn_ai.py 由另一位組員維護，
-    他改壞或 LLM 連不上時，這頁應該退回規則式文字，
-    而不是回 500 讓整個學習統計頁都打不開。
-    """
+async def learn_ai_report(request: Request,                     # 1. 這裡加入 request: Request (並將 def 改為 async def)
+                          username: str = None, 
+                          authorization: str = Header(None),
+                          db: Session = Depends(database.get_db)):
+    """AI 導師分析。實作在 learn_ai.py，那是留給組員的交接點。"""
     if not username:
         username = auth_utils.get_current_user(authorization)
 
     ctx = _build_learn_stats(username, db)["ai_context"]
+
+    # 2. 關鍵加入：安全讀取前端傳來的發問與歷史對話，塞進 ctx
+    try:
+        body = await request.json()
+        if isinstance(body, dict):
+            ctx["message"] = body.get("message")
+            ctx["history"] = body.get("history", [])
+    except Exception:
+        pass  # 第一次載入頁面無 body 時自動忽略，完全不影響原邏輯
 
     try:
         report = learn_ai.generate_report(ctx)
