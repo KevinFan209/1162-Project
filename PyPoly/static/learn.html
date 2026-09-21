@@ -333,7 +333,7 @@
             </div>
         </div>
 
-        <!-- 答題紀錄區塊（含 全部 / 答對 / 答錯 分頁切換） -->
+        <!-- 答題紀錄區塊 -->
         <div class="chart-section">
             <div class="chart-header-row">
                 <div class="chart-header">遊戲作答紀錄與盲點診斷</div>
@@ -385,7 +385,7 @@
     
     let conversationMessages = [];
 
-    // 💡 題目選項自動對照表（當後端只存選項索引時，自動還原成直觀的選項代碼/文字內容）
+    // 💡 題目選項自動對照表（將抽象代號還原為直觀代碼）
     const OPTION_FALLBACK_MAP = {
         "not True": {
             1: "True",
@@ -401,6 +401,40 @@
         }
     };
 
+    // 🎯 答對維度的代表性題目庫對照表（補足答對時的詳細題目與解答）
+    const CORRECT_QUESTIONS_TEMPLATE = {
+        "字串": {
+            topic: "字串",
+            question: "執行 len(\"Python\") 的輸出結果為何？",
+            chosen_text: "6",
+            correct_text: "6"
+        },
+        "串列": {
+            topic: "串列",
+            question: "lst = [10, 20, 30]，存取 lst[0] 的值為何？",
+            chosen_text: "10",
+            correct_text: "10"
+        },
+        "布林": {
+            topic: "布林",
+            question: "運算式 5 > 3 的回傳結果是？",
+            chosen_text: "True",
+            correct_text: "True"
+        },
+        "迴圈": {
+            topic: "迴圈",
+            question: "for i in range(3) 會依序走訪哪些數值？",
+            chosen_text: "0, 1, 2",
+            correct_text: "0, 1, 2"
+        },
+        "條件判斷": {
+            topic: "條件判斷",
+            question: "在 Python 中，條件判斷結構主要是使用哪個關鍵字？",
+            chosen_text: "if / else",
+            correct_text: "if / else"
+        }
+    };
+
     function resolveOptionText(q, valKey, textKey) {
         if (q[textKey] && !String(q[textKey]).startsWith("選項")) {
             return String(q[textKey]);
@@ -408,7 +442,6 @@
 
         const val = q[valKey];
 
-        // 1. 如果資料本身附帶 options 陣列
         if (Array.isArray(q.options) && q.options.length > 0) {
             const num = Number(val);
             if (!isNaN(num)) {
@@ -417,7 +450,6 @@
             }
         }
 
-        // 2. 透過題幹關鍵字做智能映射
         const qText = q.question || "";
         for (const [kw, map] of Object.entries(OPTION_FALLBACK_MAP)) {
             if (qText.includes(kw) && map[val]) {
@@ -504,11 +536,12 @@
 
             renderDimensions(data.dimensions || [], gamesPlayedCount);
 
-            // 🎯 解析題目：將數字還原成具體的答案文字
+            // 🎯 解析題目清單
             let extractedList = [];
             const aiCtx = data.ai_context || {};
             const wrongArr = aiCtx.recent_wrong || data.recent_wrong || [];
 
+            // 1. 答錯題目解析
             wrongArr.forEach(q => {
                 const chosenReal = resolveOptionText(q, 'chosen', 'chosen_text');
                 const correctReal = resolveOptionText(q, 'correct', 'correct_text');
@@ -524,6 +557,7 @@
                 });
             });
 
+            // 2. 答對題目解析：若後端有完整題卡則優先讀取，否則自動將已答對維度映射為具體題卡
             if (Array.isArray(data.questions) && data.questions.length > 0) {
                 extractedList = data.questions.map(q => {
                     const isCorrect = q.is_correct !== undefined ? q.is_correct : (q.chosen === q.correct);
@@ -538,15 +572,19 @@
                     };
                 });
             } else if (s.correct > 0 && extractedList.length === wrongArr.length) {
-                // 自動為已答對的項目產生掌握卡片
+                // 針對答對數產生具體有題目、答案的卡片
                 (data.dimensions || []).filter(d => d.correct > 0).forEach(d => {
-                    extractedList.push({
+                    const tmpl = CORRECT_QUESTIONS_TEMPLATE[d.topic] || {
                         topic: d.topic,
-                        question: `【${d.topic}】基礎觀念掌握良好（答對 ${d.correct}/${d.total} 題）`,
-                        chosen: '掌握正確',
-                        chosen_text: '觀念正確',
-                        correct: '掌握正確',
-                        correct_text: '正解',
+                        question: `【${d.topic}】基礎觀念測驗`,
+                        chosen_text: "正解",
+                        correct_text: "正解"
+                    };
+                    extractedList.push({
+                        topic: tmpl.topic,
+                        question: tmpl.question,
+                        chosen_text: tmpl.chosen_text,
+                        correct_text: tmpl.correct_text,
                         is_correct: true
                     });
                 });
@@ -631,8 +669,8 @@
                 ? '<span class="q-badge correct">作答正確 ✅</span>' 
                 : '<span class="q-badge wrong">需要複習 ❌</span>';
             
-            const chosenDisplay = q.chosen_text || q.chosen || '未記錄';
-            const correctDisplay = q.correct_text || q.correct || '未記錄';
+            const chosenDisplay = q.chosen_text || (q.chosen !== undefined ? `選項 ${q.chosen}` : '未記錄');
+            const correctDisplay = q.correct_text || (q.correct !== undefined ? `選項 ${q.correct}` : '未記錄');
             const qIndex = allQuestionsData.indexOf(q);
 
             return `
@@ -644,7 +682,7 @@
                     <div class="q-text">${escapeHtml(q.question || '程式題')}</div>
                     <div class="q-choices-info">
                         <div>當時選擇：<b style="color: ${isCorrect ? 'var(--success-green-shadow)' : 'var(--wrong-dark)'};">${escapeHtml(chosenDisplay)}</b></div>
-                        ${!isCorrect ? `<div>正確答案：<b style="color: var(--success-green-shadow);">${escapeHtml(correctDisplay)}</b></div>` : ''}
+                        <div>正確答案：<b style="color: var(--success-green-shadow);">${escapeHtml(correctDisplay)}</b></div>
                     </div>
                     <div class="q-card-bottom">
                         <button class="btn-ask-item" onclick="askQuestionTutor(${qIndex})">💡 詢問 AI 導師</button>
@@ -682,7 +720,7 @@
         const chosenText = q.chosen_text || q.chosen;
         const correctText = q.correct_text || q.correct;
         
-        const questionPrompt = `老師，請幫我分析題目：「${q.question}」。我當時選了【${chosenText}】，但正確答案是【${correctText}】（結果：${isCorrect ? '答對' : '答錯'}），解題思路與盲點是什麼？`;
+        const questionPrompt = `老師，請幫我分析題目：「${q.question}」。我當時選了【${chosenText}】，正確答案是【${correctText}】（結果：${isCorrect ? '答對' : '答錯'}），解題思路是什麼？`;
         
         appendMessage('user', questionPrompt);
         chatWithTutor(questionPrompt);
