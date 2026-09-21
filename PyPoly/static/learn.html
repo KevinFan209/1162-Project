@@ -13,6 +13,8 @@
             --text-dark: #000000;
             --text-gray: #64748b;
             --border-light: #e2e8f0;
+            --wrong-red: #ff7675;
+            --wrong-dark: #d63031;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
@@ -92,8 +94,30 @@
         .summary-value { font-size: 2.5rem; font-weight: 900; color: var(--text-dark); }
         .summary-unit { font-size: 1rem; color: var(--success-green); margin-left: 5px; }
 
-        .chart-section { background: white; border-radius: 35px; padding: 30px 40px; border: 1.5px solid var(--border-light); display: flex; flex-direction: column; gap: 20px; }
+        .chart-section { background: white; border-radius: 35px; padding: 30px 40px; border: 1.5px solid var(--border-light); display: flex; flex-direction: column; gap: 16px; }
+        .chart-header-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
         .chart-header { font-weight: 900; font-size: 1.4rem; border-left: 8px solid var(--success-green); padding-left: 15px; }
+        
+        /* 篩選標籤按鈕列 */
+        .filter-tabs { display: inline-flex; background: var(--bg-gray); padding: 4px; border-radius: 14px; gap: 4px; }
+        .filter-tab-btn {
+            border: none;
+            background: transparent;
+            padding: 6px 14px;
+            font-size: 0.85rem;
+            font-weight: 800;
+            color: var(--text-gray);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .filter-tab-btn.active {
+            background: white;
+            color: var(--text-dark);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+        }
+        .filter-count { font-size: 0.75rem; margin-left: 4px; opacity: 0.8; }
+
         .progress-item { display: flex; align-items: center; gap: 20px; margin-bottom: 18px; }
         .skill-name { width: 140px; font-weight: 900; color: var(--text-dark); font-size: 1.05rem; }
         .progress-bar-bg { flex: 1; height: 16px; background: var(--bg-gray); border-radius: 10px; overflow: hidden; }
@@ -114,12 +138,12 @@
             transition: transform 0.15s ease;
         }
         .q-card:hover { transform: translateY(-2px); }
-        .q-card.is-wrong { border-left: 6px solid #ff7675; }
+        .q-card.is-wrong { border-left: 6px solid var(--wrong-red); }
         .q-card.is-correct { border-left: 6px solid var(--success-green); }
         .q-card-top { display: flex; justify-content: space-between; align-items: center; }
         .q-badge { font-size: 0.8rem; font-weight: 900; padding: 4px 10px; border-radius: 8px; }
         .q-badge.correct { background: #e6fffa; color: var(--success-green-shadow); }
-        .q-badge.wrong { background: #ffeaa7; color: #d63031; }
+        .q-badge.wrong { background: #ffeaa7; color: var(--wrong-dark); }
         .q-topic-tag { font-size: 0.85rem; font-weight: 800; color: var(--text-gray); }
         .q-text { font-weight: 900; font-size: 1.05rem; color: var(--text-dark); line-height: 1.5; }
         .q-choices-info { font-size: 0.9rem; font-weight: 700; color: #475569; display: flex; flex-direction: column; gap: 4px; }
@@ -309,8 +333,16 @@
             </div>
         </div>
 
+        <!-- 答題紀錄區塊（含 全部 / 答對 / 答錯 分頁切換） -->
         <div class="chart-section">
-            <div class="chart-header">遊戲作答紀錄與盲點診斷</div>
+            <div class="chart-header-row">
+                <div class="chart-header">遊戲作答紀錄與盲點診斷</div>
+                <div class="filter-tabs">
+                    <button class="filter-tab-btn active" id="tabAll" onclick="setFilter('all')">全部<span class="filter-count" id="cntAll">(0)</span></button>
+                    <button class="filter-tab-btn" id="tabWrong" onclick="setFilter('wrong')">答錯題<span class="filter-count" id="cntWrong">(0)</span></button>
+                    <button class="filter-tab-btn" id="tabCorrect" onclick="setFilter('correct')">答對題<span class="filter-count" id="cntCorrect">(0)</span></button>
+                </div>
+            </div>
             <div class="q-history-container" id="questionHistoryList">
                 <div class="empty-hint">作答歷史整理中...</div>
             </div>
@@ -347,9 +379,11 @@
 <script>
     const API_URL = location.origin;
     let syncTimer = null;
-    let questionHistoryData = [];
+    let allQuestionsData = [];
+    let currentFilter = 'all'; // 'all' | 'wrong' | 'correct'
+    let gamesPlayedCount = 0;
     
-    // 💬 對話歷史清單
+    // 💬 對話歷史紀錄陣列
     let conversationMessages = [];
 
     function toggleMenu() {
@@ -417,6 +451,7 @@
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
 
+            gamesPlayedCount = data.games_played || 0;
             const s = data.summary || {};
             document.getElementById('statAccuracy').innerHTML =
                 `${s.accuracy || 0}<span class="summary-unit">%</span>`;
@@ -425,16 +460,23 @@
             document.getElementById('statExercise').textContent =
                 (s.jump_count || 0).toLocaleString();
 
-            renderDimensions(data.dimensions || [], data.games_played || 0);
+            renderDimensions(data.dimensions || [], gamesPlayedCount);
 
+            // 整合題目資料
             if (Array.isArray(data.questions) && data.questions.length > 0) {
-                questionHistoryData = data.questions;
+                allQuestionsData = data.questions;
             } else if (Array.isArray(data.recent_wrong) && data.recent_wrong.length > 0) {
-                questionHistoryData = data.recent_wrong.map(q => ({ ...q, is_correct: false }));
+                // 若後端僅回傳 recent_wrong，標記為答錯題
+                allQuestionsData = data.recent_wrong.map(q => ({
+                    ...q,
+                    is_correct: false
+                }));
             } else {
-                questionHistoryData = [];
+                allQuestionsData = [];
             }
-            renderQuestionHistory(questionHistoryData, data.games_played || 0);
+
+            updateFilterCounts();
+            renderFilteredQuestions();
         } catch (err) {
             console.warn('⚠️ 載入學習統計失敗', err);
             document.getElementById('dimensionList').innerHTML = '<div class="empty-hint">統計載入失敗，請稍後重新整理。</div>';
@@ -462,23 +504,59 @@
         `).join('');
     }
 
-    function renderQuestionHistory(questions, gamesPlayed) {
+    // --- 篩選分頁邏輯 ---
+    function setFilter(filterType) {
+        currentFilter = filterType;
+        document.getElementById('tabAll').classList.toggle('active', filterType === 'all');
+        document.getElementById('tabWrong').classList.toggle('active', filterType === 'wrong');
+        document.getElementById('tabCorrect').classList.toggle('active', filterType === 'correct');
+        renderFilteredQuestions();
+    }
+
+    function isQuestionCorrect(q) {
+        return q.is_correct === true || (q.chosen !== undefined && q.chosen === q.correct);
+    }
+
+    function updateFilterCounts() {
+        const total = allQuestionsData.length;
+        const correctCnt = allQuestionsData.filter(q => isQuestionCorrect(q)).length;
+        const wrongCnt = total - correctCnt;
+
+        document.getElementById('cntAll').textContent = `(${total})`;
+        document.getElementById('cntWrong').textContent = `(${wrongCnt})`;
+        document.getElementById('cntCorrect').textContent = `(${correctCnt})`;
+    }
+
+    function renderFilteredQuestions() {
         const box = document.getElementById('questionHistoryList');
-        if (!questions.length) {
-            box.innerHTML = gamesPlayed
-                ? '<div class="empty-hint">目前沒有詳細的歷史題卡資料，在遊戲中觸發冒險格作答後將在此列出。</div>'
-                : '<div class="empty-hint">尚未進行過冒險挑戰，快去開局答題累積戰果吧！</div>';
+
+        let filtered = allQuestionsData;
+        if (currentFilter === 'wrong') {
+            filtered = allQuestionsData.filter(q => !isQuestionCorrect(q));
+        } else if (currentFilter === 'correct') {
+            filtered = allQuestionsData.filter(q => isQuestionCorrect(q));
+        }
+
+        if (!filtered.length) {
+            let msg = '目前沒有詳細的歷史題卡資料，在遊戲中觸發冒險格作答後將在此列出。';
+            if (allQuestionsData.length > 0) {
+                msg = currentFilter === 'wrong' ? '太厲害了！你目前沒有答錯的題目。' : '目前尚無答對的題目紀錄，繼續加油！';
+            } else if (!gamesPlayedCount) {
+                msg = '尚未進行過冒險挑戰，快去開局答題累積戰果吧！';
+            }
+            box.innerHTML = `<div class="empty-hint">${msg}</div>`;
             return;
         }
 
-        box.innerHTML = questions.map((q, idx) => {
-            const isCorrect = q.is_correct === true || (q.chosen !== undefined && q.chosen === q.correct);
+        box.innerHTML = filtered.map((q) => {
+            const isCorrect = isQuestionCorrect(q);
             const statusBadge = isCorrect 
                 ? '<span class="q-badge correct">作答正確 ✅</span>' 
                 : '<span class="q-badge wrong">需要複習 ❌</span>';
             
             const chosenText = q.chosen_text || (q.chosen !== undefined ? `選項 ${q.chosen}` : '未記錄');
             const correctText = q.correct_text || (q.correct !== undefined ? `選項 ${q.correct}` : '未記錄');
+            const qIndex = allQuestionsData.indexOf(q);
 
             return `
                 <div class="q-card ${isCorrect ? 'is-correct' : 'is-wrong'}">
@@ -488,18 +566,18 @@
                     </div>
                     <div class="q-text">${escapeHtml(q.question || '程式題')}</div>
                     <div class="q-choices-info">
-                        <div>當時選擇：<b style="color: ${isCorrect ? 'var(--success-green-shadow)' : '#e74c3c'};">${escapeHtml(chosenText)}</b></div>
+                        <div>當時選擇：<b style="color: ${isCorrect ? 'var(--success-green-shadow)' : 'var(--wrong-dark)'};">${escapeHtml(chosenText)}</b></div>
                         ${!isCorrect ? `<div>正確答案：<b style="color: var(--success-green-shadow);">${escapeHtml(correctText)}</b></div>` : ''}
                     </div>
                     <div class="q-card-bottom">
-                        <button class="btn-ask-item" onclick="askQuestionTutor(${idx})">💡 詢問 AI 導師</button>
+                        <button class="btn-ask-item" onclick="askQuestionTutor(${qIndex})">💡 詢問 AI 導師</button>
                     </div>
                 </div>
             `;
         }).join('');
     }
 
-    // --- 首次進入：取得後端 AI 導師初始總評 ---
+    // --- 首次進入：取得後端 AI 導師開場總評 ---
     async function loadAiReport(token) {
         const greeting = document.getElementById('initialAiGreeting');
         try {
@@ -521,10 +599,10 @@
     }
 
     function askQuestionTutor(index) {
-        const q = questionHistoryData[index];
+        const q = allQuestionsData[index];
         if (!q) return;
 
-        const isCorrect = q.is_correct === true || (q.chosen !== undefined && q.chosen === q.correct);
+        const isCorrect = isQuestionCorrect(q);
         const chosenText = q.chosen_text || (q.chosen !== undefined ? `選項 ${q.chosen}` : '該選項');
         
         const questionPrompt = `老師，請幫我分析題目：「${q.question}」。我當時選了【${chosenText}】（結果：${isCorrect ? '答對' : '答錯'}），解題思路是什麼？`;
@@ -564,7 +642,7 @@
         return bubble;
     }
 
-    // --- 連續上下文對話核心（走後端 /learn/ai_report，安全免 Key） ---
+    // --- 連續對話核心（直接走後端 /learn/ai_report） ---
     async function chatWithTutor(userText) {
         const token = localStorage.getItem('token');
         const loadingBubble = appendMessage('tutor', '💭 導師正在思考中...');
