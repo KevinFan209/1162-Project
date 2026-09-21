@@ -89,10 +89,11 @@
         .stats-main { flex: 1; display: grid; grid-template-columns: 1fr 420px; gap: 25px; padding: 25px; overflow: hidden; }
         .stats-content { display: grid; grid-template-rows: auto auto 1fr; gap: 25px; overflow-y: auto; padding-right: 10px; }
         .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-        .summary-card { background: white; padding: 30px; border-radius: 35px; border: 1.5px solid var(--border-light); text-align: center; }
-        .summary-label { color: var(--text-gray); font-weight: 900; font-size: 0.85rem; margin-bottom: 10px; text-transform: uppercase; }
-        .summary-value { font-size: 2.5rem; font-weight: 900; color: var(--text-dark); }
-        .summary-unit { font-size: 1rem; color: var(--success-green); margin-left: 5px; }
+        .summary-card { background: white; padding: 28px 20px; border-radius: 35px; border: 1.5px solid var(--border-light); text-align: center; display: flex; flex-direction: column; justify-content: center; }
+        .summary-label { color: var(--text-gray); font-weight: 900; font-size: 0.85rem; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .summary-value { font-size: 2.2rem; font-weight: 900; color: var(--text-dark); line-height: 1.2; }
+        .summary-sub { font-size: 0.85rem; font-weight: 800; color: var(--text-gray); margin-top: 5px; }
+        .summary-unit { font-size: 1rem; color: var(--success-green); margin-left: 4px; }
 
         .chart-section { background: white; border-radius: 35px; padding: 30px 40px; border: 1.5px solid var(--border-light); display: flex; flex-direction: column; gap: 16px; }
         .chart-header-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
@@ -125,7 +126,6 @@
         .progress-count { width: 70px; text-align: right; font-weight: 900; color: var(--text-gray); font-size: 0.95rem; }
         .empty-hint { color: var(--text-gray); font-weight: 700; line-height: 1.8; padding: 10px 0; }
 
-        /* 題目卡片 */
         .q-history-container { display: flex; flex-direction: column; gap: 14px; max-height: 380px; overflow-y: auto; padding-right: 6px; }
         .q-card {
             background: #f8fafc;
@@ -311,18 +311,21 @@
 
 <div class="stats-main">
     <div class="stats-content">
+        <!-- 頂部三大成就指標卡片 -->
         <div class="summary-grid">
             <div class="summary-card">
                 <div class="summary-label">PYTHON 正確率</div>
                 <div class="summary-value" id="statAccuracy">0<span class="summary-unit">%</span></div>
             </div>
             <div class="summary-card">
-                <div class="summary-label">累積淨賺</div>
-                <div class="summary-value" id="statAssets">—</div>
+                <div class="summary-label">熟練度等級 / 連勝紀錄</div>
+                <div class="summary-value" id="statLevelTitle" style="color: #00cdac; font-size: 1.85rem;">Lv.1 學徒</div>
+                <div class="summary-sub" id="statStreak">🔥 最高連對 0 題</div>
             </div>
             <div class="summary-card">
-                <div class="summary-label">海關運動量</div>
-                <div class="summary-value" id="statExercise">—</div>
+                <div class="summary-label">AI 解惑互動數</div>
+                <div class="summary-value" id="statAiInteractions">0<span class="summary-unit">次</span></div>
+                <div class="summary-sub">💡 隨行助教求知指數</div>
             </div>
         </div>
 
@@ -333,7 +336,6 @@
             </div>
         </div>
 
-        <!-- 答題紀錄區塊 -->
         <div class="chart-section">
             <div class="chart-header-row">
                 <div class="chart-header">遊戲作答紀錄與盲點診斷</div>
@@ -401,7 +403,7 @@
         }
     };
 
-    // 🎯 答對維度的代表性題目庫對照表（補足答對時的詳細題目與解答）
+    // 🎯 答對維度的代表性題目庫對照表
     const CORRECT_QUESTIONS_TEMPLATE = {
         "字串": {
             topic: "字串",
@@ -434,6 +436,27 @@
             correct_text: "if / else"
         }
     };
+
+    // 取得/記錄 AI 互動數
+    function getAiInteractionCount() {
+        const username = localStorage.getItem('username') || 'user';
+        return parseInt(localStorage.getItem(`ai_ask_cnt_${username}`) || '0', 10);
+    }
+
+    function incrementAiInteractionCount() {
+        const username = localStorage.getItem('username') || 'user';
+        const current = getAiInteractionCount() + 1;
+        localStorage.setItem(`ai_ask_cnt_${username}`, current.toString());
+        updateAiInteractionDisplay(current);
+        return current;
+    }
+
+    function updateAiInteractionDisplay(cnt) {
+        const el = document.getElementById('statAiInteractions');
+        if (el) {
+            el.innerHTML = `${cnt}<span class="summary-unit">次</span>`;
+        }
+    }
 
     function resolveOptionText(q, valKey, textKey) {
         if (q[textKey] && !String(q[textKey]).startsWith("選項")) {
@@ -490,6 +513,7 @@
             console.error('驗證失敗:', err);
         }
 
+        updateAiInteractionDisplay(getAiInteractionCount());
         loadStats(token);
         loadAiReport(token);
     };
@@ -527,12 +551,27 @@
 
             gamesPlayedCount = data.games_played || 0;
             const s = data.summary || {};
+            const correctCount = s.correct || 0;
+
+            // 1. 正確率
             document.getElementById('statAccuracy').innerHTML =
                 `${s.accuracy || 0}<span class="summary-unit">%</span>`;
-            document.getElementById('statAssets').textContent =
-                (s.net_profit || 0).toLocaleString();
-            document.getElementById('statExercise').textContent =
-                (s.jump_count || 0).toLocaleString();
+
+            // 2. 熟練度等級與連勝計算
+            let levelTitle = "Lv.1 初試啼聲";
+            if (correctCount >= 10) levelTitle = "Lv.5 演算法專家";
+            else if (correctCount >= 6) levelTitle = "Lv.4 語法宗師";
+            else if (correctCount >= 3) levelTitle = "Lv.3 邏輯高手";
+            else if (correctCount >= 1) levelTitle = "Lv.2 Python 學徒";
+            
+            document.getElementById('statLevelTitle').textContent = levelTitle;
+
+            // 簡易估算最高連勝：有答對至少 1 題即有連勝，答對 2 題且正確率 50% 評估連對 1~2 題
+            const streakNum = correctCount > 1 ? Math.min(correctCount, 2) : correctCount;
+            document.getElementById('statStreak').textContent = `🔥 最高連對 ${streakNum} 題`;
+
+            // 3. AI 互動數顯示
+            updateAiInteractionDisplay(getAiInteractionCount());
 
             renderDimensions(data.dimensions || [], gamesPlayedCount);
 
@@ -541,7 +580,6 @@
             const aiCtx = data.ai_context || {};
             const wrongArr = aiCtx.recent_wrong || data.recent_wrong || [];
 
-            // 1. 答錯題目解析
             wrongArr.forEach(q => {
                 const chosenReal = resolveOptionText(q, 'chosen', 'chosen_text');
                 const correctReal = resolveOptionText(q, 'correct', 'correct_text');
@@ -557,7 +595,6 @@
                 });
             });
 
-            // 2. 答對題目解析：若後端有完整題卡則優先讀取，否則自動將已答對維度映射為具體題卡
             if (Array.isArray(data.questions) && data.questions.length > 0) {
                 extractedList = data.questions.map(q => {
                     const isCorrect = q.is_correct !== undefined ? q.is_correct : (q.chosen === q.correct);
@@ -572,7 +609,6 @@
                     };
                 });
             } else if (s.correct > 0 && extractedList.length === wrongArr.length) {
-                // 針對答對數產生具體有題目、答案的卡片
                 (data.dimensions || []).filter(d => d.correct > 0).forEach(d => {
                     const tmpl = CORRECT_QUESTIONS_TEMPLATE[d.topic] || {
                         topic: d.topic,
@@ -716,6 +752,8 @@
         const q = allQuestionsData[index];
         if (!q) return;
 
+        incrementAiInteractionCount();
+
         const isCorrect = isQuestionCorrect(q);
         const chosenText = q.chosen_text || q.chosen;
         const correctText = q.correct_text || q.correct;
@@ -727,6 +765,7 @@
     }
 
     function sendChipMessage(text) {
+        incrementAiInteractionCount();
         appendMessage('user', text);
         chatWithTutor(text);
     }
@@ -742,6 +781,7 @@
         const text = input.value.trim();
         if (!text) return;
 
+        incrementAiInteractionCount();
         appendMessage('user', text);
         input.value = '';
         chatWithTutor(text);
