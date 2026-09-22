@@ -17,13 +17,15 @@ models.Base.metadata.create_all(bind=engine)
 # ==========================================================
 # 正式題庫（Python 程式教學）
 # 說明：
-#   - 遊戲以「手勢比數字」作答，answer 即玩家要比出的數字。
-#   - 基礎題(basic)：四選一，answer 為正確「選項編號」1~4，玩家比出 1~4。
-#   - 進階題(advanced)：直接算出答案，answer 為個位數字 1~9（手勢僅支援 1~9），無選項。
+#   category 是「遊戲模式」(basic/advanced)，qtype 是「作答方式」，兩者是不同的軸：
+#     choice  基礎模式  四選一，answer 為正確「選項編號」1~4，玩家比手勢 1~4
+#     gesture 進階模式  直接算出答案，answer 為個位數字 1~9（手勢僅支援 1~9），無選項
+#     code    進階模式  手打 Python 程式碼，交給 AI 判分，無選項也無 answer
 #   - topic：語法主題，供需求⑨結算報表「最常出現語法」統計用。
 # 每筆格式：
-#   basic    -> (topic, content, [opt1, opt2, opt3, opt4], answer)
-#   advanced -> (topic, content, answer)
+#   BASIC_QUESTIONS    -> (topic, content, [opt1, opt2, opt3, opt4], answer)
+#   ADVANCED_QUESTIONS -> (topic, content, answer)
+#   CODE_QUESTIONS     -> (topic, content, starter_code, expected_output, reference_solution)
 # ==========================================================
 
 BASIC_QUESTIONS = {
@@ -81,39 +83,128 @@ ADVANCED_QUESTIONS = {
 }
 
 
+# ==========================================================
+# 程式碼題（qtype='code'）
+#
+# 玩家在遊戲中手打 Python，送到 /game/verify_code 由 AI 判分。
+# expected_output 與 reference_solution 是判分依據——沒有它們，AI 等於要
+# 自己猜標準答案是什麼，同一份學生程式碼可能這次判過、下次判不過。
+# ⚠️ 這兩欄絕對不可以回傳給前端，那就是答案本身。
+#
+# 每筆格式：(topic, content, starter_code, expected_output, reference_solution)
+# ==========================================================
+
+CODE_QUESTIONS = {
+    "easy": [
+        ("輸出", "請用 print 在螢幕上印出 Hello, PyPoly",
+         "# 在這裡寫下你的程式碼\n",
+         "Hello, PyPoly",
+         "print('Hello, PyPoly')"),
+        ("變數", "宣告變數 x 等於 10、變數 y 等於 3，然後印出 x + y 的結果。",
+         "x = \ny = \n",
+         "13",
+         "x = 10\ny = 3\nprint(x + y)"),
+        ("運算子", "印出 17 除以 5 的「商」與「餘數」，兩個數字各佔一行。",
+         "",
+         "3\n2",
+         "print(17 // 5)\nprint(17 % 5)"),
+        ("字串", "已知 name = 'Python'，請印出這個字串的長度。",
+         "name = 'Python'\n",
+         "6",
+         "name = 'Python'\nprint(len(name))"),
+    ],
+    "normal": [
+        ("迴圈", "用 for 迴圈印出 1 到 5，每個數字各佔一行。",
+         "for i in range(...):\n    ",
+         "1\n2\n3\n4\n5",
+         "for i in range(1, 6):\n    print(i)"),
+        ("條件判斷", "已知 score = 72，若大於等於 60 印出「及格」，否則印出「不及格」。",
+         "score = 72\n",
+         "及格",
+         "score = 72\nif score >= 60:\n    print('及格')\nelse:\n    print('不及格')"),
+        ("串列", "已知 lst = [5, 3, 9, 1]，請印出這個串列由小到大排序後的結果。",
+         "lst = [5, 3, 9, 1]\n",
+         "[1, 3, 5, 9]",
+         "lst = [5, 3, 9, 1]\nprint(sorted(lst))"),
+        ("迴圈", "用迴圈計算 1 加到 10 的總和，並印出結果。",
+         "total = 0\n",
+         "55",
+         "total = 0\nfor i in range(1, 11):\n    total += i\nprint(total)"),
+    ],
+    "hard": [
+        ("函式", "寫一個函式 area(w, h) 回傳長方形面積，並印出 area(4, 6) 的結果。",
+         "def area(w, h):\n    ",
+         "24",
+         "def area(w, h):\n    return w * h\n\nprint(area(4, 6))"),
+        ("迴圈", "印出 1 到 20 之間所有 3 的倍數，用一個空白隔開印在同一行。",
+         "",
+         "3 6 9 12 15 18",
+         "res = [str(i) for i in range(1, 21) if i % 3 == 0]\nprint(' '.join(res))"),
+        ("串列", "已知 lst = [4, 7, 2, 9, 5]，印出其中最大值與最小值的差。",
+         "lst = [4, 7, 2, 9, 5]\n",
+         "7",
+         "lst = [4, 7, 2, 9, 5]\nprint(max(lst) - min(lst))"),
+        ("函式", "寫一個函式 is_even(n)，n 是偶數回傳 True 否則回傳 False，"
+                 "接著印出 is_even(8) 與 is_even(7)，各佔一行。",
+         "def is_even(n):\n    ",
+         "True\nFalse",
+         "def is_even(n):\n    return n % 2 == 0\n\nprint(is_even(8))\nprint(is_even(7))"),
+    ],
+}
+
+
 def seed_data():
     db = SessionLocal()
     try:
-        # 只清空題目；情境(scenarios)交由 init_adventure_data.py 專責，避免兩支腳本互相覆蓋
-        db.query(models.Question).delete()
+        # ⚠️ 這裡刻意「不」清空題庫。
+        #    題庫現在可以從後台 question.html 新增與編輯，整表刪掉會把老師
+        #    自己出的題目一起洗掉。改成以 content 比對，只補上還沒有的題目，
+        #    既有的一律不動——所以這支腳本可以安心重複執行。
+        #    真的要從頭重建請帶 --reset。
+        #    （情境 scenarios 一樣交由 init_adventure_data.py 專責，這裡不碰。）
+        if "--reset" in sys.argv:
+            removed = db.query(models.Question).delete()
+            db.commit()
+            print(f"⚠️  --reset：已清空 {removed} 筆既有題目")
 
-        count = 0
+        existing = {c for (c,) in db.query(models.Question.content).all()}
+        added = skipped = 0
+
+        def put(**kw):
+            nonlocal added, skipped
+            if kw["content"] in existing:
+                skipped += 1
+                return
+            db.add(models.Question(**kw))
+            existing.add(kw["content"])
+            added += 1
+
         for difficulty, items in BASIC_QUESTIONS.items():
             for topic, content, opts, answer in items:
-                db.add(models.Question(
-                    category="basic",
-                    topic=topic,
-                    difficulty=difficulty,
-                    content=content,
+                put(category="basic", qtype="choice",
+                    topic=topic, difficulty=difficulty, content=content,
                     opt1=opts[0], opt2=opts[1], opt3=opts[2], opt4=opts[3],
-                    answer=answer,
-                ))
-                count += 1
+                    answer=answer)
 
         for difficulty, items in ADVANCED_QUESTIONS.items():
             for topic, content, answer in items:
-                db.add(models.Question(
-                    category="advanced",
-                    topic=topic,
-                    difficulty=difficulty,
-                    content=content,
+                put(category="advanced", qtype="gesture",
+                    topic=topic, difficulty=difficulty, content=content,
                     opt1=None, opt2=None, opt3=None, opt4=None,
-                    answer=answer,
-                ))
-                count += 1
+                    answer=answer)
+
+        for difficulty, items in CODE_QUESTIONS.items():
+            for topic, content, starter, expected, solution in items:
+                put(category="advanced", qtype="code",
+                    topic=topic, difficulty=difficulty, content=content,
+                    opt1=None, opt2=None, opt3=None, opt4=None, answer=None,
+                    starter_code=starter,
+                    expected_output=expected,
+                    reference_solution=solution,
+                    time_limit_sec=300, max_attempts=3)
 
         db.commit()
-        print(f"✅ 成功插入 {count} 筆正式題庫（含 topic 語法主題、進階題答案皆為 1~9）！")
+        print(f"✅ 題庫更新完成：新增 {added} 筆，已存在跳過 {skipped} 筆。")
     except Exception as e:
         db.rollback()
         print(f"❌ 題庫寫入失敗: {e}")

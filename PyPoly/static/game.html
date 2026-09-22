@@ -625,6 +625,35 @@
         </div>
 </div>
 
+<!-- === 新增：進階版程式碼編輯 UI === -->
+<div id="advanced-task-ui" style="display:none; position:fixed; top:80px; left:50%; transform:translateX(-50%); z-index:10001; width: 800px; max-width: 95vw; background: rgba(30, 41, 59, 0.98); border: 4px solid #ffde59; border-radius: 20px; box-shadow: 0 15px 50px rgba(0,0,0,0.5); padding: 30px;">
+    
+    <div style="font-size: 1.6rem; font-weight: 900; color: #ffde59; margin-bottom: 15px; text-align: center; border-bottom: 2px dashed #475569; padding-bottom: 15px;">
+        【進階程式設計挑戰】
+    </div>
+    
+    <div id="adv-code-question" style="font-size: 1.4rem; color: white; margin-bottom: 20px; line-height: 1.6; font-weight: 800;">
+        題目載入中...
+    </div>
+    
+    <!-- 加入了計時器顯示區塊 -->
+    <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-weight: 800;">
+        <span id="adv-code-feedback" style="color: #ff4757; font-size: 1.1rem;"></span>
+        <div style="display: flex; gap: 25px;">
+            <span style="color: #ef4444; font-size: 1.1rem;">⏳ 剩餘時間：<span id="adv-code-timer" style="font-size: 1.4rem; font-family: monospace;">05:00</span></span>
+            <span style="color: #94a3b8; font-size: 1.1rem;">剩餘驗證機會：<span id="adv-code-attempts" style="color: #f08c00; font-size: 1.4rem;">3</span> / 3</span>
+        </div>
+    </div>
+
+    <!-- 程式碼輸入區 -->
+    <textarea id="adv-code-editor" style="width: 100%; height: 220px; font-family: 'Consolas', monospace; font-size: 1.3rem; padding: 15px; border-radius: 12px; border: 3px solid #64748b; background: #0f172a; color: #00ff88; resize: none; line-height: 1.5;" placeholder="# 在此輸入你的 Python 程式碼..."></textarea>
+    
+    <div style="display: flex; justify-content: center; margin-top: 25px;">
+        <button id="adv-code-submit-btn" onclick="submitCodeAnswer()" style="background: #00cdac; color: white; border: 3px solid white; padding: 12px 50px; font-size: 1.4rem; font-weight: 900; border-radius: 50px; cursor: pointer; transition: 0.2s; box-shadow: 0 5px 15px rgba(0,205,172,0.4);">🚀 執行驗證</button>
+    </div>
+</div>
+<!-- === 新增結束 === -->
+
 <div id="adventure-decision-ui" style="display: none;">
     <div id="decision-split-layout">
         
@@ -1302,6 +1331,244 @@ async function submitQuizAnswer(chosen) {
     }
 }
 
+// --- 進階版驗證按鈕邏輯 ---
+async function submitCodeAnswer() {
+    if (window.currentCodeAttempts <= 0 || window.uiState === "FINISHED") return;
+    
+    const userCode = document.getElementById('adv-code-editor').value.trim();
+    const feedbackEl = document.getElementById('adv-code-feedback');
+    const attemptsEl = document.getElementById('adv-code-attempts');
+    const submitBtn = document.getElementById('adv-code-submit-btn');
+
+    if (!userCode) {
+        feedbackEl.innerText = "⚠️ 請先輸入程式碼再驗證！";
+        return;
+    }
+    
+    // 🏆 修正 2：直接從 DOM 抓取題目，徹底避開變數變成 null 導致程式中斷的問題
+    const questionText = document.getElementById('adv-code-question').innerText;
+    
+    feedbackEl.innerText = "🧠 AI 助教正在驗證你的程式碼...";
+    feedbackEl.style.color = "#ffde59";
+    submitBtn.disabled = true;
+    submitBtn.style.opacity = "0.5";
+
+    try {
+        const response = await fetch(`${API_URL}/game/verify_code`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'ngrok-skip-browser-warning': 'true' // 解決 ngrok CORS 攔截
+            },
+            body: JSON.stringify({ 
+                question_content: questionText,
+                code: userCode 
+            })
+        });
+        
+        const result = await response.json();
+
+        if (result.status === "success") {
+            document.getElementById('advanced-task-ui').style.display = 'none';
+            if (typeof showGameNotice === "function") showGameNotice(`✅ ${result.message}`, 3500); 
+            handleCodeSuccess(); 
+        } else {
+            window.currentCodeAttempts--;
+            attemptsEl.innerText = window.currentCodeAttempts;
+            feedbackEl.innerText = `❌ ${result.message}`;
+            feedbackEl.style.color = "#ff4757";
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = "1";
+
+            if (window.currentCodeAttempts <= 0) {
+                setTimeout(() => {
+                    document.getElementById('advanced-task-ui').style.display = 'none';
+                    handleCodeFail(); 
+                }, 2500);
+            }
+        }
+    } catch (err) {
+        console.error(err);
+        feedbackEl.innerText = "⚠️ 伺服器連線失敗，請重試";
+        submitBtn.disabled = false;
+        submitBtn.style.opacity = "1";
+    }
+}
+
+// --- 核心分流邏輯 ---
+function startAdventureRecognition(questionObj) {
+    const myName = localStorage.getItem('username');
+    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
+
+    // 🏆 修正 1：終極精準判定，直接看後端撈出的題目類別，完全不依賴會遺失的 roomData
+    const qCategory = questionObj ? questionObj.category : 'basic';
+    const isAdvancedMode = (qCategory === 'advanced');
+
+    console.log("🎮 進入題目階段 - 判定為進階模式?", isAdvancedMode, "題目類別:", qCategory);
+
+    if (isAdvancedMode) {
+        // ==========================================
+        // 🟢 進階版流程 (程式碼編譯)
+        // ==========================================
+        socket.emit('sync_adventure_phase', { 
+            room: roomCode, 
+            user: myName, 
+            phase: 'QUIZ_CODE',
+            payload: { question: questionObj } 
+        });
+
+        // 確保基礎版相機介面關閉，並關閉視訊資源
+        const basicUI = document.getElementById('adventure-task-ui');
+        if (basicUI) basicUI.style.display = 'none';
+        stopAllVision(); 
+
+        const taskUI = document.getElementById('advanced-task-ui');
+        document.getElementById('adv-code-question').innerText = questionObj.content;
+        document.getElementById('adv-code-editor').value = ""; 
+        document.getElementById('adv-code-feedback').innerText = "💡 請在下方編譯器輸入程式碼，並點擊執行驗證";
+        document.getElementById('adv-code-feedback').style.color = "#00cdac";
+        
+        window.currentCodeAttempts = 3;
+        document.getElementById('adv-code-attempts').innerText = window.currentCodeAttempts;
+        
+        const submitBtn = document.getElementById('adv-code-submit-btn');
+        if(submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = "1";
+        }
+        
+        taskUI.style.display = 'block';
+        window.currentAdventureQuestion = questionObj;
+        window.uiState = "CODING"; 
+        window.questionShownAt = Date.now();
+
+        // 啟動 5 分鐘計時器
+        if (typeof startAdvCodeTimer === "function") startAdvCodeTimer(300);
+        showAdventureCharacter(); 
+
+    } else {
+        // ==========================================
+        // 🔵 基礎版流程 (手勢辨識)
+        // ==========================================
+        socket.emit('sync_adventure_phase', { 
+            room: roomCode, user: myName, phase: 'QUIZ', payload: { question: questionObj } 
+        });
+
+        const taskUI = document.getElementById('adventure-task-ui');
+        const questionText = document.getElementById('adv-question-text');
+        const optionsArea = document.getElementById('adv-options');
+
+        questionText.innerHTML = "✋ 請用手勢比出答案";
+        questionText.style.display = "block";
+        optionsArea.style.display = 'none'; 
+        taskUI.style.display = 'block';
+        window.currentAdventureQuestion = questionObj;
+
+        setTimeout(() => {
+            questionText.innerHTML = `【挑戰題目】${questionObj.content}`;
+            window.questionShownAt = Date.now(); 
+            optionsArea.innerHTML = questionObj.options.map((opt, idx) => 
+                `<div class="opt-pill">(${idx + 1}) ${opt}</div>`
+            ).join("");
+            optionsArea.style.display = 'flex';
+        }, 2500);
+
+        window.lockedDiceVal = parseInt(questionObj.answer); 
+        window.uiState = "GESTURE";
+        currentGameState.status = "READY";
+        
+        initCameraAndStartVision(); 
+        
+        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+        const screenPos = new THREE.Vector3().copy(camera.position).addScaledVector(forward, 2.8); 
+        virtualScreen.position.copy(screenPos);
+        virtualScreen.position.y -= 0.48;
+        virtualScreen.quaternion.copy(camera.quaternion);
+        virtualScreen.scale.set(1.0, 1.0, 1.0);
+        virtualScreen.visible = true;
+
+        showAdventureCharacter();
+    }
+}
+
+async function handleCodeSuccess() {
+
+	if (advCodeTimerInterval) { clearInterval(advCodeTimerInterval); advCodeTimerInterval = null; }
+
+    window.uiState = "FINISHED";
+    const myName = localStorage.getItem('username');
+    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
+
+    if (currentAdventureQuestion) markQuestionAsUsed(currentAdventureQuestion.content);
+    logAnswerToServer(true, "CODE_CORRECT"); 
+
+    setTimeout(async () => {
+        try {
+            const targetLandId = window.currentAdventureTile?.id;
+            if (!targetLandId) { endMyTurn(); return; }
+
+            const res = await fetch(`${API_URL}/game/adventure_analysis/${targetLandId}`);
+            const analysisData = await res.json();
+
+            socket.emit('sync_adventure_phase', {
+                room: roomCode, user: myName, phase: 'DECISION', payload: analysisData
+            });
+
+            document.getElementById('adventure-decision-ui').style.display = 'flex';
+
+            if (panoSphere) {
+                panoSphere.visible = true;
+                panoSphere.material.opacity = 1;
+                panoSphere.position.copy(camera.position);
+            }
+
+            fillDecisionUI(analysisData, myName);
+
+            // 定位收購面板的螢幕
+            const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+            const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+            const screenPos = new THREE.Vector3().copy(camera.position)
+                .addScaledVector(forward, 2.8).addScaledVector(right, 0.5);
+
+            virtualScreen.position.copy(screenPos);
+            virtualScreen.quaternion.copy(camera.quaternion);
+            virtualScreen.scale.set(0.75, 0.75, 0.75);
+            virtualScreen.visible = true;
+
+            window.uiState = "PURCHASE_DECISION";
+            window.uiTimer = Date.now();
+
+            initCameraAndStartVision(); // 收購階段依然要開相機比讚
+        } catch (err) {
+            console.error("🚨 進入收購決策失敗，強制換人：", err);
+            endMyTurn();
+        }
+    }, 2000);
+}
+
+function handleCodeFail() {
+
+	if (advCodeTimerInterval) { clearInterval(advCodeTimerInterval); advCodeTimerInterval = null; }
+
+    window.uiState = "FINISHED";
+    const myName = localStorage.getItem('username');
+    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
+
+    logAnswerToServer(false, "CODE_WRONG");
+    showGameNotice(`❌ 3次機會已用盡，挑戰失敗！`, 3500);
+
+    socket.emit('broadcast_dice_event', {
+        room: roomCode, user: myName, type: "QUIZ_WRONG", point: "程式碼錯誤"
+    });
+
+    setTimeout(() => {
+        endMyTurn();
+    }, 3500);
+}
+
 // game.html 修正版
 // 🏆 需求④：答題階段顯示並定位「自己」的 3D 虛擬人物。
 //   冒險時 setBoardVisibility(false) 會把所有人物藏起來，導致題目階段看不到虛擬人物。
@@ -1328,64 +1595,163 @@ function showAdventureCharacter() {
     myModel.lookAt(camera.position.x, myModel.position.y, camera.position.z);
 }
 
+window.currentCodeAttempts = 3;
+let advCodeTimerInterval = null;
+
+// --- 5 分鐘計時器函式 ---
+function startAdvCodeTimer(seconds) {
+    if (advCodeTimerInterval) clearInterval(advCodeTimerInterval);
+    
+    let timeLeft = seconds;
+    const timerEl = document.getElementById('adv-code-timer');
+    
+    const updateDisplay = () => {
+        const m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+        const s = (timeLeft % 60).toString().padStart(2, '0');
+        timerEl.innerText = `${m}:${s}`;
+        
+        if (timeLeft <= 60) {
+            timerEl.style.color = "#ff4757"; 
+            timerEl.style.opacity = (timeLeft % 2 === 0) ? "1" : "0.5"; // 最後一分鐘閃爍
+        } else {
+            timerEl.style.color = "#f08c00";
+            timerEl.style.opacity = "1";
+        }
+    };
+
+    updateDisplay(); // 初始顯示
+
+    advCodeTimerInterval = setInterval(() => {
+        timeLeft--;
+        updateDisplay();
+
+        if (timeLeft <= 0) {
+            clearInterval(advCodeTimerInterval);
+            advCodeTimerInterval = null;
+            
+            document.getElementById('adv-code-feedback').innerText = "⏰ 時間到！驗證失敗。";
+            document.getElementById('adv-code-submit-btn').disabled = true;
+            
+            setTimeout(() => {
+                document.getElementById('advanced-task-ui').style.display = 'none';
+                handleCodeFail();
+            }, 2000);
+        }
+    }, 1000);
+}
+
+// --- 核心分流邏輯 (加入彈出視窗除錯) ---
 function startAdventureRecognition(questionObj) {
-    // 🏆 1. 解決變數作用域問題：重新獲取 roomCode 與 myName
     const myName = localStorage.getItem('username');
     const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
 
-    // 🏆 2. 同步廣播：告訴觀戰者我進入「回答問題」階段了
-    // 必須包含 questionObj，觀戰者才能顯示題目文字
-    socket.emit('sync_adventure_phase', { 
-        room: roomCode, 
-        user: myName, 
-        phase: 'QUIZ',
-        payload: { question: questionObj } 
-    });
-
-    const taskUI = document.getElementById('adventure-task-ui');
-    const questionText = document.getElementById('adv-question-text');
-    const optionsArea = document.getElementById('adv-options');
-
-    // 🏆 3. 初始階段：顯示手勢操作提示
-    questionText.innerHTML = "✋ 請用手勢比出答案";
-    questionText.style.display = "block";
-    optionsArea.style.display = 'none'; // 初始先隱藏選項，讓提示明顯
-    taskUI.style.display = 'block';
+    // 🚨 極致偵錯：直接彈出視窗，讓你我都能看到到底傳了什麼資料進來！
+    const qCategory = questionObj ? questionObj.category : '找不到';
+    const qContent = questionObj ? questionObj.content : '找不到';
+    const rMode = roomData ? roomData.mode : '找不到';
     
-    currentAdventureQuestion = questionObj;
-
-    // 🏆 4. 延遲 2.5 秒後，切換為正式題目內容
-    setTimeout(() => {
-        questionText.innerHTML = `【挑戰題目】${questionObj.content}`;
-        window.questionShownAt = Date.now(); // 🏆 需求⑨：記錄題目出現時間，供計算作答用時
-        // 顯示選項按鈕 (主角看得到內容)
-        optionsArea.innerHTML = questionObj.options.map((opt, idx) => 
-            `<div class="opt-pill">(${idx + 1}) ${opt}</div>`
-        ).join("");
-        optionsArea.style.display = 'flex';
-    }, 2500);
-
-    // 🏆 5. 設定辨識狀態與目標
-    window.lockedDiceVal = parseInt(questionObj.answer); 
-    window.uiState = "GESTURE";
-    currentGameState.status = "READY";
+    alert(`【系統抓漏報告】\n\n1. 後端傳來的題目類別: ${qCategory}\n2. 題目內容: ${qContent}\n3. 房間目前的模式: ${rMode}`);
     
-    // 開啟視訊辨識
-    initCameraAndStartVision();
-    
-    // 🏆 6. 調整 3D 辨識螢幕位置：對齊玩家視線
-    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-    const screenPos = new THREE.Vector3().copy(camera.position).addScaledVector(forward, 2.8); 
-    virtualScreen.position.copy(screenPos);
-    virtualScreen.position.y -= 0.48;
-    virtualScreen.quaternion.copy(camera.quaternion);
-    virtualScreen.scale.set(1.0, 1.0, 1.0);
-    virtualScreen.visible = true;
+    console.log("🚨 [深度偵錯] 完整的 questionObj:", questionObj);
+    console.log("🚨 [深度偵錯] 完整的 roomData:", roomData);
 
-    // 🏆 需求④：讓自己的虛擬人物在題目階段出現
-    showAdventureCharacter();
+    // 🏆 終極精準判定：只要題目類別是 advanced，或是房間模式包含進階，就強制開啟編譯器！
+    const isAdvancedMode = (qCategory === 'advanced') || (rMode && rMode.includes('進階'));
+    
+    console.log("🎮 進入題目階段 - 判定為進階模式?", isAdvancedMode);
+
+    const advancedUI = document.getElementById('advanced-task-ui');
+    const basicUI = document.getElementById('adventure-task-ui');
+
+    if (isAdvancedMode) {
+        // ==========================================
+        // 🟢 進階版流程 (程式碼編譯)
+        // ==========================================
+        socket.emit('sync_adventure_phase', { 
+            room: roomCode, user: myName, phase: 'QUIZ_CODE', payload: { question: questionObj } 
+        });
+
+        if (basicUI) basicUI.style.display = 'none'; // 🏆 確保基礎版相機介面關閉
+        stopAllVision(); // 🏆 強制關閉相機，防止背景偷跑
+
+        if (advancedUI) {
+            advancedUI.style.display = 'block';
+            
+            document.getElementById('adv-code-question').innerText = questionObj.content;
+            document.getElementById('adv-code-editor').value = ""; 
+            
+            const feedbackEl = document.getElementById('adv-code-feedback');
+            if(feedbackEl) {
+                feedbackEl.innerText = "💡 請在下方編譯器輸入程式碼，並點擊執行驗證";
+                feedbackEl.style.color = "#00cdac";
+            }
+            
+            window.currentCodeAttempts = 3;
+            const attemptsEl = document.getElementById('adv-code-attempts');
+            if(attemptsEl) attemptsEl.innerText = window.currentCodeAttempts;
+            
+            const submitBtn = document.getElementById('adv-code-submit-btn');
+            if(submitBtn) { submitBtn.disabled = false; submitBtn.style.opacity = "1"; }
+            
+            window.currentAdventureQuestion = questionObj;
+            window.uiState = "CODING"; 
+            window.questionShownAt = Date.now();
+
+            if(typeof startAdvCodeTimer === "function") startAdvCodeTimer(300);
+            if(typeof showAdventureCharacter === "function") showAdventureCharacter(); 
+        } else {
+            alert("❌ 嚴重錯誤：找不到 advanced-task-ui，請確認 HTML 標籤是否存在！");
+        }
+
+    } else {
+        // ==========================================
+        // 🔵 基礎版流程 (手勢辨識)
+        // ==========================================
+        socket.emit('sync_adventure_phase', { 
+            room: roomCode, user: myName, phase: 'QUIZ', payload: { question: questionObj } 
+        });
+
+        if (advancedUI) advancedUI.style.display = 'none'; // 確保進階版介面關閉
+
+        const questionText = document.getElementById('adv-question-text');
+        const optionsArea = document.getElementById('adv-options');
+
+        if (basicUI && questionText && optionsArea) {
+            basicUI.style.display = 'block';
+            questionText.innerHTML = "✋ 準備辨識，請用手勢比出答案";
+            questionText.style.display = "block";
+            optionsArea.style.display = 'none'; 
+
+            setTimeout(() => {
+                questionText.innerHTML = `【挑戰題目】${questionObj.content}`;
+                window.questionShownAt = Date.now(); 
+                optionsArea.innerHTML = questionObj.options.map((opt, idx) => 
+                    `<div class="opt-pill">(${idx + 1}) ${opt}</div>`
+                ).join("");
+                optionsArea.style.display = 'flex';
+            }, 2500);
+
+            window.lockedDiceVal = parseInt(questionObj.answer); 
+            window.uiState = "GESTURE";
+            if(typeof currentGameState !== 'undefined') currentGameState.status = "READY";
+            
+            if (typeof initCameraAndStartVision === "function") initCameraAndStartVision(); 
+            
+            if (typeof virtualScreen !== "undefined" && virtualScreen) {
+                const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+                const screenPos = new THREE.Vector3().copy(camera.position).addScaledVector(forward, 2.8); 
+                virtualScreen.position.copy(screenPos);
+                virtualScreen.position.y -= 0.48;
+                virtualScreen.quaternion.copy(camera.quaternion);
+                virtualScreen.scale.set(1.0, 1.0, 1.0);
+                virtualScreen.visible = true;
+            }
+            if (typeof showAdventureCharacter === "function") showAdventureCharacter();
+        }
+    }
 }
+
 
 // 🏆 修正版：徹底解決內容亂碼與多重執行問題
 let currentTypewriterTimeout = null;
@@ -3020,10 +3386,12 @@ function playOpeningAnim() {
 		});
 	}
 	
+// --- 請替換整段 stopAllVision ---
 async function stopAllVision() {
-	window.localHandLandmarks = null;
-	
-	if (typeof screenCtx !== 'undefined' && screenCanvas) {
+    window.localHandLandmarks = null;
+    window.isHandsProcessing = false; // 🏆 釋放全域保護鎖，防止 MediaPipe 崩潰
+    
+    if (typeof screenCtx !== 'undefined' && screenCanvas) {
         screenCtx.clearRect(0, 0, screenCanvas.width, screenCanvas.height);
     }
 
@@ -3039,7 +3407,7 @@ async function stopAllVision() {
     
     // 2. 徹底斷開 WebSocket
     if (visionSocket) {
-        visionSocket.onmessage = null; // 移除監聽器
+        visionSocket.onmessage = null; 
         visionSocket.close();
         visionSocket = null;
     }
@@ -3048,6 +3416,7 @@ async function stopAllVision() {
     if (virtualScreen) virtualScreen.visible = false;
     console.log("🧹 視覺資源已徹底釋放");
 }
+
 
 // ==========================================
 // 🏆 1. 移植自 Python 的手勢辨識核心邏輯 (完全在前端執行，零延遲！)
@@ -3078,6 +3447,8 @@ function initMediaPipeOnce() {
 }
 initMediaPipeOnce(); // 頁面載入時只呼叫這一次
 
+// --- 請替換整段 initCameraAndStartVision ---
+window.isHandsProcessing = false; // 宣告全域保護鎖
 
 async function initCameraAndStartVision() {
     await stopAllVision(); 
@@ -3089,9 +3460,9 @@ async function initCameraAndStartVision() {
         await video.play();
         
         virtualScreen.visible = true;
-		
-		const protectedStates = ["PURCHASE_DECISION", "SHOP_BROWSING", "SHOP_CONFIRMING"];
-		if (!protectedStates.includes(window.uiState)) {
+        
+        const protectedStates = ["PURCHASE_DECISION", "SHOP_BROWSING", "SHOP_CONFIRMING"];
+        if (!protectedStates.includes(window.uiState)) {
             const isAdventure = document.getElementById('adventure-task-ui').style.display === 'block';
             if (!isAdventure) {
                 window.uiState = "READY"; 
@@ -3106,13 +3477,13 @@ async function initCameraAndStartVision() {
         const wsHost = API_URL.replace('http://', '').replace('https://', '');
         visionSocket = new WebSocket(`${wsProtocol}//${wsHost}/ws/vision/game_start`);
 
-        // 🏆 修正三：統一覆寫 globalHands 的 onResults，捨棄 activeHands，徹底根除記憶體洩漏與崩潰
         globalHands.onResults((results) => {
+            window.isHandsProcessing = false; // 🔓 影像處理完畢，釋放鎖
+
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 window.localHandLandmarks = results.multiHandLandmarks[0];
                 const rawLandmarks = results.multiHandLandmarks[0].map(lm => ({ x: 1-lm.x, y: lm.y, z: lm.z }));
 
-                // 🏆 關鍵：如果是收購決策狀態，告知後端要找 LIKE
                 let currentTarget = window.lockedDiceVal || 1;
                 if (window.uiState === "PURCHASE_DECISION" || window.uiState === "SHOP_CONFIRMING") {
                     currentTarget = "LIKE"; 
@@ -3127,57 +3498,46 @@ async function initCameraAndStartVision() {
             }
         });
 
-		// 尋找 game.html 中的 activeCamera 初始化處
-		activeCamera = new Camera(video, {
-			onFrame: async () => {
-				// 🏆 關鍵修正：確保影片已經準備好，且寬高大於 0 
-				if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
-					if (globalHands) {
-						await globalHands.send({ image: video });
-					}
-				}
-			},
-			width: 640,
-			height: 480
-		});
-		activeCamera.start();
-
-		// game.html 修正版：確保收購決策能正確抓到 LIKE / DISLIKE
-		// game.html 終極修正版：確保所有手勢皆能靈敏捕捉
-		visionSocket.onmessage = (e) => {
-			const data = JSON.parse(e.data);
-			const now = Date.now();
-			
-			// 1. 即時同步數據供渲染使用
-			if (data.status) currentGameState.status = data.status;
-			if (data.dice_val !== undefined) currentGameState.detected_val = data.dice_val;
-			
-			// 即時更新「收購決策」的提示文字
-			if (window.uiState === "PURCHASE_DECISION" && data.dice_val) {
-				const debugHint = document.getElementById('adv-ui-action-hint');
-				if (debugHint) {
-					debugHint.innerHTML = data.dice_val === "LIKE" ? "👍 偵測到：確認收購" : 
-										 data.dice_val === "DISLIKE" ? "👎 偵測到：放棄收購" : "⌛ 請比出手勢...";
-				}
-			}
-
-            // =========================================================
-            // 🏆 關鍵修正：將 SHOP_BROWSING 移出 SUCCESS 封鎖區！
-            // 允許前端直接讀取原始手勢，不必等待後端核准
-            // =========================================================
-            if (window.uiState === "SHOP_BROWSING") {
-                const detected = data.dice_val || data.gesture;
-
-                // 完美的冷卻時間機制 (1.5 秒內不處理倒讚，防止雙擊)
-                if (window.lastTransitionTime && (now - window.lastTransitionTime < 1500)) {
-                    if (detected === "DISLIKE") {
-                        console.log("⏳ 剛退回清單：忽略殘留倒讚，等待手放下...");
-                        window.shopDetectCount = 0; 
-                        return; 
+        activeCamera = new Camera(video, {
+            onFrame: async () => {
+                if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+                    // 🏆 核心保護：如果尚未處理完上一幀，絕對不送新幀給 MediaPipe！
+                    if (globalHands && !window.isHandsProcessing) {
+                        window.isHandsProcessing = true; // 🔒 塞入影像前上鎖
+                        try {
+                            await globalHands.send({ image: video });
+                        } catch (e) {
+                            console.error("MediaPipe 處理異常:", e);
+                            window.isHandsProcessing = false; // 發生錯誤時也要釋放鎖
+                        }
                     }
                 }
+            },
+            width: 640,
+            height: 480
+        });
+        activeCamera.start();
 
-                // 正常的累積與判斷
+        visionSocket.onmessage = (e) => {
+            const data = JSON.parse(e.data);
+            const now = Date.now();
+            
+            if (data.status) currentGameState.status = data.status;
+            if (data.dice_val !== undefined) currentGameState.detected_val = data.dice_val;
+            
+            if (window.uiState === "PURCHASE_DECISION" && data.dice_val) {
+                const debugHint = document.getElementById('adv-ui-action-hint');
+                if (debugHint) {
+                    debugHint.innerHTML = data.dice_val === "LIKE" ? "👍 偵測到：確認收購" : 
+                                         data.dice_val === "DISLIKE" ? "👎 偵測到：放棄收購" : "⌛ 請比出手勢...";
+                }
+            }
+
+            if (window.uiState === "SHOP_BROWSING") {
+                const detected = data.dice_val || data.gesture;
+                if (window.lastTransitionTime && (now - window.lastTransitionTime < 1500)) {
+                    if (detected === "DISLIKE") { window.shopDetectCount = 0; return; }
+                }
                 if (detected === "DISLIKE" || [1, 2, 3, 4].includes(detected)) {
                     if (window.shopDetectVal === detected) {
                         window.shopDetectCount = (window.shopDetectCount || 0) + 1;
@@ -3185,70 +3545,41 @@ async function initCameraAndStartVision() {
                         window.shopDetectVal = detected;
                         window.shopDetectCount = 1;
                     }
-                    
-                    // 累積 5 次 (約 0.15 秒)，極度靈敏！
                     if (window.shopDetectCount >= 5) {
-                        window.shopDetectCount = 0; // 重置
-                        
+                        window.shopDetectCount = 0; 
                         if (detected === "DISLIKE") {
-                            console.log("🚪 確認玩家要離開，執行離開商店邏輯...");
                             window.uiState = "FINISHED";
                             document.getElementById('shop-ui').style.display = 'none';
                             stopAllVision();
-                            
-                            socket.emit('broadcast_dice_event', {
-                                room: localStorage.getItem('room_code'), 
-                                user: localStorage.getItem('username'), 
-                                type: "SHOP_LEAVE"
-                            });
-
+                            socket.emit('broadcast_dice_event', { room: localStorage.getItem('room_code'), user: localStorage.getItem('username'), type: "SHOP_LEAVE" });
                             allTileMeshes.forEach(m => m.visible = true);
-                            // 🏆 統一走 endMyTurn：先前這裡直接 emit next_turn_trigger，會繞過回合計數與結束判定
                             endMyTurn();
                             showGameNotice("👋 已離開道具店", 2000);
                         } else {
-                            // 選擇了道具
                             window.selectedShopItem = detected;
                             window.uiState = "SHOP_CONFIRMING";
-                            window.lastTransitionTime = Date.now(); // 啟動下一波冷卻
+                            window.lastTransitionTime = Date.now(); 
                             showShopConfirmUI(window.selectedShopItem);
                         }
                     }
-                } else {
-                    window.shopDetectCount = 0; 
-                }
-                
-                return; // 🛑 處理完瀏覽階段就結束，不進入下方的 SUCCESS 區塊
+                } else { window.shopDetectCount = 0; }
+                return; 
             }
-			// =========================================================
-            // 🏆 修正一：在「準備擲骰 (READY)」階段攔截手勢 7 啟用道具！
-            // =========================================================
+
             if (window.uiState === "READY" && document.getElementById('adventure-task-ui').style.display !== 'block') {
                 const detected = data.dice_val || data.gesture;
-                
                 if (detected == 7) {
-                    // 🏆 修正一：如果道具已經啟用了，直接略過，防止跳出「沒有道具」的誤報
                     if (window.isPlus3Active) return; 
-
                     if (!window.plus3DetectCount) window.plus3DetectCount = 0;
                     window.plus3DetectCount++;
-                    
-                    // 累積 5 次防手滑
                     if (window.plus3DetectCount >= 5) {
                         window.plus3DetectCount = 0; 
                         const inv = getPlayerInventory(localStorage.getItem('username'));
-                        
                         if (inv["item_plus3"] > 0) {
                             window.isPlus3Active = true;
                             deductItemFromInventory(localStorage.getItem('username'), "item_plus3"); 
-                            
                             showGameNotice("🎟️ 已啟用【骰到步數+3】！<br>請用拳頭碰觸骰子擲點...", 2500);
-                            
-                            socket.emit('broadcast_dice_event', {
-                                room: JSON.parse(localStorage.getItem('pypoly_active_room'))?.code || localStorage.getItem('room_code'), 
-                                user: localStorage.getItem('username'), 
-                                type: "PLUS3_READY" 
-                            });
+                            socket.emit('broadcast_dice_event', { room: JSON.parse(localStorage.getItem('pypoly_active_room'))?.code || localStorage.getItem('room_code'), user: localStorage.getItem('username'), type: "PLUS3_READY" });
                         } else {
                             if (!window.noItemWarningLock) {
                                 showGameNotice("❌ 你沒有【骰到步數+3】道具！", 2000);
@@ -3257,36 +3588,21 @@ async function initCameraAndStartVision() {
                             }
                         }
                     }
-                } else {
-                    window.plus3DetectCount = 0; 
-                }
-                return; // 🛑 READY 狀態只需攔截，不往下走 SUCCESS
+                } else { window.plus3DetectCount = 0; }
+                return; 
             }
-			
 
-			// =========================================================
-			// 3. 其他需要後端回傳 SUCCESS 才能執行的核心邏輯
-			// =========================================================
-			if (data.done || (data.status && data.status.includes("SUCCESS"))) {
-				
-				// --- 階段 A：處理「收購決策」 ---
-				if (window.uiState === "PURCHASE_DECISION") {
-					if (data.dice_val === 7) {
+            if (data.done || (data.status && data.status.includes("SUCCESS"))) {
+                if (window.uiState === "PURCHASE_DECISION") {
+                    if (data.dice_val === 7) {
                         const myName = localStorage.getItem('username');
                         const inv = getPlayerInventory(myName);
-                        
                         if (inv["item_discount"] && inv["item_discount"] > 0) {
                             if (window.isDiscountApplied) return; 
-                            
-                            console.log("🎟️ 偵測到手勢 7，使用折扣道具！");
                             showGameNotice("🎟️ 已使用折扣道具！<br><span style='font-size: 1.5rem; color: #ef4444;'>⚠️ 注意：即使放棄收購，道具也無法退回</span>", 3500);
-                            
                             const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
                             const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
-                            socket.emit('sync_adventure_choice', { 
-                                room: roomCode, choice: "USE_DISCOUNT" 
-                            });
-                            
+                            socket.emit('sync_adventure_choice', { room: roomCode, choice: "USE_DISCOUNT" });
                             applyItemDiscount();
                         } else {
                             if(!window.noItemWarningLock) {
@@ -3297,102 +3613,72 @@ async function initCameraAndStartVision() {
                         }
                         return; 
                     }
-
-					if (data.dice_val === "LIKE" || data.dice_val === "DISLIKE") {
-						window.uiState = "FINISHED";
-						if (visionSocket) { visionSocket.close(); visionSocket = null; }
-						executePurchase(data.dice_val === "LIKE");
-					}
-					return;
-				}
-
-				// --- 階段 B：處理「手勢辨識」 (回答問題或擲骰移動) ---
-				if (window.uiState === "GESTURE") {
-					if (now - window.uiTimer < 800) return;
-
-					const isAdventure = document.getElementById('adventure-task-ui').style.display === 'block';
-
-					if (isAdventure) {
-						if (![1, 2, 3, 4].includes(data.dice_val)) {
-							console.log(`⚠️ 偵測到非選項手勢 (${data.dice_val})，已自動忽略。`);
-							return;
-						}
-						// 🏆 答題邏輯已抽成 submitQuizAnswer()，讓開發者後台在
-						//    沒有相機（無 visionSocket）時也能直接觸發同一套流程
-						submitQuizAnswer(data.dice_val);
-						return;
-
-					} else {
-                        // 這裡原本寫的 if (data.dice_val === 7) {...} 整段刪掉！
-                        
-                        // 原有的擲骰移動邏輯
-                        if (data.dice_val !== window.lockedDiceVal) return; 
-                        
-                        let finalDice = data.dice_val;
-                        if (window.isPlus3Active) {
-                            showGameNotice(`🎲 辨識成功！即將前進 ${window.lockedDiceVal} 步！`, 2000);
-                        }
-                        
+                    if (data.dice_val === "LIKE" || data.dice_val === "DISLIKE") {
                         window.uiState = "FINISHED";
                         if (visionSocket) { visionSocket.close(); visionSocket = null; }
+                        executePurchase(data.dice_val === "LIKE");
+                    }
+                    return;
+                }
 
+                if (window.uiState === "GESTURE") {
+                    if (now - window.uiTimer < 800) return;
+                    const isAdventure = document.getElementById('adventure-task-ui').style.display === 'block';
+                    if (isAdventure) {
+                        if (![1, 2, 3, 4].includes(data.dice_val)) return;
+                        submitQuizAnswer(data.dice_val);
+                        return;
+                    } else {
+                        if (data.dice_val !== window.lockedDiceVal) return; 
+                        if (window.isPlus3Active) showGameNotice(`🎲 辨識成功！即將前進 ${window.lockedDiceVal} 步！`, 2000);
+                        window.uiState = "FINISHED";
+                        if (visionSocket) { visionSocket.close(); visionSocket = null; }
                         setTimeout(() => {
                             stopAllVision();
                             if (virtualScreen) virtualScreen.visible = false;
                             const myName = localStorage.getItem('username');
                             const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
-                            if (roomData) {
-                                socket.emit('player_move_sync_request', { room: roomData.code, user: myName, steps: window.lockedDiceVal });
-                            }
+                            if (roomData) socket.emit('player_move_sync_request', { room: roomData.code, user: myName, steps: window.lockedDiceVal });
                         }, 1500);
                     }
-                } 
-                // --- 階段 C：確認購買 (LIKE / DISLIKE) ---
-                else if (window.uiState === "SHOP_CONFIRMING") {
+                } else if (window.uiState === "SHOP_CONFIRMING") {
                     if (data.dice_val === "LIKE" || data.dice_val === "DISLIKE") {
                         if (window.shopCooldown) return; 
                         window.shopCooldown = true;
-                        
                         const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
                         const activeRoomCode = roomData ? roomData.code : localStorage.getItem('room_code');
-                        
-                        console.log(`✅ 判定手勢為: ${data.dice_val}，準備執行動作...`);
                         socket.emit('sync_adventure_choice', { room: activeRoomCode, choice: data.dice_val });
-                        
                         setTimeout(() => {
                             if (data.dice_val === "LIKE") {
                                 processShopPurchase(window.selectedShopItem);
                             } else if (data.dice_val === "DISLIKE") {
                                 socket.emit('broadcast_dice_event', { room: activeRoomCode, user: localStorage.getItem('username'), type: "SHOP_CANCEL" });
-                                
                                 window.uiState = "SHOP_BROWSING";
                                 window.lastTransitionTime = Date.now();
                                 window.selectedShopItem = null;
-                                
                                 const cards = document.querySelectorAll('.shop-item-card');
                                 cards.forEach(card => {
                                     card.style.gridColumn = ''; card.style.gridRow = ''; card.style.transform = 'none';
                                     card.style.width = ''; card.style.height = ''; card.style.border = '4px solid #e2e8f0';
                                     card.style.display = 'flex';
                                 });
-                                
                                 document.getElementById('shop-inline-action-bar').style.display = 'none';
                                 document.getElementById('shop-instruction-title').innerText = "🛒 道具商店";
                                 document.getElementById('shop-instruction-desc').innerHTML = "比出數字 1 ~ 4：選擇道具<br>比出 👎 倒讚：放棄並離開";
-                                
                                 socket.emit('sync_adventure_phase', { room: activeRoomCode, user: localStorage.getItem('username'), phase: 'SHOP_BROWSING', payload: {} });
                             }
                             window.shopCooldown = false; 
                         }, 500);
                     }
                 }
-			}
-		};
+            }
+        };
 
     } catch (err) {
         console.error("啟動失敗:", err);
     }
 }
+
 
 function applyPlus3Effect() {
     window.isPlus3Active = true;
@@ -6791,6 +7077,8 @@ function resetToGodViewState() {
     document.getElementById('adventure-decision-ui').style.display = 'none';
     document.getElementById('back-to-god-btn').style.display = 'none';
     document.getElementById('god-view-status-ui').style.display = 'none';
+	document.getElementById('advanced-task-ui').style.display = 'none'; // 新增這行
+	if (advCodeTimerInterval) { clearInterval(advCodeTimerInterval); advCodeTimerInterval = null; }
 	
 	// 清除全域的 3D 動畫
     if (window.spec3DAnimId) {
@@ -6835,6 +7123,8 @@ function resetToGodViewState() {
     resetChoiceUI(); // 清理按鈕亮燈
     if (virtualScreen) virtualScreen.visible = false;
     stopAllVision();
+	
+	if (advCodeTimerInterval) { clearInterval(advCodeTimerInterval); advCodeTimerInterval = null; }
 }
 
 // 🏆 修正版：確保轉場後看得到格子且角度正確
@@ -7224,6 +7514,19 @@ function updateSpectatorUI(data) {
         }, 2500);
 		
 		renderPlayerModelInActiveVisionFrame(data.user);
+    }
+	else if (data.phase === 'QUIZ_CODE') {
+        taskUI.style.display = 'block';
+        decisionUI.style.display = 'none';
+        
+        const questionText = document.getElementById('adv-question-text');
+        const optionsArea = document.getElementById('adv-options');
+
+        questionText.innerText = `【進階觀戰】題目：${data.payload?.question?.content || "回答問題中"}`;
+        optionsArea.innerHTML = `<div class="opt-pill" style="width: 100%; background: #1e293b; color: #ffde59; border-color: #ffde59;">🧑‍💻 玩家正在手寫程式碼解題中...</div>`;
+        optionsArea.style.display = 'flex';
+        
+        renderPlayerModelInActiveVisionFrame(data.user);
     }
     else if (data.phase === 'DECISION') {
         taskUI.style.display = 'none';
