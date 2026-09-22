@@ -71,6 +71,8 @@ services:
       # ⚠️ Windows 主機的檔案變更事件不會可靠地傳進 Linux 容器，
       #    少了這一行，--reload 會安靜地完全沒反應，改了程式碼卻以為沒生效。
       WATCHFILES_FORCE_POLLING: "true"
+      MOENV_API_KEY: ${MOENV_API_KEY:-}
+      CWA_API_KEY: ${CWA_API_KEY:-}
       # SENDER_EMAIL / SENDER_PASSWORD / MOENV_API_KEY 刻意不提供：
       # 忘記密碼與空氣品質會走保底值，遊戲照常可玩，也不必把金鑰散出去。
     volumes:

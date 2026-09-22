@@ -677,12 +677,12 @@
 
             <div class="section-3-crowd">
                 <div class="crowd-line">
-                    <span style="color: #64748b;">👥 目前即時人流</span>
-                    <span id="adv-ui-crowd-count">--- 人</span>
+                    <span style="color: #64748b;">⛅ 即時天氣狀況</span>
+                    <span id="adv-ui-weather-desc">---</span>
                 </div>
                 <div class="crowd-line">
-                    <span style="color: #4facfe;">📈 觀光價值加成</span>
-                    <span id="adv-ui-crowd-bonus">+$---</span>
+                    <span style="color: #0d9488;">🌡️ 即時氣溫與加成</span>
+                    <span id="adv-ui-temp-desc">---</span>
                 </div>
             </div>
 
@@ -3911,11 +3911,25 @@ function fillDecisionUI(data, activePlayerName) {
         }
     }
     
-    const crowdEl = document.getElementById('adv-ui-crowd-count');
-    if (crowdEl) crowdEl.innerText = data.crowd || 0;
+    // ⛅ 即時天氣狀況（替換原人流計數）
+    const weatherEl = document.getElementById('adv-ui-weather-desc');
+    if (weatherEl) {
+        if (data.has_temp_event) {
+            weatherEl.innerText = `${data.weather || '晴'} (${data.temp_station}站)`;
+        } else {
+            weatherEl.innerText = '晴朗';
+        }
+    }
     
-    const bonusEl = document.getElementById('adv-ui-crowd-bonus');
-    if (bonusEl) bonusEl.innerText = `+$${data.crowd_bonus || 0}`;
+    // 🌡️ 即時氣溫與加成（替換原觀光加成）
+    const tempEl = document.getElementById('adv-ui-temp-desc');
+    if (tempEl) {
+    if (data.has_temp_event) {
+        tempEl.innerText = `${data.temp}°C (×${data.temp_multiplier})`;
+    } else {
+        tempEl.innerText = '適中 (×1.0)';
+    }
+}
 
     const aqiTag = document.getElementById('adv-ui-aqi-notice');
     const totalEl = document.getElementById('adv-ui-total');
@@ -3927,9 +3941,9 @@ function fillDecisionUI(data, activePlayerName) {
             aqiTag.innerText = `👑 您的領地 (可加蓋)`;
             aqiTag.style.background = "#00cdac";
             aqiTag.style.color = "white";
+            aqiTag.style.display = "block";
         }
         
-        // 費用是原價一半，過路費增加 50%
         window.upgradePrice = Math.floor(basePrice * 0.5);
         window.newToll = Math.floor(currentToll * 2);
         window.isUpgrading = true;
@@ -3945,6 +3959,7 @@ function fillDecisionUI(data, activePlayerName) {
             aqiTag.innerText = `👑 原地主：${landData.owner}`;
             aqiTag.style.background = "#ff4757";
             aqiTag.style.color = "white";
+            aqiTag.style.display = "block";
         }
 
         const buyoutPrice = Math.floor(basePrice * 1.5);
@@ -3956,28 +3971,25 @@ function fillDecisionUI(data, activePlayerName) {
 
         setTimeout(() => showGameNotice(`👑 此地主為 ${landData.owner}！強制收購需加價 50%！`, 3500), 800);
     } 
-    // 情境 C：空地 -> 一般收購
+    // 情境 C：空地 -> 一般收購（頂部只顯示 AQI 特殊事件）
     else {
         if (aqiTag) {
-            // 🏆 顯示環境部即時 AQI 與加成倍率（後端 has_env_event 為真時才有）。
-            //    非 4 大監測站的地點（例如日月潭）沒有環境事件，維持原本樣式。
             if (data.has_env_event) {
-                const m = data.env_multiplier;
-                const good = m > 1;
-                aqiTag.innerText = `🍃 ${data.env_station}站 AQI ${data.aqi}（${data.env_status}）`
-                    + (m === 1 ? `　價格不變` : `　價格 ×${m}`);
-                aqiTag.style.background = good ? "#00cdac" : (m < 1 ? "#ff7675" : "#f1f5f9");
-                aqiTag.style.color = (m === 1) ? "#64748b" : "white";
+                const em = data.env_multiplier;
+                aqiTag.innerText = `🍃 ${data.env_station}站 AQI ${data.aqi}（${data.env_status}，×${em}）`;
+                aqiTag.style.background = (em >= 1.0) ? "#00cdac" : "#ff7675";
+                aqiTag.style.color = "white";
+                aqiTag.style.padding = "6px 12px";
+                aqiTag.style.display = "block";
             } else {
-                aqiTag.innerText = `-- 環境狀態 --`;
-                aqiTag.style.background = "#f1f5f9";
-                aqiTag.style.color = "#64748b";
+                aqiTag.style.display = "none"; // 無 AQI 事件時隱藏頂部標籤
             }
         }
         if (totalEl) totalEl.innerText = `$${data.total_price || 0}`;
         if (tollEl) tollEl.innerText = `$${data.toll || 0}`;
     }
 }
+
 
 // 🏆 修正 3：從 localStorage 恢復土地所有權記憶，防止重新整理後資料遺失！
 let globalOwnedLands = JSON.parse(localStorage.getItem('pypoly_global_owned_lands')) || []; 

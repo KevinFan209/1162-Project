@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 import models, auth_utils, database
 import air_quality  # 🏆 環境部 AQI（移植自 origin/vamos 的 990e880）
+import temperature  # 🏆 中央氣象署即時氣溫（白名單 64 景點）
 import learn_ai     # 🏆 AI 導師分析（learn.html 右側面板，交接給組員維護）
 # ⚠️ 這裡原本有 cv2，但全檔沒有任何一處用到它。
 #    它唯一的作用是讓 mediapipe 相依的 opencv（149MB）變成必裝，
@@ -1675,43 +1676,49 @@ async def get_adventure_analysis(land_id: int, db: Session = Depends(database.ge
     if not land:
         raise HTTPException(status_code=404, detail="找不到情境")
 
-    # 2. 抓取該地點的「即時人流」與「AQI」 [需求：根據實際人流計算]
-    real_crowd = await fetch_nantou_live_data(land.name)
-
-    # 🏆 AQI 改接環境部真實資料（移植自 origin/vamos 的 990e880）。
-    #    api_station_name 不在 4 大監測站清單時（例如日月潭）回 None，
-    #    此時維持原本定價、不套加成，前端也不顯示環境事件。
+    # 🏆 2. AQI 真實資料（環境部）
     aqi_info = air_quality.fetch_aqi_by_name(land.api_station_name)
     has_env_event = aqi_info is not None
     real_aqi = aqi_info["aqi"] if has_env_event else None
     multiplier = aqi_info["multiplier"] if has_env_event else 1.0
 
-    # 3. ⚖️ 重新定義收購價計算
-    # 總收購價 = 土地基本價 + (當下人流 * 加成權重)，再乘上空氣品質加成
-    crowd_bonus = int(real_crowd * 0.8)
-    total_acquisition_price = int((land.base_price + crowd_bonus) * multiplier)
+    # 🏆 3. 氣溫與天氣真實資料（中央氣象署）
+    temp_info = temperature.fetch_temperature(land.name, land.township)
+    has_temp_event = temp_info is not None
+    real_temp = temp_info["temperature"] if has_temp_event else None
+    real_weather = temp_info["weather"] if has_temp_event else "晴"
+    temp_multiplier = temp_info["multiplier"] if has_temp_event else 1.0
 
-    # 4. 🏆 [需求修正] 過路費邏輯：
-    # 這裡回傳的是「保底過路費」，直接從資料庫讀取，不進行 15% 的計算。
-    # 這讓玩家知道：「即使沒人流，我至少能收多少錢」。
-    # 空氣品質加成同樣套用於過路費。
-    base_toll = land.base_toll if land.base_toll else 200
-    display_base_toll = int(base_toll * multiplier)
+    # 🏆 4. 綜合環境加成（AQI 加成 × 氣溫加成）
+    combined_multiplier = round(multiplier * temp_multiplier, 2)
+
+    # 5. ⚖️ 收購價與過路費計算（移除隨機人流，純依地價與環境加成計算）
+    base_price = int(land.base_price) if land.base_price else 1000
+    base_toll = int(land.base_toll) if land.base_toll else int(base_price * 0.1)
+
+    total_acquisition_price = int(base_price * combined_multiplier)
+    display_base_toll = int(base_toll * combined_multiplier)
 
     return {
         "name": land.name,
         "scenario": land.scenario,
-        "base_price": land.base_price,
-        "crowd": real_crowd,
-        "crowd_bonus": crowd_bonus,
+        "base_price": base_price,
         "total_price": total_acquisition_price,
-        "toll": display_base_toll, # 顯示的是保底過路費
-        "aqi": real_aqi,           # 無對應測站時為 None
-        # 🏆 環境事件資訊，供前端 fillDecisionUI 顯示加成
+        "toll": display_base_toll,
+        # 空氣品質資訊（保留給頂部特殊事件膠囊）
+        "aqi": real_aqi,
         "has_env_event": has_env_event,
         "env_station": aqi_info["station_name"] if has_env_event else None,
         "env_status": aqi_info["status"] if has_env_event else None,
         "env_multiplier": multiplier,
+        # 氣候與氣象資訊（替換原人流區塊）
+        "weather": real_weather,
+        "temp": real_temp,
+        "has_temp_event": has_temp_event,
+        "temp_station": temp_info["station_name"] if has_temp_event else None,
+        "temp_status": temp_info["status"] if has_temp_event else None,
+        "temp_multiplier": temp_multiplier,
+        "combined_multiplier": combined_multiplier,
     }
 
 # --- 請加入這段 ---
