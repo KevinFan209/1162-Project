@@ -2469,3 +2469,40 @@ PyPoly 變更紀錄 (changeLog)
   尚未做：實際開瀏覽器玩一局，肉眼確認視覺效果跟攝影機/圍牆風險
   是否真的有問題。
 ========================================================================
+
+[2026-09-22] #63 拿掉正方體圍牆（會擋住冒險格的環景全景圖），並記一個 uvicorn --reload 的坑
+
+  ── 圍牆擋住環景圖 ──
+
+  #62 加的正方體圍牆（addBoardEnclosure）實際玩過才發現：玩家踩進
+  冒險格會切到環景全景圖模式（initAdventureVisuals），圍牆四片牆是
+  巨大的實心平面（邊長跟地面一樣，約 201.6），把環景圖擋住了。
+
+  移除做法：game.html 的 init3D() 不再呼叫 addBoardEnclosure(scene)，
+  但函式本身留在 board-build.js（static/preview/game_board_shapes.html
+  的探索預覽頁還在用，拿掉整支函式沒必要）。淺綠地面
+  （addGroundPlane）繼續留著——地面在腳下，不會擋到環景視角。
+
+  ── 順便記一個踩到的坑：uvicorn --reload 在 Windows 上可能卡住 ──
+
+  #62 部署後實測，棋盤一直顯示成舊的經緯度散佈樣式、高度也對不上
+  （沒有精確碰到 6.0 的最高名次），一開始懷疑是瀏覽器快取
+  （localStorage / HTTP cache），逐一排除都不是。最後追到：uvicorn
+  `--reload` 偵測到 board_geo.py 改動、印出「Reloading...」，但日誌
+  裡**之後再也沒出現新的 `Started server process [PID]`**——新
+  worker 沒有真的啟動成功，卡住之前那個 worker process 一直沒被換掉，
+  持續服務所有請求，包含這之後我自己對伺服器打的好幾輪驗證（等於
+  白測了好幾次，都測到沒換過的舊 process）。
+
+  解法：直接把卡住的 reloader/worker 兩個 process 強制關掉，重新乾淨
+  啟動一次，問題就消失（不是程式碼本身的 bug）。之後這個專案要
+  透過 --reload 確認改動生效時，不能只看「有沒有印出 Reloading...」，
+  要確認之後有沒有跟著印出**新的** `Started server process`，沒有的話
+  代表卡住了，要手動重啟伺服器才保險。
+
+  驗證：拿掉圍牆呼叫後 `static/game.html` 直接用 curl 確認頁面內容裡
+  已經沒有 addBoardEnclosure(scene) 這行呼叫（靜態檔不受 --reload
+  影響，改完立即生效，不用重啟）；重啟過的乾淨伺服器對
+  /game/map_config 連續 10 次直接檢查，y_max 每次都精確等於 6.0、
+  x/z 邊界對應到四種形狀各自的理論值，確認新邏輯真的在跑。
+========================================================================

@@ -2619,10 +2619,14 @@ function applyBoardAppearance() {
 		directionalLight.position.set(20, 40, 20);
 		scene.add(directionalLight);
 
-		// 淺綠地面 + 正方體圍牆：場景級的裝飾，只加一次，不隨
-		// create3DBoard() 重蓋棋盤而重蓋（見 static/js/board-build.js）。
+		// 淺綠地面：場景級的裝飾，只加一次，不隨 create3DBoard() 重蓋
+		// 棋盤而重蓋（見 static/js/board-build.js）。
+		//
+		// ⚠️ 不加 addBoardEnclosure()（正方體圍牆）：進到冒險格會切到
+		// 環景全景圖模式（initAdventureVisuals），圍牆的四片牆是巨大的
+		// 實心平面，會直接擋住環景圖——地面留著沒關係（在腳下，不會
+		// 擋到環景視角），圍牆會擋所以拿掉。
 		addGroundPlane(scene);
-		addBoardEnclosure(scene);
 
 		create3DBoard();
 		createVisionScreen(); // 這裡會建立繪圖用的 Canvas
