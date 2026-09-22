@@ -2619,6 +2619,11 @@ function applyBoardAppearance() {
 		directionalLight.position.set(20, 40, 20);
 		scene.add(directionalLight);
 
+		// 淺綠地面 + 正方體圍牆：場景級的裝飾，只加一次，不隨
+		// create3DBoard() 重蓋棋盤而重蓋（見 static/js/board-build.js）。
+		addGroundPlane(scene);
+		addBoardEnclosure(scene);
+
 		create3DBoard();
 		createVisionScreen(); // 這裡會建立繪圖用的 Canvas
 		

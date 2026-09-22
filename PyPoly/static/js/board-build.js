@@ -18,6 +18,27 @@
 // （支柱與連接橋另有名字，屬於結構的一部分，不隨外觀重建）
 const BOARD_DECOR_NAME = "board_decor";
 
+// 棋盤形狀的視覺尺度。
+//
+// ⚠️ 這個數字必須跟 board_geo.py 的 BOARD_SHAPE_RADIUS 保持一致——
+//    Python（算座標）跟 JS（算地面/圍牆多大才蓋得過棋盤）是兩個獨立
+//    的執行環境沒辦法共用同一個常數，只能各自定義、手動同步。以後要
+//    調棋盤大小，這裡跟 board_geo.py 要一起改。
+//
+// GROUND_SIZE 用「無限符號（∞）在 x 方向的直徑」（BOARD_SHAPE_RADIUS
+// *1.4*2）當基準，比圓形（直徑 2R）、方形/六邊形（外接圓直徑 2R）都
+// 大，才能保證不管這局抽到哪個形狀，地面/圍牆都夠大蓋過整個棋盤。
+const BOARD_SHAPE_RADIUS = 24.0;
+const BOARD_MAX_EXTENT = BOARD_SHAPE_RADIUS * 1.4 * 2;
+const GROUND_SIZE = BOARD_MAX_EXTENT * 3;
+const GROUND_COLOR = 0x8fbc8f;
+const GROUND_Y = -0.05;
+
+// 陰影盡量薄——用一片沒有厚度的 PlaneGeometry，貼著地面、略高一點點
+// （避免跟地面完全同高造成 z-fighting）。
+const SHADOW_SCALE = 1.4;          // 陰影比格子本身大一圈，看起來更明顯
+const SHADOW_WORLD_Y = GROUND_Y + 0.01;
+
 /**
  * 建立整個 26 格棋盤。
  * @param {THREE.Scene} scene  要加進去的場景
@@ -66,6 +87,7 @@ function buildBoard(scene, gameMap) {
     });
 
     buildBoardConnectors(layout, tiles);
+    addGroundShadows(tiles, layout);
     applyBoardAppearanceTo(tiles, gameMap);
 
     return { tiles: tiles, positions: positions };
@@ -81,6 +103,7 @@ function buildBoardConnectors(layout, tiles) {
     const SLAB_H = 0.22;
     const OVERLAP = 0.2;              // 插進格子邊緣的深度，讓接縫看不出來
     const HALF = BOARD_TILE_SIZE / 2;
+    const worldUp = new THREE.Vector3(0, 1, 0);
 
     for (let i = 0; i < layout.length; i++) {
         const a = layout[i];
@@ -106,15 +129,172 @@ function buildBoardConnectors(layout, tiles) {
             (sy + ey) / 2 - a.y,
             (sz + ez) / 2 - a.z
         );
-        conn.setRotationFromQuaternion(
-            new THREE.Quaternion().setFromUnitVectors(
-                new THREE.Vector3(1, 0, 0),
-                new THREE.Vector3(ex - sx, ey - sy, ez - sz).normalize()
-            )
-        );
+
+        // 旋轉：手動組一組正交基底，不要用 setFromUnitVectors。
+        //
+        // setFromUnitVectors(X軸, 連線方向) 只保證「長度軸」轉到對齊
+        // 連線方向，完全不管轉完之後「寬度軸」（BoxGeometry 第三個
+        // 維度）被帶去哪——沒有高度差時連線方向全在水平面，這個
+        // 「最短路徑旋轉」剛好落在世界 Y 軸上，寬度軸不受影響；但只要
+        // 連線帶了 y 分量（兩格有高度差），旋轉就會連帶把寬度軸從
+        // 水平面扭出一個角度，橋看起來像往垂直於行進方向的方向傾斜，
+        // 高度差越大扭得越明顯（已在 static/preview/game_board_shapes.html
+        // 用 157 項自動檢查驗證過這個修法）。
+        //
+        // 改成手動組正交基底：
+        //   forward = 連線方向（跟原本一樣）
+        //   right   = forward × 世界向上向量，正規化——這個外積結果
+        //             永遠沒有 y 分量（叉積跟兩個輸入向量都垂直，
+        //             其中一個是純垂直的 (0,1,0)，結果必然落在水平的
+        //             XZ 平面），所以寬度軸不管連線多陡都保證水平，
+        //             不會再被意外扭轉
+        //   up      = right × forward，正規化——橋的厚度方向，自然
+        //             順著坡度傾斜（這是應該的，斜坡本來就該斜著搭）
+        const dir = new THREE.Vector3(ex - sx, ey - sy, ez - sz).normalize();
+        let right = new THREE.Vector3().crossVectors(dir, worldUp);
+        if (right.length() < 1e-6) {
+            // dir 剛好完全垂直（正上/正下）——理論上棋盤格子間的連線
+            // 不會有這種情況，防呆退回世界 X 軸當寬度方向
+            right = new THREE.Vector3(1, 0, 0);
+        } else {
+            right.normalize();
+        }
+        const up = new THREE.Vector3().crossVectors(right, dir).normalize();
+        const basis = new THREE.Matrix4().makeBasis(dir, up, right);
+        conn.quaternion.setFromRotationMatrix(basis);
+
         conn.name = "board_connector";
         tile.add(conn);
     }
+}
+
+let _shadowTextureCache = null;
+
+/**
+ * 產生陰影用的貼圖：邊界模糊、四角圓滑的深灰色色塊，畫在透明背景上
+ * （跟下面 createTerrainTexture 同一套「程序化 canvas 貼圖」手法，
+ * 128×128，不讀外部圖檔）。只算一次、快取起來全部 26 格共用同一個
+ * texture 物件——這片陰影長什麼樣子不會因為格子不同而變，沒必要每格
+ * 各畫一次，也不該被個別格子的材質 dispose 一起清掉（跟
+ * createTerrainTexture 的快取理由一樣）。
+ */
+function createShadowTexture() {
+    if (_shadowTextureCache) return _shadowTextureCache;
+
+    const SZ = 128;
+    const c = document.createElement('canvas');
+    c.width = c.height = SZ;
+    const ctx = c.getContext('2d');
+
+    const SHADOW_COLOR = 0x555555;
+    const blurPx = SZ * 0.08;       // 模糊半徑
+    const margin = blurPx * 2.2;    // 留白，模糊暈開的部分才不會被畫布邊界硬生生切掉
+    const radius = SZ * 0.18;       // 圓角半徑
+    const x = margin, y = margin;
+    const w = SZ - margin * 2, h = SZ - margin * 2;
+
+    ctx.filter = `blur(${blurPx}px)`;
+    ctx.fillStyle = '#' + SHADOW_COLOR.toString(16).padStart(6, '0');
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, radius);
+    ctx.closePath();
+    ctx.fill();
+
+    const tex = new THREE.CanvasTexture(c);
+    _shadowTextureCache = tex;
+    return tex;
+}
+
+/**
+ * 在每個格子正下方、貼著地面（略高一點點，避免跟地面 z-fighting）
+ * 的地方，疊一片邊界模糊、圓角的深灰色貼圖模擬陰影，掛成每個 tile
+ * 的子物件（跟著格子一起被清掉/隱藏，不用額外管理生命週期，但共用的
+ * texture 本身不會被一起清掉，見 createShadowTexture 的說明）。
+ *
+ * 子物件座標是相對於父物件（tile）的區域座標，而 tile 已經被擺在
+ * 世界座標 (td.x, td.y, td.z)。陰影要落在固定的世界高度
+ * SHADOW_WORLD_Y（不管格子本身多高都一樣），區域座標就是
+ * SHADOW_WORLD_Y - td.y。
+ */
+function addGroundShadows(tiles, layout) {
+    const geo = new THREE.PlaneGeometry(BOARD_TILE_SIZE * SHADOW_SCALE, BOARD_TILE_SIZE * SHADOW_SCALE);
+    const texture = createShadowTexture();
+    for (let i = 0; i < layout.length; i++) {
+        const tile = tiles[i];
+        if (!tile) continue;
+        const td = layout[i];
+
+        const shadow = new THREE.Mesh(
+            geo,
+            new THREE.MeshStandardMaterial({
+                map: texture,
+                transparent: true,
+                depthWrite: false,   // 避免這片半透明貼圖跟正下方的地面深度打架
+                roughness: 1,
+                metalness: 0,
+            })
+        );
+        shadow.rotation.x = -Math.PI / 2;
+        shadow.position.set(0, SHADOW_WORLD_Y - td.y, 0);
+        shadow.name = "board_ground_shadow";
+        tile.add(shadow);
+    }
+}
+
+/**
+ * 地面：一片淺綠色的平面，長寬是 GROUND_SIZE（比棋盤本身大至少 3
+ * 倍）。只呼叫一次即可（不隨棋盤重蓋而重蓋），由呼叫端（例如
+ * game.html 的 init3D()）在建立場景時加一次。
+ */
+function addGroundPlane(scene) {
+    const ground = new THREE.Mesh(
+        new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE),
+        // 用 MeshBasicMaterial，不是 MeshStandardMaterial：Standard 材質
+        // 會受光照影響，同一個顏色會因為表面朝向跟光源的夾角不同，算出
+        // 不一樣的亮度——地面朝正上方（幾乎正對光源）跟牆面朝水平方向
+        // 拿到的光照量差很多，即使兩者材質顏色數值完全一樣，畫面上看
+        // 起來還是會不一樣深。Basic 材質不吃光照，直接畫材質本身的
+        // 顏色，地面和牆才能真的呈現同一個顏色，不受朝向影響。
+        new THREE.MeshBasicMaterial({ color: GROUND_COLOR }));
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.set(0, GROUND_Y, 0);
+    ground.name = "ground_plane";
+    scene.add(ground);
+    return ground;
+}
+
+/**
+ * 用四片平面把整個棋盤「以正方體的形式」包圍起來：地面（GROUND_SIZE
+ * 見方）當正方體的底面，四片側牆的寬跟地面邊長一樣，高度也刻意設成
+ * 跟地面邊長相等（GROUND_SIZE）——嚴格符合「正方體」的定義（六面等
+ * 長）。只呼叫一次即可，用法跟 addGroundPlane 一樣。
+ *
+ * 側牆材質用 side: THREE.DoubleSide——攝影機大機率會位在這個正方體
+ * 內側（牆高遠大於整個棋盤的尺度），雙面材質不管鏡頭在內側還外側都
+ * 看得到，不用為每片牆分別計算法向量要朝內還朝外。
+ */
+function addBoardEnclosure(scene) {
+    const half = GROUND_SIZE / 2;
+    const wallHeight = GROUND_SIZE;
+    const wallCenterY = GROUND_Y + wallHeight / 2;
+
+    const wallGeo = new THREE.PlaneGeometry(GROUND_SIZE, wallHeight);
+    const wallMat = new THREE.MeshBasicMaterial({ color: GROUND_COLOR, side: THREE.DoubleSide });
+
+    const walls = [
+        { x: 0, z: -half, ry: 0 },           // 北牆
+        { x: 0, z: half, ry: 0 },            // 南牆
+        { x: half, z: 0, ry: Math.PI / 2 },  // 東牆
+        { x: -half, z: 0, ry: Math.PI / 2 }, // 西牆
+    ];
+
+    walls.forEach((w) => {
+        const wall = new THREE.Mesh(wallGeo, wallMat);
+        wall.position.set(w.x, wallCenterY, w.z);
+        wall.rotation.y = w.ry;
+        wall.name = "board_enclosure_wall";
+        scene.add(wall);
+    });
 }
 
 /**

@@ -1466,32 +1466,6 @@ async def get_map_config(
         
         countries = db.query(models.CountryScenario).order_by(func.random()).limit(20).all()
 
-        # 🏆 棋盤格子座標依真實地理動態產生：這裡先查「全部 107 筆」的
-        #    經緯度/海拔範圍（不是這局抽到的 20 筆），board_geo 才能把同一個
-        #    地點每次都換算成同一個棋盤座標，玩家才建立得起「這一帶大概在
-        #    棋盤哪個位置」的印象。詳見 board_geo.py 檔頭說明。
-        geo_bounds_row = db.query(
-            func.min(models.CountryScenario.latitude),
-            func.max(models.CountryScenario.latitude),
-            func.min(models.CountryScenario.longitude),
-            func.max(models.CountryScenario.longitude),
-            func.min(models.CountryScenario.elevation_m),
-            func.max(models.CountryScenario.elevation_m),
-        ).one()
-        # 🏆 防呆：SQL 的 MIN/MAX 會忽略 NULL，但如果 scenarios 裡「一整欄
-        #    都是 NULL」（例如資料庫還沒匯入座標，只有舊版沒有經緯度的
-        #    冒險格資料），這裡查回來的整組會是 None，float(None) 會直接
-        #    噴例外讓整個 /game/map_config 500——不只是棋盤形狀退化，
-        #    是連遊戲都開不了。用 0.0 當退化預設值：project_geo_to_xz /
-        #    elevation_to_y 本來就有處理「範圍是 0」的退化情況（回傳目標
-        #    範圍正中央），所以座標會退回舊棋盤那種每格都差不多的樣子，
-        #    但至少能正常開局，不會整個掛掉。
-        def _safe_bound(v):
-            return float(v) if v is not None else 0.0
-        geo_bounds = (_safe_bound(geo_bounds_row[0]), _safe_bound(geo_bounds_row[1]),
-                     _safe_bound(geo_bounds_row[2]), _safe_bound(geo_bounds_row[3]))
-        elev_bounds = (_safe_bound(geo_bounds_row[4]), _safe_bound(geo_bounds_row[5]))
-
         if not questions or not countries:
              return {"error": "資料庫資料不足",
                      "q_count": len(questions), "c_count": len(countries),
@@ -1550,11 +1524,13 @@ async def get_map_config(
                 }
             })
 
-        # 🏆 依真實座標決定走訪順序，並把內容（adventure_tiles）跟著一起
-        #    重新排列——內容跟座標必須綁在一起移動，不然會出現「這格顯示
-        #    地點 A 的故事，卻站在地點 B 的座標上」的錯位。
-        order, adventure_positions = board_geo.compute_adventure_positions(
-            adventure_geo, geo_bounds, elev_bounds)
+        # 🏆 每局隨機挑一種幾何形狀（圓形/方形/六邊形/無限符號），20 個
+        #    冒險格依真實海拔的「排名」決定走訪順序，並把內容
+        #    （adventure_tiles）跟著一起重新排列——內容跟座標必須綁在
+        #    一起移動，不然會出現「這格顯示地點 A 的故事，卻站在地點 B
+        #    的座標上」的錯位。詳見 board_geo.py 檔頭說明。
+        elevations = [elev for _, _, elev in adventure_geo]
+        shape_key, order, positions_26 = board_geo.compute_shape_board(elevations)
         adventure_tiles = [adventure_tiles[i] for i in order]
 
         full_map = [None] * 26
@@ -1573,39 +1549,18 @@ async def get_map_config(
             for idx in range(TEST_KEEP_ADVENTURE, len(adventure_tiles)):
                 adventure_tiles[idx] = {"type": "BLANK", "name": "空白格"}
 
-        # slot_positions[i] 記錄第 i 格的 (x,y,z)；特殊格先留 None，
-        # 冒險/空白格則跟著 adv_idx 一起對到 adventure_positions[adv_idx]
-        # （因為上面已經把 adventure_tiles 重排成走訪順序，兩者天生對齊）。
-        slot_positions = [None] * 26
+        # positions_26（board_geo.compute_shape_board 算好的）已經是
+        # 完整 26 格、slot 順序的座標，特殊格的 x/y/z 也都算好了——
+        # 形狀本身天生均勻分布在外框上，不會重疊，不需要再額外插值
+        # 或 declutter。
         adv_idx = 0
         for i in range(26):
             if full_map[i] is None:
                 full_map[i] = adventure_tiles[adv_idx]
-                slot_positions[i] = adventure_positions[adv_idx]
                 adv_idx += 1
 
-        # 🏆 特殊格（起點/道具店/監獄/開合跳/獎勵）沒有真實座標，
-        #    用前後相鄰的冒險格中點插值。
-        slot_positions = board_geo.fill_special_positions(slot_positions)
-
-        # 🏆 26 格全部到齊後，再對完整棋盤做一次 declutter，抓的是跟上面
-        #    不同的情況：插值出來的特殊格位置，可能剛好跟棋盤上「路徑不
-        #    相鄰」的某個冒險格離得很近（純屬座標巧合，不是鄰居關係）。
-        #    上面 compute_adventure_positions 內部的 declutter 只保證
-        #    20 個冒險格彼此不擠，管不到這種情況。
-        #
-        #    ⚠️ 這裡一定要排除「路徑上真正相鄰」的格子對（被連接橋接著、
-        #    本來就該靠近），不然會把特殊格從該待的鄰居中點推走，破壞
-        #    環狀順序、讓連接線大量交叉（第一次做這步時沒排除，實測
-        #    無交叉率從 100% 掉到 2%，才發現要這樣做）。
-        adjacent_pairs = {tuple(sorted((i, (i + 1) % 26))) for i in range(26)}
-        xz_26 = [(p[0], p[2]) for p in slot_positions]
-        xz_26 = board_geo.declutter(xz_26, skip_pairs=adjacent_pairs)
-        slot_positions = [(xz_26[i][0], slot_positions[i][1], xz_26[i][1])
-                          for i in range(26)]
-
         for i in range(26):
-            x, y, z = slot_positions[i]
+            x, y, z = positions_26[i]
             full_map[i]["x"] = x
             full_map[i]["y"] = y
             full_map[i]["z"] = z
