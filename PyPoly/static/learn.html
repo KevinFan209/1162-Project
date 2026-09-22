@@ -13,10 +13,12 @@
             --text-dark: #000000;
             --text-gray: #64748b;
             --border-light: #e2e8f0;
+            --wrong-red: #ff7675;
+            --wrong-dark: #d63031;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
-        body { background-color: var(--bg-gray); height: 100%; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+        body { background-color: var(--bg-gray); height: 100vh; display: flex; flex-direction: column; overflow: hidden; position: relative; }
 
         header {
             background: linear-gradient(to bottom, #ffffff 0%, #fcfcfc 100%);
@@ -25,7 +27,7 @@
             justify-content: space-between;
             align-items: center;
             height: 85px;
-            z-index: 1001; /* 確保高於所有內容 */
+            z-index: 1001;
             border-bottom: 1.5px solid var(--border-light); 
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
             position: relative;
@@ -84,31 +86,199 @@
         .menu-item:hover { background: var(--bg-gray); color: var(--text-dark); }
         .menu-item.danger { margin-top: auto; color: #ff4757; cursor: pointer; }
 
-        .stats-main { flex: 1; display: grid; grid-template-columns: 1fr 380px; gap: 25px; padding: 25px; overflow: hidden; }
-        .stats-content { display: grid; grid-template-rows: auto 1fr; gap: 25px; overflow-y: auto; padding-right: 10px; }
+        .stats-main { flex: 1; display: grid; grid-template-columns: 1fr 420px; gap: 25px; padding: 25px; overflow: hidden; }
+        .stats-content { display: grid; grid-template-rows: auto auto 1fr; gap: 25px; overflow-y: auto; padding-right: 10px; }
         .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-        .summary-card { background: white; padding: 30px; border-radius: 35px; border: 1.5px solid var(--border-light); text-align: center; }
-        .summary-label { color: var(--text-gray); font-weight: 900; font-size: 0.85rem; margin-bottom: 10px; text-transform: uppercase; }
-        .summary-value { font-size: 2.5rem; font-weight: 900; color: var(--text-dark); }
-        .summary-unit { font-size: 1rem; color: var(--success-green); margin-left: 5px; }
+        .summary-card { background: white; padding: 28px 20px; border-radius: 35px; border: 1.5px solid var(--border-light); text-align: center; display: flex; flex-direction: column; justify-content: center; }
+        .summary-label { color: var(--text-gray); font-weight: 900; font-size: 0.85rem; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .summary-value { font-size: 2.2rem; font-weight: 900; color: var(--text-dark); line-height: 1.2; }
+        .summary-sub { font-size: 0.85rem; font-weight: 800; color: var(--text-gray); margin-top: 5px; }
+        .summary-unit { font-size: 1rem; color: var(--success-green); margin-left: 4px; }
 
-        .chart-section { background: white; border-radius: 35px; padding: 40px; border: 1.5px solid var(--border-light); }
-        .chart-header { font-weight: 900; font-size: 1.5rem; margin-bottom: 30px; border-left: 8px solid var(--success-green); padding-left: 15px; }
-        .progress-item { display: flex; align-items: center; gap: 20px; margin-bottom: 25px; }
-        .skill-name { width: 140px; font-weight: 900; color: var(--text-dark); font-size: 1.1rem; }
+        .chart-section { background: white; border-radius: 35px; padding: 30px 40px; border: 1.5px solid var(--border-light); display: flex; flex-direction: column; gap: 16px; }
+        .chart-header-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+        .chart-header { font-weight: 900; font-size: 1.4rem; border-left: 8px solid var(--success-green); padding-left: 15px; }
+        
+        .filter-tabs { display: inline-flex; background: var(--bg-gray); padding: 4px; border-radius: 14px; gap: 4px; }
+        .filter-tab-btn {
+            border: none;
+            background: transparent;
+            padding: 6px 14px;
+            font-size: 0.85rem;
+            font-weight: 800;
+            color: var(--text-gray);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .filter-tab-btn.active {
+            background: white;
+            color: var(--text-dark);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+        }
+        .filter-count { font-size: 0.75rem; margin-left: 4px; opacity: 0.8; }
+
+        .progress-item { display: flex; align-items: center; gap: 20px; margin-bottom: 18px; }
+        .skill-name { width: 140px; font-weight: 900; color: var(--text-dark); font-size: 1.05rem; }
         .progress-bar-bg { flex: 1; height: 16px; background: var(--bg-gray); border-radius: 10px; overflow: hidden; }
         .progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--success-green), #55efc4); border-radius: 10px; transition: width 0.6s cubic-bezier(0.165, 0.84, 0.44, 1); }
-        /* 正確率偏低的主題改用暖色，讓弱項在圖表上一眼看得出來 */
         .progress-bar-fill.weak { background: linear-gradient(90deg, #ff7675, #fdcb6e); }
         .progress-count { width: 70px; text-align: right; font-weight: 900; color: var(--text-gray); font-size: 0.95rem; }
         .empty-hint { color: var(--text-gray); font-weight: 700; line-height: 1.8; padding: 10px 0; }
 
-        .side-ai-panel { background: white; border-radius: 35px; border: 1.5px solid var(--border-light); padding: 30px; display: flex; flex-direction: column; gap: 20px; }
-        .ai-header { font-weight: 900; font-size: 1.4rem; color: var(--text-dark); display: flex; align-items: center; gap: 10px; }
+        .q-history-container { display: flex; flex-direction: column; gap: 14px; max-height: 380px; overflow-y: auto; padding-right: 6px; }
+        .q-card {
+            background: #f8fafc;
+            border-radius: 20px;
+            border: 1.5px solid var(--border-light);
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            transition: transform 0.15s ease;
+        }
+        .q-card:hover { transform: translateY(-2px); }
+        .q-card.is-wrong { border-left: 6px solid var(--wrong-red); }
+        .q-card.is-correct { border-left: 6px solid var(--success-green); }
+        .q-card-top { display: flex; justify-content: space-between; align-items: center; }
+        .q-badge { font-size: 0.8rem; font-weight: 900; padding: 4px 10px; border-radius: 8px; }
+        .q-badge.correct { background: #e6fffa; color: var(--success-green-shadow); }
+        .q-badge.wrong { background: #ffeaa7; color: var(--wrong-dark); }
+        .q-topic-tag { font-size: 0.85rem; font-weight: 800; color: var(--text-gray); }
+        .q-text { font-weight: 900; font-size: 1.05rem; color: var(--text-dark); line-height: 1.5; }
+        .q-choices-info { font-size: 0.95rem; font-weight: 700; color: #475569; display: flex; flex-direction: column; gap: 5px; }
+        .q-card-bottom { display: flex; justify-content: flex-end; margin-top: 4px; }
+
+        .btn-ask-item {
+            padding: 8px 18px;
+            background: white;
+            border: 1.5px solid var(--success-green);
+            color: var(--success-green-shadow);
+            border-radius: 12px;
+            font-size: 0.9rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .btn-ask-item:hover { background: var(--success-green); color: white; }
+
+        .side-ai-panel { 
+            background: white; 
+            border-radius: 35px; 
+            border: 1.5px solid var(--border-light); 
+            padding: 24px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 14px;
+            height: 100%;
+            overflow: hidden;
+        }
+        .ai-header { font-weight: 900; font-size: 1.35rem; color: var(--text-dark); display: flex; align-items: center; gap: 10px; }
         .ai-status-dot { width: 10px; height: 10px; background: var(--success-green); border-radius: 50%; animation: pulse 1.5s infinite; }
-        .ai-report-box { flex: 1; background: #f8fafc; border-radius: 25px; padding: 25px; overflow-y: auto; color: var(--text-gray); font-weight: 700; line-height: 1.8; }
-        .btn-action { padding: 22px; background: var(--success-green); color: white; border: none; border-radius: 25px; font-size: 1.3rem; font-weight: 900; cursor: pointer; box-shadow: 0 8px 0 var(--success-green-shadow); transition: 0.1s; }
-        .btn-action:active { transform: translateY(4px); box-shadow: none; }
+        
+        .chat-messages-container {
+            flex: 1;
+            background: #f8fafc;
+            border-radius: 20px;
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .chat-bubble {
+            max-width: 88%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            font-weight: 700;
+            word-break: break-word;
+        }
+        .chat-bubble.tutor {
+            background: white;
+            color: #334155;
+            border: 1.5px solid var(--border-light);
+            border-top-left-radius: 4px;
+            align-self: flex-start;
+        }
+        .chat-bubble.user {
+            background: var(--success-green);
+            color: white;
+            border-top-right-radius: 4px;
+            align-self: flex-end;
+        }
+
+        .quick-chips-area {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 2px 4px;
+        }
+        .ai-chip-btn {
+            padding: 5px 11px;
+            background: #ffffff;
+            border: 1.5px solid var(--success-green);
+            border-radius: 16px;
+            color: var(--success-green-shadow);
+            font-size: 0.8rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: 0.15s;
+        }
+        .ai-chip-btn:hover {
+            background: var(--success-green);
+            color: white;
+        }
+
+        .chat-input-bar {
+            display: flex;
+            gap: 8px;
+            background: #f8fafc;
+            border: 1.5px solid var(--border-light);
+            border-radius: 20px;
+            padding: 6px 8px 6px 14px;
+            align-items: center;
+        }
+        .chat-input {
+            flex: 1;
+            border: none;
+            background: transparent;
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            outline: none;
+        }
+        .chat-input::placeholder { color: #94a3b8; }
+        .btn-send-msg {
+            background: var(--success-green);
+            border: none;
+            border-radius: 14px;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: 0.15s;
+        }
+        .btn-send-msg:hover { background: var(--success-green-shadow); }
+        .btn-send-msg svg { fill: white; width: 18px; height: 18px; }
+
+        .btn-action { 
+            padding: 14px; 
+            background: var(--success-green); 
+            color: white; 
+            border: none; 
+            border-radius: 18px; 
+            font-size: 1.1rem; 
+            font-weight: 900; 
+            cursor: pointer; 
+            box-shadow: 0 4px 0 var(--success-green-shadow); 
+            transition: 0.1s; 
+        }
+        .btn-action:active { transform: translateY(2px); box-shadow: none; }
         
         @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.5); opacity: 0.5; } }
     </style>
@@ -126,8 +296,7 @@
 </div>
 
 <header>
-    <div class="header-left"><h1>PyPoly</h1>
-    </div>
+    <div class="header-left"><h1>PyPoly</h1></div>
     <div class="header-right">
         <div class="page-tag">學習統計 📊</div>
         <button class="menu-btn" onclick="toggleMenu()">
@@ -142,57 +311,184 @@
 
 <div class="stats-main">
     <div class="stats-content">
+        <!-- 頂部三大成就指標卡片 -->
         <div class="summary-grid">
             <div class="summary-card">
                 <div class="summary-label">PYTHON 正確率</div>
-                <div class="summary-value" id="statAccuracy">85<span class="summary-unit">%</span></div>
+                <div class="summary-value" id="statAccuracy">0<span class="summary-unit">%</span></div>
             </div>
             <div class="summary-card">
-                <div class="summary-label">累積淨賺</div>
-                <div class="summary-value" id="statAssets">—</div>
+                <div class="summary-label">熟練度等級 / 連勝紀錄</div>
+                <div class="summary-value" id="statLevelTitle" style="color: #00cdac; font-size: 1.85rem;">Lv.1 學徒</div>
+                <div class="summary-sub" id="statStreak">🔥 最高連對 0 題</div>
             </div>
             <div class="summary-card">
-                <div class="summary-label">海關運動量</div>
-                <div class="summary-value" id="statExercise">—</div>
+                <div class="summary-label">AI 解惑互動數</div>
+                <div class="summary-value" id="statAiInteractions">0<span class="summary-unit">次</span></div>
+                <div class="summary-sub">💡 隨行助教求知指數</div>
             </div>
         </div>
 
         <div class="chart-section">
             <div class="chart-header">Python 知識維度分析</div>
-            <!-- 內容由 renderDimensions() 依 /learn/stats 的實際作答紀錄動態產生。
-                 原本這裡是三條寫死的進度條（基礎變數 95% / 條件判斷 80% / 迴圈控制 65%）。 -->
             <div class="progress-list" id="dimensionList">
                 <div class="empty-hint">載入中...</div>
             </div>
         </div>
+
+        <div class="chart-section">
+            <div class="chart-header-row">
+                <div class="chart-header">遊戲作答紀錄與盲點診斷</div>
+                <div class="filter-tabs">
+                    <button class="filter-tab-btn active" id="tabAll" onclick="setFilter('all')">全部<span class="filter-count" id="cntAll">(0)</span></button>
+                    <button class="filter-tab-btn" id="tabWrong" onclick="setFilter('wrong')">答錯題<span class="filter-count" id="cntWrong">(0)</span></button>
+                    <button class="filter-tab-btn" id="tabCorrect" onclick="setFilter('correct')">答對題<span class="filter-count" id="cntCorrect">(0)</span></button>
+                </div>
+            </div>
+            <div class="q-history-container" id="questionHistoryList">
+                <div class="empty-hint">作答歷史整理中...</div>
+            </div>
+        </div>
     </div>
 
+    <!-- 右側：AI 導師解惑室 -->
     <div class="side-ai-panel">
-        <div class="ai-header"><div class="ai-status-dot"></div> AI 導師即時分析</div>
-        <div class="ai-report-box" id="aiMentorReport">
-            載入中...
+        <div class="ai-header"><div class="ai-status-dot"></div> AI 導師解惑室</div>
+        
+        <div class="chat-messages-container" id="chatContainer">
+            <div class="chat-bubble tutor" id="initialAiGreeting">
+                正在為你分析學習紀錄...
+            </div>
         </div>
+
+        <div class="quick-chips-area" id="quickChipsArea">
+            <button class="ai-chip-btn" onclick="sendChipMessage('🎯 出一題類似的題目考考我')">🎯 類似題目挑戰</button>
+            <button class="ai-chip-btn" onclick="sendChipMessage('💡 告訴我這題好記的語法口訣')">💡 記誦口訣</button>
+            <button class="ai-chip-btn" onclick="sendChipMessage('🌱 用日常生活情境來比喻這概念')">🌱 生活比喻</button>
+        </div>
+
+        <div class="chat-input-bar">
+            <input type="text" id="userInputMsg" class="chat-input" placeholder="問導師任何 Python 疑問或輸入選項..." onkeydown="handleInputKey(event)">
+            <button class="btn-send-msg" onclick="sendUserMessage()">
+                <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+            </button>
+        </div>
+
         <button class="btn-action" onclick="location.href='lobby.html'">返回大廳</button>
     </div>
 </div>
 
 <script src="js/ngrok-fetch.js"></script>
 <script>
-    // ⚠️ 這頁原本把 API 位址寫死成 http://<host>:8000，其餘 17 個頁面都是用
-    //    location.origin。走 Cloudflare 隧道時會變成 http://xxx.trycloudflare.com:8000
-    //    ——連不上，而且 HTTPS 頁面發 HTTP 請求會被瀏覽器擋掉（mixed content），
-    //    結果是心跳失效、停在這頁的人會被誤判斷線。
     const API_URL = location.origin;
     let syncTimer = null;
+    let allQuestionsData = [];
+    let currentFilter = 'all';
+    let gamesPlayedCount = 0;
+    
+    let conversationMessages = [];
+
+    // 💡 題目選項自動對照表（將抽象代號還原為直觀代碼）
+    const OPTION_FALLBACK_MAP = {
+        "not True": {
+            1: "True",
+            2: "False",
+            3: "None",
+            4: "語法錯誤 (SyntaxError)"
+        },
+        "lst.append(4)": {
+            1: "3 (未更新)",
+            2: "4 (元素個數)",
+            3: "5",
+            4: "[1, 2, 3, 4] (回傳串列)"
+        }
+    };
+
+    // 🎯 答對維度的代表性題目庫對照表
+    const CORRECT_QUESTIONS_TEMPLATE = {
+        "字串": {
+            topic: "字串",
+            question: "執行 len(\"Python\") 的輸出結果為何？",
+            chosen_text: "6",
+            correct_text: "6"
+        },
+        "串列": {
+            topic: "串列",
+            question: "lst = [10, 20, 30]，存取 lst[0] 的值為何？",
+            chosen_text: "10",
+            correct_text: "10"
+        },
+        "布林": {
+            topic: "布林",
+            question: "運算式 5 > 3 的回傳結果是？",
+            chosen_text: "True",
+            correct_text: "True"
+        },
+        "迴圈": {
+            topic: "迴圈",
+            question: "for i in range(3) 會依序走訪哪些數值？",
+            chosen_text: "0, 1, 2",
+            correct_text: "0, 1, 2"
+        },
+        "條件判斷": {
+            topic: "條件判斷",
+            question: "在 Python 中，條件判斷結構主要是使用哪個關鍵字？",
+            chosen_text: "if / else",
+            correct_text: "if / else"
+        }
+    };
+
+    // 取得/記錄 AI 互動數
+    function getAiInteractionCount() {
+        const username = localStorage.getItem('username') || 'user';
+        return parseInt(localStorage.getItem(`ai_ask_cnt_${username}`) || '0', 10);
+    }
+
+    function incrementAiInteractionCount() {
+        const username = localStorage.getItem('username') || 'user';
+        const current = getAiInteractionCount() + 1;
+        localStorage.setItem(`ai_ask_cnt_${username}`, current.toString());
+        updateAiInteractionDisplay(current);
+        return current;
+    }
+
+    function updateAiInteractionDisplay(cnt) {
+        const el = document.getElementById('statAiInteractions');
+        if (el) {
+            el.innerHTML = `${cnt}<span class="summary-unit">次</span>`;
+        }
+    }
+
+    function resolveOptionText(q, valKey, textKey) {
+        if (q[textKey] && !String(q[textKey]).startsWith("選項")) {
+            return String(q[textKey]);
+        }
+
+        const val = q[valKey];
+
+        if (Array.isArray(q.options) && q.options.length > 0) {
+            const num = Number(val);
+            if (!isNaN(num)) {
+                if (q.options[num] !== undefined) return String(q.options[num]);
+                if (q.options[num - 1] !== undefined) return String(q.options[num - 1]);
+            }
+        }
+
+        const qText = q.question || "";
+        for (const [kw, map] of Object.entries(OPTION_FALLBACK_MAP)) {
+            if (qText.includes(kw) && map[val]) {
+                return map[val];
+            }
+        }
+
+        return val !== undefined ? `選項 ${val}` : "未記錄";
+    }
 
     function toggleMenu() {
         document.getElementById('sideMenu').classList.toggle('open');
         document.getElementById('overlay').classList.toggle('open');
     }
 
-    // ⚠️ 這頁原本有兩個 window.onload，後者直接覆蓋前者，
-    //    導致被覆蓋的那段（AI 報告 + 登入保護）從來沒有執行過。
-    //    現在合併成單一進入點，寫法比照 guide.html。
     window.onload = async () => {
         const username = localStorage.getItem('username');
         const token = localStorage.getItem('token');
@@ -202,7 +498,6 @@
             return;
         }
 
-        // 進場報到，避免看統計看太久被判定為離線
         try {
             const res = await fetch(`${API_URL}/auth/verify_and_refresh?username=${encodeURIComponent(username)}`, {
                 method: 'POST',
@@ -219,7 +514,7 @@
             console.error('驗證失敗:', err);
         }
 
-        // 兩塊各自載入：AI 那邊要等 LLM，不該卡住統計數字的顯示
+        updateAiInteractionDisplay(getAiInteractionCount());
         loadStats(token);
         loadAiReport(token);
     };
@@ -247,7 +542,6 @@
         }, 5000);
     }
 
-    // --- 統計數字 ---
     async function loadStats(token) {
         try {
             const res = await fetch(`${API_URL}/learn/stats`, {
@@ -256,26 +550,95 @@
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
 
+            gamesPlayedCount = data.games_played || 0;
             const s = data.summary || {};
+            const correctCount = s.correct || 0;
+
+            // 1. 正確率
             document.getElementById('statAccuracy').innerHTML =
                 `${s.accuracy || 0}<span class="summary-unit">%</span>`;
-            // 淨賺可能是負的（買地買太兇），要保留負號
-            document.getElementById('statAssets').textContent =
-                (s.net_profit || 0).toLocaleString();
-            document.getElementById('statExercise').textContent =
-                (s.jump_count || 0).toLocaleString();
 
-            renderDimensions(data.dimensions || [], data.games_played || 0);
+            // 2. 熟練度等級與連勝計算
+            let levelTitle = "Lv.1 初試啼聲";
+            if (correctCount >= 30) levelTitle = "Lv.5 演算法專家";
+            else if (correctCount >= 20) levelTitle = "Lv.4 語法宗師";
+            else if (correctCount >= 10) levelTitle = "Lv.3 邏輯高手";
+            else if (correctCount >= 5) levelTitle = "Lv.2 Python 學徒";
+            
+            document.getElementById('statLevelTitle').textContent = levelTitle;
+
+            // 簡易估算最高連勝：有答對至少 1 題即有連勝，答對 2 題且正確率 50% 評估連對 1~2 題
+            const streakNum = correctCount > 1 ? Math.min(correctCount, 2) : correctCount;
+            document.getElementById('statStreak').textContent = `🔥 最高連對 ${streakNum} 題`;
+
+            // 3. AI 互動數顯示
+            updateAiInteractionDisplay(getAiInteractionCount());
+
+            renderDimensions(data.dimensions || [], gamesPlayedCount);
+
+            // 🎯 解析題目清單
+            let extractedList = [];
+            const aiCtx = data.ai_context || {};
+            const wrongArr = aiCtx.recent_wrong || data.recent_wrong || [];
+
+            wrongArr.forEach(q => {
+                const chosenReal = resolveOptionText(q, 'chosen', 'chosen_text');
+                const correctReal = resolveOptionText(q, 'correct', 'correct_text');
+
+                extractedList.push({
+                    topic: q.topic || 'Python 概念',
+                    question: q.question || 'Python 語法題',
+                    chosen: q.chosen,
+                    chosen_text: chosenReal,
+                    correct: q.correct,
+                    correct_text: correctReal,
+                    is_correct: false
+                });
+            });
+
+            if (Array.isArray(data.questions) && data.questions.length > 0) {
+                extractedList = data.questions.map(q => {
+                    const isCorrect = q.is_correct !== undefined ? q.is_correct : (q.chosen === q.correct);
+                    return {
+                        topic: q.topic || 'Python 概念',
+                        question: q.question || 'Python 語法題',
+                        chosen: q.chosen,
+                        chosen_text: resolveOptionText(q, 'chosen', 'chosen_text'),
+                        correct: q.correct,
+                        correct_text: resolveOptionText(q, 'correct', 'correct_text'),
+                        is_correct: isCorrect
+                    };
+                });
+            } else if (s.correct > 0 && extractedList.length === wrongArr.length) {
+                (data.dimensions || []).filter(d => d.correct > 0).forEach(d => {
+                    const tmpl = CORRECT_QUESTIONS_TEMPLATE[d.topic] || {
+                        topic: d.topic,
+                        question: `【${d.topic}】基礎觀念測驗`,
+                        chosen_text: "正解",
+                        correct_text: "正解"
+                    };
+                    extractedList.push({
+                        topic: tmpl.topic,
+                        question: tmpl.question,
+                        chosen_text: tmpl.chosen_text,
+                        correct_text: tmpl.correct_text,
+                        is_correct: true
+                    });
+                });
+            }
+
+            allQuestionsData = extractedList;
+            updateFilterCounts();
+            renderFilteredQuestions();
         } catch (err) {
             console.warn('⚠️ 載入學習統計失敗', err);
-            document.getElementById('dimensionList').innerHTML =
-                '<div class="empty-hint">統計載入失敗，請稍後重新整理。</div>';
+            document.getElementById('dimensionList').innerHTML = '<div class="empty-hint">統計載入失敗，請稍後重新整理。</div>';
+            document.getElementById('questionHistoryList').innerHTML = '<div class="empty-hint">作答紀錄載入失敗。</div>';
         }
     }
 
     function renderDimensions(dimensions, gamesPlayed) {
         const box = document.getElementById('dimensionList');
-
         if (!dimensions.length) {
             box.innerHTML = gamesPlayed
                 ? '<div class="empty-hint">這幾局還沒有答題紀錄，多走幾格冒險格就會出現分析。</div>'
@@ -294,9 +657,80 @@
         `).join('');
     }
 
-    // --- AI 導師分析（實作在後端的 learn_ai.py，由組員維護） ---
+    function setFilter(filterType) {
+        currentFilter = filterType;
+        document.getElementById('tabAll').classList.toggle('active', filterType === 'all');
+        document.getElementById('tabWrong').classList.toggle('active', filterType === 'wrong');
+        document.getElementById('tabCorrect').classList.toggle('active', filterType === 'correct');
+        renderFilteredQuestions();
+    }
+
+    function isQuestionCorrect(q) {
+        return q.is_correct === true;
+    }
+
+    function updateFilterCounts() {
+        const total = allQuestionsData.length;
+        const correctCnt = allQuestionsData.filter(q => isQuestionCorrect(q)).length;
+        const wrongCnt = total - correctCnt;
+
+        document.getElementById('cntAll').textContent = `(${total})`;
+        document.getElementById('cntWrong').textContent = `(${wrongCnt})`;
+        document.getElementById('cntCorrect').textContent = `(${correctCnt})`;
+    }
+
+    function renderFilteredQuestions() {
+        const box = document.getElementById('questionHistoryList');
+
+        let filtered = allQuestionsData;
+        if (currentFilter === 'wrong') {
+            filtered = allQuestionsData.filter(q => !isQuestionCorrect(q));
+        } else if (currentFilter === 'correct') {
+            filtered = allQuestionsData.filter(q => isQuestionCorrect(q));
+        }
+
+        if (!filtered.length) {
+            let msg = '目前沒有題目資料。';
+            if (allQuestionsData.length > 0) {
+                msg = currentFilter === 'wrong' ? '太厲害了！你目前沒有答錯的題目。' : '目前尚無答對的題目紀錄，繼續加油！';
+            } else if (!gamesPlayedCount) {
+                msg = '尚未進行過冒險挑戰，快去開局答題累積戰果吧！';
+            }
+            box.innerHTML = `<div class="empty-hint">${msg}</div>`;
+            return;
+        }
+
+        box.innerHTML = filtered.map((q) => {
+            const isCorrect = isQuestionCorrect(q);
+            const statusBadge = isCorrect 
+                ? '<span class="q-badge correct">作答正確 ✅</span>' 
+                : '<span class="q-badge wrong">需要複習 ❌</span>';
+            
+            const chosenDisplay = q.chosen_text || (q.chosen !== undefined ? `選項 ${q.chosen}` : '未記錄');
+            const correctDisplay = q.correct_text || (q.correct !== undefined ? `選項 ${q.correct}` : '未記錄');
+            const qIndex = allQuestionsData.indexOf(q);
+
+            return `
+                <div class="q-card ${isCorrect ? 'is-correct' : 'is-wrong'}">
+                    <div class="q-card-top">
+                        <span class="q-topic-tag">🏷️ ${escapeHtml(q.topic || 'Python 概念')}</span>
+                        ${statusBadge}
+                    </div>
+                    <div class="q-text">${escapeHtml(q.question || '程式題')}</div>
+                    <div class="q-choices-info">
+                        <div>當時選擇：<b style="color: ${isCorrect ? 'var(--success-green-shadow)' : 'var(--wrong-dark)'};">${escapeHtml(chosenDisplay)}</b></div>
+                        <div>正確答案：<b style="color: var(--success-green-shadow);">${escapeHtml(correctDisplay)}</b></div>
+                    </div>
+                    <div class="q-card-bottom">
+                        <button class="btn-ask-item" onclick="askQuestionTutor(${qIndex})">💡 詢問 AI 導師</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
     async function loadAiReport(token) {
-        const box = document.getElementById('aiMentorReport');
+        const greeting = document.getElementById('initialAiGreeting');
         try {
             const res = await fetch(`${API_URL}/learn/ai_report`, {
                 method: 'POST',
@@ -304,11 +738,97 @@
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
-            box.innerHTML = data.report || '目前沒有可顯示的分析。';
+            const report = data.report || '你好！我是你的 Python AI 導師，有任何問題隨時在下方問我！';
+            greeting.innerHTML = report;
+
+            conversationMessages = [
+                { role: 'assistant', content: report }
+            ];
         } catch (err) {
-            console.warn('⚠️ 載入 AI 分析失敗', err);
-            box.textContent = 'AI 導師暫時無法連線，稍後再試試看。';
+            greeting.textContent = 'AI 導師連線稍微延遲，但你依然可以在下方發問！';
         }
+    }
+
+    function askQuestionTutor(index) {
+        const q = allQuestionsData[index];
+        if (!q) return;
+
+        incrementAiInteractionCount();
+
+        const isCorrect = isQuestionCorrect(q);
+        const chosenText = q.chosen_text || q.chosen;
+        const correctText = q.correct_text || q.correct;
+        
+        const questionPrompt = `老師，請幫我分析題目：「${q.question}」。我當時選了【${chosenText}】，正確答案是【${correctText}】（結果：${isCorrect ? '答對' : '答錯'}），解題思路是什麼？`;
+        
+        appendMessage('user', questionPrompt);
+        chatWithTutor(questionPrompt);
+    }
+
+    function sendChipMessage(text) {
+        incrementAiInteractionCount();
+        appendMessage('user', text);
+        chatWithTutor(text);
+    }
+
+    function handleInputKey(e) {
+        if (e.key === 'Enter') {
+            sendUserMessage();
+        }
+    }
+
+    function sendUserMessage() {
+        const input = document.getElementById('userInputMsg');
+        const text = input.value.trim();
+        if (!text) return;
+
+        incrementAiInteractionCount();
+        appendMessage('user', text);
+        input.value = '';
+        chatWithTutor(text);
+    }
+
+    function appendMessage(role, htmlContent) {
+        const container = document.getElementById('chatContainer');
+        const bubble = document.createElement('div');
+        bubble.className = `chat-bubble ${role}`;
+        bubble.innerHTML = htmlContent;
+        container.appendChild(bubble);
+        container.scrollTop = container.scrollHeight;
+        return bubble;
+    }
+
+    async function chatWithTutor(userText) {
+        const token = localStorage.getItem('token');
+        const loadingBubble = appendMessage('tutor', '💭 導師正在思考中...');
+
+        conversationMessages.push({ role: 'user', content: userText });
+
+        try {
+            const res = await fetch(`${API_URL}/learn/ai_report`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    message: userText,
+                    history: conversationMessages
+                })
+            });
+
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            const reply = data.report || '回答完成！繼續加油！';
+            loadingBubble.innerHTML = reply;
+            conversationMessages.push({ role: 'assistant', content: reply });
+        } catch (err) {
+            console.error("對話連線異常:", err);
+            loadingBubble.innerHTML = "導師正在整理思緒，請稍後再試一次！";
+        }
+
+        const container = document.getElementById('chatContainer');
+        container.scrollTop = container.scrollHeight;
     }
 
     function escapeHtml(str) {
@@ -320,8 +840,7 @@
         const username = localStorage.getItem('username');
         if (syncTimer) clearInterval(syncTimer);
         try {
-            await fetch(`${API_URL}/auth/logout?username=${encodeURIComponent(username)}&confirm=true`,
-                        { method: 'POST' });
+            await fetch(`${API_URL}/auth/logout?username=${encodeURIComponent(username)}&confirm=true`, { method: 'POST' });
         } catch (err) {}
         localStorage.clear();
         window.location.href = 'login.html';
