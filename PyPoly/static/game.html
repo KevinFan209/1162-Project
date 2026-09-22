@@ -1609,6 +1609,15 @@ function setBoardVisibility(isVisible, specificIdx = -1) {
             const head = m.getObjectByName("head");
             if (head) head.visible = isVisible;
         });
+
+        // 🏆 淺綠地面（board-build.js 的 addGroundPlane，比棋盤本身大
+        // 3 倍的一片平面）也要跟著隱藏——它是深度測試正常的不透明
+        // 平面，離鏡頭比半徑 500 的環景球（panoSphere）近很多，進冒險
+        // 格切到環景全景圖時如果不隱藏，一定會被畫在環景圖前面、擋住
+        // 鏡頭下方一大片畫面。不用另外存全域變數，跟上面的房屋一樣
+        // 用 name 查表即可（addGroundPlane 已經把它命名為 ground_plane）。
+        const ground = scene.getObjectByName("ground_plane");
+        if (ground) ground.visible = isVisible;
     }
 }
 
