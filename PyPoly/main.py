@@ -14,6 +14,7 @@ import models, auth_utils, database
 import air_quality  # 🏆 環境部 AQI（移植自 origin/vamos 的 990e880）
 import temperature  # 🏆 中央氣象署即時氣溫（白名單 64 景點）
 import learn_ai     # 🏆 AI 導師分析（learn.html 右側面板，交接給組員維護）
+import board_geo    # 🏆 棋盤格子座標依真實經緯度/海拔動態換算
 # ⚠️ 這裡原本有 cv2，但全檔沒有任何一處用到它。
 #    它唯一的作用是讓 mediapipe 相依的 opencv（149MB）變成必裝，
 #    而 mediapipe 本身也沒有被任何 .py import——手勢辨識是跑在瀏覽器端的。
@@ -1489,15 +1490,24 @@ async def get_map_config(
                              f"請到後台 question.html 新增，或在 PyPoly/ 底下跑 python seed_data.py"}
 
         adventure_tiles = []
+        adventure_geo = []  # 與 adventure_tiles 一一對應的 (lat, lon, elev_m)
         for i in range(20):
             q = questions[i % len(questions)]
             c = countries[i % len(countries)]
-            
+            adventure_geo.append((
+                float(c.latitude) if c.latitude is not None else None,
+                float(c.longitude) if c.longitude is not None else None,
+                c.elevation_m,
+            ))
+
             adventure_tiles.append({
                 "type": "ADVENTURE",
                 "id": c.id,
                 "data": { 
                     "name": c.name,
+                    # 🏆 前端用鄉鎮決定格子的地形外觀（見 static/js/board-terrain.js）：
+                    #    魚池鄉→水岸、仁愛鄉→雪地、鹿谷鄉→森林…
+                    "township": c.township,
                     "scenario": c.scenario,
                     # 🏆 由 id 推導而非讀資料庫欄位：資料庫存檔名容易與實際檔案脫節
                     #    （實測 5 筆全指向不存在的圖，導致冒險格整局卡死）。
@@ -1506,6 +1516,11 @@ async def get_map_config(
                     "skybox_url": f"scenarios/{c.id}.jpg",
                     "base_price": c.base_price,  # 🏆 補上收購價
                     "base_toll": c.base_toll,    # 🏆 補上過路費
+                    # 🏆 真實座標與海拔，沒有敏感性，對玩家來說是有意義的
+                    #    資訊（棋盤格的 x/y/z 就是由這幾個值換算出來的）
+                    "latitude": float(c.latitude) if c.latitude is not None else None,
+                    "longitude": float(c.longitude) if c.longitude is not None else None,
+                    "elevation_m": c.elevation_m,
                     # ⚠️ 這裡絕對不可以放 expected_output 與 reference_solution。
                     #    那是程式碼題的答案，前端拿到等於 DevTools 一開就看得到。
                     #    判分要用的時候，由 /game/verify_code 憑題目 id 自己查資料庫。
@@ -1525,6 +1540,15 @@ async def get_map_config(
                 }
             })
 
+        # 🏆 每局隨機挑一種幾何形狀（圓形/方形/六邊形/無限符號），20 個
+        #    冒險格依真實海拔的「排名」決定走訪順序，並把內容
+        #    （adventure_tiles）跟著一起重新排列——內容跟座標必須綁在
+        #    一起移動，不然會出現「這格顯示地點 A 的故事，卻站在地點 B
+        #    的座標上」的錯位。詳見 board_geo.py 檔頭說明。
+        elevations = [elev for _, _, elev in adventure_geo]
+        shape_key, order, positions_26 = board_geo.compute_shape_board(elevations)
+        adventure_tiles = [adventure_tiles[i] for i in order]
+
         full_map = [None] * 26
         full_map[0] = {"type": "START", "name": "起點"}
         full_map[13] = {"type": "JAIL", "name": "監獄"}
@@ -1541,11 +1565,21 @@ async def get_map_config(
             for idx in range(TEST_KEEP_ADVENTURE, len(adventure_tiles)):
                 adventure_tiles[idx] = {"type": "BLANK", "name": "空白格"}
 
+        # positions_26（board_geo.compute_shape_board 算好的）已經是
+        # 完整 26 格、slot 順序的座標，特殊格的 x/y/z 也都算好了——
+        # 形狀本身天生均勻分布在外框上，不會重疊，不需要再額外插值
+        # 或 declutter。
         adv_idx = 0
         for i in range(26):
             if full_map[i] is None:
                 full_map[i] = adventure_tiles[adv_idx]
                 adv_idx += 1
+
+        for i in range(26):
+            x, y, z = positions_26[i]
+            full_map[i]["x"] = x
+            full_map[i]["y"] = y
+            full_map[i]["z"] = z
 
         return full_map
 

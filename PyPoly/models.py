@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, JSON, Text, Float, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, JSON, Text, Float, Boolean, Numeric
 from datetime import datetime
 from database import Base
 
@@ -84,6 +84,13 @@ class CountryScenario(Base):
     
     # 🔗 Open Data 關聯 ID (用於抓取政府人流/AQI 測站)
     api_station_name = Column(String(50))
+
+    # 🗺️ 棋盤真實地理化：記錄每個地點的座標與海拔，之後用來決定棋盤格的
+    #    相對位置與高度（目前 BOARD_LAYOUT 是寫死的固定形狀，跟實際地理無關）。
+    #    全部可空——資料由使用者之後自行查找並匯入，這裡先建好欄位。
+    latitude = Column(Numeric(9, 6))    # 緯度
+    longitude = Column(Numeric(9, 6))   # 經度
+    elevation_m = Column(Integer)       # 海拔（公尺）
 
 
 # ==========================================================
