@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """集中管理 ops bot 的設定，避免 os.getenv 散落各處。"""
 import os
+import re
+import subprocess
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -72,6 +74,37 @@ LOG_DIR.mkdir(exist_ok=True)
 LLAMA_BASE_URL = os.getenv("LLAMA_BASE_URL", "http://192.168.137.35:8080").rstrip("/")
 # 留空則自動偵測目前已載入的模型（模型別名很長，寫死容易過時）
 LLAMA_MODEL = os.getenv("LLAMA_MODEL", "").strip()
+
+
+# ── GitHub（/issue 待辦清單用）──
+# 個人存取權杖（classic PAT，需要 repo 範圍——要能建立/關閉/刪除 issue）。
+# 於 https://github.com/settings/tokens 建立，這是機密，只放 ops/.env。
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "").strip()
+
+
+def _detect_github_repo() -> str:
+    """從 CONTROL_WORKTREE 的 git remote 自動推算 "owner/repo"，
+    比照 PROJECT_ROOT「沒設就自動推算」的既有慣例，不用每個人都手動填。
+    偵測不到就回空字串，讓 missing() 給出明確錯誤，而不是留著一個
+    看起來能用、實際上打不通 API 的假值。
+    """
+    try:
+        out = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=REPO_ROOT, capture_output=True, text=True, timeout=5,
+        )
+    except Exception:
+        return ""
+    if out.returncode != 0:
+        return ""
+    url = out.stdout.strip()
+    # 支援 https://github.com/owner/repo.git 與 git@github.com:owner/repo.git
+    m = re.search(r"github\.com[:/]([^/]+)/(.+?)(?:\.git)?$", url)
+    return f"{m.group(1)}/{m.group(2)}" if m else ""
+
+
+_repo = os.getenv("GITHUB_REPO", "").strip()
+GITHUB_REPO = _repo or _detect_github_repo()
 
 
 def missing() -> list[str]:

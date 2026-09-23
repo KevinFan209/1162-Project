@@ -2533,3 +2533,67 @@ PyPoly 變更紀錄 (changeLog)
   localhost:8001 直接 curl 確認 static/game.html 已經送出新版內容
   （含 ground_plane 查表那行）。
 ========================================================================
+
+[2026-09-23] #65 Discord bot 新增 /issue 指令組，把待辦清單包成 GitHub Issues
+
+  背景：想在 Discord 上追蹤實測發現的問題（緊急會卡進程的、次要外觀
+  體驗的），本來想法是讓 bot 直接讀寫一份 `prob.md`（打勾/新增/編輯/
+  刪除），但討論後改變方向——GitHub 本來就有 Issues，自己刻一份
+  markdown 解析/序列化邏輯反而多餘，而且 `prob.md` 是 gitignored，
+  只活在跑 bot 那台機器上，機器掛了整包就沒了。改成 Discord 指令
+  實際上是包一層 GitHub API，真正的資料庫是 GitHub，不是自建的檔案。
+
+  ⚠️ `prob.md` 本身這次沒有動，繼續放著當你自己的草稿筆記用，之後
+  要不要把裡面現有的條目搬進 GitHub Issues 是另外的事，這次沒做。
+
+  順便確認了一件事：ops/ 這個 bot 永遠固定跑在 `main` worktree
+  （`config.CONTROL_WORKTREE`），跟 `/start <分支>` 切換的是「uvicorn
+  子行程要用哪個分支的資料夾當工作目錄」完全是兩件事，bot 自己的
+  程式碼/設定不會因為切分支而搬家——所以這份待辦清單天生就是「跟
+  目前在測哪個分支無關的專案級清單」，不用煩惱要不要每個分支各存
+  一份。
+
+  新增 ops/services/github_issues.py：比照既有 llm_client.py 的風格
+  （httpx.AsyncClient、明確分開 timeout 跟其他例外、回傳
+  (成功: bool, 資料或訊息) 而不是丟例外）。「緊急」「次要」兩個分類
+  對應 GitHub 標籤 urgent/polish，第一次用 /issue add 時自動建立。
+  打勾＝關閉 issue、取消勾選＝重新開啟、編輯＝改標題/內文。
+
+  ⚠️ REST API 沒有真正的「刪除 issue」端點，只有開/關兩種狀態。
+  /issue delete 要做到字面上的刪除，改用 GraphQL 的 deleteIssue
+  mutation（先查 issue 的 node id，再送 mutation）——這是唯一一個
+  打 GraphQL 而不是 REST 的函式，錯誤處理也不一樣：GraphQL 失敗時
+  回的是 HTTP 200 帶 errors 陣列，不是非 2xx 的狀態碼，要另外檢查
+  回應內容才抓得到失敗，不能只看 status code。
+
+  新增 ops/cogs/issue_cog.py：用 app_commands.Group 把 list/add/check/
+  uncheck/edit/delete 六個子指令收在同一個 /issue 底下（這個 codebase
+  先前都是扁平的 @app_commands.command，這是第一次用 Group，但
+  Cog 掛載方式跟既有指令一致，用 defer(thinking=True) + followup.send
+  這套既有寫法，沒有引入 Modal/Button 這類這個專案還沒用過的互動元件）。
+  /issue list 沒篩選分類時分兩個 embed 分別送出緊急/次要，避開單一
+  embed description 4096 字的上限（比 /branches 那種硬截斷更不會漏）。
+
+  config.py 新增 GITHUB_TOKEN（.env 填）跟 GITHUB_REPO——後者比照
+  PROJECT_ROOT「沒設就自動推算」的既有慣例，沒填的話會在
+  CONTROL_WORKTREE 跑 `git remote get-url origin` 自動解析出
+  owner/repo，不用每個人都手動填一次。GITHUB_TOKEN 沒設定不會擋住
+  整個 bot 啟動（跟 LLAMA_BASE_URL 不驗證 /ask 能不能連線是同一個
+  設計原則），只有實際呼叫 /issue 系列指令時才會回報「未設定」。
+
+  驗證：py_compile 全過；針對 github_issues.py 寫了 30 項單元測試
+  （用 httpx.MockTransport 假造 GitHub 回應，不打真正的 API）——涵蓋
+  標籤建立的冪等性、list_issues 正確濾掉回應裡混進來的 PR、
+  create/patch 組出的 request body 正確、delete_issue 的兩段式
+  GraphQL 呼叫在查詢/mutation 各自失敗時都能正確中止並回報、以及
+  GITHUB_TOKEN 沒填時六個函式全部直接回錯誤、完全不會真的發出
+  HTTP 請求；另外用真實（未連線的）discord.py Bot 實例跑過
+  bot.py 的 setup_hook 三個 cog 的載入順序，確認 /issue 底下六個
+  子指令都正確註冸、跟既有的 /start /restart /ask 等指令沒有命名
+  衝突。
+
+  ⚠️ 尚未做：沒有 Discord bot token 也沒有 GitHub token 可以實際跑
+  一輪 /issue add → list → check → edit → delete，並到 GitHub 網頁
+  對照確認真的同步——這需要你在 ops/.env 填好 GITHUB_TOKEN、重啟
+  bot 後實際測一次。
+========================================================================

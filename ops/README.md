@@ -98,6 +98,12 @@ https://headless-clutch-mangle.ngrok-free.dev/static/login.html
 | `/status` | 伺服器狀態、目前分支與版本、房間內玩家數、網址 |
 | `/stop` | 關掉隧道與伺服器 |
 | `/ask <問題>` | 問 AI 關於這個專案的問題，**只回文字** |
+| `/issue list [分類] [狀態]` | 列出待辦清單（緊急/次要，預設只看待辦中） |
+| `/issue add <分類> <標題> [說明]` | 新增一條待辦 |
+| `/issue check <編號>` | 打勾（標記為已完成） |
+| `/issue uncheck <編號>` | 取消勾選（重新開啟） |
+| `/issue edit <編號> [標題] [說明]` | 編輯標題/說明 |
+| `/issue delete <編號>` | 永久刪除（無法復原，不是關閉） |
 
 ### 切換分支
 
@@ -125,6 +131,19 @@ bot 不會 `reset --hard` 或 `checkout --`，不會動到任何人正在做的�
 
 > 若伺服器不是 bot 啟動的，`/restart` 會明確拒絕而不會去關別人的行程。
 
+### 待辦清單（/issue）
+
+`/issue` 這組指令**不是自己存資料**，是包一層對 GitHub Issues 的
+API 呼叫——`/issue check` 實際上是把對應的 issue 關閉，`/issue delete`
+是真的呼叫 GitHub 的 GraphQL 刪除掉，不是關閉。好處是有歷史紀錄、
+不會因為這台機器掛掉就整包遺失。
+
+「緊急」對應 GitHub 標籤 `urgent`，「次要」對應 `polish`，兩個標籤
+第一次用 `/issue add` 時會自動建立（不存在的話）。要用這組指令得先
+在 `ops/.env` 填 `GITHUB_TOKEN`（見下方一次性設定）；沒填的話其他
+指令（`/start`、`/ask` 等）完全不受影響，只有 `/issue` 系列會回報
+「GITHUB_TOKEN 未設定」。
+
 ### 一次性設定
 
 1. 到 https://discord.com/developers/applications → **New Application**
@@ -141,6 +160,10 @@ Copy-Item .\ops\.env.example .\ops\.env
 ```
 
 編輯 `ops\.env`，填入 `DISCORD_TOKEN` 與 `GUILD_ID`。
+
+   要用 `/issue` 這組指令的話，另外到
+   https://github.com/settings/tokens 建立一個有 `repo` 範圍的個人
+   存取權杖，填進 `GITHUB_TOKEN`（不用就留空，其他指令不受影響）。
 
 6. 安裝相依套件：
 
@@ -179,12 +202,14 @@ ops/
 ├─ .env.example
 ├─ cogs/
 │  ├─ ops_cog.py              /start /restart /branches /stop /status /url
-│  └─ ask_cog.py              /ask（純文字，無執行權限）
+│  ├─ ask_cog.py              /ask（純文字，無執行權限）
+│  └─ issue_cog.py            /issue list/add/check/uncheck/edit/delete
 ├─ services/
 │  ├─ branch_manager.py       各分支的 git worktree（含分支名白名單）
 │  ├─ server_manager.py       uvicorn 子行程（固定指令，cwd 依分支決定）
 │  ├─ tunnel_manager.py       ngrok 子行程（固定網域，不需解析網址）
-│  └─ llm_client.py           llama.cpp 唯讀呼叫
+│  ├─ llm_client.py           llama.cpp 唯讀呼叫
+│  └─ github_issues.py        GitHub Issues API 呼叫（/issue 系列的資料層）
 ├─ scripts/dev-tunnel.ps1     不透過 bot 的手動啟動方式
 ├─ bin/                       選配：ngrok.exe（gitignore，裝在 PATH 也可以）
 └─ logs/                      子行程記錄（gitignore）

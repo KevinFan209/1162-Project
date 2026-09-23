@@ -17,3 +17,6 @@ PyPoly/static/preview/
 # 伺服器測試，本機各自跑資料庫的情況很少，所以這份一次性匯入檔不進版控，
 # 資料已經直接寫進共用 dev DB 了。
 PyPoly/scenarios_geo_data.sql
+
+# 實測遊玩時發現的已知問題清單（個人筆記，不進版控）。
+prob.md
