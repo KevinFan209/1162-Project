@@ -15,7 +15,7 @@ from discord import app_commands
 from discord.ext import commands
 
 import config
-from services import branch_manager, server_manager, tunnel_manager
+from services import branch_manager, channel_guard, server_manager, tunnel_manager
 
 GREEN, RED, GREY = 0x00CDAC, 0xFF7675, 0x95A5A6
 
@@ -90,6 +90,7 @@ class OpsCog(commands.Cog):
     @app_commands.command(name="start", description="啟動 PyPoly 伺服器並建立公開網址")
     @app_commands.describe(branch="要啟動哪個分支（留空則沿用目前的）")
     @app_commands.autocomplete(branch=_branch_autocomplete)
+    @channel_guard.restrict_to(lambda: config.CHANNEL_OPS_ID)
     async def start(self, interaction: discord.Interaction, branch: str | None = None):
         # 準備分支、建隧道加起來可能要 30 秒以上，必須先 defer 否則 Discord 會判定逾時
         await interaction.response.defer(thinking=True)
@@ -99,6 +100,7 @@ class OpsCog(commands.Cog):
     @app_commands.command(name="restart", description="重新啟動伺服器（可順便換分支）")
     @app_commands.describe(branch="要切換到哪個分支（留空則沿用目前的）")
     @app_commands.autocomplete(branch=_branch_autocomplete)
+    @channel_guard.restrict_to(lambda: config.CHANNEL_OPS_ID)
     async def restart(self, interaction: discord.Interaction, branch: str | None = None):
         await interaction.response.defer(thinking=True)
 
@@ -122,6 +124,7 @@ class OpsCog(commands.Cog):
 
     # ── /url ─────────────────────────────────────────────
     @app_commands.command(name="url", description="查詢遊戲網址（固定不變，不會改變任何狀態）")
+    @channel_guard.restrict_to(lambda: config.CHANNEL_OPS_ID)
     async def url(self, interaction: discord.Interaction):
         current = tunnel_manager.current_url()
         if not current:
@@ -133,6 +136,7 @@ class OpsCog(commands.Cog):
 
     # ── /status ──────────────────────────────────────────
     @app_commands.command(name="status", description="查詢伺服器與隧道狀態")
+    @channel_guard.restrict_to(lambda: config.CHANNEL_OPS_ID)
     async def status(self, interaction: discord.Interaction):
         await interaction.response.defer(thinking=True)
 
@@ -160,6 +164,7 @@ class OpsCog(commands.Cog):
 
     # ── /branches ────────────────────────────────────────
     @app_commands.command(name="branches", description="列出所有分支，以及哪個正在服務")
+    @channel_guard.restrict_to(lambda: config.CHANNEL_OPS_ID)
     async def branches(self, interaction: discord.Interaction):
         await interaction.response.defer(thinking=True)
 
@@ -192,6 +197,7 @@ class OpsCog(commands.Cog):
 
     # ── /stop ────────────────────────────────────────────
     @app_commands.command(name="stop", description="停止 PyPoly 伺服器與公開網址")
+    @channel_guard.restrict_to(lambda: config.CHANNEL_OPS_ID)
     async def stop(self, interaction: discord.Interaction):
         await interaction.response.defer(thinking=True)
 

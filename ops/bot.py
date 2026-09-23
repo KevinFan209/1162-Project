@@ -22,10 +22,11 @@ for _stream in (sys.stdout, sys.stderr):
 import socket
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 import config
-from services import server_manager, tunnel_manager
+from services import channel_guard, server_manager, tunnel_manager
 
 # 只用 slash command，不需要 message_content 這類特權 intent
 intents = discord.Intents.default()
@@ -61,11 +62,34 @@ def acquire_single_instance() -> bool:
     return True
 
 
+async def _on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    """統一處理 slash 指令的錯誤，主要是接住 channel_guard 丟出的頻道限制。
+
+    check 失敗發生在指令本體執行「之前」（此時多半還沒 defer()），預設
+    行為是互動直接卡死、顯示「應用程式未回應」，所以這裡一定要自己回覆。
+    """
+    if isinstance(error, channel_guard.WrongChannel):
+        msg = f"❌ 這個指令只能在 <#{error.channel_id}> 使用。"
+    else:
+        print(f"⚠️ 指令發生未預期錯誤：{error!r}")
+        msg = "❌ 發生未預期的錯誤，請稍後再試。"
+
+    try:
+        if interaction.response.is_done():
+            await interaction.followup.send(msg, ephemeral=True)
+        else:
+            await interaction.response.send_message(msg, ephemeral=True)
+    except discord.HTTPException:
+        pass
+
+
 class OpsBot(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix="!pypoly ", intents=intents, help_command=None)
 
     async def setup_hook(self):
+        self.tree.on_error = _on_app_command_error
+
         await self.load_extension("cogs.ops_cog")
         await self.load_extension("cogs.ask_cog")
         await self.load_extension("cogs.issue_cog")

@@ -16,7 +16,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from services import github_issues
+import config
+from services import channel_guard, github_issues
 
 GREEN, RED, GREY = 0x00CDAC, 0xFF7675, 0x95A5A6
 
@@ -37,6 +38,11 @@ def _format_issue_line(item: dict) -> str:
 class IssueGroup(app_commands.Group):
     def __init__(self):
         super().__init__(name="issue", description="待辦清單（背後是 GitHub Issues）")
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        # Group.interaction_check 會在底下六個子指令執行前都先跑一次，
+        # 所以頻道限制只要寫在這一個地方，不用逐一裝飾每個子指令。
+        return await channel_guard.check_channel(interaction, config.CHANNEL_ISSUE_ID)
 
     # ── /issue list ──────────────────────────────────────
     @app_commands.command(name="list", description="列出待辦清單")

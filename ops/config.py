@@ -107,6 +107,20 @@ _repo = os.getenv("GITHUB_REPO", "").strip()
 GITHUB_REPO = _repo or _detect_github_repo()
 
 
+# ── 頻道限制（選填）──
+# 讓特定指令只能在特定頻道使用。留空＝不限制（維持原本「哪個頻道都能用」
+# 的行為），跟 GITHUB_TOKEN 一樣是選配設定，沒填不影響其他功能。
+def _parse_channel_id(name: str) -> int | None:
+    raw = os.getenv(name, "").strip()
+    return int(raw) if raw.isdigit() else None
+
+
+# 伺服器控制／問答指令（/start /restart /status /branches /stop /url /ask）
+CHANNEL_OPS_ID = _parse_channel_id("CHANNEL_OPS_ID")
+# 待辦清單指令（/issue 底下的六個子指令）
+CHANNEL_ISSUE_ID = _parse_channel_id("CHANNEL_ISSUE_ID")
+
+
 def missing() -> list[str]:
     """回傳缺少的必要設定，供 bot 啟動時給出明確錯誤。"""
     problems = []

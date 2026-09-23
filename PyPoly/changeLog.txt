@@ -2597,3 +2597,50 @@ PyPoly 變更紀錄 (changeLog)
   對照確認真的同步——這需要你在 ops/.env 填好 GITHUB_TOKEN、重啟
   bot 後實際測一次。
 ========================================================================
+
+[2026-09-23] #66 Discord bot 指令加上頻道限制（/issue 專用頻道 vs 原本指令區）
+
+  背景：想另開一個 Discord 頻道專門處理待辦清單，讓 /issue 系列跟
+  伺服器控制指令分開，避免混在同一個頻道洗版。原本想用 Discord
+  內建的 Server Settings → Integrations → 這個 bot 的權限設定，
+  但實測確認那個介面只能整包套用「這個 bot 的全部指令」同一組
+  頻道/身分組規則，沒有逐一指令設定的選項——所以改在程式碼這層
+  自己做限制。
+
+  新增 services/channel_guard.py：check_channel() 是共用的判斷邏輯
+  （沒設定就放行、不符就丟 WrongChannel 例外並帶著「應該去哪個頻道」
+  的資訊）；restrict_to() 是包給扁平指令用的 app_commands.check
+  裝飾器。
+
+  ops_cog.py（/start /restart /status /branches /stop /url）跟
+  ask_cog.py（/ask）這七個指令各自掛
+  @channel_guard.restrict_to(lambda: config.CHANNEL_OPS_ID)。
+  issue_cog.py 因為六個子指令都收在同一個 IssueGroup 底下，改成
+  覆寫 IssueGroup.interaction_check()，一個地方就管住全部六個子
+  指令，不用逐一裝飾。
+
+  ⚠️ check 失敗發生在指令本體執行「之前」，這時候多半還沒
+  defer()，預設行為是互動卡死、顯示「應用程式未回應」而不是
+  明確錯誤——所以在 bot.py 的 setup_hook() 加了
+  self.tree.on_error = _on_app_command_error，把 WrongChannel
+  轉成「這個指令只能在 #頻道 使用」的 ephemeral 訊息，其他未預期
+  錯誤則印到主控台並回覆通用錯誤訊息（避免使用者完全看不到
+  任何回應）。
+
+  config.py 新增 CHANNEL_OPS_ID / CHANNEL_ISSUE_ID，兩者都選填、
+  留空即不限制，跟 GITHUB_TOKEN 同樣的「選配設定不影響其他功能」
+  原則——沒設定的話所有指令維持原本「哪個頻道都能用」的行為。
+
+  驗證：py_compile 全過；寫了 16 項單元測試（直接匯入真實的
+  channel_guard / cogs / bot 模組，用假的 Interaction 物件跑），
+  涵蓋：未設定時一律放行、頻道相符時放行、不符時丟出帶正確
+  channel_id 的 WrongChannel、ops_cog 六個指令與 ask_cog 的 /ask
+  都真的掛上了 check、IssueGroup.interaction_check 真的接了頻道
+  判斷、以及 bot.py 的錯誤處理函式收到 WrongChannel 時回覆的
+  訊息內容與 ephemeral 旗標都正確。
+
+  ⚠️ 尚未做：沒有實際頻道 ID 可以測，需要你在 ops/.env 填入
+  CHANNEL_OPS_ID（「伺服器啟動」頻道）與 CHANNEL_ISSUE_ID
+  （「代辦bug事項」頻道）後重啟 bot，在兩個頻道分別打指令確認
+  「該通的通、該擋的擋」，錯誤訊息裡的頻道連結能正確點擊跳轉。
+========================================================================

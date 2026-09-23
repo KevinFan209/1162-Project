@@ -144,6 +144,31 @@ API 呼叫——`/issue check` 實際上是把對應的 issue 關閉，`/issue d
 指令（`/start`、`/ask` 等）完全不受影響，只有 `/issue` 系列會回報
 「GITHUB_TOKEN 未設定」。
 
+### 限制指令只能在特定頻道使用（選填）
+
+Discord 內建的 Server Settings → Integrations → 這個 bot 的權限設定，
+**沒辦法細到單一指令**——那個頁面套用的是「這個 bot 的全部指令」
+共用同一組頻道/身分組規則，沒有逐一指令設定的選項（實測確認過）。
+所以改在程式碼這層做限制，效果一樣但不受 Discord 介面限制：
+
+- `CHANNEL_OPS_ID`：`/start /restart /status /branches /stop /url /ask`
+  這七個指令只能在這個頻道用
+- `CHANNEL_ISSUE_ID`：`/issue` 底下六個子指令只能在這個頻道用
+
+兩個都在 `ops/.env` 設定，值是頻道 ID（開啟「進階→開發者模式」後
+對頻道按右鍵「複製頻道 ID」）。**兩個都留空＝完全不限制**，維持
+原本「哪個頻道都能用」的行為，不會因為沒設定就讓指令整個失效。
+在不符合的頻道打指令，bot 會回覆「這個指令只能在 #頻道 使用」
+（只有自己看得到）。
+
+實作在 `services/channel_guard.py`：`ops_cog.py`／`ask_cog.py`
+的指令各自掛 `@channel_guard.restrict_to(...)` 這個 check 裝飾器；
+`issue_cog.py` 因為六個子指令都收在同一個 `IssueGroup` 底下，改成
+覆寫 `IssueGroup.interaction_check()`，一個地方管六個指令。`bot.py`
+的 `tree.on_error` 負責把 check 失敗轉成使用者看得懂的訊息——
+check 失敗發生在指令本體執行「之前」，不接住的話 Discord 端會
+顯示「應用程式未回應」而不是明確的錯誤原因。
+
 ### 一次性設定
 
 1. 到 https://discord.com/developers/applications → **New Application**
@@ -189,8 +214,10 @@ bot 必須跑在**裝有 MySQL 的那台機器**上（遊戲伺服器與資料�
 `services/` 裡的子行程指令是固定字串陣列、不經過 shell、不接受任何來自 Discord
 的字串拼接。因此即使頻道內所有人都能使用，能觸發的行為仍侷限在那四件事。
 
-**權限取捨**：目前設定為頻道內所有人皆可使用，所以隧道網址等同於存取憑證。
-請把該頻道設為私有，不要邀請組員以外的人。
+**權限取捨**：頻道內所有人皆可使用（不分身分組），所以隧道網址等同於
+存取憑證。請把用得到這些指令的頻道都設為私有，不要邀請組員以外的人；
+「限制指令只能在特定頻道使用」（上方一節）管的是**哪個頻道能打哪個
+指令**，不是**誰能打指令**，兩者是不同的限制維度。
 
 ### 檔案結構
 
@@ -209,7 +236,8 @@ ops/
 │  ├─ server_manager.py       uvicorn 子行程（固定指令，cwd 依分支決定）
 │  ├─ tunnel_manager.py       ngrok 子行程（固定網域，不需解析網址）
 │  ├─ llm_client.py           llama.cpp 唯讀呼叫
-│  └─ github_issues.py        GitHub Issues API 呼叫（/issue 系列的資料層）
+│  ├─ github_issues.py        GitHub Issues API 呼叫（/issue 系列的資料層）
+│  └─ channel_guard.py        指令的頻道限制（check_channel / restrict_to）
 ├─ scripts/dev-tunnel.ps1     不透過 bot 的手動啟動方式
 ├─ bin/                       選配：ngrok.exe（gitignore，裝在 PATH 也可以）
 └─ logs/                      子行程記錄（gitignore）

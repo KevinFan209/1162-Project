@@ -14,7 +14,7 @@ from discord import app_commands
 from discord.ext import commands
 
 import config
-from services import llm_client
+from services import channel_guard, llm_client
 
 BLUE, RED = 0x4FACFE, 0xFF7675
 
@@ -46,6 +46,7 @@ class AskCog(commands.Cog):
 
     @app_commands.command(name="ask", description="問 AI 關於 PyPoly 的問題（只回文字，不會執行任何操作）")
     @app_commands.describe(question="你想問的問題，例如「結算的答對率是在哪裡算的？」")
+    @channel_guard.restrict_to(lambda: config.CHANNEL_OPS_ID)
     async def ask(self, interaction: discord.Interaction, question: str):
         question = question.strip()
         if not question:
