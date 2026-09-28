@@ -2643,3 +2643,65 @@ PyPoly 變更紀錄 (changeLog)
   啟動」頻道）與 CHANNEL_ISSUE_ID（「代辦bug事項」頻道）後重啟
   bot，兩個頻道分別打指令確認「該通的通、該擋的擋」都正確。
 ========================================================================
+
+[2026-09-28] #67 手勢辨識偵測不到：isHandsProcessing 鎖只接了 4 個呼叫點裡的 1 個
+
+  背景：prob.md 記錄的緊急問題，對局中比手勢畫面預覽正常但辨識永遠
+  沒反應，卡住遊戲進程。hsuan_advance 分支的 d6057b5（"feat: solve
+  camera problem"）加了 window.isHandsProcessing 這把鎖，防止 MediaPipe
+  上一幀還沒處理完就送下一幀，避免 WASM 辨識管線卡死。這次合併進
+  main 後實測還是辨識不到，派兩個 Explore agent 分頭查（一個追蹤
+  game.html 整個 MediaPipe 呼叫圖，一個查 git 歷史＋伺服器端邏輯），
+  獨立收斂到同一個結論，自己也逐一讀過對應程式碼確認。
+
+  根因：static/game.html 有 4 個地方會呼叫共用的 globalHands/globalPose
+  單例（initMediaPipeOnce()，頁面載入時只建一次），d6057b5 那把鎖
+  只接在 initCameraAndStartVision（每回合擲骰/購買手勢）這一個地方。
+  另外三個——initPoseAndStartVision（冒險格開合跳+ROCK手勢跳過）、
+  startFlappyBirdMiniGame（小鳥飛小遊戲）、startRecognitionProcess
+  （賽前決定先後手的舉拳手勢，每局遊戲第一個一定要做的手勢）——
+  的 onFrame 完全無條件呼叫 send()，從最初建立 MediaPipe 骨架的
+  commit 13e01c0 起就沒被動過，跟這次合併無關（git blame/diff 確認
+  d6057b5 跟合併 commit 都沒有弄丟或衝突任何一行鎖的程式碼）。
+
+  ⚠️ 賽前舉拳決定先後手是每局遊戲第一個一定要做的手勢、小鳥飛是
+  回報裡點名的小遊戲，這兩個都完全沒接鎖——如果 bug 從這兩處先
+  觸發，hsuan_advance 的修法自始至終都不會生效。
+
+  畫面預覽為什麼不受影響：render loop 直接 drawImage(video,...)，
+  跟 MediaPipe 的 send/onResults 完全獨立；Camera.stop() 只取消 RAF
+  排程、不會中止已在途的 send()。沒接鎖的呼叫點的幀，可能跟已接鎖
+  那個呼叫點「正在等待中」的 send() 重疊送進同一個 WASM 實例，卡死
+  該 pipeline；鎖唯一的重置點在 onResults 內跟 catch 裡，pipeline
+  真的卡住時兩者都不會執行，鎖永久卡 true，之後整個分頁都收不到
+  辨識結果，直到重新整理（globalHands/globalPose 同一頁不會重建）。
+
+  修法：新增兩個共用的防重疊送幀 helper（sendHandsFrame/
+  sendPoseFrame，各自對應 isHandsProcessing/isPoseProcessing 兩把鎖，
+  Pose 是獨立 WASM 實例需要自己的鎖），用 finally 保證鎖一定會在
+  send() 這個 promise 定案後解開，不再依賴某個特定 onResults 回呼
+  內部有沒有寫重置邏輯（四個地方各自呼叫 onResults() 會互相覆蓋
+  對方註冊的回呼，這是預期中的設計，但代表鎖的重置絕對不能只塞在
+  單一個 onResults 回呼裡）。四個呼叫點的 onFrame 全部改成呼叫這兩個
+  helper，其餘 UI/狀態邏輯不動。
+
+  順手補上：initMediaPipeOnce() 內的兩個建構子呼叫包一層 try/catch，
+  失敗時 console.error 記錄清楚原因（原本完全沒有任何記錄，CDN 連線
+  不穩時 globalHands/globalPose 會整個 session 保持 null，之後所有
+  onFrame 都會靜默不送任何幀，跟這次症狀是同一類「預覽正常、辨識
+  死掉」但成因不同，算是第二個獨立風險，順手一起防）。
+
+  驗證：抽出整段 inline <script>（不含 src= 的外部腳本）用 Node
+  vm.Script 做語法檢查，沒有語法錯誤。MediaPipe 手勢/姿勢辨識、
+  攝影機這部分完全沒辦法用無瀏覽器的腳本測試取代（見復測筆記），
+  只能真人在瀏覽器裡對著鏡頭比手勢。
+
+  ⚠️ 尚未做：需要你實際在瀏覽器測這四個關卡（賽前舉拳決定先後手→
+  正常回合擲骰/購買手勢→冒險格開合跳→小鳥飛），確認四個都能正常
+  辨識。哪一個還有問題麻煩明確講是哪一關，因為分類邏輯多半在伺服器
+  端（/ws/vision/...），四個呼叫點的分類邏輯彼此獨立，出錯要分開排查。
+  另外沒動 activeCamera/cameraInstance 兩個相機控制變數互不檢查的
+  潛在併發風險（需要特定時序才會觸發，目前沒證據是這次症狀成因），
+  也沒清掉死變數 activeHands——都刻意留到這輪鎖修好、若還有殘留
+  問題再處理。
+========================================================================

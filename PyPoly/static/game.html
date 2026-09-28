@@ -3367,20 +3367,57 @@ let globalVisionSocket = null;
 
 // 提前初始化 MediaPipe，避免重複讀取檔案
 function initMediaPipeOnce() {
-    if (!globalHands) {
-        globalHands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
-        globalHands.setOptions({ maxNumHands: 1, modelComplexity: 0, minDetectionConfidence: 0.7 });
-    }
-    if (!globalPose) {
-        globalPose = new Pose({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}` });
-        // 🏆 關鍵修正一：將 modelComplexity 從 1 降為 0，捨棄不需要的超高精度，換取極致流暢無延遲的畫面！
-        globalPose.setOptions({ modelComplexity: 0, minDetectionConfidence: 0.5 });
+    try {
+        if (!globalHands) {
+            globalHands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+            globalHands.setOptions({ maxNumHands: 1, modelComplexity: 0, minDetectionConfidence: 0.7 });
+        }
+        if (!globalPose) {
+            globalPose = new Pose({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}` });
+            // 🏆 關鍵修正一：將 modelComplexity 從 1 降為 0，捨棄不需要的超高精度，換取極致流暢無延遲的畫面！
+            globalPose.setOptions({ modelComplexity: 0, minDetectionConfidence: 0.5 });
+        }
+    } catch (err) {
+        // 建構子若在此失敗（例如 CDN 連線不穩），globalHands/globalPose 會維持
+        // null，之後所有 sendHandsFrame/sendPoseFrame 都會静默不送——這裡至少
+        // 把原因記下來，不要讓整個手勢辨識死掉卻完全沒有任何記錄可查。
+        console.error("MediaPipe 初始化失敗:", err);
     }
 }
 initMediaPipeOnce(); // 頁面載入時只呼叫這一次
 
 // --- 請替換整段 initCameraAndStartVision ---
 window.isHandsProcessing = false; // 宣告全域保護鎖
+window.isPoseProcessing = false;  // Pose 是獨立的 WASM 實例，需要自己的鎖
+
+// 🏆 統一的防重疊送幀 helper：整個檔案所有呼叫 globalHands/globalPose.send()
+// 的地方都要走這裡，不要各自手刻鎖邏輯——這正是先前 isHandsProcessing 這把鎖
+// 只接在 initCameraAndStartVision 一個地方、其餘三個呼叫點完全沒接鎖、導致
+// 手勢辨識偶發永久卡死的根因。用 finally 保證鎖一定會在 send() 定案後解開，
+// 不依賴任何特定 onResults 回呼內部有沒有寫重置邏輯。
+async function sendHandsFrame(imageSource) {
+    if (!globalHands || window.isHandsProcessing) return;
+    window.isHandsProcessing = true;
+    try {
+        await globalHands.send({ image: imageSource });
+    } catch (err) {
+        console.error("globalHands.send 失敗:", err);
+    } finally {
+        window.isHandsProcessing = false;
+    }
+}
+
+async function sendPoseFrame(imageSource) {
+    if (!globalPose || window.isPoseProcessing) return;
+    window.isPoseProcessing = true;
+    try {
+        await globalPose.send({ image: imageSource });
+    } catch (err) {
+        console.error("globalPose.send 失敗:", err);
+    } finally {
+        window.isPoseProcessing = false;
+    }
+}
 
 async function initCameraAndStartVision() {
     await stopAllVision(); 
@@ -3433,16 +3470,7 @@ async function initCameraAndStartVision() {
         activeCamera = new Camera(video, {
             onFrame: async () => {
                 if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
-                    // 🏆 核心保護：如果尚未處理完上一幀，絕對不送新幀給 MediaPipe！
-                    if (globalHands && !window.isHandsProcessing) {
-                        window.isHandsProcessing = true; // 🔒 塞入影像前上鎖
-                        try {
-                            await globalHands.send({ image: video });
-                        } catch (e) {
-                            console.error("MediaPipe 處理異常:", e);
-                            window.isHandsProcessing = false; // 發生錯誤時也要釋放鎖
-                        }
-                    }
+                    await sendHandsFrame(video);
                 }
             },
             width: 640,
@@ -4960,12 +4988,12 @@ async function initPoseAndStartVision() {
 	// 尋找 game.html 中的 activeCamera 初始化處
 	activeCamera = new Camera(video, {
 		onFrame: async () => {
-			// 🏆 關鍵修正：確保影片已經準備好，且寬高大於 0 
+			// 🏆 關鍵修正：確保影片已經準備好，且寬高大於 0
 			if (video.readyState >= 2 && video.videoWidth > 0) {
 				// 🏆 關鍵修正：必須同時將影像傳送給 pose 與 hands 兩個實例
 				// 這樣後端才能同時接收到身體(開合跳)與手部(Rock手勢)的資料
-				if (globalPose) await globalPose.send({ image: video });
-				if (globalHands) await globalHands.send({ image: video });
+				await sendPoseFrame(video);
+				await sendHandsFrame(video);
 			}
 		},
 		width: 640,
@@ -5548,7 +5576,7 @@ async function startFlappyBirdMiniGame() {
         activeCamera = new Camera(video, {
             onFrame: async () => {
                 if (video.readyState >= 2 && video.videoWidth > 0 && window.uiState === 'FLAPPY_BIRD') {
-                    if (globalPose) await globalPose.send({ image: video });
+                    await sendPoseFrame(video);
                 }
             },
             width: 640,
@@ -5738,13 +5766,13 @@ async function startRecognitionProcess() {
         await video.play();
 
         // 🏆 5. 啟動相機工具
-        cameraInstance = new Camera(video, { 
+        cameraInstance = new Camera(video, {
             onFrame: async () => {
                 if (!isOrderDecided && video.readyState === 4) {
-                    await globalHands.send({ image: video });
+                    await sendHandsFrame(video);
                 }
-            }, 
-            width: 400, height: 300 
+            },
+            width: 400, height: 300
         });
         cameraInstance.start();
 
