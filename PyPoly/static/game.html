@@ -2921,7 +2921,7 @@ function create3DBoard() {
     //    所以這裡做成可以安全重複呼叫：先清掉舊的 26 格再重建，
     //    不會疊出兩份棋盤。
     if (allTileMeshes.length) {
-        allTileMeshes.forEach(t => scene.remove(t));
+        allTileMeshes.forEach(t => { disposeObject3D(t); scene.remove(t); });
         allTileMeshes.length = 0;
     }
     const r = buildBoard(scene, gameMap);

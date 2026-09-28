@@ -2705,3 +2705,52 @@ PyPoly 變更紀錄 (changeLog)
   也沒清掉死變數 activeHands——都刻意留到這輪鎖修好、若還有殘留
   問題再處理。
 ========================================================================
+
+[2026-09-28] #68 棋盤重建沒釋放 GPU 資源，很可能是手勢辨識變得更容易卡死的放大器
+
+  背景：#67 修完 MediaPipe 送幀鎖之後，你提出「Fan-map 開分支之前
+  測試相機辨識都正常」，要求先查出真正是哪裡的改動造成的，再測新
+  程式碼。用 git 比對 Fan-map/hsuan_advance/jiajiun 共同分岔點
+  （commit 1a4a5e3）的 game.html，確認 #67 修的那個「鎖只接一半」
+  問題在分岔前就已經存在（當時 4 個呼叫點全部都還沒有任何鎖），
+  不是這次合併造成的——所以繼續往下查 Fan-map 自己實際改了什麼。
+
+  找到的 regression：Fan-map 把 create3DBoard() 從「頁面載入時建
+  一次、之後不重建」改成「gameMap 資料非同步到齊時要整個重蓋，同一次
+  頁面載入最多重建 3-4 次」，但清除舊棋盤只有 scene.remove(t)——這
+  只是把物件從場景拿掉，不會釋放幾何體/材質的 GPU/VRAM，Three.js
+  要真的釋放必須明確呼叫 .geometry.dispose()／.material.dispose()。
+  搜過 game.html、board-build.js、board-terrain.js、board-props.js
+  全部檔案，.dispose() 一次都沒被呼叫過。這對應你們之前討論過、後來
+  「照指示撤回」的 disposeBoardTiles GPU 資源沒釋放那個懷疑——當時
+  似乎沒有真的補上釋放邏輯，這個洞一直開到現在。
+
+  每次重建／每次 applyBoardAppearanceTo() 重套外觀，都會留下孤兒的
+  tile 材質、支柱、連接橋、陰影、地形裝飾（樹/石頭/蘆葦）、功能格
+  建築（拱門/道具店/監獄/單槓/禮物箱）——這些全部不吃貼圖（貼圖只有
+  兩個模組級快取 _terrainTextureCache/_shadowTextureCache，全域共用，
+  跟格子清除無關，這次也沒去動它們）。GPU 資源持續累積，很可能就是
+  讓 #67 那個「本來就沒鎖好、但平常很難踩到」的送幀競速問題，從
+  「極少發生」放大成「幾乎每次都卡死」的放大器——這才是「Fan-map
+  之前正常、之後不正常」的真正差異來源。
+
+  修法：board-build.js 新增 disposeObject3D(obj)，用 obj.traverse()
+  遞迴 dispose 一個 Object3D 底下所有 mesh 的 geometry/material，
+  不特別列舉每種裝飾物類型。套用在兩個地方：
+  - game.html 的 create3DBoard()：清空 allTileMeshes 前，每個 tile
+    先 disposeObject3D() 再 scene.remove()——.traverse() 會自動連同
+    tile 底下的支柱/連接橋/陰影/裝飾一起處理，不用個別處理子物件。
+  - board-build.js 的 applyBoardAppearanceTo()：清除上一輪
+    BOARD_DECOR_NAME 裝飾物時，tile.remove() 前先 disposeObject3D()。
+    這個路徑比整個棋盤重建更常觸發，是目前累積最快的洩漏來源。
+
+  不改 addGroundPlane()／addBoardEnclosure()（只呼叫一次，不隨棋盤
+  重蓋而重蓋）；不改 createShadowTexture()／createTerrainTexture()
+  （模組級快取，本來就該一直存在，不能 dispose）。
+
+  驗證：抽出 board-build.js 跟 game.html 的 inline script 分別用
+  Node vm.Script 做語法檢查，都過。GPU 資源累積對手勢辨識的實際
+  影響沒辦法用腳本測，需要你實際長時間遊玩、多次進出會用到相機的
+  關卡（開合跳、小鳥飛）觀察是否還會卡死；方便的話瀏覽器開發者工具
+  的 chrome://gpu 或 Memory 分頁可以看 GPU 記憶體是否還在持續往上飆。
+========================================================================
