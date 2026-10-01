@@ -86,16 +86,12 @@
 
         .q-log-header { font-weight: 900; font-size: 1.4rem; margin-bottom: 20px; border-left: 8px solid var(--primary-blue); padding-left: 15px; display: flex; justify-content: space-between; align-items: center; }
         .q-log-hint { font-size: 0.9rem; color: #ef4444; font-weight: 800; background: #fee2e2; padding: 8px 15px; border-radius: 10px; }
-        .q-list { display: flex; flex-direction: column; gap: 12px; }
-        .q-item { background: #f8fafc; padding: 20px; border-radius: 15px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 10px; border-left: 6px solid #cbd5e1; }
-        .q-item.correct { border-left-color: var(--success-green); background: #f0fdf4; }
-        .q-item.wrong { border-left-color: #ff4757; background: #fff1f2; }
-        .q-content { font-weight: 900; color: var(--sidebar-dark); font-size: 1.1rem; line-height: 1.5; }
-        .q-details { display: flex; flex-direction: column; font-size: 0.95rem; font-weight: 800; color: #64748b; margin-top: 10px; background: white; padding: 15px; border-radius: 10px; border: 1px dashed #cbd5e1; }
-        .opt-line { margin-bottom: 6px; }
-        .opt-line.chosen { font-weight: 900; color: var(--primary-blue); }
-        .opt-line.correct-ans { color: var(--success-green); }
-        .q-status { font-weight: 900; font-size: 1.1rem; text-align: right; margin-top: 5px; }
+        .q-list { display: flex; flex-direction: column; gap: 15px; }
+        .q-item { background: #ffffff; padding: 25px; border-radius: 20px; border: 1.5px solid #e2e8f0; display: flex; flex-direction: column; gap: 15px; border-left: 8px solid #cbd5e1; box-shadow: 0 4px 10px rgba(0,0,0,0.02); }
+        .q-item.correct { border-left-color: var(--success-green); }
+        .q-item.wrong { border-left-color: #ff4757; }
+        .q-content { font-weight: 900; color: var(--sidebar-dark); font-size: 1.2rem; line-height: 1.5; }
+        .q-status { font-weight: 900; font-size: 1.1rem; text-align: right; margin-top: 10px; }
 
         /* 🏆 動畫覆蓋層與蜜蜂獎盃 */
         #animation-overlay {
@@ -125,9 +121,9 @@
 
 <div id="animation-overlay">
     <div class="award-visuals">
-        <!-- 🏆 蜜蜂在此 -->
+        <!-- 🏆 修正 Logo 路徑，優先抓 static 目錄 -->
         <div class="bee-container">
-            <img src="logo.jpg" alt="Bee Logo" class="bee-logo" onerror="this.src='https://cdn-icons-png.flaticon.com/512/806/806002.png'"> 
+            <img src="static/logo.jpg" alt="Bee Logo" class="bee-logo" onerror="this.src='logo.jpg'"> 
             <div class="trophy-icon" id="trophyIcon">🏆</div>
         </div>
         <!-- 🏆 3D 虛擬人物在此 -->
@@ -148,6 +144,7 @@
         <section class="q-log-card" id="qLogSection">
             <div class="q-log-header">
                 <span>📝 你的答題紀錄</span>
+                <!-- 🏆 修正了文字提示 -->
                 <span class="q-log-hint">💡 答題記錄可至大廳右側選單中的學習統計查詢</span>
             </div>
             <div class="q-list" id="qList">
@@ -211,8 +208,6 @@
 
     function calculateTotalAssets(leaderboard) {
         const playerRealEstate = {};
-        
-        // 🏆 取得結算最終的回合數 (以排行榜第一名的回合為準)
         const finalRound = leaderboard.length > 0 ? (leaderboard[0].laps || 1) : 1;
 
         Object.keys(landOwnership).forEach(tileIdx => {
@@ -224,7 +219,6 @@
                 landName = mapCache[tileIdx].data?.name || mapCache[tileIdx].name || "優質地產";
             }
 
-            // 🏆 真・時間複利演算法
             const buyR = land.buyRound || 1;
             const holdRounds = Math.max(0, finalRound - buyR);
             const origPrice = land.originalPrice || 1000;
@@ -255,8 +249,6 @@
         const enriched = leaderboard.map(p => {
             const totalAssetsFromDB = parseInt(p.final_money) || 0; 
             const reData = playerRealEstate[p.username] || { totalValue: 0, lands: [] };
-            
-            // 🏆 完美反推：後端存的 final_money 扣掉房地產 = 畫面上真正的剩餘現金！一塊錢都不會誤差！
             const actualCash = totalAssetsFromDB - reData.totalValue;
             
             return {
@@ -277,7 +269,6 @@
         return enriched;
     }
 
-    // 🏆 3D 人物 + 蜜蜂頒獎動畫
     function playAwardAnimation(leaderboard) {
         return new Promise(resolve => {
             const overlay = document.getElementById('animation-overlay');
@@ -286,7 +277,6 @@
             const winner = leaderboard.find(p => p.rank === 1);
             const winnerName = winner ? winner.username : "玩家";
 
-            // 啟動 3D 模型渲染
             renderWinnerAvatar(winnerName);
 
             const tl = gsap.timeline({
@@ -308,14 +298,15 @@
         });
     }
 
-    // 🏆 動態呼叫 player-model.js 來產生獲勝者的 3D 模型
+    // 🏆 完美修正虛擬人物大小，確保全身入鏡
     function renderWinnerAvatar(winnerName) {
         const canvas = document.getElementById('winner-canvas');
         if(!canvas) return;
 
         const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(40, 200/300, 0.1, 100);
-        camera.position.set(0, 1.2, 4);
+        // 將相機往後拉退 (z: 4.5)，讓全身有足夠空間顯示
+        const camera = new THREE.PerspectiveCamera(45, 200/300, 0.1, 100);
+        camera.position.set(0, 0.5, 4.5); 
         
         const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
         renderer.setSize(200, 300);
@@ -326,22 +317,21 @@
         dirLight.position.set(2, 4, 3);
         scene.add(dirLight);
 
-        // 讀取該玩家當初存的膚色與臉孔
         const colorsStr = localStorage.getItem(`pypoly_char_colors_${winnerName}`) || localStorage.getItem('pypoly_char_colors');
         let colors = { head: '#f5c18a', arm: '#5cbaee', body: '#4a90d9', legs: '#2c4a8c', feet: '#2c1f14' };
         if(colorsStr) try { colors = JSON.parse(colorsStr); } catch(e){}
         const faceUrl = localStorage.getItem(`pypoly_char_face_${winnerName}`) || localStorage.getItem('pypoly_char_face');
 
-        // 使用你原本的建立人物函式
         if(typeof createCustomBoxCharacter === 'function') {
             const model = createCustomBoxCharacter(colors, faceUrl);
-            model.scale.set(1.4, 1.4, 1.4);
-            model.position.y = -0.5;
+            // 縮小人物比例並向下移動，讓它完美適應 200x300 的畫布
+            model.scale.set(0.75, 0.75, 0.75);
+            model.position.y = -1.0;
             scene.add(model);
 
             function animate() {
                 requestAnimationFrame(animate);
-                model.rotation.y -= 0.02; // 讓人物旋轉慶祝
+                model.rotation.y -= 0.02; 
                 renderer.render(scene, camera);
             }
             animate();
@@ -405,7 +395,7 @@
         }).join('');
     }
 
-    // 🏆 神還原選項：利用地圖快取交叉比對
+    // 🏆 智能比對選項，顯示所有題目細節
     async function loadMyAnswerLogs() {
         try {
             const res = await fetch(`${API_URL}/game/answer_logs?room=${encodeURIComponent(roomCode)}&user=${encodeURIComponent(myName)}`);
@@ -427,42 +417,61 @@
             return;
         }
 
+        // 從地圖快取建立題庫字典，方便後續比對選項
+        const qDict = {};
+        mapCache.forEach(tile => {
+            if (tile && tile.data && tile.data.question) {
+                const text = (tile.data.question.content || "").trim();
+                if (text) qDict[text] = tile.data.question;
+            }
+        });
+
         listDiv.innerHTML = logs.map(log => {
             const isCorrect = log.is_correct || (log.chosen_answer == log.correct_answer);
             const statusClass = isCorrect ? 'correct' : 'wrong';
             const statusText = isCorrect ? '✅ 答對' : '❌ 答錯';
             
-            // 💡 智能匹配選項
+            const qText = (log.question_text || "").trim();
+            const foundQ = qDict[qText];
+            
             let optionsHtml = '';
-            let foundQ = null;
-            for(let tile of mapCache) {
-                if(tile && tile.data && tile.data.question && tile.data.question.content === log.question_text) {
-                    foundQ = tile.data.question;
-                    break;
-                }
-            }
-
+            
+            // 💡 若成功找到原本的題目，渲染四個選項，並用顏色標示出玩家的選擇
             if (foundQ && foundQ.options && foundQ.options.length > 0) {
-                optionsHtml = `
-                    <div style="margin-top:10px; font-size: 0.95rem;">
-                        <strong style="color:#334155; display:block; margin-bottom:5px;">選項：</strong>
-                        ${foundQ.options.map((opt, i) => `
-                            <div class="opt-line ${ (i+1) == log.chosen_answer ? 'chosen' : '' }">
-                                (${i+1}) ${escapeHtml(opt)}${ (i+1) == log.correct_answer ? '<span class="opt-line correct-ans" style="margin-left:5px;">(正解)</span>' : ''}
-                            </div>
-                        `).join('')}
-                    </div>
-                `;
+                optionsHtml = `<div style="margin-top:12px; font-size: 1rem; display: flex; flex-direction: column; gap: 8px;">
+                    ${foundQ.options.map((opt, i) => {
+                        const optNum = i + 1;
+                        const isChosen = (optNum == log.chosen_answer);
+                        
+                        // 樣式：未選中的選項灰灰的，選中的選項會依照對錯上色
+                        let optStyle = "color: #64748b; background: #f8fafc; border: 1px solid #e2e8f0; padding: 10px 15px; border-radius: 10px; font-weight: 700;";
+                        let optIcon = `<span style="display:inline-block; width: 25px; color:#cbd5e1;">(${optNum})</span>`;
+                        
+                        if (isChosen) {
+                            if (isCorrect) {
+                                optStyle = "color: #00cdac; background: #f0fdf4; border: 2px solid #00cdac; font-weight: 900;";
+                                optIcon = "✅ 你的選擇：";
+                            } else {
+                                optStyle = "color: #ff4757; background: #fff1f2; border: 2px solid #ff4757; font-weight: 900;";
+                                optIcon = "❌ 你的選擇：";
+                            }
+                        }
+
+                        return `<div style="${optStyle}">${optIcon}${escapeHtml(opt)}</div>`;
+                    }).join('')}
+                </div>`;
+            } else {
+                // 防呆：如果是手寫程式碼題，或者找不到選項，就只顯示玩家當初寫了什麼
+                optionsHtml = `<div style="margin-top:10px; padding: 15px; background: white; border-radius: 10px; border: 1px dashed #cbd5e1; color: #334155; font-weight: 800;">
+                    📝 你的作答：${escapeHtml(log.chosen_answer || '未作答')}
+                </div>`;
             }
 
             return `
             <div class="q-item ${statusClass}">
-                <div class="q-content">Q: ${escapeHtml(log.question_text)}</div>
+                <div class="q-content" style="font-size: 1.15rem; color: #1e293b;">Q: ${escapeHtml(qText || '未知題目')}</div>
                 ${optionsHtml}
-                <div class="q-details">
-                    <span style="color:${isCorrect ? 'var(--success-green)' : '#ff4757'}">📝 你的選擇：選項 ${escapeHtml(log.chosen_answer || '未作答')}</span>
-                    <div class="q-status">${statusText}</div>
-                </div>
+                <div class="q-status">${statusText}</div>
             </div>`;
         }).join('');
     }
