@@ -35,6 +35,24 @@
 
     window.fetch = function (input, init) {
         try {
+            // ⚠️ 只對同源（這個 ngrok 網域自己的後端）的請求加這個標頭。
+            // 跨網域打第三方 CDN（例如 MediaPipe 手勢辨識讀 wasm/js 用的
+            // cdn.jsdelivr.net）絕對不能加——那些網域的 CORS 設定沒有把
+            // 這個自訂標頭列進 Access-Control-Allow-Headers，加了會在
+            // preflight 階段直接被瀏覽器擋下來，導致 MediaPipe 的 wasm
+            // 檔永遠載入失敗（手勢辨識整個啟動不了，實測在 ngrok 下
+            // 重現過這個 CORS 錯誤）。這裡的用途原本就只是繞過 ngrok
+            // 對「這個 tunnel 自己」的瀏覽器警告頁，本來就不該管到
+            // 跟 ngrok 無關的第三方網域。
+            var url = input instanceof Request ? input.url : String(input);
+            var isSameOrigin;
+            try {
+                isSameOrigin = new URL(url, location.href).origin === location.origin;
+            } catch (e) {
+                isSameOrigin = true; // 解析失敗時保守地當作同源，維持原行為
+            }
+            if (!isSameOrigin) return origFetch.call(this, input, init);
+
             // input 可能是網址字串，也可能是 Request 物件，兩種都要處理
             var headers = new Headers(
                 (init && init.headers) ||
