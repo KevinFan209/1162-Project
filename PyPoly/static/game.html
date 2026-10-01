@@ -6977,12 +6977,12 @@ function triggerGameOver() {
     const godBtn = document.getElementById('back-to-god-btn');
     if (godBtn) godBtn.style.display = 'none';
 
-    showGameNotice("🏁 規定回合已結束！即將進入最終結算...", 5000);
+    // 🏆 修改文字提示
+    showGameNotice("🎉 恭喜你！遊戲結束！", 4000);
     
     setTimeout(() => {
-        // 🌟 這裡暫時先用黑底大字卡擋住畫面，之後你寫好結算畫面，把這裡換成 window.location.href = "result.html"
-        showCustomNotice("💰 正在結算總資產...<br><span style='font-size: 1.5rem;'>即將進入結算畫面</span>", "center", 0);
-        // 🏆 需求⑨：權威端(最後一位玩家)送出結算，雙方都跳轉 results.html；results 端會自行重試
+        showCustomNotice("💰 正在進行遊戲結算...<br><span style='font-size: 1.5rem;'>即將為您轉跳至成績單</span>", "center", 0);
+        
         (function () {
             const gs = JSON.parse(localStorage.getItem('pypoly_game_snapshot')) || {};
             const players = gs.players || [];
@@ -6991,18 +6991,34 @@ function triggerGameOver() {
             const myName = localStorage.getItem('username');
             const finalRound = parseInt(localStorage.getItem('pypoly_current_round')) || 0;
             const go = () => { window.location.href = `results.html?room=${encodeURIComponent(rc)}`; };
-            // 🏆 權威端改以「實際行動順序」的最後一位為準，與 endMyTurn 的判定一致。
-            //    用加入順序會在客人先手時選錯人。
+            
             const order = getTurnOrder();
             const isSettler = order.length ? (myName === order[order.length - 1]) : true;
+            
             if (isSettler) {
                 const payloadPlayers = players.map(p => {
                     const el = document.getElementById(`balance-${p}`);
-                    const money = el ? (parseInt(el.innerText.replace(/,/g, '')) || 0) : 0;
-                    // 🏆 補上 jump_count：後端早就有接，前端沒送導致報表永遠是 0
-                    return { username: p, final_money: money, laps: finalRound,
-                             jump_count: getJumpCount(p) };
+                    let cash = el ? (parseInt(el.innerText.replace(/,/g, '')) || 0) : 0;
+                    
+                    // 🏆 核心修正：將「房產增值」在傳給後端前就算好加進去
+                    // 確保資料庫 game_records 存的 final_money 是真正的總資產，勝負判定才會準確！
+                    const landOwnership = JSON.parse(localStorage.getItem('pypoly_land_ownership')) || {};
+                    let realEstateValue = 0;
+                    Object.values(landOwnership).forEach(land => {
+                        if (land.owner === p) {
+                            const floorMult = 1 + ((land.floorCount || 1) - 1) * 0.5;
+                            realEstateValue += Math.floor((land.originalPrice || 0) * floorMult);
+                        }
+                    });
+
+                    return { 
+                        username: p, 
+                        final_money: cash + realEstateValue, // 總資產 = 現金 + 房產
+                        laps: finalRound,
+                        jump_count: getJumpCount(p) 
+                    };
                 });
+                
                 fetch(`${API_URL}/game/settle`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },

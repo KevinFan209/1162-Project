@@ -89,6 +89,56 @@
         .btn-home { background: var(--sidebar-dark); color: white; box-shadow: 0 6px 0 var(--sidebar-dark-shadow); }
         .btn-again { background: var(--success-green); color: white; box-shadow: 0 6px 0 var(--success-green-shadow); }
         .btn-3d:active { transform: translateY(6px); box-shadow: none; }
+		
+		/* 🏆 結算詳細清單樣式 */
+        .settle-details { margin-top: 15px; border-top: 1px dashed var(--border-light); padding-top: 15px; display: none; }
+        .detail-row { display: flex; justify-content: space-between; font-size: 0.95rem; color: var(--text-gray); margin-bottom: 8px; }
+        .detail-row.total { font-size: 1.2rem; font-weight: 900; color: var(--text-dark); border-top: 2px solid var(--border-light); padding-top: 8px; margin-top: 5px; }
+        
+        .expand-btn { background: none; border: none; color: var(--primary-blue); font-weight: 800; cursor: pointer; font-size: 0.9rem; padding: 5px 0; display: block; margin-left: auto; }
+        .expand-btn:hover { text-decoration: underline; }
+
+        /* 🏆 動畫覆蓋層與蜜蜂 */
+        #animation-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(255, 255, 255, 0.95); z-index: 50000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        
+		.bee-logo { 
+            width: 200px; /* 稍微放大一點，讓 Logo 更顯眼 */
+            height: 200px; 
+            object-fit: contain; /* 🏆 確保圖片比例不會被擠壓變形 */
+            animation: float 2s ease-in-out infinite; 
+            margin-bottom: 30px; 
+            border-radius: 25px; /* 🏆 若圖片有白邊，稍微加個圓角會更柔和，可依需求調整 */
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1); /* 🏆 加上一點陰影增加立體感 */
+        }
+		
+		.award-text { font-size: 3rem; font-weight: 900; color: var(--text-dark); opacity: 0; transform: translateY(20px); }
+        .winner-name-anim { color: var(--gold); font-size: 4rem; text-shadow: 0 4px 15px rgba(241, 196, 15, 0.3); }
+
+        @keyframes float {
+            0% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(5deg); }
+            100% { transform: translateY(0px) rotate(0deg); }
+        }
+
+        /* 🏆 答題紀錄區塊 */
+        .q-log-card { background: white; border-radius: 40px; padding: 35px; border: 1.5px solid var(--border-light); box-shadow: 0 10px 30px rgba(0,0,0,0.05); grid-column: 1 / -1; display: none; }
+        .q-log-header { font-weight: 900; font-size: 1.4rem; margin-bottom: 15px; border-left: 8px solid var(--primary-blue); padding-left: 15px; display: flex; justify-content: space-between; align-items: center; }
+        .q-log-hint { font-size: 0.95rem; color: var(--text-gray); font-weight: 700; background: #f8fafc; padding: 10px 20px; border-radius: 12px; border: 1px dashed #cbd5e1; }
+        
+        .q-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; }
+        .q-item { background: #f8fafc; padding: 20px; border-radius: 20px; border: 1px solid #f1f2f6; display: flex; flex-direction: column; gap: 10px; }
+        .q-item.correct { border-left: 6px solid var(--success-green); }
+        .q-item.wrong { border-left: 6px solid #ff4757; }
+        .q-content { font-weight: 800; color: var(--text-dark); line-height: 1.4; }
+        .q-status { font-weight: 900; font-size: 0.9rem; align-self: flex-end; }
+        .correct .q-status { color: var(--success-green); }
+        .wrong .q-status { color: #ff4757; }
+		
+		
     </style>
 </head>
 <body>
@@ -117,6 +167,13 @@
     </div>
 </header>
 
+<!-- 🏆 蜜蜂頒獎動畫覆蓋層 -->
+<div id="animation-overlay">
+    <!-- 將 src 替換為你的圖片檔名與路徑 -->
+    <img src="C:\Users\User\Desktop\1162-Project\PyPoly\static\logo.jpg" alt="Bee Logo" class="bee-logo" onerror="this.style.display='none'"> 
+    <div class="award-text" id="awardText">結算中...</div>
+</div>
+
 <div class="results-main">
     <section class="leaderboard-card">
         <div class="section-title">🏆 誰是 Python 大富翁？</div>
@@ -131,12 +188,25 @@
         
         <div class="btn-group">
             <button class="btn-3d btn-home" onclick="location.href='lobby.html'">回大廳</button>
-            <button class="btn-3d btn-again" onclick="location.href='lobby.html'">再玩一場</button>
+        </div>
+    </section>
+
+    <!-- 🏆 答題紀錄區塊 -->
+    <section class="q-log-card" id="qLogSection">
+        <div class="q-log-header">
+            <span>📝 你的答題回顧</span>
+            <span class="q-log-hint">💡 詳細解析請至大廳右側「學習統計」查詢，亦可詢問 AI 導師！</span>
+        </div>
+        <div class="q-list" id="qList">
+            <!-- 答題紀錄將由 JS 動態生成 -->
         </div>
     </section>
 </div>
 
+
+
 <script src="js/ngrok-fetch.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
 <script>
     function toggleMenu() {
         document.getElementById('sideMenu').classList.toggle('open');
@@ -144,38 +214,35 @@
     }
 	
     const API_URL = location.origin;
-
-    // 由 game.html 跳轉時帶入 ?room=CODE
     const roomCode = new URLSearchParams(window.location.search).get('room');
+    const myName = localStorage.getItem('username');
 
-    // --- 頁面初始化：讀取該局結算資料 (含重試，避免比結算寫入更早抵達) ---
+    // 🏆 取出房產資料用於計算
+    const landOwnership = JSON.parse(localStorage.getItem('pypoly_land_ownership')) || {};
+
     window.onload = () => {
         if (!roomCode) {
             document.getElementById('rankingList').innerHTML =
                 `<div style="text-align:center;color:#ef4444;font-weight:800;padding:40px;">缺少房間代碼，無法顯示結算</div>`;
+            document.getElementById('animation-overlay').style.display = 'none';
             return;
         }
-        finishRoom();       // 先通知後端這局結束了
-        cleanupGameState(); // 再清掉本機的局內殘留
-        loadResults(0);
+        
+        // 延遲一點執行，讓動畫有時間準備
+        setTimeout(() => {
+            finishRoom();       
+            loadResults(0);
+        }, 500);
     };
 
-    // 🏆 通知後端結束對局。先前完全沒有這一步——「回大廳」只是換頁，
-    //    後端不知道對局已結束，房間就永遠留在大廳且進不去（殭屍房間）。
-    //    兩位玩家都會進到這頁，各會呼叫一次，後端端點具冪等性。
     async function finishRoom() {
         try {
-            await fetch(`${API_URL}/rooms/finish/${encodeURIComponent(roomCode)}`,
-                        { method: 'POST' });
-            console.log(`🏁 已通知後端結束房間 ${roomCode}`);
+            await fetch(`${API_URL}/rooms/finish/${encodeURIComponent(roomCode)}`, { method: 'POST' });
         } catch (err) {
-            console.warn('⚠️ 通知後端結束對局失敗，房間將由閒置回收處理', err);
+            console.warn('⚠️ 通知後端結束對局失敗', err);
         }
     }
 
-    // 🏆 清掉局內狀態，避免回大廳後被誤判成「還在房間中」
-    //    （modal.html 建房時會偵測 pypoly_active_room 並跳出確認框）。
-    //    ⚠️ 不動 pypoly_char_*（角色外觀）與 token / username / role。
     function cleanupGameState() {
         const exact = ['pypoly_active_room', 'room_code', 'room_info', 'is_host',
                        'pypoly_game_snapshot', 'pypoly_current_round', 'pypoly_turn_order',
@@ -183,55 +250,236 @@
                        'pypoly_used_questions', 'current_player_role'];
         exact.forEach(k => localStorage.removeItem(k));
 
-        // 帶房號或玩家名的動態鍵：pypoly_synced_map_* / pypoly_inv_* / pypoly_jumps_*
         const prefixes = ['pypoly_synced_map_', 'pypoly_inv_', 'pypoly_jumps_'];
         Object.keys(localStorage)
             .filter(k => prefixes.some(p => k.startsWith(p)))
             .forEach(k => localStorage.removeItem(k));
-
-        console.log('🧹 已清除本機的局內狀態');
     }
 
     async function loadResults(attempt) {
-        const MAX_RETRY = 10; // 最多重試 10 次 (約 10 秒)
+        const MAX_RETRY = 10; 
         try {
             const res = await fetch(`${API_URL}/game/results/${encodeURIComponent(roomCode)}`);
             if (res.status === 404) {
-                // 結算尚未寫入，稍後重試
                 if (attempt < MAX_RETRY) return setTimeout(() => loadResults(attempt + 1), 1000);
                 throw new Error('結算資料尚未產生');
             }
             if (!res.ok) throw new Error('HTTP ' + res.status);
+            
             const data = await res.json();
-            renderLeaderboard(data.leaderboard || []);
+            
+            // 🏆 1. 重新計算資產 (加入房產增值)
+            const enrichedLeaderboard = calculateTotalAssets(data.leaderboard || []);
+            
+            // 🏆 2. 播放蜜蜂頒獎動畫
+            await playAwardAnimation(enrichedLeaderboard);
+            
+            // 🏆 3. 渲染 UI
+            renderLeaderboard(enrichedLeaderboard);
             renderReport(data.report || {});
+            
+            // 🏆 4. 抓取並渲染個人答題紀錄
+            loadMyAnswerLogs();
+
+            // 🏆 5. 清理局內狀態 (延後到資料都抓完再清，因為需要用到 localStorage)
+            cleanupGameState();
+
         } catch (err) {
             console.error('讀取結算失敗:', err);
+            document.getElementById('animation-overlay').style.display = 'none';
             document.getElementById('rankingList').innerHTML =
                 `<div style="text-align:center;color:#ef4444;font-weight:800;padding:40px;">讀取結算資料失敗<br><span style="font-size:0.85rem;color:#94a3b8;">${err.message}</span></div>`;
         }
     }
 
+    // 🏆 計算包含房產增值的總資產
+    function calculateTotalAssets(leaderboard) {
+        // 先計算每個人的房產總值
+        const playerRealEstate = {};
+        
+        Object.values(landOwnership).forEach(land => {
+            if (!land.owner) return;
+            
+            // 增值邏輯：原始購入價 * (1 + (樓層數 - 1) * 0.5)
+            // 例如：買1000，2樓 = 1000 * 1.5 = 1500。3樓 = 1000 * 2.0 = 2000
+            const floorMult = 1 + ((land.floorCount || 1) - 1) * 0.5;
+            const currentVal = Math.floor((land.originalPrice || 0) * floorMult);
+            
+            if (!playerRealEstate[land.owner]) {
+                playerRealEstate[land.owner] = { totalValue: 0, lands: [] };
+            }
+            playerRealEstate[land.owner].totalValue += currentVal;
+            playerRealEstate[land.owner].lands.push({
+                name: land.name || "土地",
+                value: currentVal,
+                floors: land.floorCount || 1
+            });
+        });
+
+        // 將房產加入現金，重新排名
+        const enriched = leaderboard.map(p => {
+            const cash = parseInt(p.final_money) || 0;
+            const reData = playerRealEstate[p.username] || { totalValue: 0, lands: [] };
+            const totalAssets = cash + reData.totalValue;
+            
+            return {
+                ...p,
+                cash: cash,
+                realEstateValue: reData.totalValue,
+                lands: reData.lands,
+                totalAssets: totalAssets
+            };
+        });
+
+        // 依據總資產重新排序 (降序)
+        enriched.sort((a, b) => b.totalAssets - a.totalAssets);
+        
+        // 重新賦予名次與勝負標籤
+        enriched.forEach((p, index) => {
+            p.rank = index + 1;
+            p.is_winner = (index === 0 && enriched.length > 1 && p.totalAssets > enriched[1].totalAssets);
+        });
+
+        return enriched;
+    }
+
+    // 🏆 蜜蜂頒獎動畫
+    function playAwardAnimation(leaderboard) {
+        return new Promise(resolve => {
+            const overlay = document.getElementById('animation-overlay');
+            const awardText = document.getElementById('awardText');
+            
+            const winner = leaderboard.find(p => p.rank === 1);
+            const winnerName = winner ? winner.username : "玩家";
+
+            // GSAP 動畫序列
+            const tl = gsap.timeline({
+                onComplete: () => {
+                    gsap.to(overlay, { opacity: 0, duration: 0.5, delay: 1.5, onComplete: () => {
+                        overlay.style.display = 'none';
+                        resolve();
+                    }});
+                }
+            });
+
+            tl.to(awardText, { opacity: 1, y: 0, duration: 0.5 })
+              .to(awardText, { opacity: 0, y: -20, duration: 0.5, delay: 1.0 })
+              .add(() => {
+                  awardText.innerHTML = `🎉 恭喜 <br><span class="winner-name-anim">${escapeHtml(winnerName)}</span><br> 獲得勝利！`;
+                  awardText.style.textAlign = "center";
+              })
+              .fromTo(awardText, { opacity: 0, scale: 0.8, y: 20 }, { opacity: 1, scale: 1, y: 0, duration: 0.8, ease: "back.out(1.5)" });
+        });
+    }
+
     function renderLeaderboard(list) {
         const box = document.getElementById('rankingList');
-        if (!list.length) {
-            box.innerHTML = `<div style="text-align:center;color:#94a3b8;font-weight:800;padding:40px;">本局無結算資料</div>`;
-            return;
-        }
+        if (!list.length) return;
+
         box.innerHTML = list.map(p => {
-            const accColor = p.is_winner ? 'var(--success-green)' : 'var(--text-gray)';
+            const isWinner = p.rank === 1;
+            
+            // 房產明細 HTML
+            let landsHtml = '';
+            if (p.lands && p.lands.length > 0) {
+                landsHtml = p.lands.map(l => `
+                    <div class="detail-row">
+                        <span>🏠 ${escapeHtml(l.name)} (${l.floors}樓)</span>
+                        <span>$ ${l.value.toLocaleString()}</span>
+                    </div>
+                `).join('');
+            } else {
+                landsHtml = `<div class="detail-row" style="justify-content:center;">無房產</div>`;
+            }
+
             return `
-            <div class="ranking-item ${p.is_winner ? 'winner' : ''}">
-                <div class="rank-info">
-                    <div class="rank-num">${p.rank}</div>
-                    <div class="player-meta"><h4>${escapeHtml(p.username)}</h4></div>
-                </div>
-                <div class="rank-score">
-                    <span class="score-val">${Number(p.final_money).toLocaleString()}</span>
-                    <span style="color:${accColor}; font-weight:800; font-size:0.9rem;">答對率 ${p.accuracy}%</span>
+            <div class="ranking-item ${isWinner ? 'winner' : ''}">
+                <div style="width: 100%;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div class="rank-info">
+                            <div class="rank-num">${p.rank}</div>
+                            <div class="player-meta"><h4>${escapeHtml(p.username)} ${p.username === myName ? '<span style="font-size:0.8rem;color:#94a3b8;">(你)</span>' : ''}</h4></div>
+                        </div>
+                        <div class="rank-score">
+                            <span class="score-val">${p.totalAssets.toLocaleString()}</span>
+                            <span style="color:${isWinner ? 'var(--success-green)' : 'var(--text-gray)'}; font-weight:800; font-size:0.9rem;">總資產</span>
+                        </div>
+                    </div>
+                    
+                    <button class="expand-btn" onclick="toggleDetails('${p.username}')">查看資產明細 ▼</button>
+                    
+                    <div class="settle-details" id="details-${p.username}">
+                        <div class="detail-row">
+                            <span>💰 遊戲結餘現金</span>
+                            <span>$ ${p.cash.toLocaleString()}</span>
+                        </div>
+                        <div style="margin: 10px 0; font-weight: 800; color: #1e293b; font-size: 0.9rem;">房產增值估算：</div>
+                        ${landsHtml}
+                        <div class="detail-row total">
+                            <span>最終總資產</span>
+                            <span style="color: var(--gold);">$ ${p.totalAssets.toLocaleString()}</span>
+                        </div>
+                    </div>
                 </div>
             </div>`;
         }).join('');
+    }
+
+    // 🏆 抓取個人的答題紀錄 (僅顯示自己的)
+    async function loadMyAnswerLogs() {
+        try {
+            // 注意：這裡假設後端有提供一個 API 可以依據 room_code 和 username 撈取 logs
+            // 如果目前的 /game/results API 就有包含 logs，可以直接從 data 裡面拿。
+            // 這裡先寫一個假設的 fetch，如果後端尚未實作此 API，請通知開發者加上。
+            const res = await fetch(`${API_URL}/game/answer_logs?room=${encodeURIComponent(roomCode)}&user=${encodeURIComponent(myName)}`);
+            
+            if (res.ok) {
+                const logs = await res.json();
+                renderMyAnswerLogs(logs);
+            } else {
+                console.warn("尚未實作個人答題紀錄 API 或查無紀錄");
+            }
+        } catch (err) {
+            console.error("無法載入答題紀錄:", err);
+        }
+    }
+
+    function renderMyAnswerLogs(logs) {
+        const section = document.getElementById('qLogSection');
+        const listDiv = document.getElementById('qList');
+        
+        if (!logs || logs.length === 0) {
+            // 如果沒有紀錄，就不顯示這個區塊
+            return;
+        }
+
+        section.style.display = 'block';
+        
+        listDiv.innerHTML = logs.map(log => {
+            const isCorrect = log.is_correct || (log.chosen_answer == log.correct_answer);
+            const statusClass = isCorrect ? 'correct' : 'wrong';
+            const statusText = isCorrect ? '✅ 答對' : '❌ 答錯';
+            
+            // 隱藏過長的題目，只取前 50 字
+            const shortContent = log.question_text && log.question_text.length > 50 
+                ? log.question_text.substring(0, 50) + '...' 
+                : (log.question_text || '未記錄題目內容');
+
+            return `
+            <div class="q-item ${statusClass}">
+                <div class="q-content">${escapeHtml(shortContent)}</div>
+                <div class="q-status">${statusText}</div>
+            </div>`;
+        }).join('');
+    }
+
+    function toggleDetails(username) {
+        const el = document.getElementById(`details-${username}`);
+        if (el.style.display === 'block') {
+            el.style.display = 'none';
+        } else {
+            el.style.display = 'block';
+        }
     }
 
     function renderReport(report) {
@@ -252,11 +500,6 @@
     function escapeHtml(s) {
         return String(s ?? '').replace(/[&<>"']/g, c =>
             ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    }
-
-    function toggleMenu() {
-        document.getElementById('sideMenu').classList.toggle('open');
-        document.getElementById('overlay').classList.toggle('open');
     }
 </script>
 </body>
