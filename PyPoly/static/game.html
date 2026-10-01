@@ -4119,15 +4119,9 @@ socket.on('land_bought_sync', async (data) => {
     const oldLandData = window.landOwnership[data.tileIndex];
     const oldOwner = oldLandData ? oldLandData.owner : null;
 
-    // 🌟 終極真相大白：因為後端廣播會吃掉 isUpgrade，我們必須「自己判斷」！
-    // 如果這個地本來就是他的，那這次購買絕對是「加蓋升級」！
     const isActuallyUpgrade = (oldOwner === data.user);
     const oldFloorCount = oldLandData ? (oldLandData.floorCount || 1) : 1;
     const newFloorCount = isActuallyUpgrade ? oldFloorCount + 1 : 1;
-
-    console.log(`🔍 [深度偵錯] 買家: ${data.user}, 舊地主: ${oldOwner}`);
-    console.log(`🔍 [深度偵錯] 自己判斷是加蓋嗎？ ${isActuallyUpgrade}`);
-    console.log(`🔍 [深度偵錯] 樓層計算：舊 ${oldFloorCount} -> 新 ${newFloorCount}`);
 
     // 同步更新金幣 UI
     if (data.user !== myName) {
@@ -4137,27 +4131,31 @@ socket.on('land_bought_sync', async (data) => {
         updateMoneyUI(oldOwner, data.price); 
     }
 
-    // 🏆 直接把我們自己算出來的正確樓層寫入全域資料
+    // 🏆 終極修正：後端廣播漏傳了 landName，我們直接從本機的 gameMap (地圖資料) 抓出對應格子的真實名稱！
+    let realLandName = data.landName;
+    if (!realLandName || realLandName === "未知") {
+        const tileNode = gameMap[data.tileIndex];
+        realLandName = (tileNode && tileNode.data && tileNode.data.name) ? tileNode.data.name : (tileNode ? tileNode.name : "優質地產");
+    }
+
+    // 將正確的名稱與樓層寫入全域資料
     window.landOwnership[data.tileIndex] = { 
         owner: data.user, 
         toll: data.toll || (oldLandData ? oldLandData.toll : 0), 
         originalPrice: data.price,
-        name: data.landName || (oldLandData ? oldLandData.name : "未知"),
+        name: realLandName, // 🏆 使用剛剛抓出來的真實名稱
         scenario: data.scenario || (oldLandData ? oldLandData.scenario : ""),
         floorCount: newFloorCount 
     };
 
     const targetTile = allTileMeshes[data.tileIndex];
     if (targetTile) {
-        // 🏆 將正確的樓層指派給 3D 網格，絕對不能寫 targetTile.userData.hasHouse = true
         targetTile.userData.floorCount = newFloorCount;
     }
 
     // 更新側邊欄清單
-    globalOwnedLands = globalOwnedLands.filter(l => l.name !== data.landName);
-    // 解決 landName 被後端吃掉變成 undefined 的問題
-    const safeLandName = data.landName || (oldLandData ? oldLandData.name : "未知土地");
-    globalOwnedLands.push({ owner: data.user, name: safeLandName, toll: data.toll || 0 });
+    globalOwnedLands = globalOwnedLands.filter(l => l.name !== realLandName);
+    globalOwnedLands.push({ owner: data.user, name: realLandName, toll: data.toll || 0 });
     renderOwnedLandsList();
     
     localStorage.setItem('pypoly_land_ownership', JSON.stringify(window.landOwnership));
@@ -4171,11 +4169,9 @@ socket.on('land_bought_sync', async (data) => {
                 setBoardVisibility(true);
             }, 800);
             
-            // 🚀 最核心的修正：不再使用 data.isUpgrade，改用我們推算出來的 isActuallyUpgrade
             await runPurchaseAnimation(data.user, data.tileIndex, correctColor, isActuallyUpgrade);
             setTimeout(() => { autoSmoothExitToGodView(); }, 6000); 
         } else {
-            // 🚀 上帝視角同樣使用 isActuallyUpgrade
             await runPurchaseAnimation(data.user, data.tileIndex, correctColor, isActuallyUpgrade);
         }
     }

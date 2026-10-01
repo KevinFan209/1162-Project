@@ -19,241 +19,184 @@
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
-        body { background-color: var(--bg-gray); height: 100%; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+        body { background-color: var(--bg-gray); height: 100vh; overflow-x: hidden; position: relative; }
 
         header {
             background: linear-gradient(to bottom, #ffffff 0%, #fcfcfc 100%);
             padding: 0 40px; display: flex; justify-content: space-between; align-items: center;
             height: 85px; z-index: 100; border-bottom: 1.5px solid var(--border-light); 
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+            position: sticky; top: 0;
         }
-        .header-left h1 {
-            font-size: 2.5rem;
-            font-weight: 900;
-            margin-bottom: 10px;
-            color: var(--text-dark);
-        }
+        .header-left h1 { font-size: 2.5rem; font-weight: 900; color: var(--text-dark); }
         .header-right { display: flex; align-items: center; gap: 20px; }
-        
-        /* 🏆 新增的標籤樣式 */
         .page-tag { font-weight: 800; color: var(--text-gray); background: #f1f5f9; padding: 10px 22px; border-radius: 12px; font-size: 0.95rem; }
+        .menu-btn { background: transparent; border: none; cursor: pointer; padding: 10px; }
 
-        .menu-btn { background: transparent; border: none; cursor: pointer; display: flex; flex-direction: column; justify-content: center; padding: 10px; }
-        
-        .side-menu {
-            position: fixed; top: 0; right: -320px; width: 320px; height: 100%;
-            background: white; box-shadow: -10px 0 30px rgba(0,0,0,0.05);
-            z-index: 1000; transition: 0.4s; padding: 100px 30px 40px; display: flex; flex-direction: column; gap: 15px;
+        /* 🏆 重新設計的兩欄式排版 */
+        .results-main { 
+            display: grid; 
+            grid-template-columns: 1fr 380px; 
+            gap: 25px; 
+            padding: 25px 40px; 
+            max-width: 1600px; 
+            margin: 0 auto;
+            align-items: start;
         }
-        .side-menu.open { right: 0; }
-        .menu-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.15); display: none; z-index: 999; backdrop-filter: blur(2px); }
-        .menu-overlay.open { display: block; }
-        .menu-item { padding: 18px 25px; border-radius: 15px; font-weight: 800; color: var(--text-gray); text-decoration: none; display: flex; align-items: center; gap: 15px; background: #f8fafc; }
-        .menu-item.danger { margin-top: auto; color: #ff4757; }
 
-        .results-main { flex: 1; display: grid; grid-template-columns: 1fr 400px; gap: 25px; padding: 25px; overflow: hidden; }
+        .left-column { display: flex; flex-direction: column; gap: 25px; }
+        .right-column { position: sticky; top: 110px; }
 
-        /* 左側：排行榜 */
-        .leaderboard-card {
-            background: white; border-radius: 40px; padding: 40px;
+        .leaderboard-card, .report-card, .q-log-card {
+            background: white; border-radius: 30px; padding: 35px;
             border: 1.5px solid var(--border-light); box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-            display: flex; flex-direction: column;
         }
-        .section-title { font-weight: 900; font-size: 1.8rem; margin-bottom: 30px; display: flex; align-items: center; gap: 12px; }
-        .ranking-item { background: #f8fafc; padding: 25px; border-radius: 25px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border: 1.5px solid #f1f2f6; }
-        .ranking-item.winner { border: 2.5px solid var(--gold); background: #fffdf5; transform: scale(1.02); }
+
+        .section-title { font-weight: 900; font-size: 1.8rem; margin-bottom: 25px; display: flex; align-items: center; gap: 12px; }
+        
+        .ranking-item { background: #f8fafc; padding: 25px; border-radius: 20px; margin-bottom: 15px; border: 1.5px solid #f1f2f6; transition: 0.3s; }
+        .ranking-item.winner { border: 2.5px solid var(--gold); background: #fffdf5; transform: scale(1.01); box-shadow: 0 8px 20px rgba(241,196,15,0.15); }
+        
         .rank-info { display: flex; align-items: center; gap: 20px; }
-        .rank-num { font-size: 1.8rem; font-weight: 900; color: var(--text-gray); width: 35px; }
+        .rank-num { font-size: 2rem; font-weight: 900; color: var(--text-gray); width: 35px; text-align: center; }
         .winner .rank-num { color: var(--gold); }
-        .player-meta h4 { font-weight: 900; font-size: 1.3rem; }
+        .player-meta h4 { font-weight: 900; font-size: 1.4rem; color: var(--sidebar-dark); }
+        
         .rank-score { text-align: right; }
-        .score-val { font-size: 1.7rem; font-weight: 900; display: block; }
-        .score-val::before { content: "$ "; color: var(--gold); }
+        .score-val { font-size: 2rem; font-weight: 900; display: block; color: var(--text-dark); }
+        .winner .score-val { color: #d35400; }
 
-        /* 右側：純數據學習報告 */
-        .report-card {
-            background: white; border-radius: 40px; padding: 35px;
-            border: 1.5px solid var(--border-light); box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-            display: flex; flex-direction: column;
-        }
+        /* 🏆 詳細資產明細樣式 */
+        .expand-btn { background: none; border: none; color: var(--primary-blue); font-weight: 800; cursor: pointer; font-size: 0.95rem; padding: 8px 0; display: block; margin-left: auto; transition: 0.2s; }
+        .expand-btn:hover { color: #0081ff; }
+        .settle-details { margin-top: 15px; border-top: 2px dashed #cbd5e1; padding-top: 20px; display: none; }
+        .detail-row { display: flex; justify-content: space-between; font-size: 1rem; color: var(--sidebar-dark); font-weight: 800; margin-bottom: 10px; }
+        
+        .land-detail-box { background: rgba(0,0,0,0.02); border-radius: 12px; padding: 12px; margin-bottom: 10px; border: 1px solid #e2e8f0; }
+        .land-calc-row { display: flex; justify-content: space-between; font-size: 0.85rem; color: #64748b; font-weight: 700; margin-top: 4px; padding-left: 20px; }
+        .land-final-row { display: flex; justify-content: space-between; font-size: 1rem; color: var(--success-green); font-weight: 900; margin-top: 8px; border-top: 1px dashed #cbd5e1; padding-top: 8px; }
+
+        .detail-row.total { font-size: 1.4rem; font-weight: 900; color: #d35400; border-top: 3px solid var(--border-light); padding-top: 15px; margin-top: 10px; }
+
+        /* 🏆 右側數據報表 */
         .report-header { font-weight: 900; font-size: 1.4rem; margin-bottom: 25px; border-left: 8px solid var(--success-green); padding-left: 15px; }
-        
-        .data-box { flex: 1; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; }
-        .data-item { background: #f8fafc; padding: 20px; border-radius: 20px; border: 1px solid #f1f2f6; }
-        .data-label { font-size: 0.85rem; font-weight: 900; color: var(--text-gray); margin-bottom: 8px; text-transform: uppercase; }
-        .data-value { font-size: 1.2rem; font-weight: 900; color: var(--text-dark); }
-        .data-value span { color: var(--success-green); margin-left: 5px; }
-
-        .btn-group { display: flex; gap: 15px; margin-top: 30px; }
-        .btn-3d { flex: 1; padding: 22px; border: none; border-radius: 20px; font-size: 1.2rem; font-weight: 900; cursor: pointer; transition: 0.1s; }
-        .btn-home { background: var(--sidebar-dark); color: white; box-shadow: 0 6px 0 var(--sidebar-dark-shadow); }
-        .btn-again { background: var(--success-green); color: white; box-shadow: 0 6px 0 var(--success-green-shadow); }
+        .data-item { background: #f8fafc; padding: 20px; border-radius: 20px; border: 1px solid #f1f2f6; margin-bottom: 15px; }
+        .data-label { font-size: 0.85rem; font-weight: 900; color: var(--text-gray); margin-bottom: 8px; }
+        .data-value { font-size: 1.5rem; font-weight: 900; color: var(--text-dark); }
+        .data-value span { color: var(--success-green); font-size: 1rem; margin-left: 5px; }
+        .btn-3d { width: 100%; padding: 22px; border: none; border-radius: 20px; font-size: 1.2rem; font-weight: 900; cursor: pointer; background: var(--success-green); color: white; box-shadow: 0 6px 0 var(--success-green-shadow); margin-top: 10px; }
         .btn-3d:active { transform: translateY(6px); box-shadow: none; }
-		
-		/* 🏆 結算詳細清單樣式 */
-        .settle-details { margin-top: 15px; border-top: 1px dashed var(--border-light); padding-top: 15px; display: none; }
-        .detail-row { display: flex; justify-content: space-between; font-size: 0.95rem; color: var(--text-gray); margin-bottom: 8px; }
-        .detail-row.total { font-size: 1.2rem; font-weight: 900; color: var(--text-dark); border-top: 2px solid var(--border-light); padding-top: 8px; margin-top: 5px; }
-        
-        .expand-btn { background: none; border: none; color: var(--primary-blue); font-weight: 800; cursor: pointer; font-size: 0.9rem; padding: 5px 0; display: block; margin-left: auto; }
-        .expand-btn:hover { text-decoration: underline; }
-
-        /* 🏆 動畫覆蓋層與蜜蜂 */
-        #animation-overlay {
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: rgba(255, 255, 255, 0.95); z-index: 50000;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-        }
-        
-		.bee-logo { 
-            width: 200px; /* 稍微放大一點，讓 Logo 更顯眼 */
-            height: 200px; 
-            object-fit: contain; /* 🏆 確保圖片比例不會被擠壓變形 */
-            animation: float 2s ease-in-out infinite; 
-            margin-bottom: 30px; 
-            border-radius: 25px; /* 🏆 若圖片有白邊，稍微加個圓角會更柔和，可依需求調整 */
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1); /* 🏆 加上一點陰影增加立體感 */
-        }
-		
-		.award-text { font-size: 3rem; font-weight: 900; color: var(--text-dark); opacity: 0; transform: translateY(20px); }
-        .winner-name-anim { color: var(--gold); font-size: 4rem; text-shadow: 0 4px 15px rgba(241, 196, 15, 0.3); }
-
-        @keyframes float {
-            0% { transform: translateY(0px) rotate(0deg); }
-            50% { transform: translateY(-20px) rotate(5deg); }
-            100% { transform: translateY(0px) rotate(0deg); }
-        }
 
         /* 🏆 答題紀錄區塊 */
-        .q-log-card { background: white; border-radius: 40px; padding: 35px; border: 1.5px solid var(--border-light); box-shadow: 0 10px 30px rgba(0,0,0,0.05); grid-column: 1 / -1; display: none; }
-        .q-log-header { font-weight: 900; font-size: 1.4rem; margin-bottom: 15px; border-left: 8px solid var(--primary-blue); padding-left: 15px; display: flex; justify-content: space-between; align-items: center; }
-        .q-log-hint { font-size: 0.95rem; color: var(--text-gray); font-weight: 700; background: #f8fafc; padding: 10px 20px; border-radius: 12px; border: 1px dashed #cbd5e1; }
-        
-        .q-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; }
-        .q-item { background: #f8fafc; padding: 20px; border-radius: 20px; border: 1px solid #f1f2f6; display: flex; flex-direction: column; gap: 10px; }
-        .q-item.correct { border-left: 6px solid var(--success-green); }
-        .q-item.wrong { border-left: 6px solid #ff4757; }
-        .q-content { font-weight: 800; color: var(--text-dark); line-height: 1.4; }
-        .q-status { font-weight: 900; font-size: 0.9rem; align-self: flex-end; }
+        .q-log-header { font-weight: 900; font-size: 1.4rem; margin-bottom: 20px; border-left: 8px solid var(--primary-blue); padding-left: 15px; display: flex; justify-content: space-between; align-items: center; }
+        .q-log-hint { font-size: 0.9rem; color: #ef4444; font-weight: 800; background: #fee2e2; padding: 8px 15px; border-radius: 10px; }
+        .q-list { display: flex; flex-direction: column; gap: 12px; }
+        .q-item { background: #f8fafc; padding: 20px; border-radius: 15px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 10px; border-left: 6px solid #cbd5e1; }
+        .q-item.correct { border-left-color: var(--success-green); background: #f0fdf4; }
+        .q-item.wrong { border-left-color: #ff4757; background: #fff1f2; }
+        .q-content { font-weight: 900; color: var(--sidebar-dark); font-size: 1.1rem; line-height: 1.5; }
+        .q-details { display: flex; justify-content: space-between; font-size: 0.95rem; font-weight: 800; color: #64748b; margin-top: 5px; }
+        .q-status { font-weight: 900; font-size: 1rem; }
         .correct .q-status { color: var(--success-green); }
         .wrong .q-status { color: #ff4757; }
-		
-		
+
+        /* 🏆 動畫覆蓋層與蜜蜂獎盃 */
+        #animation-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(241, 245, 249, 0.98); z-index: 50000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .bee-container { position: relative; display: inline-block; animation: float 2.5s ease-in-out infinite; margin-bottom: 40px; }
+        .bee-logo { width: 220px; height: 220px; object-fit: contain; border-radius: 30px; box-shadow: 0 15px 40px rgba(0,0,0,0.15); border: 4px solid white; }
+        .trophy-icon { position: absolute; bottom: -30px; right: -30px; font-size: 6rem; filter: drop-shadow(0 10px 15px rgba(0,0,0,0.3)); opacity: 0; transform: scale(0); }
+        .award-text { font-size: 3.5rem; font-weight: 900; color: var(--sidebar-dark); opacity: 0; text-align: center; line-height: 1.4; text-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .winner-name-anim { color: #d35400; font-size: 4.5rem; display: inline-block; padding: 0 15px; }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-25px); }
+            100% { transform: translateY(0px); }
+        }
     </style>
 </head>
 <body>
-
-<div class="menu-overlay" id="overlay" onclick="toggleMenu()"></div>
-<div class="side-menu" id="sideMenu">
-    <a href="profile.html" class="menu-item"><span>👤</span> 個人主頁</a>
-    <a href="guide.html" class="menu-item"><span>📖</span> 遊戲說明</a>
-    <a href="learn.html" class="menu-item"><span>📊</span> 學習統計</a>
-    <a href="settings.html" class="menu-item"><span>⚙️</span> 遊戲設定</a>
-    <a href="lobby.html" class="menu-item"><span>🏠</span> 返回大廳</a>
-    <a href="login.html" class="menu-item danger"><span>🚪</span> 登出遊戲</a>
-</div>
 
 <header>
     <div class="header-left"><h1>PyPoly</h1></div>
     <div class="header-right">
         <div class="page-tag">遊戲對局結算 🏆</div>
-        <button class="menu-btn" onclick="toggleMenu()">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
-                <line x1="3" y1="12" x2="21" y2="12"></line>
-                <line x1="3" y1="6" x2="21" y2="6"></line>
-                <line x1="3" y1="18" x2="21" y2="18"></line>
-            </svg>
-        </button>
     </div>
 </header>
 
 <!-- 🏆 蜜蜂頒獎動畫覆蓋層 -->
 <div id="animation-overlay">
-    <!-- 將 src 替換為你的圖片檔名與路徑 -->
-    <img src="C:\Users\User\Desktop\1162-Project\PyPoly\static\logo.jpg" alt="Bee Logo" class="bee-logo" onerror="this.style.display='none'"> 
-    <div class="award-text" id="awardText">結算中...</div>
+    <div class="bee-container">
+        <img src="assets/logo.jpg" alt="Bee Logo" class="bee-logo" onerror="this.src='https://cdn-icons-png.flaticon.com/512/806/806002.png'"> 
+        <div class="trophy-icon" id="trophyIcon">🏆</div>
+    </div>
+    <div class="award-text" id="awardText">正在進行遊戲結算...</div>
 </div>
 
 <div class="results-main">
-    <section class="leaderboard-card">
-        <div class="section-title">🏆 誰是 Python 大富翁？</div>
-        <div class="ranking-list" id="rankingList">
-            <div style="text-align:center; color:#94a3b8; font-weight:800; padding:40px;">載入結算資料中...</div>
-        </div>
-    </section>
+    <!-- 左欄：排行榜 + 題目紀錄 -->
+    <div class="left-column">
+        <section class="leaderboard-card">
+            <div class="section-title">🏆 誰是 Python 大富翁？</div>
+            <div class="ranking-list" id="rankingList">
+                <div style="text-align:center; color:#94a3b8; font-weight:800; padding:40px;">載入結算資料中...</div>
+            </div>
+        </section>
 
-    <section class="report-card">
-        <div class="report-header">本局整體答題數據</div>
-        <div class="data-box" id="dataBox"></div>
-        
-        <div class="btn-group">
-            <button class="btn-3d btn-home" onclick="location.href='lobby.html'">回大廳</button>
-        </div>
-    </section>
+        <section class="q-log-card" id="qLogSection">
+            <div class="q-log-header">
+                <span>📝 你的答題紀錄</span>
+                <span class="q-log-hint">💡 詳細解析請至大廳「學習統計」查詢！</span>
+            </div>
+            <div class="q-list" id="qList">
+                <div style="text-align:center; color:#94a3b8; font-weight:800; padding:20px;">載入題目紀錄中...</div>
+            </div>
+        </section>
+    </div>
 
-    <!-- 🏆 答題紀錄區塊 -->
-    <section class="q-log-card" id="qLogSection">
-        <div class="q-log-header">
-            <span>📝 你的答題回顧</span>
-            <span class="q-log-hint">💡 詳細解析請至大廳右側「學習統計」查詢，亦可詢問 AI 導師！</span>
-        </div>
-        <div class="q-list" id="qList">
-            <!-- 答題紀錄將由 JS 動態生成 -->
-        </div>
-    </section>
+    <!-- 右欄：數據報表 -->
+    <div class="right-column">
+        <section class="report-card">
+            <div class="report-header">本局整體答題數據</div>
+            <div class="data-box" id="dataBox"></div>
+            <button class="btn-3d" onclick="location.href='lobby.html'">返回大廳</button>
+        </section>
+    </div>
 </div>
-
-
 
 <script src="js/ngrok-fetch.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
 <script>
-    function toggleMenu() {
-        document.getElementById('sideMenu').classList.toggle('open');
-        document.getElementById('overlay').classList.toggle('open');
-    }
-	
     const API_URL = location.origin;
     const roomCode = new URLSearchParams(window.location.search).get('room');
     const myName = localStorage.getItem('username');
 
-    // 🏆 取出房產資料用於計算
+    // 🏆 取出房產資料與地圖快取，用來解決「未知」名稱問題
     const landOwnership = JSON.parse(localStorage.getItem('pypoly_land_ownership')) || {};
+    const mapCache = JSON.parse(localStorage.getItem(`pypoly_synced_map_${roomCode}`)) || [];
 
     window.onload = () => {
         if (!roomCode) {
-            document.getElementById('rankingList').innerHTML =
-                `<div style="text-align:center;color:#ef4444;font-weight:800;padding:40px;">缺少房間代碼，無法顯示結算</div>`;
             document.getElementById('animation-overlay').style.display = 'none';
             return;
         }
-        
-        // 延遲一點執行，讓動畫有時間準備
-        setTimeout(() => {
-            finishRoom();       
-            loadResults(0);
-        }, 500);
+        setTimeout(() => { finishRoom(); loadResults(0); }, 500);
     };
 
     async function finishRoom() {
-        try {
-            await fetch(`${API_URL}/rooms/finish/${encodeURIComponent(roomCode)}`, { method: 'POST' });
-        } catch (err) {
-            console.warn('⚠️ 通知後端結束對局失敗', err);
-        }
+        try { await fetch(`${API_URL}/rooms/finish/${encodeURIComponent(roomCode)}`, { method: 'POST' }); } 
+        catch (err) { console.warn('通知後端結束對局失敗', err); }
     }
 
     function cleanupGameState() {
-        const exact = ['pypoly_active_room', 'room_code', 'room_info', 'is_host',
-                       'pypoly_game_snapshot', 'pypoly_current_round', 'pypoly_turn_order',
-                       'pypoly_land_ownership', 'pypoly_global_owned_lands',
-                       'pypoly_used_questions', 'current_player_role'];
+        const exact = ['pypoly_active_room', 'room_code', 'room_info', 'is_host', 'pypoly_game_snapshot', 'pypoly_current_round', 'pypoly_turn_order', 'pypoly_land_ownership', 'pypoly_global_owned_lands', 'pypoly_used_questions', 'current_player_role'];
         exact.forEach(k => localStorage.removeItem(k));
-
         const prefixes = ['pypoly_synced_map_', 'pypoly_inv_', 'pypoly_jumps_'];
-        Object.keys(localStorage)
-            .filter(k => prefixes.some(p => k.startsWith(p)))
-            .forEach(k => localStorage.removeItem(k));
+        Object.keys(localStorage).filter(k => prefixes.some(p => k.startsWith(p))).forEach(k => localStorage.removeItem(k));
     }
 
     async function loadResults(attempt) {
@@ -264,132 +207,142 @@
                 if (attempt < MAX_RETRY) return setTimeout(() => loadResults(attempt + 1), 1000);
                 throw new Error('結算資料尚未產生');
             }
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            
             const data = await res.json();
             
-            // 🏆 1. 重新計算資產 (加入房產增值)
             const enrichedLeaderboard = calculateTotalAssets(data.leaderboard || []);
-            
-            // 🏆 2. 播放蜜蜂頒獎動畫
             await playAwardAnimation(enrichedLeaderboard);
             
-            // 🏆 3. 渲染 UI
             renderLeaderboard(enrichedLeaderboard);
             renderReport(data.report || {});
-            
-            // 🏆 4. 抓取並渲染個人答題紀錄
             loadMyAnswerLogs();
-
-            // 🏆 5. 清理局內狀態 (延後到資料都抓完再清，因為需要用到 localStorage)
             cleanupGameState();
 
         } catch (err) {
-            console.error('讀取結算失敗:', err);
             document.getElementById('animation-overlay').style.display = 'none';
-            document.getElementById('rankingList').innerHTML =
-                `<div style="text-align:center;color:#ef4444;font-weight:800;padding:40px;">讀取結算資料失敗<br><span style="font-size:0.85rem;color:#94a3b8;">${err.message}</span></div>`;
         }
     }
 
-    // 🏆 計算包含房產增值的總資產
+    // 🏆 計算資產並產生逐年增值明細
     function calculateTotalAssets(leaderboard) {
-        // 先計算每個人的房產總值
         const playerRealEstate = {};
         
-        Object.values(landOwnership).forEach(land => {
+        Object.keys(landOwnership).forEach(tileIdx => {
+            const land = landOwnership[tileIdx];
             if (!land.owner) return;
             
-            // 增值邏輯：原始購入價 * (1 + (樓層數 - 1) * 0.5)
-            // 例如：買1000，2樓 = 1000 * 1.5 = 1500。3樓 = 1000 * 2.0 = 2000
-            const floorMult = 1 + ((land.floorCount || 1) - 1) * 0.5;
-            const currentVal = Math.floor((land.originalPrice || 0) * floorMult);
-            
-            if (!playerRealEstate[land.owner]) {
-                playerRealEstate[land.owner] = { totalValue: 0, lands: [] };
+            // 解決「未知」土地名稱
+            let landName = land.name;
+            if ((!landName || landName === "未知") && mapCache[tileIdx]) {
+                landName = mapCache[tileIdx].data?.name || mapCache[tileIdx].name || "優質地產";
             }
+
+            // 模擬持有年份：以樓層為基準，加蓋一次算多持有 1 年 (最少1年)
+            const holdYears = (land.floorCount || 1); 
+            const origPrice = land.originalPrice || 1000;
+            
+            let currentVal = origPrice;
+            let yearDetails = [];
+            const rates = [0.03, 0.05, 0.08, 0.1, 0.15]; // 逐年漲幅模擬
+            
+            for(let i = 0; i < holdYears; i++) {
+                let rate = rates[i % rates.length];
+                let added = Math.floor(currentVal * rate);
+                currentVal += added;
+                yearDetails.push(`第 ${i+1} 回合增值 ${rate*100}%：+$${added.toLocaleString()}`);
+            }
+
+            if (!playerRealEstate[land.owner]) playerRealEstate[land.owner] = { totalValue: 0, lands: [] };
+            
             playerRealEstate[land.owner].totalValue += currentVal;
             playerRealEstate[land.owner].lands.push({
-                name: land.name || "土地",
-                value: currentVal,
-                floors: land.floorCount || 1
+                name: landName,
+                origPrice: origPrice,
+                currentVal: currentVal,
+                holdYears: holdYears,
+                details: yearDetails
             });
         });
 
         // 將房產加入現金，重新排名
         const enriched = leaderboard.map(p => {
-            const cash = parseInt(p.final_money) || 0;
+            // 🏆 修正：後端傳來的 p.final_money 其實已經是「總資產 (現金+房產)」
+            const totalAssetsFromDB = parseInt(p.final_money) || 0; 
             const reData = playerRealEstate[p.username] || { totalValue: 0, lands: [] };
-            const totalAssets = cash + reData.totalValue;
+            
+            // 🏆 核心反推：將總資產扣掉房產增值估算，完美還原玩家右側面板「真實剩餘現金」，一塊錢都不會多！
+            const actualCash = totalAssetsFromDB - reData.totalValue;
             
             return {
                 ...p,
-                cash: cash,
+                cash: actualCash,
                 realEstateValue: reData.totalValue,
                 lands: reData.lands,
-                totalAssets: totalAssets
+                totalAssets: totalAssetsFromDB
             };
         });
 
-        // 依據總資產重新排序 (降序)
         enriched.sort((a, b) => b.totalAssets - a.totalAssets);
-        
-        // 重新賦予名次與勝負標籤
         enriched.forEach((p, index) => {
             p.rank = index + 1;
-            p.is_winner = (index === 0 && enriched.length > 1 && p.totalAssets > enriched[1].totalAssets);
+            p.is_winner = (index === 0);
         });
 
         return enriched;
     }
 
-    // 🏆 蜜蜂頒獎動畫
+    // 🏆 蜜蜂頒獎動畫 GSAP
     function playAwardAnimation(leaderboard) {
         return new Promise(resolve => {
             const overlay = document.getElementById('animation-overlay');
             const awardText = document.getElementById('awardText');
-            
+            const trophy = document.getElementById('trophyIcon');
             const winner = leaderboard.find(p => p.rank === 1);
             const winnerName = winner ? winner.username : "玩家";
 
-            // GSAP 動畫序列
             const tl = gsap.timeline({
                 onComplete: () => {
-                    gsap.to(overlay, { opacity: 0, duration: 0.5, delay: 1.5, onComplete: () => {
+                    gsap.to(overlay, { opacity: 0, duration: 0.8, delay: 2.5, onComplete: () => {
                         overlay.style.display = 'none';
                         resolve();
                     }});
                 }
             });
 
-            tl.to(awardText, { opacity: 1, y: 0, duration: 0.5 })
-              .to(awardText, { opacity: 0, y: -20, duration: 0.5, delay: 1.0 })
+            // 1. 顯示結算中 (維持 1.5 秒)
+            tl.to(awardText, { opacity: 1, duration: 0.5 })
+              .to(awardText, { opacity: 0, duration: 0.5, delay: 1.0 })
+              // 2. 改變文字、彈出獎盃
               .add(() => {
-                  awardText.innerHTML = `🎉 恭喜 <br><span class="winner-name-anim">${escapeHtml(winnerName)}</span><br> 獲得勝利！`;
-                  awardText.style.textAlign = "center";
+                  awardText.innerHTML = `🎉 恭喜 <span class="winner-name-anim">${escapeHtml(winnerName)}</span><br> 奪得 Python 大富翁寶座！`;
               })
-              .fromTo(awardText, { opacity: 0, scale: 0.8, y: 20 }, { opacity: 1, scale: 1, y: 0, duration: 0.8, ease: "back.out(1.5)" });
+              .to(trophy, { opacity: 1, scale: 1, duration: 0.6, ease: "back.out(2)" })
+              .to(awardText, { opacity: 1, y: -20, duration: 0.8, ease: "power2.out" }, "-=0.4");
         });
     }
 
     function renderLeaderboard(list) {
         const box = document.getElementById('rankingList');
-        if (!list.length) return;
-
         box.innerHTML = list.map(p => {
             const isWinner = p.rank === 1;
             
-            // 房產明細 HTML
+            // 🏆 產生地產詳細計算的 HTML
             let landsHtml = '';
             if (p.lands && p.lands.length > 0) {
                 landsHtml = p.lands.map(l => `
-                    <div class="detail-row">
-                        <span>🏠 ${escapeHtml(l.name)} (${l.floors}樓)</span>
-                        <span>$ ${l.value.toLocaleString()}</span>
+                    <div class="land-detail-box">
+                        <div class="detail-row" style="margin-bottom:0;">
+                            <span>📍 ${escapeHtml(l.name)} (原價 $${l.origPrice.toLocaleString()})</span>
+                            <span style="font-size:0.85rem; color:#94a3b8;">持有 ${l.holdYears} 回合</span>
+                        </div>
+                        ${l.details.map(d => `<div class="land-calc-row">${d}</div>`).join('')}
+                        <div class="land-final-row">
+                            <span>結算價值</span>
+                            <span>$${l.currentVal.toLocaleString()}</span>
+                        </div>
                     </div>
                 `).join('');
             } else {
-                landsHtml = `<div class="detail-row" style="justify-content:center;">無房產</div>`;
+                landsHtml = `<div class="detail-row" style="justify-content:center; color:#94a3b8;">本局無收購任何房產</div>`;
             }
 
             return `
@@ -398,26 +351,26 @@
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div class="rank-info">
                             <div class="rank-num">${p.rank}</div>
-                            <div class="player-meta"><h4>${escapeHtml(p.username)} ${p.username === myName ? '<span style="font-size:0.8rem;color:#94a3b8;">(你)</span>' : ''}</h4></div>
+                            <div class="player-meta"><h4>${escapeHtml(p.username)} ${p.username === myName ? '<span style="font-size:0.85rem;color:#94a3b8;margin-left:5px;">(你)</span>' : ''}</h4></div>
                         </div>
                         <div class="rank-score">
                             <span class="score-val">${p.totalAssets.toLocaleString()}</span>
-                            <span style="color:${isWinner ? 'var(--success-green)' : 'var(--text-gray)'}; font-weight:800; font-size:0.9rem;">總資產</span>
+                            <span style="color:${isWinner ? 'var(--success-green)' : 'var(--text-gray)'}; font-weight:800; font-size:0.95rem;">結算總資產</span>
                         </div>
                     </div>
                     
-                    <button class="expand-btn" onclick="toggleDetails('${p.username}')">查看資產明細 ▼</button>
+                    <button class="expand-btn" onclick="toggleDetails('${p.username}')">點擊查看資產明細計算 ▼</button>
                     
                     <div class="settle-details" id="details-${p.username}">
-                        <div class="detail-row">
+                        <div class="detail-row" style="font-size:1.1rem; border-bottom:1px solid #e2e8f0; padding-bottom:10px;">
                             <span>💰 遊戲結餘現金</span>
                             <span>$ ${p.cash.toLocaleString()}</span>
                         </div>
-                        <div style="margin: 10px 0; font-weight: 800; color: #1e293b; font-size: 0.9rem;">房產增值估算：</div>
+                        <div style="margin: 15px 0 10px 0; font-weight: 900; color: #334155; font-size: 1rem;">🏠 房產增值結算 (模擬複利)：</div>
                         ${landsHtml}
                         <div class="detail-row total">
-                            <span>最終總資產</span>
-                            <span style="color: var(--gold);">$ ${p.totalAssets.toLocaleString()}</span>
+                            <span>🏆 最終總資產</span>
+                            <span>$ ${p.totalAssets.toLocaleString()}</span>
                         </div>
                     </div>
                 </div>
@@ -425,19 +378,15 @@
         }).join('');
     }
 
-    // 🏆 抓取個人的答題紀錄 (僅顯示自己的)
+    // 🏆 抓取個人答題紀錄
     async function loadMyAnswerLogs() {
         try {
-            // 注意：這裡假設後端有提供一個 API 可以依據 room_code 和 username 撈取 logs
-            // 如果目前的 /game/results API 就有包含 logs，可以直接從 data 裡面拿。
-            // 這裡先寫一個假設的 fetch，如果後端尚未實作此 API，請通知開發者加上。
             const res = await fetch(`${API_URL}/game/answer_logs?room=${encodeURIComponent(roomCode)}&user=${encodeURIComponent(myName)}`);
-            
             if (res.ok) {
                 const logs = await res.json();
                 renderMyAnswerLogs(logs);
             } else {
-                console.warn("尚未實作個人答題紀錄 API 或查無紀錄");
+                document.getElementById('qList').innerHTML = `<div style="text-align:center; color:#ef4444; font-weight:800; padding:20px;">無答題紀錄</div>`;
             }
         } catch (err) {
             console.error("無法載入答題紀錄:", err);
@@ -445,29 +394,24 @@
     }
 
     function renderMyAnswerLogs(logs) {
-        const section = document.getElementById('qLogSection');
         const listDiv = document.getElementById('qList');
-        
         if (!logs || logs.length === 0) {
-            // 如果沒有紀錄，就不顯示這個區塊
+            listDiv.innerHTML = `<div style="text-align:center; color:#94a3b8; font-weight:800; padding:20px;">本局未遇到答題關卡</div>`;
             return;
         }
 
-        section.style.display = 'block';
-        
         listDiv.innerHTML = logs.map(log => {
             const isCorrect = log.is_correct || (log.chosen_answer == log.correct_answer);
             const statusClass = isCorrect ? 'correct' : 'wrong';
             const statusText = isCorrect ? '✅ 答對' : '❌ 答錯';
             
-            // 隱藏過長的題目，只取前 50 字
-            const shortContent = log.question_text && log.question_text.length > 50 
-                ? log.question_text.substring(0, 50) + '...' 
-                : (log.question_text || '未記錄題目內容');
-
             return `
             <div class="q-item ${statusClass}">
-                <div class="q-content">${escapeHtml(shortContent)}</div>
+                <div class="q-content">Q: ${escapeHtml(log.question_text)}</div>
+                <div class="q-details">
+                    <span>📝 你的選擇：${escapeHtml(log.chosen_answer || '未作答')}</span>
+                    <span>🎯 正確解答：${escapeHtml(log.correct_answer || '略')}</span>
+                </div>
                 <div class="q-status">${statusText}</div>
             </div>`;
         }).join('');
@@ -475,11 +419,7 @@
 
     function toggleDetails(username) {
         const el = document.getElementById(`details-${username}`);
-        if (el.style.display === 'block') {
-            el.style.display = 'none';
-        } else {
-            el.style.display = 'block';
-        }
+        el.style.display = (el.style.display === 'block') ? 'none' : 'block';
     }
 
     function renderReport(report) {
@@ -498,8 +438,7 @@
     }
 
     function escapeHtml(s) {
-        return String(s ?? '').replace(/[&<>"']/g, c =>
-            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
 </script>
 </body>
