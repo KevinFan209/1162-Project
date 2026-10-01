@@ -4115,7 +4115,6 @@ socket.on('land_bought_sync', async (data) => {
     const myName = localStorage.getItem('username');
     const correctColor = getPlayerLandColor(data.user);
 
-    // 1. 找出「舊地主」，用來發放強制收購的錢
     const oldLandData = window.landOwnership[data.tileIndex];
     const oldOwner = oldLandData ? oldLandData.owner : null;
 
@@ -4123,7 +4122,10 @@ socket.on('land_bought_sync', async (data) => {
     const oldFloorCount = oldLandData ? (oldLandData.floorCount || 1) : 1;
     const newFloorCount = isActuallyUpgrade ? oldFloorCount + 1 : 1;
 
-    // 同步更新金幣 UI
+    // 🏆 核心修正：取得現在的回合數，如果是升級，沿用最初購買的回合
+    const currentRound = parseInt(localStorage.getItem('pypoly_current_round')) || 1;
+    const buyRound = oldLandData ? (oldLandData.buyRound || currentRound) : currentRound;
+
     if (data.user !== myName) {
         updateMoneyUI(data.user, -data.price);
     }
@@ -4131,29 +4133,26 @@ socket.on('land_bought_sync', async (data) => {
         updateMoneyUI(oldOwner, data.price); 
     }
 
-    // 🏆 終極修正：後端廣播漏傳了 landName，我們直接從本機的 gameMap (地圖資料) 抓出對應格子的真實名稱！
+    // 🏆 強制從地圖快取撈出真實名稱，絕不容許「未知」
     let realLandName = data.landName;
-    if (!realLandName || realLandName === "未知") {
+    if (!realLandName || realLandName === "未知" || realLandName.includes("--")) {
         const tileNode = gameMap[data.tileIndex];
         realLandName = (tileNode && tileNode.data && tileNode.data.name) ? tileNode.data.name : (tileNode ? tileNode.name : "優質地產");
     }
 
-    // 將正確的名稱與樓層寫入全域資料
     window.landOwnership[data.tileIndex] = { 
         owner: data.user, 
         toll: data.toll || (oldLandData ? oldLandData.toll : 0), 
         originalPrice: data.price,
-        name: realLandName, // 🏆 使用剛剛抓出來的真實名稱
+        name: realLandName, 
         scenario: data.scenario || (oldLandData ? oldLandData.scenario : ""),
-        floorCount: newFloorCount 
+        floorCount: newFloorCount,
+        buyRound: buyRound // 🏆 記錄購買回合，為複利計算做準備
     };
 
     const targetTile = allTileMeshes[data.tileIndex];
-    if (targetTile) {
-        targetTile.userData.floorCount = newFloorCount;
-    }
+    if (targetTile) targetTile.userData.floorCount = newFloorCount;
 
-    // 更新側邊欄清單
     globalOwnedLands = globalOwnedLands.filter(l => l.name !== realLandName);
     globalOwnedLands.push({ owner: data.user, name: realLandName, toll: data.toll || 0 });
     renderOwnedLandsList();
@@ -4168,7 +4167,6 @@ socket.on('land_bought_sync', async (data) => {
                 document.getElementById('adventure-decision-ui').style.display = 'none';
                 setBoardVisibility(true);
             }, 800);
-            
             await runPurchaseAnimation(data.user, data.tileIndex, correctColor, isActuallyUpgrade);
             setTimeout(() => { autoSmoothExitToGodView(); }, 6000); 
         } else {
@@ -6963,13 +6961,11 @@ function triggerGameOver() {
     stopAllVision();
     if (virtualScreen) virtualScreen.visible = false;
     
-    // 強制進入上帝視角，鎖定畫面
     setBoardVisibility(true);
     if (panoSphere) panoSphere.visible = false;
     const godBtn = document.getElementById('back-to-god-btn');
     if (godBtn) godBtn.style.display = 'none';
 
-    // 🏆 修改文字提示
     showGameNotice("🎉 恭喜你！遊戲結束！", 4000);
     
     setTimeout(() => {
@@ -6981,7 +6977,7 @@ function triggerGameOver() {
             const rd = JSON.parse(localStorage.getItem('pypoly_active_room'));
             const rc = rd ? rd.code : localStorage.getItem('room_code');
             const myName = localStorage.getItem('username');
-            const finalRound = parseInt(localStorage.getItem('pypoly_current_round')) || 0;
+            const finalRound = parseInt(localStorage.getItem('pypoly_current_round')) || 1;
             const go = () => { window.location.href = `results.html?room=${encodeURIComponent(rc)}`; };
             
             const order = getTurnOrder();
@@ -6992,20 +6988,25 @@ function triggerGameOver() {
                     const el = document.getElementById(`balance-${p}`);
                     let cash = el ? (parseInt(el.innerText.replace(/,/g, '')) || 0) : 0;
                     
-                    // 🏆 核心修正：將「房產增值」在傳給後端前就算好加進去
-                    // 確保資料庫 game_records 存的 final_money 是真正的總資產，勝負判定才會準確！
+                    // 🏆 複利算法與結算頁完全同步
                     const landOwnership = JSON.parse(localStorage.getItem('pypoly_land_ownership')) || {};
                     let realEstateValue = 0;
                     Object.values(landOwnership).forEach(land => {
                         if (land.owner === p) {
-                            const floorMult = 1 + ((land.floorCount || 1) - 1) * 0.5;
-                            realEstateValue += Math.floor((land.originalPrice || 0) * floorMult);
+                            const buyR = land.buyRound || 1;
+                            const holdRounds = Math.max(0, finalRound - buyR);
+                            let currentVal = land.originalPrice || 1000;
+                            const rates = [0.03, 0.05, 0.08, 0.10, 0.15];
+                            for(let i=0; i < holdRounds; i++) {
+                                currentVal += Math.floor(currentVal * rates[i % rates.length]);
+                            }
+                            realEstateValue += currentVal;
                         }
                     });
 
                     return { 
                         username: p, 
-                        final_money: cash + realEstateValue, // 總資產 = 現金 + 房產
+                        final_money: cash + realEstateValue, 
                         laps: finalRound,
                         jump_count: getJumpCount(p) 
                     };
@@ -7017,7 +7018,7 @@ function triggerGameOver() {
                     body: JSON.stringify({ room_code: rc, players: payloadPlayers })
                 }).then(go).catch(err => { console.error('❌ 結算送出失敗', err); go(); });
             } else {
-                setTimeout(go, 1500); // 非權威端稍等結算寫入再跳轉
+                setTimeout(go, 1500);
             }
         })();
     }, 4000);
