@@ -2754,3 +2754,50 @@ PyPoly 變更紀錄 (changeLog)
   關卡（開合跳、小鳥飛）觀察是否還會卡死；方便的話瀏覽器開發者工具
   的 chrome://gpu 或 Memory 分頁可以看 GPU 記憶體是否還在持續往上飆。
 ========================================================================
+
+[2026-10-01] #69 ngrok-fetch.js 誤把標頭加到第三方 CDN，CORS 擋死 MediaPipe 的 wasm 載入
+
+  背景：組員在 ngrok 下實測 #67/#68 兩個手勢辨識修法時，回報「一開始
+  的辨識流程完全無法辨識，console 瘋狂報錯，平板在相機辨識頁面過一
+  段時間直接顯示 Chrome 的『糟糕』崩潰頁」。組員貼了部分 console 錯誤：
+
+      Access to fetch at 'https://cdn.jsdelivr.net/npm/@mediapipe/hands/
+      hands_solution_simd_wasm_bin.wasm' ... blocked by CORS policy:
+      Request header field ngrok-skip-browser-warning is not allowed by
+      Access-Control-Allow-Headers in preflight response.
+      ...
+      hands_solution_simd_wasm_bin.js:9 still waiting on run dependencies
+
+  根因跟 #67/#68 完全無關，是更早的 commit e675f29（修平板走 ngrok 時
+  房間列表永遠空白）加的 static/js/ngrok-fetch.js：它把 window.fetch
+  整個包一層，對**所有**請求都加上 ngrok-skip-browser-warning 標頭，
+  目的是跳過 ngrok 免費版的瀏覽器警告頁。但這個包裝沒有限定「只對
+  自己後端的請求加」——MediaPipe 的 Hands/Pose 內部也是用 fetch 去
+  cdn.jsdelivr.net 下載 wasm/js 檔，這個標頭被一起塞進去之後，
+  jsdelivr 的 CORS 設定沒有把這個自訂標頭列進
+  Access-Control-Allow-Headers，瀏覽器在 preflight 階段直接擋下來，
+  wasm 永遠載入失敗，globalHands/globalPose 整個卡在初始化、手勢辨識
+  從頭就啟動不了（console 持續印「still waiting on run dependencies」
+  正是 MediaPipe 自己在等那個永遠不會成功的 wasm fetch）。平板資源
+  本來就比較吃緊，這樣卡住很可能就是壓垮 Chrome 渲染行程、跳出
+  「糟糕」崩潰頁的原因。
+
+  本機/區網測試完全不會中：ngrok-fetch.js 本身就有
+  `if (!/ngrok(-free)?\.(dev|app|io)$/.test(host)) return;` 這個網域
+  判斷，只有走 ngrok 網址才會啟用整個包裝，這也是這個問題一直沒在
+  本機測出來、只在組員走 ngrok 測 #67/#68 時才爆出來的原因。
+
+  修法：window.fetch 包裝內加一個同源判斷——只有目標網址跟目前頁面
+  同源（也就是打這個 ngrok tunnel 自己的後端）才加
+  ngrok-skip-browser-warning，跨網域打第三方 CDN 一律維持原生 fetch、
+  不加任何標頭。解析網址失敗時保守地當作同源（維持原行為，不冒風險
+  漏加）。這樣完全不影響 ngrok-fetch.js 原本要解決的大廳房間列表問題
+  （那些 fetch 都是打自己的後端，同源），只排除掉像 MediaPipe 這種
+  打第三方 CDN 的狀況。
+
+  驗證：node --check 語法檢查過關。CORS/ngrok 這塊沒辦法用無瀏覽器
+  腳本測試取代，需要你或組員實際走 ngrok 網址重新整理後再測一次手勢
+  辨識（尤其是賽前決定先後手那關，先前的錯誤訊息就是卡在這裡爆出來
+  的），確認 wasm 檔能正常載入、不再出現 CORS 錯誤，平板也不會再在
+  相機辨識頁面放一段時間就崩潰。
+========================================================================
