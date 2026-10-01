@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PyPoly - Battle</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
-	<script src="js/ngrok-fetch.js"></script>
 	<script src="js/character-face.js"></script>
 	<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -3374,17 +3373,13 @@ function initMediaPipeOnce() {
         }
         if (!globalPose) {
             globalPose = new Pose({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}` });
-            // 🏆 關鍵修正一：將 modelComplexity 從 1 降為 0，捨棄不需要的超高精度，換取極致流暢無延遲的畫面！
             globalPose.setOptions({ modelComplexity: 0, minDetectionConfidence: 0.5 });
         }
     } catch (err) {
-        // 建構子若在此失敗（例如 CDN 連線不穩），globalHands/globalPose 會維持
-        // null，之後所有 sendHandsFrame/sendPoseFrame 都會静默不送——這裡至少
-        // 把原因記下來，不要讓整個手勢辨識死掉卻完全沒有任何記錄可查。
         console.error("MediaPipe 初始化失敗:", err);
     }
 }
-initMediaPipeOnce(); // 頁面載入時只呼叫這一次
+initMediaPipeOnce();
 
 // --- 請替換整段 initCameraAndStartVision ---
 window.isHandsProcessing = false; // 宣告全域保護鎖
