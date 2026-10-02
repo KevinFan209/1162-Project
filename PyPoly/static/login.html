@@ -151,7 +151,7 @@
             position: relative;
         }
 
-        /* 💡 標籤字體升級：清晰、好讀、高辨識度 */
+        /* 標籤字體：清晰、好讀 */
         label {
             display: flex;
             align-items: center;
@@ -216,11 +216,34 @@
             user-select: none;
         }
 
-        .remember-me input {
+        /* 💡 記住我的框框：全黑厚外線 */
+        .remember-me input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
             width: 18px;
             height: 18px;
-            border: 2px solid #000;
+            border: 2px solid #000000;
+            border-radius: 2px;
+            background: #ffffff;
             cursor: pointer;
+            outline: none;
+            display: grid;
+            place-content: center;
+            box-shadow: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .remember-me input[type="checkbox"]:checked {
+            background-color: var(--bee-yellow);
+        }
+
+        .remember-me input[type="checkbox"]:checked::before {
+            content: "✓";
+            font-size: 13px;
+            font-weight: 900;
+            color: #000000;
+            line-height: 1;
         }
 
         .forgot-pw {
@@ -347,8 +370,8 @@
         </div>
 
         <div class="tabs">
-            <div id="loginTab" class="tab active" onclick="toggle('login')">⚔️ 登入冒險</div>
-            <div id="regTab" class="tab" onclick="toggle('register')">🛡️ 創建角色</div>
+            <div id="loginTab" class="tab active" onclick="toggle('login')">登入遊戲</div>
+            <div id="regTab" class="tab" onclick="toggle('register')">加入冒險</div>
         </div>
 
         <div class="form-container">
@@ -515,7 +538,7 @@
                         showModal("❌ 註冊失敗", errData.detail || `伺服器錯誤 (${res.status})`, false);
                     }
                 } catch (err) {
-                    showModal("⚠️ 連線失敗", "伺服器連線失敗", false);
+                    showModal("⚠️️ 連線失敗", "伺服器連線失敗", false);
                 }
             };
         }
