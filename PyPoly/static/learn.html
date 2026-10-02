@@ -387,51 +387,63 @@
     
     let conversationMessages = [];
 
-    // 💡 題目選項自動對照表（全面覆蓋各知識維度題目，包含條件判斷、迴圈、串列與布林）
-    const OPTION_FALLBACK_MAP = {
-        "x > 5": {
-            1: "會執行",
-            2: "不會執行",
-            3: "產生錯誤",
-            4: "語法錯誤"
+    // 💡 題目選項自動對照表（使用關鍵字陣列與模糊比對，徹底防止對照失效）
+    const OPTION_FALLBACK_MAP = [
+        {
+            keywords: ["x > 5", "if x", "會不會被執行", "條件判斷"],
+            options: {
+                1: "會執行",
+                2: "不會執行",
+                3: "產生錯誤",
+                4: "語法錯誤"
+            }
         },
-        "range(3)": {
-            1: "1, 2, 3",
-            2: "0, 1, 2",
-            3: "0, 1, 2, 3",
-            4: "1, 2"
+        {
+            keywords: ["range(3)", "range"],
+            options: {
+                1: "1, 2, 3",
+                2: "0, 1, 2",
+                3: "0, 1, 2, 3",
+                4: "1, 2"
+            }
         },
-        "not True": {
-            1: "True",
-            2: "False",
-            3: "None",
-            4: "語法錯誤 (SyntaxError)"
+        {
+            keywords: ["not True", "not "],
+            options: {
+                1: "True",
+                2: "False",
+                3: "None",
+                4: "語法錯誤 (SyntaxError)"
+            }
         },
-        "lst.append": {
-            1: "3 (未更新)",
-            2: "4 (元素個數)",
-            3: "5",
-            4: "[1, 2, 3, 4] (回傳串列)"
+        {
+            keywords: ["append"],
+            options: {
+                1: "3 (未更新)",
+                2: "4 (元素個數)",
+                3: "5",
+                4: "[1, 2, 3, 4] (回傳串列)"
+            }
         },
-        "append(4)": {
-            1: "3 (未更新)",
-            2: "4 (元素個數)",
-            3: "5",
-            4: "[1, 2, 3, 4] (回傳串列)"
+        {
+            keywords: ["len(\"Python\")", "Python"],
+            options: {
+                1: "5",
+                2: "6",
+                3: "7",
+                4: "Python"
+            }
         },
-        "len(\"Python\")": {
-            1: "5",
-            2: "6",
-            3: "7",
-            4: "Python"
-        },
-        "lst[0]": {
-            1: "10",
-            2: "20",
-            3: "30",
-            4: "IndexError"
+        {
+            keywords: ["lst[0]"],
+            options: {
+                1: "10",
+                2: "20",
+                3: "30",
+                4: "IndexError"
+            }
         }
-    };
+    ];
 
     // 🎯 答對維度的代表性題目庫對照表
     const CORRECT_QUESTIONS_TEMPLATE = {
@@ -467,7 +479,6 @@
         }
     };
 
-    // 取得/記錄 AI 互動數
     function getAiInteractionCount() {
         const username = localStorage.getItem('username') || 'user';
         return parseInt(localStorage.getItem(`ai_ask_cnt_${username}`) || '0', 10);
@@ -488,14 +499,36 @@
         }
     }
 
+    // 🔥 核心修復：強制攔截數字索引、過濾無效佔位符、進行題庫模糊映射
     function resolveOptionText(q, valKey, textKey) {
-        if (q[textKey] && !String(q[textKey]).startsWith("選項") && !String(q[textKey]).startsWith("Option")) {
-            return String(q[textKey]);
+        let val = q[valKey];
+        let textVal = q[textKey] ? String(q[textKey]).trim() : "";
+
+        // 判斷原文字是否為純數字字串（例如 "3"、"1"）或含有 "選項"
+        const isPureNumber = /^[0-9]+$/.test(textVal);
+        const isOptionPlaceholder = textVal.startsWith("選項") || textVal.startsWith("Option") || textVal === "";
+
+        if (val === undefined && isPureNumber) {
+            val = parseInt(textVal, 10);
         }
 
-        const val = q[valKey];
+        // 1. 優先使用題幹關鍵字做對照表映射
+        const qText = String(q.question || "");
+        for (const item of OPTION_FALLBACK_MAP) {
+            const hit = item.keywords.some(kw => qText.includes(kw));
+            if (hit && item.options[val] !== undefined) {
+                return item.options[val];
+            }
+        }
 
-        // 1. 如果資料本身附帶 options 陣列
+        // 2. 通用題型語義判斷（是非題、執行題）
+        if (qText.includes("會不會") || qText.includes("是否")) {
+            if (val == 1) return "會執行";
+            if (val == 2) return "不會執行";
+            if (val == 3) return "產生錯誤";
+        }
+
+        // 3. 物件自帶的 options 陣列
         if (Array.isArray(q.options) && q.options.length > 0) {
             const num = Number(val);
             if (!isNaN(num)) {
@@ -504,22 +537,12 @@
             }
         }
 
-        // 2. 透過題幹關鍵字做智能映射
-        const qText = q.question || "";
-        for (const [kw, map] of Object.entries(OPTION_FALLBACK_MAP)) {
-            if (qText.includes(kw) && map[val] !== undefined) {
-                return map[val];
-            }
+        // 4. 原文字如果是真正的具體內容（非純數字且非選項佔位符），才予以使用
+        if (textVal && !isPureNumber && !isOptionPlaceholder) {
+            return textVal;
         }
 
-        // 3. 通用題型語義判斷
-        if (qText.includes("會不會") || qText.includes("是否")) {
-            if (val == 1) return "會執行";
-            if (val == 2) return "不會執行";
-            if (val == 3) return "產生錯誤";
-        }
-
-        return val !== undefined ? `選項 ${val}` : "未記錄";
+        return val !== undefined ? `${val}` : "未記錄";
     }
 
     function toggleMenu() {
@@ -592,11 +615,9 @@
             const s = data.summary || {};
             const correctCount = s.correct || 0;
 
-            // 1. 正確率
             document.getElementById('statAccuracy').innerHTML =
                 `${s.accuracy || 0}<span class="summary-unit">%</span>`;
 
-            // 2. 熟練度等級與連勝計算
             let levelTitle = "Lv.1 初試啼聲";
             if (correctCount >= 30) levelTitle = "Lv.5 演算法專家";
             else if (correctCount >= 20) levelTitle = "Lv.4 語法宗師";
@@ -608,9 +629,7 @@
             const streakNum = correctCount > 1 ? Math.min(correctCount, 2) : correctCount;
             document.getElementById('statStreak').textContent = `🔥 最高連對 ${streakNum} 題`;
 
-            // 3. AI 互動數顯示
             updateAiInteractionDisplay(getAiInteractionCount());
-
             renderDimensions(data.dimensions || [], gamesPlayedCount);
 
             // 🎯 解析題目清單
@@ -668,7 +687,7 @@
             updateFilterCounts();
             renderFilteredQuestions();
         } catch (err) {
-            console.warn('⚠️ 載入學習統計失敗', err);
+            console.warn('⚠️️ 載入學習統計失敗', err);
             document.getElementById('dimensionList').innerHTML = '<div class="empty-hint">統計載入失敗，請稍後重新整理。</div>';
             document.getElementById('questionHistoryList').innerHTML = '<div class="empty-hint">作答紀錄載入失敗。</div>';
         }
@@ -743,8 +762,8 @@
                 ? '<span class="q-badge correct">作答正確 ✅</span>' 
                 : '<span class="q-badge wrong">需要複習 ❌</span>';
             
-            const chosenDisplay = q.chosen_text || (q.chosen !== undefined ? `選項 ${q.chosen}` : '未記錄');
-            const correctDisplay = q.correct_text || (q.correct !== undefined ? `選項 ${q.correct}` : '未記錄');
+            const chosenDisplay = q.chosen_text || (q.chosen !== undefined ? `${q.chosen}` : '未記錄');
+            const correctDisplay = q.correct_text || (q.correct !== undefined ? `${q.correct}` : '未記錄');
             const qIndex = allQuestionsData.indexOf(q);
 
             return `
