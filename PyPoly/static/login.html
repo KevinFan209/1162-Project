@@ -216,7 +216,7 @@
             user-select: none;
         }
 
-        /* 💡 記住我的框框：全黑厚外線 */
+        /* 記住我的框框：全黑厚外線 */
         .remember-me input[type="checkbox"] {
             appearance: none;
             -webkit-appearance: none;
@@ -370,8 +370,8 @@
         </div>
 
         <div class="tabs">
-            <div id="loginTab" class="tab active" onclick="toggle('login')">登入遊戲</div>
-            <div id="regTab" class="tab" onclick="toggle('register')">加入冒險</div>
+            <div id="loginTab" class="tab active" onclick="toggle('login')">⚔️ 登入遊戲</div>
+            <div id="regTab" class="tab" onclick="toggle('register')">🛡️ 加入冒險</div>
         </div>
 
         <div class="form-container">
@@ -538,7 +538,7 @@
                         showModal("❌ 註冊失敗", errData.detail || `伺服器錯誤 (${res.status})`, false);
                     }
                 } catch (err) {
-                    showModal("⚠️️ 連線失敗", "伺服器連線失敗", false);
+                    showModal("⚠️ 連線失敗", "伺服器連線失敗", false);
                 }
             };
         }
