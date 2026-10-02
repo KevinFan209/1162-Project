@@ -3,169 +3,412 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PyPoly - Admin User Management</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
+    <title>BeeRich - Admin User Management</title>
+    <!-- 引入與全站一致的精選像素與高質感字型 -->
+    <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
     <style>
-    :root {
-        --primary-blue: #4facfe;
-        --success-green: #00cdac;
-        --success-green-shadow: #00a88b;
-        --bg-gray: #f1f5f9;
-        --text-dark: #000000;
-        --text-gray: #64748b;
-        --sidebar-dark: #334155;
-        --sidebar-dark-shadow: #1e293b;
-        --border-light: #e2e8f0;
-        --danger-red: #ff7675;
-    }
+        :root {
+            --pixel-border: #1e272e;
+            --bee-gold: #ffc048;
+            --bee-yellow: #ffdd59;
+            --bee-dark: #2f3542;
+            --pixel-green: #05c46b;
+            --pixel-blue: #0fbcf9;
+            --pixel-red: #ff3f34;
+            --bg-grid: #d2dae2;
+            --card-bg: #ffffff;
+            --text-dark: #1e272e;
+            --text-gray: #747d8c;
+            --sidebar-dark: #2f3542;
+            --sidebar-dark-shadow: #1e272e;
+            --border-light: #1e272e;
+            --danger-red: #ff3f34;
+        }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
-    body { background-color: var(--bg-gray); height: 100%; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+        html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            outline: none !important;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+        }
 
-    /* --- Header 樣式 --- */
-    header {
-        background: linear-gradient(to bottom, #ffffff 0%, #fcfcfc 100%);
-        padding: 0 40px; display: flex; justify-content: space-between; align-items: center;
-        height: 85px; z-index: 100; border-bottom: 1.5px solid var(--border-light); 
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
-    }
-    .header-left h1 { font-size: 2.5rem; font-weight: 900; margin-bottom: 10px; color: var(--text-dark); }
-    .header-right { display: flex; align-items: center; gap: 20px; }
-    .page-tag { font-weight: 800; color: var(--text-gray); background: #f1f5f9; padding: 10px 22px; border-radius: 12px; font-size: 0.95rem; }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            image-rendering: pixelated;
+        }
 
-    /* --- 主要佈局 --- */
-    .admin-main { flex: 1; display: flex; justify-content: center; align-items: center; padding: 20px; }
-    .admin-container { display: flex; gap: 30px; width: 95%; max-width: 1250px; height: 82vh; }
+        body {
+            background-color: var(--bg-grid);
+            /* 像素幾何網格背景 */
+            background-image: 
+                linear-gradient(rgba(0, 0, 0, 0.05) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.05) 2px, transparent 2px);
+            background-size: 28px 28px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
 
-    /* --- 側邊導覽 --- */
-    .admin-nav {
-        width: 280px; background: white; border-radius: 35px; padding: 30px 20px;
-        display: flex; flex-direction: column; gap: 12px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #f1f2f6;
-    }
-    .nav-link { 
-        width: 100%; padding: 16px; border: none; border-radius: 15px; 
-        font-weight: 900; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 12px;
-        background: #f8fafc; color: var(--text-gray); transition: 0.2s; text-decoration: none;
-    }
-    .nav-link.active { background: var(--sidebar-dark); color: white; box-shadow: 0 6px 0 var(--sidebar-dark-shadow); }
-    .nav-link:hover:not(.active) { background: #f1f5f9; }
+        /* 頂部像素風格導覽列 */
+        header {
+            margin: 0 !important;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: white;
+            padding: 0 35px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 80px;
+            z-index: 100;
+            border: none;
+            border-bottom: 4px solid var(--pixel-border);
+            box-shadow: none !important;
+            flex-shrink: 0;
+        }
 
-    /* --- 右側內容區 --- */
-    .admin-board { flex: 1; display: flex; flex-direction: column; gap: 20px; overflow: hidden; }
-    .board-header { 
-        background: white; padding: 20px 30px; border-radius: 25px; 
-        display: flex; justify-content: flex-start; align-items: center; 
-        box-shadow: 0 4px 20px rgba(0,0,0,0.03); border: 1px solid #f1f2f6; 
-    }
-    .search-input { padding: 12px 20px; border-radius: 12px; border: 1.5px solid var(--border-light); background: #f8fafc; width: 350px; font-weight: 700; }
+        .header-left h1 {
+            font-family: 'VT323', monospace;
+            font-size: 3.2rem;
+            line-height: 1;
+            color: var(--bee-gold);
+            text-shadow: 
+                2px 2px 0 var(--pixel-border),
+                -1.5px -1.5px 0 var(--pixel-border),
+                2px -1.5px 0 var(--pixel-border),
+                -1.5px 2px 0 var(--pixel-border),
+                4px 4px 0 var(--bee-dark);
+            letter-spacing: 2px;
+            user-select: none;
+            cursor: pointer;
+        }
 
-    /* --- 使用者清單表格 --- */
-    .user-list-container { 
-        background: white; flex: 1; border-radius: 40px; padding: 30px; 
-        box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #f1f2f6;
-        overflow-y: auto;
-    }
-    .user-row {
-        background: #f8fafc; padding: 20px 30px; border-radius: 25px;
-        display: grid; grid-template-columns: 80px 1fr 1fr 1fr 150px;
-        align-items: center; margin-bottom: 12px; border: 1px solid #f1f2f6;
-        transition: 0.2s;
-    }
-    .user-row:hover { background: #fff; border-color: var(--primary-blue); transform: scale(1.01); }
-    
-    .user-avatar { width: 45px; height: 45px; background: #e2e8f0; border-radius: 12px; display: flex; justify-content: center; align-items: center; font-size: 1.2rem; }
-    .user-id { font-weight: 900; color: var(--text-dark); }
-    .user-email { color: var(--text-gray); font-weight: 700; font-size: 0.9rem; }
-    .user-status { display: inline-block; padding: 5px 12px; border-radius: 8px; font-size: 0.8rem; font-weight: 900; }
-    .status-online { background: #ebfffa; color: var(--success-green); }
-    .status-offline { background: #f1f5f9; color: var(--text-gray); }
-    .status-banned { background: #fff5f5; color: var(--danger-red); }
+        .header-right { display: flex; align-items: center; gap: 18px; }
 
-    /* --- 按鈕樣式 --- */
-    .action-btns { display: flex; gap: 10px; justify-content: flex-end; }
-    .btn-icon { padding: 10px; border: none; border-radius: 10px; cursor: pointer; font-weight: 800; font-size: 0.85rem; }
-    .btn-edit { background: #e2e8f0; color: var(--text-dark); }
-    .btn-ban { background: #fff5f5; color: var(--danger-red); }
-    .btn-icon:disabled { opacity: 0.5; cursor: not-allowed; }
+        .page-tag {
+            background: #fffdf2;
+            border: 3px solid var(--pixel-border);
+            padding: 6px 16px;
+            border-radius: 4px;
+            font-weight: 900;
+            font-size: 1rem;
+            color: var(--text-dark);
+            box-shadow: 3px 3px 0 #000;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
 
-    /* --- 🏆 核心：自定義 Modal UI 視窗 --- */
-    .modal-overlay {
-        position: fixed;
-        top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0, 0, 0, 0.6); /* 黑色半透明背景 */
-        backdrop-filter: blur(5px);   /* 背景模糊 */
-        display: flex; justify-content: center; align-items: center;
-        z-index: 1000;
-    }
+        /* Admin 主要佈局 */
+        .admin-main {
+            height: calc(100vh - 80px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            overflow: hidden;
+        }
 
-    .modal-content {
-        background: white;
-        padding: 40px;
-        border-radius: 35px;
-        width: 420px;
-        text-align: center;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.25);
-        border: 1px solid #ffffff;
-        animation: modalBounce 0.3s ease-out; /* 彈出動畫 */
-    }
+        .admin-container {
+            display: flex;
+            gap: 25px;
+            width: 95%;
+            max-width: 1280px;
+            height: 100%;
+            align-items: stretch;
+        }
 
-    .modal-content h2 { font-weight: 900; font-size: 1.8rem; margin-bottom: 15px; }
-    .modal-content p { font-weight: 700; color: var(--text-gray); margin-bottom: 30px; line-height: 1.6; }
+        /* 側邊導覽欄 */
+        .admin-nav {
+            width: 280px;
+            background: white;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0px #000;
+            padding: 24px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            flex-shrink: 0;
+        }
 
-    .modal-footer { display: flex; justify-content: center; gap: 15px; }
+        .admin-nav h2 {
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            font-weight: 900;
+            font-size: 1.35rem;
+            margin-bottom: 10px;
+            padding-left: 6px;
+            color: var(--text-dark);
+            border-bottom: 3px solid var(--pixel-border);
+            padding-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
 
-    /* --- 🏆 3D 按鈕樣式 (彈窗專用) --- */
-    .btn-3d {
-        padding: 14px 30px;
-        border: none;
-        border-radius: 18px;
-        font-weight: 900;
-        cursor: pointer;
-        transition: 0.2s;
-        color: white;
-        background: var(--sidebar-dark);
-        box-shadow: 0 4px 0 rgba(0,0,0,0.15);
-    }
+        .nav-link { 
+            width: 100%;
+            padding: 13px 16px;
+            border: 3px solid var(--pixel-border);
+            font-size: 0.95rem;
+            font-weight: 900;
+            cursor: pointer;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #f8fafc;
+            color: var(--text-dark);
+            transition: all 0.06s ease;
+            text-decoration: none;
+            box-shadow: 3px 3px 0 #000;
+            user-select: none;
+        }
 
-    .btn-3d:hover { transform: translateY(-2px); filter: brightness(1.1); }
-    .btn-3d:active { transform: translateY(2px); box-shadow: none; }
+        .nav-link:hover:not(.active) {
+            background: #fffdf2;
+            transform: translate(-1px, -1px);
+            box-shadow: 4px 4px 0 #000;
+        }
 
-    /* --- 動態關鍵幀 --- */
-    @keyframes modalBounce {
-        0% { transform: scale(0.8); opacity: 0; }
-        100% { transform: scale(1); opacity: 1; }
-    }
-</style>
+        .nav-link.active {
+            background: var(--bee-yellow);
+            color: var(--text-dark);
+            transform: translate(2px, 2px);
+            box-shadow: 1px 1px 0 #000;
+        }
+
+        .nav-link:active {
+            transform: translate(3px, 3px);
+            box-shadow: 0 0 0 #000;
+        }
+
+        /* 右側主看板 */
+        .admin-board {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            overflow: hidden;
+            height: 100%;
+        }
+
+        .board-header { 
+            background: white;
+            padding: 16px 24px;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0 #000;
+            display: flex;
+            justify-content: flex-start;
+            align-items: center; 
+        }
+
+        .search-input {
+            padding: 10px 16px;
+            border: 3px solid var(--pixel-border);
+            background: #fffdf5;
+            width: 350px;
+            font-weight: 900;
+            font-size: 0.95rem;
+            color: var(--text-dark);
+            outline: none;
+            box-shadow: inset 2px 2px 0 rgba(0,0,0,0.06);
+        }
+        .search-input:focus {
+            background: #feffea;
+            border-color: #000;
+        }
+
+        /* 使用者清單表格容器 */
+        .user-list-container { 
+            background: white;
+            flex: 1;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0 #000;
+            padding: 24px 28px; 
+            overflow-y: auto;
+        }
+
+        .table-header {
+            display: grid;
+            grid-template-columns: 80px 1fr 1fr 1fr 160px;
+            padding: 0 24px 12px;
+            font-weight: 900;
+            color: var(--text-dark);
+            font-size: 0.9rem;
+            border-bottom: 3px solid var(--pixel-border);
+            margin-bottom: 14px;
+        }
+
+        .user-row {
+            background: #f8fafc;
+            padding: 14px 24px;
+            border: 3px solid var(--pixel-border);
+            box-shadow: 4px 4px 0 #000;
+            display: grid;
+            grid-template-columns: 80px 1fr 1fr 1fr 160px;
+            align-items: center;
+            margin-bottom: 12px;
+            transition: all 0.08s ease;
+        }
+        .user-row:hover {
+            background: #fffdf5;
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 #000;
+        }
+        
+        .user-avatar {
+            width: 44px;
+            height: 44px;
+            background: white;
+            border: 2px solid var(--pixel-border);
+            box-shadow: 2px 2px 0 #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.3rem;
+        }
+        .user-id { font-weight: 900; font-size: 1.05rem; color: var(--text-dark); }
+        .user-email { color: var(--text-gray); font-weight: 900; font-size: 0.9rem; }
+        
+        .user-status {
+            display: inline-block;
+            padding: 4px 10px;
+            border: 2px solid var(--pixel-border);
+            box-shadow: 2px 2px 0 #000;
+            font-size: 0.8rem;
+            font-weight: 900;
+        }
+        .status-online { background: #ebfffa; color: var(--pixel-green); }
+        .status-offline { background: #dfe4ea; color: var(--text-dark); }
+        .status-banned { background: #fff5f5; color: var(--pixel-red); }
+
+        /* 按鈕樣式 */
+        .action-btns { display: flex; gap: 8px; justify-content: flex-end; }
+        .btn-icon {
+            padding: 8px 14px;
+            border: 2px solid var(--pixel-border);
+            box-shadow: 3px 3px 0 #000;
+            cursor: pointer;
+            font-weight: 900;
+            font-size: 0.85rem;
+            transition: 0.06s ease;
+            user-select: none;
+        }
+        .btn-icon:active {
+            transform: translate(2px, 2px);
+            box-shadow: 1px 1px 0 #000;
+        }
+        .btn-edit { background: #dfe4ea; color: var(--text-dark); }
+        .btn-edit:hover { background: #ced6e0; }
+        .btn-ban { background: #fff5f5; color: var(--pixel-red); }
+        .btn-ban:hover { background: #ffe0e0; }
+        .btn-icon:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: 2px 2px 0 #000; }
+
+        /* 像素對話彈窗 */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.65);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 32px 30px;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 8px 8px 0px #000000;
+            width: 420px;
+            max-width: 90vw;
+            text-align: center;
+            animation: modalPop 0.15s ease-out;
+        }
+
+        .modal-content h2 {
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            font-weight: 900;
+            font-size: 1.5rem;
+            margin-bottom: 12px;
+            color: var(--text-dark);
+        }
+        .modal-content p {
+            font-weight: 900;
+            color: var(--text-dark);
+            margin-bottom: 24px;
+            line-height: 1.6;
+            font-size: 1rem;
+        }
+
+        .modal-footer { display: flex; justify-content: center; gap: 12px; }
+
+        .btn-3d {
+            padding: 12px 26px;
+            border: 3px solid var(--pixel-border);
+            font-weight: 900;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: 0.06s ease;
+            color: var(--text-dark);
+            background: var(--bee-yellow);
+            box-shadow: 0 4px 0 #000;
+            user-select: none;
+        }
+        .btn-3d:active {
+            transform: translate(2px, 2px);
+            box-shadow: 0 0 0 #000;
+        }
+
+        @keyframes modalPop {
+            from { transform: scale(0.9); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        /* 滾動條樣式 */
+        .user-list-container::-webkit-scrollbar { width: 8px; }
+        .user-list-container::-webkit-scrollbar-track { background: #dfe4ea; border-left: 2px solid var(--pixel-border); }
+        .user-list-container::-webkit-scrollbar-thumb { background: var(--pixel-border); }
+
+        @media (max-width: 900px) {
+            header { padding: 0 20px; }
+            .admin-container { flex-direction: column; height: auto; }
+            .admin-nav { width: 100%; }
+        }
+    </style>
 </head>
 <body>
 
 <header>
-    <div class="header-left"><h1>PyPoly</h1></div>
+    <div class="header-left"><h1 onclick="location.href='admin.html'">BeeRich</h1></div>
     <div class="header-right">
-        <div class="page-tag">管理後台中心 ⚙️</div>
+        <div class="page-tag"><span>👥</span> 管理後台中心</div>
     </div>
 </header>
 
 <div class="admin-main">
     <div class="admin-container">
         <aside class="admin-nav">
-            <h2 style="font-weight: 900; font-size: 1.4rem; margin-bottom: 15px; padding-left: 10px;">後台選單</h2>
+            <h2><span>📋</span> 後台選單</h2>
             <a href="admin.html" class="nav-link active"><span>👥</span> 用戶權限管理</a>
             <a href="question.html" class="nav-link"><span>❓</span> 考題庫編輯</a>
             <a href="camera.html" class="nav-link"><span>📷</span> 影像辨識偵錯</a>
             <a href="game_data.html" class="nav-link"><span>📈</span> 遊戲數據監控</a>
-            <a href="javascript:void(0);" class="nav-link" onclick="logout();" style="margin-top: auto; color: var(--danger-red);"><span>🚪</span> 登出系統
-</a>
+            <a href="javascript:void(0);" class="nav-link" onclick="logout();" style="margin-top: auto; color: white; background: var(--pixel-red);"><span>🚪</span> 登出系統</a>
         </aside>
 
         <main class="admin-board">
             <div class="board-header">
-                <input type="text" id="searchInput" class="search-input" placeholder="搜尋 ID 或 使用者名稱...">
+                <input type="text" id="searchInput" class="search-input" placeholder="🔍 搜尋 ID 或 使用者名稱...">
             </div>
 
             <div class="user-list-container">
-                <div style="display: grid; grid-template-columns: 80px 1fr 1fr 1fr 150px; padding: 0 30px 15px; font-weight: 900; color: var(--text-gray); font-size: 0.85rem;">
+                <div class="table-header">
                     <span>頭像</span>
                     <span>使用者 ID</span>
                     <span>電子信箱</span>
@@ -313,7 +556,7 @@
                 }
 
                 row.innerHTML = `
-                    <div class="user-avatar">${user.role === 'admin' ? '👑' : '👤'}</div>
+                    <div class="user-avatar">${user.role === 'admin' ? '👑' : '👾'}</div>
                     <div class="user-id">${user.username}</div>
                     <div class="user-email">${user.email || '無信箱資料'}</div>
                     <div><span class="user-status ${statusClass}">${statusText}</span></div>
@@ -345,11 +588,11 @@
 
         titleEl.innerText = `⚠️ ${actionText}確認`;
         msgEl.innerText = `您確定要 ${actionText} 使用者「${targetUser}」嗎？`;
-        titleEl.style.color = isBanning ? "#ff7675" : "#00cdac";
+        titleEl.style.color = isBanning ? "var(--pixel-red)" : "var(--pixel-green)";
 
         footerEl.innerHTML = `
-            <button class="btn-3d" id="confirmActionBtn" style="background: ${isBanning ? '#ff7675' : '#00cdac'}; margin-right: 10px;">確定</button>
-            <button class="btn-3d" style="background: #95a5a6;" onclick="closeModal()">取消</button>
+            <button class="btn-3d" id="confirmActionBtn" style="background: ${isBanning ? 'var(--pixel-red)' : 'var(--pixel-green)'}; color: white; margin-right: 10px;">確定</button>
+            <button class="btn-3d" style="background: #dfe4ea; color: var(--text-dark);" onclick="closeModal()">取消</button>
         `;
 
         document.getElementById('confirmActionBtn').onclick = async () => {
@@ -384,39 +627,33 @@
     }
 
     // --- 6. 導航與手動登出 ---
-	async function logout() {
-		// 1. 停止心跳，防止登出後被「復活」
-		if (typeof syncTimer !== 'undefined' && syncTimer) {
-			clearInterval(syncTimer);
-		}
+    async function logout() {
+        if (typeof syncTimer !== 'undefined' && syncTimer) {
+            clearInterval(syncTimer);
+        }
 
-		const username = localStorage.getItem('username');
-		if (!username) return;
+        const username = localStorage.getItem('username');
+        if (!username) return;
 
-		// 🏆 暴力拼接網址，確保 confirm=true 一定會被帶過去
-		const url = API_URL + "/auth/logout?username=" + encodeURIComponent(username) + "&confirm=true";
-		
-		// 檢查點：請在 F12 控制台看看這行印出的網址尾巴有沒有 confirm=true
-		console.log("正在發送登出請求到:", url);
+        const url = API_URL + "/auth/logout?username=" + encodeURIComponent(username) + "&confirm=true";
+        console.log("正在發送登出請求到:", url);
 
-		try {
-			const response = await fetch(url, { 
-				method: 'POST',
-				mode: 'cors', // 確保跨域正常
-				cache: 'no-cache' // 告訴瀏覽器不要用快取
-			});
-			const result = await response.json();
-			console.log("後端回應：", result);
-		} catch (err) {
-			console.error("登出連線失敗", err);
-		}
+        try {
+            const response = await fetch(url, { 
+                method: 'POST',
+                mode: 'cors',
+                cache: 'no-cache'
+            });
+            const result = await response.json();
+            console.log("後端回應：", result);
+        } catch (err) {
+            console.error("登出連線失敗", err);
+        }
 
-		// 2. 清理本地端資料
-		localStorage.clear();
-		
-		// 3. 跳轉
-		window.location.href = 'login.html';
-	}
+        localStorage.clear();
+        window.location.href = 'login.html';
+    }
+
     // --- 7. 通用 UI Modal 控制 ---
     function showModal(title, message, isSuccess = true) {
         const modal = document.getElementById('statusModal');
@@ -426,7 +663,7 @@
 
         titleEl.innerText = title;
         msgEl.innerText = message;
-        titleEl.style.color = isSuccess ? "#00cdac" : "#ff7675";
+        titleEl.style.color = isSuccess ? "var(--pixel-green)" : "var(--pixel-red)";
         footerEl.innerHTML = `<button class="btn-3d" onclick="closeModal()">確定</button>`;
         modal.style.display = 'flex';
     }
@@ -434,9 +671,6 @@
     function closeModal() {
         document.getElementById('statusModal').style.display = 'none';
     }
-
-    // 🏆 徹底移除 window.addEventListener('beforeunload')！
-    // 解決了管理員切換頁面時會誤登出的問題。
 </script>
 
 </body>
