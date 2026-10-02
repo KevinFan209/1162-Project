@@ -5,18 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <title>BeeRich - Python Adventure</title>
-    <!-- 精選優質像素與復古圓體字型 -->
-    <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
+    <!-- 引入高辨識度、厚實醒目的街機遊戲英文字體與繁體中文字體 -->
+    <link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Russo+One&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
     <style>
         :root {
             --pixel-border: #1e272e;
-            --bee-gold: #ffc048;
-            --bee-yellow: #ffdd59;
-            --bee-dark: #2f3542;
+            --main-yellow: #ffd32a;
+            --main-yellow-hover: #ffdf57;
+            --main-blue: #0fbcf9;
             --pixel-green: #05c46b;
-            --pixel-blue: #0fbcf9;
             --pixel-red: #ff3f34;
-            --bg-grid: #eef2f7;
             --card-bg: #ffffff;
             --text-dark: #1e272e;
             --text-gray: #747d8c;
@@ -26,13 +24,13 @@
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            font-family: 'Noto Sans TC', sans-serif;
             image-rendering: pixelated;
         }
 
         body {
             background-color: #d2dae2;
-            /* 蜜蜂幾何像素網格背景 */
+            /* 經典復古像素幾何網格背景 */
             background-image: 
                 linear-gradient(rgba(0, 0, 0, 0.05) 2px, transparent 2px),
                 linear-gradient(90deg, rgba(0, 0, 0, 0.05) 2px, transparent 2px);
@@ -46,16 +44,16 @@
             position: relative;
         }
 
-        /* 像素卡片主容器 */
+        /* 像素厚卡片容器 */
         .card {
             background: var(--card-bg);
             width: 440px;
-            padding: 42px 36px 36px;
-            border-radius: 6px;
+            padding: 44px 38px 38px;
+            border-radius: 4px;
             border: 4px solid var(--pixel-border);
             box-shadow: 
                 8px 8px 0px rgba(0, 0, 0, 0.85),
-                12px 12px 0px rgba(255, 192, 72, 0.4);
+                14px 14px 0px rgba(15, 188, 249, 0.25);
             text-align: center;
             display: flex;
             flex-direction: column;
@@ -63,52 +61,47 @@
             z-index: 10;
         }
 
-        /* 標題與 BeeRich Logo 區塊 */
+        /* 標題與 Logo 區塊 */
         .logo-wrap {
             position: relative;
-            margin-bottom: 24px;
+            margin-bottom: 26px;
         }
 
         .pixel-badge {
             display: inline-block;
-            background: var(--bee-yellow);
+            background: var(--main-yellow);
             border: 2px solid var(--pixel-border);
-            padding: 3px 12px;
-            font-family: 'Silkscreen', cursive;
+            padding: 3px 14px;
+            font-family: 'Russo One', sans-serif;
             font-size: 0.75rem;
-            font-weight: 700;
             color: var(--pixel-border);
             box-shadow: 2px 2px 0 #000;
-            margin-bottom: 10px;
-            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+            letter-spacing: 1px;
             animation: floatBadge 1.4s infinite alternate ease-in-out;
         }
 
+        /* 醒目、粗壯、立體感強的 Black Ops One 主標題 */
         h1 {
-            font-family: 'VT323', monospace;
-            font-size: 3.6rem;
-            line-height: 1;
-            color: var(--bee-gold);
-            text-shadow: 
-                3px 3px 0 var(--pixel-border),
-                -2px -2px 0 var(--pixel-border),
-                2px -2px 0 var(--pixel-border),
-                -2px 2px 0 var(--pixel-border),
-                6px 6px 0 var(--bee-dark);
-            margin-bottom: 4px;
+            font-family: 'Black Ops One', cursive;
+            font-size: 3.8rem;
+            line-height: 1.05;
+            color: #ffffff;
             letter-spacing: 2px;
             user-select: none;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
+            /* 雙層高對比像素描邊與硬陰影 */
+            -webkit-text-stroke: 3px var(--pixel-border);
+            text-shadow: 
+                5px 5px 0px var(--pixel-border),
+                7px 7px 0px var(--main-yellow);
+            margin-bottom: 6px;
         }
 
         .tagline {
-            font-family: 'Silkscreen', cursive;
-            font-size: 0.7rem;
+            font-family: 'Russo One', sans-serif;
+            font-size: 0.85rem;
             color: var(--text-gray);
-            letter-spacing: 2px;
+            letter-spacing: 3px;
             text-transform: uppercase;
         }
 
@@ -156,21 +149,21 @@
             display: flex;
             align-items: center;
             gap: 6px;
-            font-family: 'Silkscreen', 'Zen Maru Gothic', sans-serif;
-            font-size: 0.75rem;
-            font-weight: 700;
+            font-family: 'Russo One', 'Noto Sans TC', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 900;
             margin-bottom: 6px;
             color: var(--text-dark);
-            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         input {
             width: 100%;
-            padding: 12px 14px;
+            padding: 13px 15px;
             border: 3px solid var(--pixel-border);
             border-radius: 0px;
             background: #ffffff;
-            font-size: 1rem;
+            font-size: 1.05rem;
             font-weight: 700;
             color: var(--text-dark);
             outline: none;
@@ -179,9 +172,9 @@
         }
 
         input:focus {
-            background: #fffdf2;
+            background: #fffdf5;
             border-color: #000;
-            box-shadow: inset 3px 3px 0 rgba(255, 192, 72, 0.45);
+            box-shadow: inset 3px 3px 0 rgba(255, 211, 42, 0.45);
         }
 
         input::-webkit-calendar-picker-indicator {
@@ -233,14 +226,15 @@
             text-decoration: underline;
         }
 
-        /* 街機立體按鈕 */
+        /* 街機實體反饋按鈕 */
         button.btn-submit {
             width: 100%;
-            padding: 15px;
+            padding: 16px;
             border: 3px solid var(--pixel-border);
-            background: var(--bee-yellow);
+            background: var(--main-yellow);
             color: #1e272e;
-            font-size: 1.15rem;
+            font-family: 'Russo One', 'Noto Sans TC', sans-serif;
+            font-size: 1.25rem;
             font-weight: 900;
             cursor: pointer;
             box-shadow: 0 6px 0 var(--pixel-border);
@@ -248,11 +242,11 @@
             transition: all 0.06s ease;
             position: relative;
             user-select: none;
-            letter-spacing: 0.5px;
+            letter-spacing: 1px;
         }
 
         button.btn-submit:hover {
-            filter: brightness(1.04);
+            background: var(--main-yellow-hover);
         }
 
         button.btn-submit:active {
@@ -265,9 +259,9 @@
             display: flex;
             align-items: center;
             color: var(--text-gray);
-            font-size: 0.75rem;
-            font-family: 'Silkscreen', cursive;
-            font-weight: 700;
+            font-size: 0.8rem;
+            font-family: 'Russo One', sans-serif;
+            letter-spacing: 1px;
         }
 
         .divider::before, .divider::after { 
@@ -286,7 +280,7 @@
             border: 3px solid var(--pixel-border);
             background: white;
             font-weight: 900;
-            font-size: 0.95rem;
+            font-size: 1rem;
             color: var(--text-dark);
             display: flex;
             align-items: center;
@@ -340,8 +334,8 @@
 
     <div class="card">
         <div class="logo-wrap">
-            <div class="pixel-badge">✦ GET RICH WITH PYTHON ✦</div>
-            <h1>🐝 BeeRich</h1>
+            <div class="pixel-badge">LEVEL 1 READY</div>
+            <h1>BeeRich</h1>
             <p class="tagline">Python Adventure</p>
         </div>
 
@@ -404,7 +398,7 @@
     <!-- 像素 RPG 對話視窗 -->
     <div id="statusModal" class="modal-overlay">
         <div class="modal-card">
-            <h2 id="modalTitle" style="font-family: 'Silkscreen', cursive; font-size: 1.15rem; margin-bottom: 16px;">TITLE</h2>
+            <h2 id="modalTitle" style="font-family: 'Russo One', sans-serif; font-size: 1.25rem; margin-bottom: 16px;">TITLE</h2>
             <p id="modalMsg" style="font-size: 1.05rem; font-weight: 900; color: #2d3436; margin-bottom: 25px; line-height: 1.6;">內容訊息</p>
             <button id="modalBtn" class="btn-submit" onclick="closeModal()">OK (確認)</button>
         </div>
@@ -585,7 +579,7 @@
         titleEl.style.color = isSuccess ? "var(--pixel-green)" : "var(--pixel-red)";
         
         if (btnEl) {
-            btnEl.style.background = isSuccess ? "var(--bee-yellow)" : "var(--pixel-red)";
+            btnEl.style.background = isSuccess ? "var(--main-yellow)" : "var(--pixel-red)";
             btnEl.style.color = isSuccess ? "#1e272e" : "#ffffff";
         }
         modal.style.display = 'flex';
