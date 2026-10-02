@@ -288,19 +288,6 @@
             box-shadow: 0 5px 0 #000;
         }
 
-        /* 💡 正常端正的標題樣式 */
-        .player-section-title {
-            font-family: 'Noto Sans TC', sans-serif !important;
-            font-weight: 900 !important;
-            font-size: 1.25rem;
-            color: var(--text-dark);
-            margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            letter-spacing: 0.5px;
-        }
-
         /* 像素對話彈窗 */
         #passwordModal {
             display: none;
@@ -356,7 +343,6 @@
     <div class="header-left"><h1>BeeRich</h1></div>
     <div class="header-right">
         <div class="player-badge">
-            <span>👾</span>
             <span id="topPlayerName">載入中...</span>
         </div>
         <button class="menu-btn" onclick="toggleMenu()">
@@ -395,8 +381,8 @@
                 </div>
 
                 <div class="player-section">
-                    <h3 class="player-section-title">
-                        <span>👥</span>目前玩家 (<span id="playerCount">1</span>/2)
+                    <h3 style="font-weight: 900; font-size: 1.25rem; color: var(--text-dark); margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                        <span>👥</span> 目前玩家 (<span id="playerCount">1</span>/2)
                     </h3>
                     
                     <div class="player-card">
