@@ -21,6 +21,17 @@
             --text-gray: #747d8c;
         }
 
+        /* 徹底重置所有內外距，避免頂部產生縫隙與線條殘留 */
+        html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            outline: none !important;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+        }
+
         * {
             box-sizing: border-box;
             margin: 0;
@@ -35,15 +46,17 @@
                 linear-gradient(rgba(0, 0, 0, 0.05) 2px, transparent 2px),
                 linear-gradient(90deg, rgba(0, 0, 0, 0.05) 2px, transparent 2px);
             background-size: 28px 28px;
-            height: 100vh;
             display: flex;
             flex-direction: column;
-            overflow: hidden;
             position: relative;
         }
 
-        /* 頂部導覽列：移除多餘陰影，徹底消除重疊橫線 */
+        /* 頂部導覽列：貼齊最頂端，無任何上邊框與陰影 */
         header {
+            margin: 0 !important;
+            top: 0;
+            left: 0;
+            width: 100%;
             background: white;
             padding: 0 35px;
             display: flex;
@@ -51,8 +64,9 @@
             align-items: center;
             height: 80px;
             z-index: 100;
+            border: none;
             border-bottom: 4px solid var(--pixel-border);
-            box-shadow: none; /* 💡 移除陰影，線條乾淨純粹 */
+            box-shadow: none !important;
         }
 
         .header-left h1 {
@@ -353,7 +367,6 @@
     </style>
 </head>
 <body>
-
 <div class="menu-overlay" id="overlay" onclick="toggleMenu()"></div>
 
 <div class="side-menu" id="sideMenu">
@@ -753,6 +766,5 @@
         }, 5000);
     }
 </script>
-
 </body>
 </html>
