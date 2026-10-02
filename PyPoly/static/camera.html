@@ -3,98 +3,382 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PyPoly - Admin Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
+    <title>BeeRich - Admin Dashboard</title>
+    <!-- 引入與全站一致的精選像素與高質感字型 -->
+    <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary-blue: #4facfe;
-            --success-green: #00cdac;
-            --success-green-shadow: #00a88b;
-            --bg-gray: #f1f5f9;
-            --text-dark: #000000;
-            --text-gray: #64748b;
-            --sidebar-dark: #334155;
-            --sidebar-dark-shadow: #1e293b;
-            --border-light: #e2e8f0;
-            --danger-red: #ff7675;
+            --pixel-border: #1e272e;
+            --bee-gold: #ffc048;
+            --bee-yellow: #ffdd59;
+            --bee-dark: #2f3542;
+            --pixel-green: #05c46b;
+            --pixel-blue: #0fbcf9;
+            --pixel-red: #ff3f34;
+            --bg-grid: #d2dae2;
+            --card-bg: #ffffff;
+            --text-dark: #1e272e;
+            --text-gray: #747d8c;
+            --sidebar-dark: #2f3542;
+            --sidebar-dark-shadow: #1e272e;
+            --border-light: #1e272e;
+            --danger-red: #ff3f34;
+            --gold-yellow: #ffc048;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
-        body { background-color: var(--bg-gray); height: 100%; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+        html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            outline: none !important;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+        }
 
-        /* 🏆 Header：移除選單按鈕 */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            image-rendering: pixelated;
+        }
+
+        body {
+            background-color: var(--bg-grid);
+            /* 像素幾何網格背景 */
+            background-image: 
+                linear-gradient(rgba(0, 0, 0, 0.05) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.05) 2px, transparent 2px);
+            background-size: 28px 28px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* 頂部像素風格導覽列 */
         header {
-            background: linear-gradient(to bottom, #ffffff 0%, #fcfcfc 100%);
-            padding: 0 40px; display: flex; justify-content: space-between; align-items: center;
-            height: 85px; z-index: 100; border-bottom: 1.5px solid var(--border-light); 
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+            margin: 0 !important;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: white;
+            padding: 0 35px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 80px;
+            z-index: 100;
+            border: none;
+            border-bottom: 4px solid var(--pixel-border);
+            box-shadow: none !important;
+            flex-shrink: 0;
         }
-        .header-left h1 { font-size: 2.5rem; font-weight: 900; margin-bottom: 10px; color: var(--text-dark); }
-        .header-right { display: flex; align-items: center; gap: 20px; }
-        .page-tag { font-weight: 800; color: var(--text-gray); background: #f1f5f9; padding: 10px 22px; border-radius: 12px; font-size: 0.95rem; }
 
-        /* 🏆 Admin Layout */
-        .admin-main { flex: 1; display: flex; justify-content: center; align-items: center; padding: 20px; }
-        .admin-container { display: flex; gap: 30px; width: 95%; max-width: 1250px; height: 82vh; }
+        .header-left h1 {
+            font-family: 'VT323', monospace;
+            font-size: 3.2rem;
+            line-height: 1;
+            color: var(--bee-gold);
+            text-shadow: 
+                2px 2px 0 var(--pixel-border),
+                -1.5px -1.5px 0 var(--pixel-border),
+                2px -1.5px 0 var(--pixel-border),
+                -1.5px 2px 0 var(--pixel-border),
+                4px 4px 0 var(--bee-dark);
+            letter-spacing: 2px;
+            user-select: none;
+            cursor: pointer;
+        }
 
-        /* Sidebar Nav */
+        .header-right { display: flex; align-items: center; gap: 18px; }
+
+        .page-tag {
+            background: #fffdf2;
+            border: 3px solid var(--pixel-border);
+            padding: 6px 16px;
+            border-radius: 4px;
+            font-weight: 900;
+            font-size: 1rem;
+            color: var(--text-dark);
+            box-shadow: 3px 3px 0 #000;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Admin 主要佈局 */
+        .admin-main {
+            height: calc(100vh - 80px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            overflow: hidden;
+        }
+
+        .admin-container {
+            display: flex;
+            gap: 25px;
+            width: 95%;
+            max-width: 1280px;
+            height: 100%;
+            align-items: stretch;
+        }
+
+        /* 側邊導覽欄 */
         .admin-nav {
-            width: 280px; background: white; border-radius: 35px; padding: 30px 20px;
-            display: flex; flex-direction: column; gap: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #f1f2f6;
+            width: 280px;
+            background: white;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0px #000;
+            padding: 24px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            flex-shrink: 0;
         }
+
+        .admin-nav h2 {
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            font-weight: 900;
+            font-size: 1.35rem;
+            margin-bottom: 10px;
+            padding-left: 6px;
+            color: var(--text-dark);
+            border-bottom: 3px solid var(--pixel-border);
+            padding-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+
         .nav-link { 
-            width: 100%; padding: 16px; border: none; border-radius: 15px; 
-            font-weight: 900; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 12px;
-            background: #f8fafc; color: var(--text-gray); transition: 0.2s; text-decoration: none;
+            width: 100%;
+            padding: 13px 16px;
+            border: 3px solid var(--pixel-border);
+            font-size: 0.95rem;
+            font-weight: 900;
+            cursor: pointer;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #f8fafc;
+            color: var(--text-dark);
+            transition: all 0.06s ease;
+            text-decoration: none;
+            box-shadow: 3px 3px 0 #000;
+            user-select: none;
         }
-        .nav-link.active { background: var(--sidebar-dark); color: white; box-shadow: 0 6px 0 var(--sidebar-dark-shadow); }
-        .nav-link:hover:not(.active) { background: #f1f5f9; }
 
-        /* Main Content Board */
-        .admin-board { flex: 1; display: grid; grid-template-rows: auto 1fr; gap: 20px; overflow: hidden; }
+        .nav-link:hover:not(.active) {
+            background: #fffdf2;
+            transform: translate(-1px, -1px);
+            box-shadow: 4px 4px 0 #000;
+        }
+
+        .nav-link.active {
+            background: var(--bee-yellow);
+            color: var(--text-dark);
+            transform: translate(2px, 2px);
+            box-shadow: 1px 1px 0 #000;
+        }
+
+        .nav-link:active {
+            transform: translate(3px, 3px);
+            box-shadow: 0 0 0 #000;
+        }
+
+        /* 右側主看板 */
+        .admin-board {
+            flex: 1;
+            display: grid;
+            grid-template-rows: auto 1fr;
+            gap: 18px;
+            overflow: hidden;
+            height: 100%;
+        }
         
-        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-        .stat-card { background: white; padding: 20px; border-radius: 25px; border: 1px solid var(--border-light); text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.02); }
-        .stat-label { font-size: 0.8rem; font-weight: 900; color: var(--text-gray); text-transform: uppercase; margin-bottom: 5px; }
-        .stat-val { font-size: 1.8rem; font-weight: 900; color: var(--text-dark); }
-        .stat-val span { color: var(--success-green); font-size: 0.9rem; margin-left: 5px; }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
 
-        .board-content { background: white; border-radius: 40px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); overflow-y: auto; border: 1px solid #f1f2f6; }
-        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
-        .section-title { font-weight: 900; font-size: 1.3rem; border-left: 8px solid var(--primary-blue); padding-left: 15px; }
+        .stat-card {
+            background: white;
+            padding: 16px 20px;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0 #000;
+            text-align: center;
+        }
 
-        .vision-debug-grid { display: grid; grid-template-columns: 1fr 300px; gap: 20px; height: 100%; }
-        .camera-feed { background: #000; border-radius: 25px; position: relative; overflow: hidden; display: flex; justify-content: center; align-items: center; color: rgba(255,255,255,0.3); min-height: 400px; }
-        .debug-overlay-info { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.6); padding: 15px; border-radius: 15px; color: #00ff00; font-family: monospace; font-size: 0.85rem; pointer-events: none; }
+        .stat-label {
+            font-size: 0.82rem;
+            font-weight: 900;
+            color: var(--text-gray);
+            text-transform: uppercase;
+            margin-bottom: 6px;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-val {
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            font-size: 2rem;
+            font-weight: 900;
+            color: var(--text-dark);
+            line-height: 1.15;
+        }
+
+        .stat-val span {
+            color: var(--pixel-green);
+            font-size: 0.95rem;
+            margin-left: 4px;
+        }
+
+        .board-content {
+            background: white;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0 #000;
+            padding: 24px 28px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 3px solid var(--pixel-border);
+            padding-bottom: 12px;
+        }
+
+        .section-title {
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            font-weight: 900;
+            font-size: 1.3rem;
+            border-left: 8px solid var(--pixel-blue);
+            padding-left: 14px;
+            color: var(--text-dark);
+            letter-spacing: 0.5px;
+        }
+
+        .vision-debug-grid {
+            display: grid;
+            grid-template-columns: 1fr 320px;
+            gap: 20px;
+            height: 100%;
+        }
+
+        .camera-feed {
+            background: #1e272e;
+            border: 4px solid var(--pixel-border);
+            box-shadow: inset 3px 3px 0 rgba(0,0,0,0.3);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: rgba(255,255,255,0.4);
+            min-height: 380px;
+        }
+
+        .debug-overlay-info {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            background: rgba(0,0,0,0.75);
+            border: 2px solid var(--pixel-green);
+            box-shadow: 3px 3px 0 #000;
+            padding: 12px 14px;
+            color: var(--pixel-green);
+            font-family: 'Consolas', monospace;
+            font-size: 0.85rem;
+            font-weight: 700;
+            line-height: 1.5;
+            pointer-events: none;
+        }
         
-        .debug-sidebar { display: flex; flex-direction: column; gap: 15px; }
-        .debug-log-box { flex: 1; background: #f8fafc; border-radius: 20px; padding: 15px; font-size: 0.8rem; font-family: monospace; overflow-y: auto; border: 1px solid var(--border-light); }
-        .log-entry { margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
-        .log-entry.success { color: var(--success-green); }
-        .log-entry.warn { color: var(--gold-yellow); }
+        .debug-sidebar { display: flex; flex-direction: column; gap: 12px; }
 
-        .btn-refresh { padding: 12px; background: var(--sidebar-dark); color: white; border: none; border-radius: 12px; font-weight: 800; cursor: pointer; }
+        .debug-log-box {
+            flex: 1;
+            background: #f8fafc;
+            border: 3px solid var(--pixel-border);
+            box-shadow: inset 2px 2px 0 rgba(0,0,0,0.06);
+            padding: 14px;
+            font-size: 0.82rem;
+            font-family: 'Consolas', monospace;
+            font-weight: 700;
+            overflow-y: auto;
+            max-height: 330px;
+        }
+
+        .log-entry {
+            margin-bottom: 8px;
+            border-bottom: 2px dashed #dfe4ea;
+            padding-bottom: 6px;
+            color: var(--text-dark);
+        }
+        .log-entry.success { color: var(--pixel-green); }
+        .log-entry.warn { color: #d97706; }
+
+        .btn-refresh {
+            padding: 11px 18px;
+            background: var(--bee-yellow);
+            color: var(--text-dark);
+            border: 3px solid var(--pixel-border);
+            font-size: 0.95rem;
+            font-weight: 900;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #000;
+            transition: 0.06s ease;
+            user-select: none;
+            letter-spacing: 0.5px;
+        }
+        .btn-refresh:hover { filter: brightness(1.05); }
+        .btn-refresh:active {
+            transform: translate(2px, 2px);
+            box-shadow: 0 0 0 #000;
+        }
+
+        /* 滾動條樣式 */
+        .board-content::-webkit-scrollbar,
+        .debug-log-box::-webkit-scrollbar { width: 8px; }
+        .board-content::-webkit-scrollbar-track,
+        .debug-log-box::-webkit-scrollbar-track { background: #dfe4ea; border-left: 2px solid var(--pixel-border); }
+        .board-content::-webkit-scrollbar-thumb,
+        .debug-log-box::-webkit-scrollbar-thumb { background: var(--pixel-border); }
+
+        @media (max-width: 950px) {
+            header { padding: 0 20px; }
+            .admin-container { flex-direction: column; height: auto; }
+            .admin-nav { width: 100%; }
+            .vision-debug-grid { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
 
 <header>
-    <div class="header-left"><h1>PyPoly</h1></div>
+    <div class="header-left"><h1 onclick="location.href='admin.html'">BeeRich</h1></div>
     <div class="header-right">
-        <div class="page-tag">管理後台中心 ⚙️</div>
+        <div class="page-tag"><span>📷</span> 辨識監控中心</div>
     </div>
 </header>
 
 <div class="admin-main">
     <div class="admin-container">
         <aside class="admin-nav">
-            <h2 style="font-weight: 900; font-size: 1.4rem; margin-bottom: 15px; padding-left: 10px;">後台選單</h2>
+            <h2><span>📋</span> 後台選單</h2>
             <a href="admin.html" class="nav-link"><span>👥</span> 用戶權限管理</a>
             <a href="question.html" class="nav-link"><span>❓</span> 考題庫編輯</a>
             <a href="camera.html" class="nav-link active"><span>📷</span> 影像辨識偵錯</a>
-            <a href="game data.html" class="nav-link"><span>📈</span> 遊戲數據監控</a>
-            <a href="Login.html" class="nav-link" style="margin-top: auto; color: var(--danger-red);"><span>🚪</span> 登出系統</a>
+            <a href="game_data.html" class="nav-link"><span>📈</span> 遊戲數據監控</a>
+            <a href="Login.html" class="nav-link" style="margin-top: auto; color: white; background: var(--pixel-red);"><span>🚪</span> 登出系統</a>
         </aside>
 
         <main class="admin-board">
@@ -116,14 +400,14 @@
             <div class="board-content">
                 <div class="section-header">
                     <div class="section-title">影像辨識偵錯 (Camera ID: #CAM-084)</div>
-                    <button class="btn-refresh">重新校準 AI</button>
+                    <button class="btn-refresh">🔄 重新校準 AI</button>
                 </div>
 
                 <div class="vision-debug-grid">
                     <div class="camera-feed">
-                        <div style="text-align: center;">
-                            <p>[ Camera Stream Offline / Simulation Mode ]</p>
-                            <small>Mediapipe Hands Loading...</small>
+                        <div style="text-align: center; font-weight: 900;">
+                            <p style="font-size: 1.1rem; color: #dfe4ea; margin-bottom: 6px;">[ Camera Stream Offline / Simulation Mode ]</p>
+                            <small style="color: var(--bee-yellow); font-family: monospace;">Mediapipe Hands Loading...</small>
                         </div>
                         <div class="debug-overlay-info">
                             FPS: 60.2<br>
@@ -134,7 +418,7 @@
                     </div>
 
                     <div class="debug-sidebar">
-                        <div class="stat-label">即時辨識日誌</div>
+                        <div class="stat-label" style="text-align: left; margin-bottom: 2px;">即時辨識日誌</div>
                         <div class="debug-log-box">
                             <div class="log-entry success">[12:30:01] Player_Sandy: KNOCK_UP detected. (Conf: 0.98)</div>
                             <div class="log-entry">[12:30:05] Waiting for number gesture...</div>
@@ -143,7 +427,7 @@
                             <div class="log-entry">[12:30:20] Bot_AI: Dice roll trigger received.</div>
                             <div class="log-entry success">[12:30:25] Squat action verified for Customs check.</div>
                         </div>
-                        <button class="btn-refresh" style="background: var(--primary-blue);">下載偵錯數據</button>
+                        <button class="btn-refresh" style="background: var(--pixel-blue); color: white;">💾 下載偵錯數據</button>
                     </div>
                 </div>
             </div>
@@ -231,8 +515,12 @@
 
     // 🏆 其他選單邏輯 (如果有的話)
     function toggleMenu() {
-        document.getElementById('sideMenu').classList.toggle('open');
-        document.getElementById('overlay').classList.toggle('open');
+        const sideMenu = document.getElementById('sideMenu');
+        const overlay = document.getElementById('overlay');
+        if (sideMenu && overlay) {
+            sideMenu.classList.toggle('open');
+            overlay.classList.toggle('open');
+        }
     }
 </script>
 
