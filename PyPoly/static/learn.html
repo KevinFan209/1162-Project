@@ -3,210 +3,472 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PyPoly - 學習成就統計</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
+    <title>BeeRich - 學習成就統計</title>
+    <!-- 引入與登入、大廳、個人主頁一致的精選字型 -->
+    <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
     <style>
         :root {
-            --success-green: #00cdac;
-            --success-green-shadow: #00a88b;
-            --bg-gray: #f1f5f9;
-            --text-dark: #000000;
-            --text-gray: #64748b;
-            --border-light: #e2e8f0;
-            --wrong-red: #ff7675;
-            --wrong-dark: #d63031;
+            --pixel-border: #1e272e;
+            --bee-gold: #ffc048;
+            --bee-yellow: #ffdd59;
+            --bee-dark: #2f3542;
+            --pixel-green: #05c46b;
+            --pixel-blue: #0fbcf9;
+            --pixel-red: #ff3f34;
+            --bg-grid: #d2dae2;
+            --card-bg: #ffffff;
+            --text-dark: #1e272e;
+            --text-gray: #747d8c;
+            --wrong-red: #ff3f34;
+            --wrong-dark: #b33939;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
-        body { background-color: var(--bg-gray); height: 100vh; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+        html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            outline: none !important;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+        }
 
-        header {
-            background: linear-gradient(to bottom, #ffffff 0%, #fcfcfc 100%);
-            padding: 0 40px;
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            image-rendering: pixelated;
+        }
+
+        body {
+            background-color: var(--bg-grid);
+            /* 像素幾何網格背景 */
+            background-image: 
+                linear-gradient(rgba(0, 0, 0, 0.05) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.05) 2px, transparent 2px);
+            background-size: 28px 28px;
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            height: 85px;
-            z-index: 1001;
-            border-bottom: 1.5px solid var(--border-light); 
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+            flex-direction: column;
             position: relative;
         }
 
-        .header-left h1 {
-            font-size: 2.5rem;
-            font-weight: 900;
-            margin-bottom: 10px;
-            color: var(--text-dark);
+        /* 頂部像素風格導覽列 */
+        header {
+            margin: 0 !important;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: white;
+            padding: 0 35px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 80px;
+            z-index: 1001;
+            border: none;
+            border-bottom: 4px solid var(--pixel-border);
+            box-shadow: none !important;
         }
 
-        .header-right { display: flex; align-items: center; gap: 20px; }
+        .header-left h1 {
+            font-family: 'VT323', monospace;
+            font-size: 3.2rem;
+            line-height: 1;
+            color: var(--bee-gold);
+            text-shadow: 
+                2px 2px 0 var(--pixel-border),
+                -1.5px -1.5px 0 var(--pixel-border),
+                2px -1.5px 0 var(--pixel-border),
+                -1.5px 2px 0 var(--pixel-border),
+                4px 4px 0 var(--bee-dark);
+            letter-spacing: 2px;
+            user-select: none;
+            cursor: pointer;
+        }
 
-        .page-tag { 
-            font-weight: 800; 
-            color: var(--text-gray); 
-            background: #f1f5f9; 
-            padding: 10px 22px; 
-            border-radius: 12px; 
-            font-size: 0.95rem; 
+        .header-right { display: flex; align-items: center; gap: 18px; }
+
+        .page-tag {
+            background: #fffdf2;
+            border: 3px solid var(--pixel-border);
+            padding: 6px 16px;
+            border-radius: 4px;
+            font-weight: 900;
+            font-size: 1rem;
+            color: var(--text-dark);
+            box-shadow: 3px 3px 0 #000;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
 
         .menu-btn {
-            background: transparent;
-            border: none;
+            background: white;
+            border: 3px solid var(--pixel-border);
             cursor: pointer;
             display: flex;
-            flex-direction: column;
+            align-items: center;
             justify-content: center;
-            padding: 10px;
-            transition: 0.2s;
+            padding: 6px;
+            box-shadow: 3px 3px 0 #000;
+            transition: 0.1s;
         }
-        .menu-btn:hover { opacity: 0.6; }
+        .menu-btn:hover { background: #fffdf2; }
+        .menu-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
 
         .menu-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.15); display: none; z-index: 999;
-            backdrop-filter: blur(2px);
+            background: rgba(0, 0, 0, 0.45); display: none; z-index: 999;
         }
         .menu-overlay.open { display: block; }
 
         .side-menu {
             position: fixed; top: 0; right: -320px; width: 320px; height: 100%;
-            background: white; box-shadow: -10px 0 30px rgba(0,0,0,0.05);
-            z-index: 1000; transition: 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
-            padding: 100px 30px 40px; display: flex; flex-direction: column; gap: 15px;
+            background: white; border-left: 4px solid var(--pixel-border);
+            box-shadow: -8px 0 0 rgba(0,0,0,0.2);
+            z-index: 1000; transition: 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
+            padding: 90px 25px 35px; display: flex; flex-direction: column; gap: 14px;
         }
         .side-menu.open { right: 0; }
 
         .menu-item {
-            padding: 18px 25px; border-radius: 15px; font-weight: 800;
-            color: var(--text-gray); text-decoration: none; display: flex;
-            align-items: center; gap: 15px; transition: 0.2s; background: #f8fafc;
+            padding: 14px 20px; font-weight: 900;
+            color: var(--text-dark); text-decoration: none; display: flex;
+            align-items: center; gap: 12px; transition: 0.1s; background: #f1f2f6;
+            border: 3px solid var(--pixel-border); box-shadow: 3px 3px 0 #000;
         }
-        .menu-item:hover { background: var(--bg-gray); color: var(--text-dark); }
-        .menu-item.danger { margin-top: auto; color: #ff4757; cursor: pointer; }
+        .menu-item:hover { background: var(--bee-yellow); }
+        .menu-item:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+        .menu-item.danger { margin-top: auto; color: white; background: var(--pixel-red); }
 
-        .stats-main { flex: 1; display: grid; grid-template-columns: 1fr 420px; gap: 25px; padding: 25px; overflow: hidden; }
-        .stats-content { display: grid; grid-template-rows: auto auto 1fr; gap: 25px; overflow-y: auto; padding-right: 10px; }
-        .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-        .summary-card { background: white; padding: 28px 20px; border-radius: 35px; border: 1.5px solid var(--border-light); text-align: center; display: flex; flex-direction: column; justify-content: center; }
-        .summary-label { color: var(--text-gray); font-weight: 900; font-size: 0.85rem; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
-        .summary-value { font-size: 2.2rem; font-weight: 900; color: var(--text-dark); line-height: 1.2; }
-        .summary-sub { font-size: 0.85rem; font-weight: 800; color: var(--text-gray); margin-top: 5px; }
-        .summary-unit { font-size: 1rem; color: var(--success-green); margin-left: 4px; }
+        /* 主體兩欄佈局 */
+        .stats-main {
+            height: calc(100vh - 80px);
+            display: grid;
+            grid-template-columns: 1fr 430px;
+            gap: 24px;
+            padding: 20px 30px;
+            overflow: hidden;
+        }
 
-        .chart-section { background: white; border-radius: 35px; padding: 30px 40px; border: 1.5px solid var(--border-light); display: flex; flex-direction: column; gap: 16px; }
-        .chart-header-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
-        .chart-header { font-weight: 900; font-size: 1.4rem; border-left: 8px solid var(--success-green); padding-left: 15px; }
-        
-        .filter-tabs { display: inline-flex; background: var(--bg-gray); padding: 4px; border-radius: 14px; gap: 4px; }
-        .filter-tab-btn {
-            border: none;
-            background: transparent;
-            padding: 6px 14px;
-            font-size: 0.85rem;
-            font-weight: 800;
+        .stats-content {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+
+        /* 頂部三大成就指標卡片 */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        .summary-card {
+            background: white;
+            padding: 20px 16px;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0 #000;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .summary-label {
             color: var(--text-gray);
-            border-radius: 10px;
-            cursor: pointer;
-            transition: 0.2s;
+            font-weight: 900;
+            font-size: 0.82rem;
+            margin-bottom: 6px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
         }
+
+        .summary-value {
+            font-family: 'Silkscreen', 'Zen Maru Gothic', sans-serif;
+            font-size: 2.1rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            line-height: 1.15;
+        }
+
+        .summary-sub {
+            font-size: 0.88rem;
+            font-weight: 900;
+            color: var(--text-gray);
+            margin-top: 6px;
+        }
+
+        .summary-unit {
+            font-size: 1.1rem;
+            color: var(--pixel-green);
+            margin-left: 4px;
+        }
+
+        /* 知識維度與作答記錄區塊 */
+        .chart-section {
+            background: white;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0 #000;
+            padding: 24px 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .chart-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            border-bottom: 3px solid var(--pixel-border);
+            padding-bottom: 12px;
+        }
+
+        .chart-header {
+            font-family: 'Silkscreen', 'Zen Maru Gothic', sans-serif;
+            font-weight: 700;
+            font-size: 1.25rem;
+            color: var(--text-dark);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .filter-tabs {
+            display: inline-flex;
+            background: #dfe4ea;
+            border: 3px solid var(--pixel-border);
+            padding: 3px;
+            gap: 4px;
+        }
+
+        .filter-tab-btn {
+            border: 2px solid transparent;
+            background: transparent;
+            padding: 5px 12px;
+            font-size: 0.85rem;
+            font-weight: 900;
+            color: var(--text-dark);
+            cursor: pointer;
+            transition: 0.1s;
+        }
+
         .filter-tab-btn.active {
             background: white;
-            color: var(--text-dark);
-            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+            border-color: var(--pixel-border);
+            box-shadow: 2px 2px 0 #000;
         }
-        .filter-count { font-size: 0.75rem; margin-left: 4px; opacity: 0.8; }
 
-        .progress-item { display: flex; align-items: center; gap: 20px; margin-bottom: 18px; }
-        .skill-name { width: 140px; font-weight: 900; color: var(--text-dark); font-size: 1.05rem; }
-        .progress-bar-bg { flex: 1; height: 16px; background: var(--bg-gray); border-radius: 10px; overflow: hidden; }
-        .progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--success-green), #55efc4); border-radius: 10px; transition: width 0.6s cubic-bezier(0.165, 0.84, 0.44, 1); }
-        .progress-bar-fill.weak { background: linear-gradient(90deg, #ff7675, #fdcb6e); }
-        .progress-count { width: 70px; text-align: right; font-weight: 900; color: var(--text-gray); font-size: 0.95rem; }
-        .empty-hint { color: var(--text-gray); font-weight: 700; line-height: 1.8; padding: 10px 0; }
+        .filter-count { font-size: 0.75rem; margin-left: 4px; opacity: 0.85; }
 
-        .q-history-container { display: flex; flex-direction: column; gap: 14px; max-height: 380px; overflow-y: auto; padding-right: 6px; }
+        /* 進度條樣式 */
+        .progress-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 14px;
+        }
+
+        .skill-name {
+            width: 130px;
+            font-weight: 900;
+            color: var(--text-dark);
+            font-size: 1rem;
+        }
+
+        .progress-bar-bg {
+            flex: 1;
+            height: 18px;
+            background: #dfe4ea;
+            border: 3px solid var(--pixel-border);
+            overflow: hidden;
+            box-shadow: inset 2px 2px 0 rgba(0,0,0,0.15);
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--pixel-green);
+            transition: width 0.4s ease;
+        }
+
+        .progress-bar-fill.weak {
+            background: var(--bee-yellow);
+        }
+
+        .progress-count {
+            width: 70px;
+            text-align: right;
+            font-weight: 900;
+            color: var(--text-dark);
+            font-size: 0.95rem;
+        }
+
+        .empty-hint {
+            color: var(--text-gray);
+            font-weight: 900;
+            line-height: 1.8;
+            padding: 10px 0;
+            font-size: 0.95rem;
+        }
+
+        /* 題目卡片 */
+        .q-history-container {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            max-height: 380px;
+            overflow-y: auto;
+            padding-right: 6px;
+        }
+
         .q-card {
             background: #f8fafc;
-            border-radius: 20px;
-            border: 1.5px solid var(--border-light);
+            border: 3px solid var(--pixel-border);
+            box-shadow: 4px 4px 0 #000;
             padding: 16px 20px;
             display: flex;
             flex-direction: column;
             gap: 10px;
-            transition: transform 0.15s ease;
+            transition: transform 0.1s ease;
         }
-        .q-card:hover { transform: translateY(-2px); }
-        .q-card.is-wrong { border-left: 6px solid var(--wrong-red); }
-        .q-card.is-correct { border-left: 6px solid var(--success-green); }
+
+        .q-card:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 #000;
+            background: #fffdf5;
+        }
+
+        .q-card.is-wrong { border-left: 8px solid var(--wrong-red); }
+        .q-card.is-correct { border-left: 8px solid var(--pixel-green); }
+
         .q-card-top { display: flex; justify-content: space-between; align-items: center; }
-        .q-badge { font-size: 0.8rem; font-weight: 900; padding: 4px 10px; border-radius: 8px; }
-        .q-badge.correct { background: #e6fffa; color: var(--success-green-shadow); }
+
+        .q-badge {
+            font-size: 0.75rem;
+            font-weight: 900;
+            padding: 3px 8px;
+            border: 2px solid var(--pixel-border);
+            box-shadow: 2px 2px 0 #000;
+        }
+
+        .q-badge.correct { background: #e6fffa; color: #008f72; }
         .q-badge.wrong { background: #ffeaa7; color: var(--wrong-dark); }
-        .q-topic-tag { font-size: 0.85rem; font-weight: 800; color: var(--text-gray); }
-        .q-text { font-weight: 900; font-size: 1.05rem; color: var(--text-dark); line-height: 1.5; }
-        .q-choices-info { font-size: 0.95rem; font-weight: 700; color: #475569; display: flex; flex-direction: column; gap: 5px; }
+
+        .q-topic-tag {
+            font-size: 0.88rem;
+            font-weight: 900;
+            color: var(--text-dark);
+        }
+
+        .q-text {
+            font-weight: 900;
+            font-size: 1.05rem;
+            color: var(--text-dark);
+            line-height: 1.5;
+        }
+
+        .q-choices-info {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            background: white;
+            padding: 8px 12px;
+            border: 2px solid var(--pixel-border);
+        }
+
         .q-card-bottom { display: flex; justify-content: flex-end; margin-top: 4px; }
 
         .btn-ask-item {
-            padding: 8px 18px;
-            background: white;
-            border: 1.5px solid var(--success-green);
-            color: var(--success-green-shadow);
-            border-radius: 12px;
-            font-size: 0.9rem;
-            font-weight: 800;
+            padding: 8px 16px;
+            background: var(--bee-yellow);
+            border: 3px solid var(--pixel-border);
+            box-shadow: 0 4px 0 #000;
+            color: var(--text-dark);
+            font-size: 0.88rem;
+            font-weight: 900;
             cursor: pointer;
-            transition: 0.2s;
+            transition: 0.06s ease;
         }
-        .btn-ask-item:hover { background: var(--success-green); color: white; }
 
-        .side-ai-panel { 
-            background: white; 
-            border-radius: 35px; 
-            border: 1.5px solid var(--border-light); 
-            padding: 24px; 
-            display: flex; 
-            flex-direction: column; 
-            gap: 14px;
+        .btn-ask-item:active {
+            transform: translate(2px, 2px);
+            box-shadow: 0 0 0 #000;
+        }
+
+        /* 右側：AI 導師解惑室 */
+        .side-ai-panel {
+            background: white;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0px #000;
+            padding: 22px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
             height: 100%;
             overflow: hidden;
         }
-        .ai-header { font-weight: 900; font-size: 1.35rem; color: var(--text-dark); display: flex; align-items: center; gap: 10px; }
-        .ai-status-dot { width: 10px; height: 10px; background: var(--success-green); border-radius: 50%; animation: pulse 1.5s infinite; }
-        
+
+        .ai-header {
+            font-family: 'Silkscreen', 'Zen Maru Gothic', sans-serif;
+            font-weight: 700;
+            font-size: 1.25rem;
+            color: var(--text-dark);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 3px solid var(--pixel-border);
+            padding-bottom: 10px;
+        }
+
+        .ai-status-dot {
+            width: 10px;
+            height: 10px;
+            background: var(--pixel-green);
+            border: 2px solid var(--pixel-border);
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+
         .chat-messages-container {
             flex: 1;
             background: #f8fafc;
-            border-radius: 20px;
-            padding: 16px;
+            border: 3px solid var(--pixel-border);
+            padding: 14px;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
             gap: 12px;
+            box-shadow: inset 3px 3px 0 rgba(0,0,0,0.06);
         }
 
         .chat-bubble {
             max-width: 88%;
-            padding: 12px 16px;
-            border-radius: 18px;
+            padding: 10px 14px;
             font-size: 0.95rem;
             line-height: 1.6;
             font-weight: 700;
             word-break: break-word;
+            border: 3px solid var(--pixel-border);
+            box-shadow: 3px 3px 0 #000;
         }
+
         .chat-bubble.tutor {
             background: white;
-            color: #334155;
-            border: 1.5px solid var(--border-light);
-            border-top-left-radius: 4px;
+            color: var(--text-dark);
             align-self: flex-start;
         }
+
         .chat-bubble.user {
-            background: var(--success-green);
-            color: white;
-            border-top-right-radius: 4px;
+            background: var(--bee-yellow);
+            color: var(--text-dark);
             align-self: flex-end;
         }
 
@@ -214,73 +476,115 @@
             display: flex;
             flex-wrap: wrap;
             gap: 6px;
-            padding: 2px 4px;
+            padding: 2px 0;
         }
+
         .ai-chip-btn {
-            padding: 5px 11px;
+            padding: 5px 10px;
             background: #ffffff;
-            border: 1.5px solid var(--success-green);
-            border-radius: 16px;
-            color: var(--success-green-shadow);
+            border: 2px solid var(--pixel-border);
+            box-shadow: 2px 2px 0 #000;
+            color: var(--text-dark);
             font-size: 0.8rem;
-            font-weight: 800;
+            font-weight: 900;
             cursor: pointer;
-            transition: 0.15s;
+            transition: 0.06s ease;
         }
-        .ai-chip-btn:hover {
-            background: var(--success-green);
-            color: white;
+
+        .ai-chip-btn:hover { background: #fffdf2; }
+        .ai-chip-btn:active {
+            transform: translate(2px, 2px);
+            box-shadow: 0 0 0 #000;
         }
 
         .chat-input-bar {
             display: flex;
             gap: 8px;
-            background: #f8fafc;
-            border: 1.5px solid var(--border-light);
-            border-radius: 20px;
-            padding: 6px 8px 6px 14px;
             align-items: center;
         }
+
         .chat-input {
             flex: 1;
-            border: none;
-            background: transparent;
+            border: 3px solid var(--pixel-border);
+            background: white;
+            padding: 10px 12px;
             font-size: 0.95rem;
             font-weight: 700;
             color: var(--text-dark);
             outline: none;
+            box-shadow: inset 2px 2px 0 rgba(0,0,0,0.08);
         }
+
+        .chat-input:focus {
+            background: #fffdf2;
+            border-color: #000;
+        }
+
         .chat-input::placeholder { color: #94a3b8; }
+
         .btn-send-msg {
-            background: var(--success-green);
-            border: none;
-            border-radius: 14px;
-            width: 40px;
-            height: 40px;
+            background: var(--pixel-green);
+            border: 3px solid var(--pixel-border);
+            box-shadow: 0 4px 0 #000;
+            width: 42px;
+            height: 42px;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: 0.15s;
+            transition: 0.06s ease;
+            flex-shrink: 0;
         }
-        .btn-send-msg:hover { background: var(--success-green-shadow); }
+
+        .btn-send-msg:active {
+            transform: translate(2px, 2px);
+            box-shadow: 0 0 0 #000;
+        }
+
         .btn-send-msg svg { fill: white; width: 18px; height: 18px; }
 
-        .btn-action { 
-            padding: 14px; 
-            background: var(--success-green); 
-            color: white; 
-            border: none; 
-            border-radius: 18px; 
-            font-size: 1.1rem; 
-            font-weight: 900; 
-            cursor: pointer; 
-            box-shadow: 0 4px 0 var(--success-green-shadow); 
-            transition: 0.1s; 
+        .btn-action {
+            padding: 12px;
+            background: #dfe4ea;
+            color: var(--text-dark);
+            border: 3px solid var(--pixel-border);
+            box-shadow: 0 5px 0 #000;
+            font-size: 1.05rem;
+            font-weight: 900;
+            cursor: pointer;
+            transition: 0.06s ease;
         }
-        .btn-action:active { transform: translateY(2px); box-shadow: none; }
-        
-        @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.5); opacity: 0.5; } }
+
+        .btn-action:hover { background: #ced6e0; }
+        .btn-action:active {
+            transform: translate(3px, 3px);
+            box-shadow: 0 0 0 #000;
+        }
+
+        /* 滾動條像素化風格 */
+        .stats-content::-webkit-scrollbar,
+        .q-history-container::-webkit-scrollbar,
+        .chat-messages-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        .stats-content::-webkit-scrollbar-track,
+        .q-history-container::-webkit-scrollbar-track,
+        .chat-messages-container::-webkit-scrollbar-track {
+            background: #dfe4ea;
+            border-left: 2px solid var(--pixel-border);
+        }
+        .stats-content::-webkit-scrollbar-thumb,
+        .q-history-container::-webkit-scrollbar-thumb,
+        .chat-messages-container::-webkit-scrollbar-thumb {
+            background: var(--pixel-border);
+        }
+
+        @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.3); opacity: 0.6; } }
+
+        @media (max-width: 900px) {
+            .stats-main { grid-template-columns: 1fr; height: auto; overflow: auto; }
+            .side-ai-panel { height: 500px; }
+        }
     </style>
 </head>
 <body>
@@ -296,11 +600,11 @@
 </div>
 
 <header>
-    <div class="header-left"><h1>PyPoly</h1></div>
+    <div class="header-left" onclick="location.href='lobby.html'"><h1>BeeRich</h1></div>
     <div class="header-right">
-        <div class="page-tag">學習統計 📊</div>
+        <div class="page-tag"><span>📊</span> 學習統計</div>
         <button class="menu-btn" onclick="toggleMenu()">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
                 <line x1="3" y1="12" x2="21" y2="12"></line>
                 <line x1="3" y1="6" x2="21" y2="6"></line>
                 <line x1="3" y1="18" x2="21" y2="18"></line>
@@ -319,7 +623,7 @@
             </div>
             <div class="summary-card">
                 <div class="summary-label">熟練度等級 / 連勝紀錄</div>
-                <div class="summary-value" id="statLevelTitle" style="color: #00cdac; font-size: 1.85rem;">Lv.1 學徒</div>
+                <div class="summary-value" id="statLevelTitle" style="color: var(--pixel-green); font-size: 1.6rem;">Lv.1 學徒</div>
                 <div class="summary-sub" id="statStreak">🔥 最高連對 0 題</div>
             </div>
             <div class="summary-card">
@@ -330,7 +634,7 @@
         </div>
 
         <div class="chart-section">
-            <div class="chart-header">Python 知識維度分析</div>
+            <div class="chart-header"><span>📈</span> Python 知識維度分析</div>
             <div class="progress-list" id="dimensionList">
                 <div class="empty-hint">載入中...</div>
             </div>
@@ -338,7 +642,7 @@
 
         <div class="chart-section">
             <div class="chart-header-row">
-                <div class="chart-header">遊戲作答紀錄與盲點診斷</div>
+                <div class="chart-header"><span>🎯</span> 遊戲作答紀錄與盲點診斷</div>
                 <div class="filter-tabs">
                     <button class="filter-tab-btn active" id="tabAll" onclick="setFilter('all')">全部<span class="filter-count" id="cntAll">(0)</span></button>
                     <button class="filter-tab-btn" id="tabWrong" onclick="setFilter('wrong')">答錯題<span class="filter-count" id="cntWrong">(0)</span></button>
@@ -387,7 +691,7 @@
     
     let conversationMessages = [];
 
-    // 💡 題目選項自動對照表（使用關鍵字陣列與模糊比對，徹底防止對照失效）
+    // 💡 題目選項自動對照表
     const OPTION_FALLBACK_MAP = [
         {
             keywords: ["x > 5", "if x", "會不會被執行", "條件判斷"],
@@ -499,12 +803,10 @@
         }
     }
 
-    // 🔥 核心修復：強制攔截數字索引、過濾無效佔位符、進行題庫模糊映射
     function resolveOptionText(q, valKey, textKey) {
         let val = q[valKey];
         let textVal = q[textKey] ? String(q[textKey]).trim() : "";
 
-        // 判斷原文字是否為純數字字串（例如 "3"、"1"）或含有 "選項"
         const isPureNumber = /^[0-9]+$/.test(textVal);
         const isOptionPlaceholder = textVal.startsWith("選項") || textVal.startsWith("Option") || textVal === "";
 
@@ -512,7 +814,6 @@
             val = parseInt(textVal, 10);
         }
 
-        // 1. 優先使用題幹關鍵字做對照表映射
         const qText = String(q.question || "");
         for (const item of OPTION_FALLBACK_MAP) {
             const hit = item.keywords.some(kw => qText.includes(kw));
@@ -521,14 +822,12 @@
             }
         }
 
-        // 2. 通用題型語義判斷（是非題、執行題）
         if (qText.includes("會不會") || qText.includes("是否")) {
             if (val == 1) return "會執行";
             if (val == 2) return "不會執行";
             if (val == 3) return "產生錯誤";
         }
 
-        // 3. 物件自帶的 options 陣列
         if (Array.isArray(q.options) && q.options.length > 0) {
             const num = Number(val);
             if (!isNaN(num)) {
@@ -537,7 +836,6 @@
             }
         }
 
-        // 4. 原文字如果是真正的具體內容（非純數字且非選項佔位符），才予以使用
         if (textVal && !isPureNumber && !isOptionPlaceholder) {
             return textVal;
         }
@@ -632,7 +930,6 @@
             updateAiInteractionDisplay(getAiInteractionCount());
             renderDimensions(data.dimensions || [], gamesPlayedCount);
 
-            // 🎯 解析題目清單
             let extractedList = [];
             const aiCtx = data.ai_context || {};
             const wrongArr = aiCtx.recent_wrong || data.recent_wrong || [];
@@ -687,7 +984,7 @@
             updateFilterCounts();
             renderFilteredQuestions();
         } catch (err) {
-            console.warn('⚠️️ 載入學習統計失敗', err);
+            console.warn('⚠ 載入學習統計失敗', err);
             document.getElementById('dimensionList').innerHTML = '<div class="empty-hint">統計載入失敗，請稍後重新整理。</div>';
             document.getElementById('questionHistoryList').innerHTML = '<div class="empty-hint">作答紀錄載入失敗。</div>';
         }
@@ -774,8 +1071,8 @@
                     </div>
                     <div class="q-text">${escapeHtml(q.question || '程式題')}</div>
                     <div class="q-choices-info">
-                        <div>當時選擇：<b style="color: ${isCorrect ? 'var(--success-green-shadow)' : 'var(--wrong-dark)'};">${escapeHtml(chosenDisplay)}</b></div>
-                        <div>正確答案：<b style="color: var(--success-green-shadow);">${escapeHtml(correctDisplay)}</b></div>
+                        <div>當時選擇：<b style="color: ${isCorrect ? 'var(--pixel-green)' : 'var(--wrong-dark)'};">${escapeHtml(chosenDisplay)}</b></div>
+                        <div>正確答案：<b style="color: var(--pixel-green);">${escapeHtml(correctDisplay)}</b></div>
                     </div>
                     <div class="q-card-bottom">
                         <button class="btn-ask-item" onclick="askQuestionTutor(${qIndex})">💡 詢問 AI 導師</button>
