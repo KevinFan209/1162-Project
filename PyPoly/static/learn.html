@@ -387,19 +387,49 @@
     
     let conversationMessages = [];
 
-    // 💡 題目選項自動對照表（將抽象代號還原為直觀代碼）
+    // 💡 題目選項自動對照表（全面覆蓋各知識維度題目，包含條件判斷、迴圈、串列與布林）
     const OPTION_FALLBACK_MAP = {
+        "x > 5": {
+            1: "會執行",
+            2: "不會執行",
+            3: "產生錯誤",
+            4: "語法錯誤"
+        },
+        "range(3)": {
+            1: "1, 2, 3",
+            2: "0, 1, 2",
+            3: "0, 1, 2, 3",
+            4: "1, 2"
+        },
         "not True": {
             1: "True",
             2: "False",
             3: "None",
             4: "語法錯誤 (SyntaxError)"
         },
-        "lst.append(4)": {
+        "lst.append": {
             1: "3 (未更新)",
             2: "4 (元素個數)",
             3: "5",
             4: "[1, 2, 3, 4] (回傳串列)"
+        },
+        "append(4)": {
+            1: "3 (未更新)",
+            2: "4 (元素個數)",
+            3: "5",
+            4: "[1, 2, 3, 4] (回傳串列)"
+        },
+        "len(\"Python\")": {
+            1: "5",
+            2: "6",
+            3: "7",
+            4: "Python"
+        },
+        "lst[0]": {
+            1: "10",
+            2: "20",
+            3: "30",
+            4: "IndexError"
         }
     };
 
@@ -459,12 +489,13 @@
     }
 
     function resolveOptionText(q, valKey, textKey) {
-        if (q[textKey] && !String(q[textKey]).startsWith("選項")) {
+        if (q[textKey] && !String(q[textKey]).startsWith("選項") && !String(q[textKey]).startsWith("Option")) {
             return String(q[textKey]);
         }
 
         const val = q[valKey];
 
+        // 1. 如果資料本身附帶 options 陣列
         if (Array.isArray(q.options) && q.options.length > 0) {
             const num = Number(val);
             if (!isNaN(num)) {
@@ -473,11 +504,19 @@
             }
         }
 
+        // 2. 透過題幹關鍵字做智能映射
         const qText = q.question || "";
         for (const [kw, map] of Object.entries(OPTION_FALLBACK_MAP)) {
-            if (qText.includes(kw) && map[val]) {
+            if (qText.includes(kw) && map[val] !== undefined) {
                 return map[val];
             }
+        }
+
+        // 3. 通用題型語義判斷
+        if (qText.includes("會不會") || qText.includes("是否")) {
+            if (val == 1) return "會執行";
+            if (val == 2) return "不會執行";
+            if (val == 3) return "產生錯誤";
         }
 
         return val !== undefined ? `選項 ${val}` : "未記錄";
@@ -566,7 +605,6 @@
             
             document.getElementById('statLevelTitle').textContent = levelTitle;
 
-            // 簡易估算最高連勝：有答對至少 1 題即有連勝，答對 2 題且正確率 50% 評估連對 1~2 題
             const streakNum = correctCount > 1 ? Math.min(correctCount, 2) : correctCount;
             document.getElementById('statStreak').textContent = `🔥 最高連對 ${streakNum} 題`;
 
