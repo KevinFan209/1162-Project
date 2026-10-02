@@ -3,743 +3,622 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PyPoly - Lobby</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <title>BeeRich - Python Adventure</title>
+    <!-- 引入標題 VT323、副標 Silkscreen 與清晰厚實的繁中/英數字體 -->
+    <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary-blue: #4facfe;
-            --success-green: #00cdac;
-            --success-green-shadow: #00a88b;
-            --primary-yellow: #ffde59;
-            --yellow-shadow: #e6c543;
-            --bg-gray: #f1f5f9;
-            --text-dark: #000000;
-            --text-gray: #64748b;
-            --sidebar-dark: #334155;
-            --sidebar-dark-shadow: #1e293b;
-            --border-light: #e2e8f0;
+            --pixel-border: #1e272e;
+            --bee-gold: #ffc048;
+            --bee-yellow: #ffdd59;
+            --bee-dark: #2f3542;
+            --pixel-green: #05c46b;
+            --pixel-blue: #0fbcf9;
+            --pixel-red: #ff3f34;
+            --bg-grid: #eef2f7;
+            --card-bg: #ffffff;
+            --text-dark: #1e272e;
+            --text-gray: #747d8c;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            image-rendering: pixelated;
+        }
 
         body {
-            background-color: var(--bg-gray);
-            height: 100%;
+            background-color: #d2dae2;
+            background-image: 
+                linear-gradient(rgba(0, 0, 0, 0.05) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.05) 2px, transparent 2px);
+            background-size: 28px 28px;
+            min-height: 100vh;
             display: flex;
-            flex-direction: column;
-            overflow: hidden;
+            justify-content: center;
+            align-items: center; 
+            padding: 20px;
+            overflow-x: hidden;
             position: relative;
         }
 
-        header {
-            background: linear-gradient(to bottom, #ffffff 0%, #fcfcfc 100%);
-            padding: 0 40px;
+        /* 像素卡片主容器 */
+        .card {
+            background: var(--card-bg);
+            width: 440px;
+            padding: 42px 36px 36px;
+            border-radius: 6px;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 
+                8px 8px 0px rgba(0, 0, 0, 0.85),
+                12px 12px 0px rgba(255, 192, 72, 0.4);
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            z-index: 10;
+        }
+
+        /* 標題與 BeeRich Logo 區塊 */
+        .logo-wrap {
+            position: relative;
+            margin-bottom: 24px;
+        }
+
+        .pixel-badge {
+            display: inline-block;
+            background: var(--bee-yellow);
+            border: 2px solid var(--pixel-border);
+            padding: 3px 12px;
+            font-family: 'Silkscreen', cursive;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--pixel-border);
+            box-shadow: 2px 2px 0 #000;
+            margin-bottom: 10px;
+            letter-spacing: 0.5px;
+            animation: floatBadge 1.4s infinite alternate ease-in-out;
+        }
+
+        h1 {
+            font-family: 'VT323', monospace;
+            font-size: 3.8rem;
+            line-height: 1;
+            color: var(--bee-gold);
+            text-shadow: 
+                3px 3px 0 var(--pixel-border),
+                -2px -2px 0 var(--pixel-border),
+                2px -2px 0 var(--pixel-border),
+                -2px 2px 0 var(--pixel-border),
+                6px 6px 0 var(--bee-dark);
+            margin-bottom: 4px;
+            letter-spacing: 2px;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .tagline {
+            font-family: 'Silkscreen', cursive;
+            font-size: 0.7rem;
+            color: var(--text-gray);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        /* 像素分頁籤 */
+        .tabs {
+            display: flex;
+            background: #dfe4ea;
+            border: 3px solid var(--pixel-border);
+            margin-bottom: 24px;
+            padding: 4px;
+            gap: 6px;
+            box-shadow: inset 2px 2px 0 rgba(0,0,0,0.12);
+        }
+
+        .tab {
+            flex: 1;
+            padding: 10px 4px;
+            cursor: pointer;
+            font-weight: 900;
+            font-size: 1.05rem;
+            color: var(--text-gray);
+            border: 2px solid transparent;
+            transition: 0.1s;
+            user-select: none;
+        }
+
+        .tab.active {
+            background: white;
+            color: var(--text-dark);
+            border: 2px solid var(--pixel-border);
+            box-shadow: 2px 2px 0 #000;
+        }
+
+        .form-container { width: 100%; text-align: left; }
+
+        form { display: none; }
+        form.active { display: block; animation: pixelSlide 0.18s steps(4) forwards; }
+
+        .input-group {
+            margin-bottom: 20px; 
+            position: relative;
+        }
+
+        label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            font-size: 0.88rem;
+            font-weight: 900;
+            letter-spacing: 0.8px;
+            margin-bottom: 7px;
+            color: var(--text-dark);
+            text-transform: uppercase;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 14px;
+            border: 3px solid var(--pixel-border);
+            border-radius: 0px;
+            background: #ffffff;
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            outline: none;
+            box-shadow: inset 3px 3px 0 #dfe4ea;
+            transition: 0.1s;
+        }
+
+        input:focus {
+            background: #fffdf2;
+            border-color: #000;
+            box-shadow: inset 3px 3px 0 rgba(255, 192, 72, 0.45);
+        }
+
+        input::-webkit-calendar-picker-indicator {
+            display: none !important;
+        }
+
+        #idCheckMsg {
+            position: absolute;
+            left: 2px;
+            bottom: -18px;
+            font-size: 0.75rem;
+            font-weight: 900;
+        }
+
+        .form-options {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            height: 85px;
-            z-index: 100;
-            border-bottom: 1.5px solid var(--border-light); 
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+            margin-bottom: 22px;
+            padding: 0 2px;
         }
 
-        .header-left h1 {
-            font-size: 2.5rem;
-            font-weight: 900;
-            margin-bottom: 10px;
-            color: var(--text-dark);
-        }
-
-        .header-right { display: flex; align-items: center; gap: 20px; }
-        .player-name { font-weight: 800; color: var(--text-dark); font-size: 1.1rem; }
-
-        .menu-btn {
-            background: transparent;
-            border: none;
-            cursor: pointer;
+        .remember-me {
             display: flex;
-            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.95rem;
+            font-weight: 900;
+            cursor: pointer;
+            color: var(--text-dark);
+            user-select: none;
+        }
+
+        /* 記住我全黑外線核取框 */
+        .remember-me input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border: 2px solid #000000;
+            border-radius: 2px;
+            background: #ffffff;
+            cursor: pointer;
+            outline: none;
+            display: grid;
+            place-content: center;
+            box-shadow: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .remember-me input[type="checkbox"]:checked {
+            background-color: var(--bee-yellow);
+        }
+
+        .remember-me input[type="checkbox"]:checked::before {
+            content: "✓";
+            font-size: 13px;
+            font-weight: 900;
+            color: #000000;
+            line-height: 1;
+        }
+
+        .forgot-pw {
+            font-size: 0.9rem;
+            font-weight: 900;
+            color: #0984e3;
+            text-decoration: none;
+        }
+
+        .forgot-pw:hover {
+            text-decoration: underline;
+        }
+
+        /* 街機立體按鈕 */
+        button.btn-submit {
+            width: 100%;
+            padding: 15px;
+            border: 3px solid var(--pixel-border);
+            background: var(--bee-yellow);
+            color: #1e272e;
+            font-size: 1.15rem;
+            font-weight: 900;
+            cursor: pointer;
+            box-shadow: 0 6px 0 var(--pixel-border);
+            margin-top: 4px;
+            transition: all 0.06s ease;
+            position: relative;
+            user-select: none;
+            letter-spacing: 0.5px;
+        }
+
+        button.btn-submit:hover {
+            filter: brightness(1.04);
+        }
+
+        button.btn-submit:active {
+            transform: translateY(6px);
+            box-shadow: 0 0 0 var(--pixel-border);
+        }
+
+        /* 全黑實線分割線 */
+        .divider {
+            margin: 24px 0 20px;
+            display: flex;
+            align-items: center;
+            color: #000000;
+            font-size: 0.8rem;
+            font-family: 'Silkscreen', cursive;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .divider::before, .divider::after { 
+            content: ""; 
+            flex: 1; 
+            height: 3px; 
+            background: #000000; 
+            margin: 0 14px; 
+        }
+
+        /* Google 登入按鈕 */
+        .google-btn {
+            width: 100%;
+            padding: 12px;
+            border: 3px solid var(--pixel-border);
+            background: white;
+            font-weight: 900;
+            font-size: 0.95rem;
+            color: var(--text-dark);
+            display: flex;
+            align-items: center;
             justify-content: center;
-            padding: 10px;
-            transition: 0.2s;
+            gap: 10px;
+            cursor: pointer;
+            box-shadow: 0 4px 0 var(--pixel-border);
+            transition: all 0.06s ease;
         }
-        .menu-btn:hover { opacity: 0.6; }
 
-        .menu-overlay {
+        .google-btn:hover { background: #f1f2f6; }
+        .google-btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 var(--pixel-border);
+        }
+
+        /* 像素對話彈窗 */
+        .modal-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.15); display: none; z-index: 999;
-            backdrop-filter: blur(2px);
+            background: rgba(0, 0, 0, 0.65); display: none;
+            align-items: center; justify-content: center; z-index: 1000;
         }
-        .menu-overlay.open { display: block; }
 
-        .side-menu {
-            position: fixed; top: 0; right: -320px; width: 320px; height: 100%;
-            background: white; box-shadow: -10px 0 30px rgba(0,0,0,0.05);
-            z-index: 1000; transition: 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
-            padding: 100px 30px 40px; display: flex; flex-direction: column; gap: 15px;
-			
+        .modal-card {
+            background: white; 
+            width: 380px; 
+            padding: 30px; 
+            border: 4px solid var(--pixel-border);
+            box-shadow: 8px 8px 0px #000000;
+            text-align: center;
+            animation: pixelPop 0.15s ease forwards;
         }
-        .side-menu.open { right: 0; }
 
-        .menu-item {
-            padding: 18px 25px; border-radius: 15px; font-weight: 800;
-            color: var(--text-gray); text-decoration: none; display: flex;
-            align-items: center; gap: 15px; transition: 0.2s; background: #f8fafc;
+        @keyframes floatBadge {
+            from { transform: translateY(0); }
+            to { transform: translateY(-4px); }
         }
-        .menu-item:hover { background: var(--bg-gray); color: var(--text-dark); }
-        .menu-item.danger { margin-top: auto; color: #ff4757; cursor: pointer; }
 
-		.lobby-main {
-			height: calc(100vh - 85px); /* 扣除 Header 高度 */
-			display: flex;
-			justify-content: center;
-			align-items: center;
-			padding: 20px;
-			overflow: hidden; 
-		}
-
-		.lobby-container {
-			display: flex;
-			gap: 30px;
-			width: 95%;
-			max-width: 1100px;
-			height: 100%;       /* ⚡ 關鍵：讓它填滿 lobby-main，裡面的東西才能伸縮 */
-			align-items: stretch; /* ⚡ 關鍵：強迫左右兩邊等高 */
-		}
-
-		.sidebar {
-			width: clamp(280px, 25vw, 320px); /* 寬度隨網頁縮放，但有上下限 */
-			height: 100%;           
-			background: white; 
-			border-radius: 35px;
-			padding: 30px 25px;
-			display: flex; 
-			flex-direction: column;
-			align-items: center; 
-			/* ⚡ 關鍵：靠頂部對齊，不要使用 space-between */
-			justify-content: flex-start; 
-			box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-			border: 1px solid #f1f2f6;
-		}
-
-		.char-box {
-			width: 100%; 
-			/* ⚡ 寬高比鎖定 1:1，大小會隨 sidebar 寬度自動等比例變動 */
-			aspect-ratio: 1 / 1; 
-			background: #f8fafc;
-			border: 2px solid var(--primary-blue); 
-			border-radius: 28px;
-			display: flex; 
-			justify-content: center; 
-			align-items: center;
-			
-			/* ⚡ 這裡設定與「名字標籤」的固定行距 */
-			margin-bottom: 20px; 
-			
-			box-shadow: inset 0 0 15px rgba(79, 172, 254, 0.1);
-			flex-shrink: 0; /* 防止被壓扁 */
-		}
-
-		.id-label {
-			width: 100%; 
-			background: #000; 
-			color: white; 
-			padding: 14px;
-			border-radius: 15px; 
-			font-weight: 900; 
-			text-align: center;
-			font-size: clamp(0.9rem, 1.2vw, 1.1rem); /* 字體也隨縮放微調 */
-			
-			/* ⚡ 這裡設定與「更換角色」按鈕的固定行距 */
-			margin-bottom: 15px; 
-			
-			flex-shrink: 0;
-		}
-
-		.btn-side { 
-			width: 100%; 
-			padding: 16px; 
-			background: var(--sidebar-dark); 
-			color: white; 
-			border-radius: 12px;
-			box-shadow: 0 6px 0 var(--sidebar-dark-shadow);
-			font-size: clamp(0.85rem, 1vw, 1rem);
-			
-			flex-shrink: 0;
-		}
-
-		/* 5. 確保裡面的 3D 角色或圖片會隨框框變大變小 */
-		.char-box canvas, .char-box img {
-			max-width: 100%;
-			max-height: 100%;
-			object-fit: contain;
-		}
-
-        .btn-3d {
-            border: none; border-radius: 12px; font-weight: 900;
-            cursor: pointer; transition: 0.1s; display: inline-flex;
-            align-items: center; justify-content: center;
+        @keyframes pixelSlide {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
         }
- 
-		.main-board {
-			flex: 1;
-			display: flex;
-			flex-direction: column;
-			gap: 20px;
-			height: 100%; /* ⚡ 跟隨容器高度縮放 */
-		}
-		
-        .board-header {
-            background: white; padding: 25px 40px; border-radius: 25px;
-            display: flex; justify-content: space-between; align-items: center;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.03); border: 1px solid #f1f2f6;
-        }
-        .btn-create { padding: 14px 25px; background: var(--success-green); color: white; box-shadow: 0 6px 0 var(--success-green-shadow); }
 
-		.room-scroll {
-			background: white;
-			flex: 1; /* ⚡ 房間列表也會隨網頁高度自動伸縮 */
-			border-radius: 40px;
-			padding: 30px;
-			box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-			overflow-y: auto; /* ⚡ 房間太多時內部捲動，而不是撐開頁面 */
-			border: 1px solid #f1f2f6;
-		}
-		
-        .room-item {
-            background: #f8fafc; padding: 25px 30px; border-radius: 25px;
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 20px; border: 1px solid #f1f2f6;
-        }
-        .btn-join { padding: 12px 40px; background: var(--primary-yellow); color: #574b10; box-shadow: 0 6px 0 var(--yellow-shadow); }
-
-        .btn-3d:active { transform: translateY(4px); box-shadow: none; }
-        .room-item { transition: transform 0.2s; cursor: pointer; }
-        .room-item:hover { transform: scale(1.01); border-color: var(--primary-blue); }
-
-        .room-scroll::-webkit-scrollbar { width: 6px; }
-        .room-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-
-        @media (max-width: 850px) {
-            header { padding: 0 20px; }
-            .lobby-container { flex-direction: column; width: 100%; }
-            .sidebar { display: none; }
+        @keyframes pixelPop {
+            from { transform: scale(0.9); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
         }
     </style>
 </head>
 <body>
 
-<div class="menu-overlay" id="overlay" onclick="toggleMenu()"></div>
+    <div class="card">
+        <div class="logo-wrap">
+            <div class="pixel-badge">✦ LEVEL 1 READY ✦</div>
+            <h1>BeeRich</h1>
+            <p class="tagline">Python Adventure</p>
+        </div>
 
-<div class="side-menu" id="sideMenu">
-    <a href="profile.html" class="menu-item"><span>👤</span> 個人主頁</a>
-    <a href="guide.html" class="menu-item"><span>📖</span> 遊戲說明</a>
-    <a href="learn.html" class="menu-item"><span>📊</span> 學習統計</a>
-    <a href="settings.html" class="menu-item"><span>⚙️</span> 遊戲設定</a>
-    <a href="lobby.html" class="menu-item"><span>🏠</span> 返回大廳</a>
-    <a href="javascript:void(0)" onclick="logout()" class="menu-item danger"><span>🚪</span> 登出遊戲</a>
-</div>
+        <div class="tabs">
+            <div id="loginTab" class="tab active" onclick="toggle('login')">⚔️ 登入遊戲</div>
+            <div id="regTab" class="tab" onclick="toggle('register')">🛡️ 加入冒險</div>
+        </div>
 
-<header>
-    <div class="header-left"><h1>PyPoly</h1></div>
-    <div class="header-right">
-        <div class="player-name" id="topPlayerName">載入中...</div>
-        <button class="menu-btn" onclick="toggleMenu()">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
-                <line x1="3" y1="12" x2="21" y2="12"></line>
-                <line x1="3" y1="6" x2="21" y2="6"></line>
-                <line x1="3" y1="18" x2="21" y2="18"></line>
+        <div class="form-container">
+            <form id="loginForm" class="active">
+                <div class="input-group">
+                    <label><span>👾</span> PLAYER ID</label>
+                    <input type="text" id="loginUser" name="username" autocomplete="username" placeholder="輸入玩家帳號...">
+                    <datalist id="idHistory"></datalist>
+                </div>
+                <div class="input-group">
+                    <label><span>🔑</span> PASSWORD</label>
+                    <input type="password" id="loginPass" placeholder="••••••••" required>
+                </div>
+                <div class="form-options">
+                    <label class="remember-me">
+                        <input type="checkbox" id="rememberMe"> 記住我
+                    </label>
+                    <a href="forgot.html" class="forgot-pw">忘記密碼？</a>
+                </div>
+                <button type="submit" class="btn-submit">GO! 開始冒險</button>
+            </form>
+
+            <form id="regForm">
+                <div class="input-group">
+                    <label><span>🎮</span> GAME ID</label>
+                    <input type="text" id="regUsername" name="username" autocomplete="username" placeholder="設定 Game ID">
+                    <span id="idCheckMsg"></span>
+                </div>
+                <div class="input-group">
+                    <label><span>✉️</span> EMAIL</label>
+                    <input type="email" id="regEmail" placeholder="冒險者的信箱..." required>
+                </div>
+                <div class="input-group">
+                    <label><span>🔒</span> SET PASSWORD</label>
+                    <input type="password" id="regPassword" placeholder="••••••••" required>
+                </div>
+                <button type="submit" id="regSubmitBtn" class="btn-submit" style="background: var(--pixel-green); box-shadow: 0 6px 0 #000; color: white;">CREATE & GO!</button>
+            </form>
+        </div>
+
+        <div class="divider">OR USE</div>
+
+        <button class="google-btn" onclick="handleGoogleLogin()">
+            <svg width="20" height="20" viewBox="0 0 24 24">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
             </svg>
+            Google 快速登入
         </button>
     </div>
-</header>
 
-<div class="lobby-main">
-    <div class="lobby-container">
-        <aside class="sidebar">
-            <h2 style="font-weight: 900; font-size: 1.8rem; color: var(--text-dark); margin-bottom: 25px; letter-spacing: 1px;">遊戲大廳</h2>
-            <div class="char-box" id="lobby-char-box" onclick="location.href='character.html'"><div style="color:var(--primary-blue); font-weight:800;">[Q版角色]</div></div>
-            <div class="id-label" id="sidePlayerName">載入中...</div>
-            <button class="btn-3d btn-side" style="margin-top: 25px;" onclick="location.href='character.html'">建立專屬虛擬人物</button>
-        </aside>
-
-		<main class="main-board">
-			<header class="board-header">
-				<h3 style="font-weight: 900; font-size: 1.4rem;">尋找挑戰者</h3>
-				<button class="btn-3d btn-create" onclick="checkAndCreateRoom()">+ 建立新對局</button>
-			</header>
-
-			<div id="quickJoinArea" style="background: white; padding: 20px 40px; border-radius: 25px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); border: 1px solid #f1f2f6; display: flex; align-items: center; gap: 20px;">
-				<span style="font-weight: 900; color: var(--primary-blue); white-space: nowrap;">快速加入 🔑</span>
-				<input type="text" id="quickRoomCode" placeholder="輸入六位邀請碼..." 
-					   style="flex: 1; padding: 12px; border-radius: 12px; border: 2px solid var(--border-light); font-weight: 800; letter-spacing: 2px; text-align: center; outline: none;">
-				<button class="btn-3d btn-join" style="padding: 12px 30px; margin: 0;" onclick="quickVerify()">加入房間</button>
-			</div>
-			
-			<section class="room-scroll" id="roomList">
-				<div style="font-weight: 900; font-size: 1.4rem; color: var(--text-black); margin-bottom: 20px; padding-left: 5px;">
-					房間列表
-				</div>
-			</section>
-		</main>
-    </div>
-</div>
-
-<div id="passwordModal" class="menu-overlay" style="display: none; align-items: center; justify-content: center; pointer-events: auto; z-index: 3000;">
-    <div class="sidebar" style="width: 350px; height: auto; display: block; padding: 30px; position: relative; background: white; border-radius: 20px;">
-        <h3 style="font-weight: 900; margin-bottom: 20px; text-align: center; color: var(--text-dark);">🔒 輸入私人邀請碼</h3>
-        <input type="text" id="inputRoomCode" class="input-box" 
-               style="width:100%; margin-bottom: 20px; text-align: center; letter-spacing: 4px; font-size: 1.5rem; border: 2px solid var(--border-light); border-radius: 10px; padding: 10px;" 
-               placeholder="六位代碼">
-        <div style="display: flex; gap: 10px;">
-            <button class="btn-3d" style="background: var(--text-gray); flex: 1; border: none; color: white; border-radius: 10px; cursor: pointer;" onclick="closePasswordModal()">取消</button>
-            <button class="btn-3d btn-create" style="flex: 1; padding: 10px; border: none; color: white; border-radius: 10px; cursor: pointer;" onclick="verifyRoomCode()">加入</button>
+    <!-- 像素 RPG 對話視窗 -->
+    <div id="statusModal" class="modal-overlay">
+        <div class="modal-card">
+            <h2 id="modalTitle" style="font-family: 'Silkscreen', cursive; font-size: 1.15rem; margin-bottom: 16px;">TITLE</h2>
+            <p id="modalMsg" style="font-size: 1.05rem; font-weight: 900; color: #2d3436; margin-bottom: 25px; line-height: 1.6;">內容訊息</p>
+            <button id="modalBtn" class="btn-submit" onclick="closeModal()">OK (確認)</button>
         </div>
     </div>
-</div>
-
-
 
 <script>
     const API_URL = location.origin;
-    let syncTimer = null; 
-    let pendingRoomId = null;
 
-    // --- 1. 選單切換邏輯 ---
-    function toggleMenu() {
-        const sideMenu = document.getElementById('sideMenu');
-        const overlay = document.getElementById('overlay');
-        if (sideMenu && overlay) {
-            sideMenu.classList.toggle('open');
-            overlay.classList.toggle('open');
+    // --- 0. 頁面初始化：狀態校對與封鎖偵測 ---
+    document.addEventListener('DOMContentLoaded', async () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('reason') === 'banned') {
+            showModal("🚫 帳號停權", "您的帳號已被封鎖，無法進入遊戲，請聯繫管理員。", false);
+            window.history.replaceState({}, document.title, window.location.pathname);
         }
-    }
 
-	async function logout() {
-        if (syncTimer) clearInterval(syncTimer);
+        const token = localStorage.getItem('token');
         const username = localStorage.getItem('username');
-        await fetch(`${API_URL}/auth/logout?username=${username}&confirm=true`, { method: 'POST' });
-        
-        // 🏆 終極防禦修正：掃描並備份「所有」自定義虛擬人物相關資料
-        const charBackups = {};
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && key.startsWith('pypoly_char_')) {
-                charBackups[key] = localStorage.getItem(key);
-            }
-        }
-        
-        localStorage.clear();
-        
-        // 🏆 還原備份
-        Object.keys(charBackups).forEach(key => {
-            localStorage.setItem(key, charBackups[key]);
-        });
-        
-        window.location.href = 'login.html';
-    }
+        const role = localStorage.getItem('role');
 
-    // --- 3. 頁面初始化 ---
-	window.onload = async function() {
-		const token = localStorage.getItem('token');
-		const username = localStorage.getItem('username');
-
-		if (!token || !username) {
-			window.location.href = 'login.html';
-			return;
-		}
-		
-        // 🏆 整合版：優先讀取玩家自定義的專屬人臉或預覽圖
-		const charBox = document.getElementById('lobby-char-box');
-        const myFace = localStorage.getItem(`pypoly_char_face_${username}`) || localStorage.getItem('pypoly_char_face');
-        const savedCharImage = localStorage.getItem('pypoly_char_preview');
-        
-		// ✅ 新的正確邏輯：不論有沒有人臉，一律優先顯示精美的「3D 全身自定義模型」！
-		if (charBox) {
-			if (savedCharImage) {
-				// 優先顯示貼有人臉、換好顏色的全身 3D 截圖
-				charBox.innerHTML = `<img src="${savedCharImage}" alt="我的角色" style="width: 100%; height: 100%; object-fit: contain; border-radius: 26px; transform: scale(1.15);">`;
-			} else if (myFace) {
-				// 備份方案：如果全身截圖不幸遺失，才退回顯示平面人臉
-				charBox.innerHTML = `<img src="${myFace}" style="width:100%; height:100%; border-radius: 26px; object-fit:cover; border:3px solid #ffde59;">`;
-			}
-		}
-
-		try {
-			const res = await fetch(`${API_URL}/auth/verify_and_refresh?username=${encodeURIComponent(username)}`, {
-				method: "POST",
-				headers: { 'Authorization': `Bearer ${token}` }
-			});
-			const data = await res.json();
-
-			if (data.status === "success") {
-				console.log("狀態已復活");
-				if (document.getElementById('topPlayerName')) document.getElementById('topPlayerName').innerText = username;
-				if (document.getElementById('sidePlayerName')) document.getElementById('sidePlayerName').innerText = username;
-
-				startSyncLoop(username, token);
-				renderRooms(); 
-			} else {
-				localStorage.clear();
-				window.location.href = "login.html";
-			}
-		} catch (err) {
-			console.error("驗證連線失敗:", err);
-			window.location.href = "login.html";
-		}
-		
-		localStorage.removeItem('pypoly_game_snapshot');
-		renderRooms();
-		setInterval(renderRooms, 10000);
-	};
-	
-// 🏆 1. 建立自定義 UI 彈窗取代系統原生 alert
-function showCustomAlert(title, message, isSuccess = false) {
-    // 先檢查是否已經有彈窗，有的話先移除
-    const existingAlert = document.getElementById('custom-ui-alert');
-    if (existingAlert) existingAlert.remove();
-
-    // 建立背景遮罩
-    const overlay = document.createElement('div');
-    overlay.id = 'custom-ui-alert';
-    overlay.style.cssText = `
-        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-        background: rgba(0, 0, 0, 0.3); backdrop-filter: blur(5px);
-        display: flex; align-items: center; justify-content: center;
-        z-index: 99999; opacity: 0; transition: opacity 0.3s ease;
-    `;
-
-    // 判斷按鈕顏色（成功為綠色，錯誤/警告為紅色或深灰色）
-    const btnColor = isSuccess ? 'var(--success-green)' : '#ff4757'; 
-    const btnShadow = isSuccess ? 'var(--success-green-shadow)' : '#ff6b81';
-
-    // 建立彈窗內容 (使用您既有的設計語彙)
-    overlay.innerHTML = `
-        <div style="
-            background: white; padding: 40px; border-radius: 35px;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.15); border: 2px solid var(--border-light);
-            width: 90%; max-width: 420px; text-align: center;
-            transform: translateY(30px) scale(0.95); 
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        ">
-            <div style="font-size: 3rem; margin-bottom: 10px;">
-                ${isSuccess ? '🎉' : '⚠️'}
-            </div>
-            <h2 style="font-size: 1.8rem; font-weight: 900; color: var(--text-dark); margin-bottom: 15px;">
-                ${title}
-            </h2>
-            <p style="font-size: 1.1rem; color: var(--text-gray); font-weight: 700; line-height: 1.6; margin-bottom: 30px;">
-                ${message}
-            </p>
-            <button class="btn-3d" onclick="document.getElementById('custom-ui-alert').remove()" style="
-                background: ${btnColor}; color: white; padding: 16px 40px; border: none;
-                border-radius: 15px; font-weight: 900; font-size: 1.1rem; cursor: pointer;
-                box-shadow: 0 6px 0 ${btnShadow}; width: 100%; transition: 0.1s;
-            ">我知道了</button>
-        </div>
-    `;
-
-    document.body.appendChild(overlay);
-
-    // 觸發進場動畫
-    requestAnimationFrame(() => {
-        overlay.style.opacity = "1";
-        overlay.children[0].style.transform = "translateY(0) scale(1)";
-    });
-}
-	
-// 🏆 檢查是否已建立虛擬人物的核心函式（升級：終極自動修復防禦版）
-function hasCreatedCharacter() {
-    const currentUsername = localStorage.getItem('username');
-    let isCreated = localStorage.getItem(`pypoly_char_created_${currentUsername}`);
-    
-    // 🌟 終極修復核心：如果大廳看得到圖片(pypoly_char_preview)，說明角色絕對存在！
-    // 直接在前端幫玩家自動補蓋「帳號通行章」，防止被誤判阻擋
-    const hasPreview = localStorage.getItem('pypoly_char_preview');
-    if (hasPreview && isCreated !== "true") {
-        console.log("🛠️ [系統防禦] 偵測到已有角色模型預覽圖，正在自動為帳號補發通行標記...");
-        localStorage.setItem(`pypoly_char_created_${currentUsername}`, "true");
-        isCreated = "true"; // 強制將狀態改為已建立，讓下方順利過關
-    }
-
-    if (isCreated !== "true") {
-        // 使用自定義 UI 彈窗
-        showCustomAlert(
-            "角色尚未建立", 
-            "請先點擊左側的<span style='color: var(--primary-blue);'>「建立專屬虛擬人物」</span>按鈕完成自定義，才能夠加入對局喔！"
-        );
-        return false;
-    }
-    return true;
-}
-
-// 🏆 建立新對局的阻斷函式 (對應步驟一的按鈕)
-function checkAndCreateRoom() {
-    if (!hasCreatedCharacter()) return;
-    location.href = 'modal.html';
-}
-	
-	
-// 🏆 在大廳加載完成後，渲染右側虛擬人物照片
-const myName = localStorage.getItem('username');
-const myFace = localStorage.getItem(`pypoly_char_face_${myName}`) || localStorage.getItem('pypoly_char_face');
-
-// 假設您右側有一個存放頭像的 DOM 元素（例如 id="player-avatar-preview"）
-const avatarContainer = document.getElementById('player-avatar-preview'); 
-if (avatarContainer && myFace) {
-    avatarContainer.innerHTML = `<img src="${myFace}" style="width:100%; height:100%; border-radius:50%; object-fit:cover; border:3px solid #ffde59;">`;
-}
-
-    // --- 4. 渲染房間列表 (整合動態與私人邏輯) ---
-	async function renderRooms() {
-		const grid = document.getElementById('roomList');
-		if (!grid) return;
-
-		try {
-			const res = await fetch(`${API_URL}/rooms/public`);
-			if (!res.ok) throw new Error("伺服器回應錯誤");
-			const rooms = await res.json();
-
-			let newHtml = `<div style="font-weight: 900; font-size: 1.4rem; color: var(--text-dark); margin-bottom: 20px;">公開房間列表</div>`;
-
-			if (rooms && rooms.length > 0) {
-				rooms.forEach(room => {
-					// 🏆 計算人數比例與顏色
-					const currentPlayers = room.players ? room.players.length : 0;
-					const maxPlayers = room.max_players || 2;
-					const isFull = currentPlayers >= maxPlayers;
-					const statusColor = isFull ? 'var(--text-gray)' : 'var(--success-green)';
-
-					newHtml += `
-						<div class="room-item">
-							<div style="flex: 1;">
-								<div style="display: flex; align-items: center; gap: 10px;">
-									<span style="font-weight: 900; font-size: 1.3rem;">${room.name}</span>
-									<span style="background: #e2e8f0; padding: 2px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 800;">
-										${room.mode === 'advanced' ? '🚀 進階' : '🌱 基礎'}
-									</span>
-								</div>
-								<p style="font-size: 0.9rem; color: #64748b; font-weight: 700; margin-top: 6px;">
-									🏆 ${room.winLaps} 回合 | 🔥 難度: ${room.difficulty || '普通'}
-								</p>
-							</div>
-							<div style="text-align: right; min-width: 100px;">
-								<div style="color: ${statusColor}; font-weight: 900; font-size: 1.1rem; margin-bottom: 8px;">
-									👥 ${currentPlayers} / ${maxPlayers}
-								</div>
-								<button class="btn-3d btn-join" onclick="joinRoom('${room.code}', '${room.type}')" ${isFull ? 'disabled' : ''}>
-									${isFull ? '已滿' : '加入'}
-								</button>
-							</div>
-						</div>`;
-				});
-			} else {
-				newHtml += '<div style="color:var(--text-gray); padding:20px; font-weight:700;">目前沒有冒險教室</div>';
-			}
-
-			if (grid.innerHTML !== newHtml) grid.innerHTML = newHtml;
-		} catch (err) {
-			console.error("刷新列表失敗");
-		}
-	}
-	
-	// 🏆 自動清理幽靈房間
-	async function checkGhostRoom() {
-		const localRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
-		if (!localRoom) return;
-
-		try {
-			const res = await fetch(`${API_URL}/rooms/verify/${localRoom.code}`);
-			if (res.status === 404) {
-				// 如果伺服器說這房間不存在，就清掉本地資料
-				console.log("清理不存在的房間緩存...");
-				localStorage.removeItem('pypoly_active_room');
-				localStorage.removeItem('is_host');
-			}
-		} catch (e) {
-			console.error("連線檢查失敗");
-		}
-	}
-
-    // --- 5. 加入房間邏輯 ---
-	// 🏆 修正後的 joinRoom：處理列表點擊
-/**
- * 完整修正版：加入房間邏輯
- * 解決平板訪客身分判定衝突、房間存在性驗證、以及私密房彈窗邏輯
- */
-// --- lobby.html 中的 joinRoom 完整修正 ---
-async function joinRoom(roomCode, type) {
-	if (!hasCreatedCharacter()) return;
-    const myName = localStorage.getItem('username');
-    
-    try {
-        // 🏆 修正：使用 POST 請求正式加入房間
-        const joinRes = await fetch(`${API_URL}/rooms/join/${roomCode}?username=${encodeURIComponent(myName)}`, {
-            method: 'POST'
-        });
-
-        if (joinRes.ok) {
-            const serverRoom = await joinRes.json();
-            
-            // 儲存房間資料
-            localStorage.setItem('pypoly_active_room', JSON.stringify(serverRoom));
-            
-            // 🏆 關鍵：判定「我」是否為房主並存入 localStorage
-            const isActuallyHost = (serverRoom.hostId === myName);
-            localStorage.setItem('is_host', isActuallyHost ? 'true' : 'false');
-
-            console.log("✅ 加入成功，前往等待室...");
-            location.href = 'WaitingRoom.html';
-        } else {
-            const errorData = await joinRes.json();
-            alert(`❌ 無法加入：${errorData.detail || "房間可能已滿或不存在"}`);
-        }
-    } catch (err) { 
-        console.error("連線失敗", err);
-        alert("連線伺服器失敗，請檢查網路"); 
-    }
-}
-
-	// 專門給 Modal 點擊確定的輔助函式
-	// 輔助函式：確保彈窗驗證也走 API
-	async function verifySpecificRoom(targetCode) {
-		const inputVal = document.getElementById('inputRoomCode').value.toUpperCase().trim();
-		if (inputVal !== targetCode) {
-			alert("❌ 邀請碼不正確！");
-			return;
-		}
-		const quickInput = document.getElementById('quickRoomCode');
-		if (quickInput) {
-			quickInput.value = targetCode;
-			await quickVerify();
-		}
-	}
-
-	// 🏆 修正後的 verifyRoomCode：給密碼彈窗用的
-	async function verifyRoomCode() {
-		const inputField = document.getElementById('inputRoomCode');
-		if (!inputField) return;
-		
-		const inputCode = inputField.value.toUpperCase().trim();
-		if (!inputCode) {
-			alert("請輸入邀請碼！");
-			return;
-		}
-
-		// 直接複用 quickVerify 的邏輯去問後端伺服器
-		const quickInput = document.getElementById('quickRoomCode');
-		if (quickInput) quickInput.value = inputCode;
-		
-		// 執行向伺服器請求資料的動作
-		await quickVerify(); 
-	}
-
-    function enterWaitingRoom(roomId, isHost) {
-        localStorage.setItem('is_host', isHost ? 'true' : 'false');
-        localStorage.setItem('current_player_role', isHost ? 'host' : 'guest');
-        location.href = 'WaitingRoom.html';
-    }
-
-	function closePasswordModal() {
-		const pwdModal = document.getElementById('passwordModal');
-		if (pwdModal) pwdModal.style.display = 'none';
-		const overlay = document.getElementById('overlay');
-		if (overlay) overlay.classList.remove('open');
-	}
-	
-	function quickVerify() {
-		const code = document.getElementById('quickRoomCode').value.toUpperCase().trim();
-		if (!code) {
-			alert("請輸入代碼！");
-			return;
-		}
-
-		const localRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
-		
-		// 🏆 比對代碼是否正確
-		if (localRoom && code === localRoom.code) {
-			localStorage.setItem('is_host', 'false');
-			localStorage.setItem('current_player_role', 'guest');
-			location.href = 'WaitingRoom.html';
-		} else {
-			alert("❌ 找不到該房間或邀請碼錯誤");
-		}
-	}
-	
-	// 🏆 處理平板/跨裝置加入房間的核心函式
-// lobby.html 修正
-async function quickVerify() {
-	if (!hasCreatedCharacter()) return;
-    const code = document.getElementById('quickRoomCode').value.toUpperCase().trim();
-    const myName = localStorage.getItem('username');
-    if (!code) return alert("請輸入代碼");
-
-    try {
-        // 🏆 步驟 A：正式發送「加入」請求給後端
-        const joinRes = await fetch(`${API_URL}/rooms/join/${code}?username=${encodeURIComponent(myName)}`, {
-            method: 'POST'
-        });
-        
-        if (joinRes.ok) {
-            const serverRoom = await joinRes.json();
-            
-            // 🏆 步驟 B：儲存伺服器回傳的最新房間狀態
-            localStorage.setItem('pypoly_active_room', JSON.stringify(serverRoom));
-            
-            // 判定是否為房主 (通常加入者會是 false)
-            const isActuallyHost = (serverRoom.hostId === myName);
-            localStorage.setItem('is_host', isActuallyHost ? 'true' : 'false');
-
-            location.href = 'WaitingRoom.html';
-        } else {
-            const errorData = await joinRes.json();
-            alert(`❌ 無法加入：${errorData.detail || "房間可能已滿或不存在"}`);
-        }
-    } catch (err) { 
-        console.error("連線失敗", err);
-        alert("連線失敗，請檢查網路環境"); 
-    }
-}
-
-
-    // --- 6. 核心監控循環 ---
-    function startSyncLoop(username, token) {
-        if (syncTimer) clearInterval(syncTimer);
-        syncTimer = setInterval(async () => {
+        if (token && username && role) {
             try {
-                fetch(`${API_URL}/auth/heartbeat?username=${encodeURIComponent(username)}`, {
-                    method: 'POST', 
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
                 const res = await fetch(`${API_URL}/auth/me?username=${encodeURIComponent(username)}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (res.ok) {
                     const data = await res.json();
-                    if (data.role === 'banned' || (data.is_online === 0 && data.role !== 'admin')) {
-                        clearInterval(syncTimer);
-                        
-                        const charBackups = {};
-                        for (let i = 0; i < localStorage.length; i++) {
-                            const key = localStorage.key(i);
-                            if (key && key.startsWith('pypoly_char_')) {
-                                charBackups[key] = localStorage.getItem(key);
-                            }
-                        }
-                        
-                        localStorage.clear();
-                        
-                        Object.keys(charBackups).forEach(key => {
-                            localStorage.setItem(key, charBackups[key]);
-                        });
-                        
-                        window.location.href = 'login.html';
+                    if (data.is_online === 1 && data.role !== 'banned') {
+                        console.log("🚩 偵測到已登入 Session，執行自動跳轉...");
+                        window.location.href = role === 'admin' ? 'admin.html' : 'lobby.html';
+                        return;
                     }
                 }
-            } catch (err) {}
-        }, 5000);
+            } catch (err) {
+                console.warn("自動校對失敗，停留在登入頁");
+            }
+        }
+
+        const savedUsername = localStorage.getItem('remembered_username');
+        const rememberMeChecked = localStorage.getItem('remember_me_checked') === 'true';
+        if (rememberMeChecked && savedUsername) {
+            const userField = document.getElementById('loginUser');
+            if (userField) userField.value = savedUsername;
+            const checkField = document.getElementById('rememberMe');
+            if (checkField) checkField.checked = true;
+        }
+
+        const loginForm = document.getElementById('loginForm');
+        if (loginForm) {
+            loginForm.onsubmit = async (e) => {
+                e.preventDefault();
+                const userVal = document.getElementById('loginUser').value.trim();
+                const passVal = document.getElementById('loginPass').value;
+                const rememberMe = document.getElementById('rememberMe').checked;
+
+                try {
+                    const response = await fetch(`${API_URL}/auth/login`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: userVal, password: passVal })
+                    });
+                    
+                    const result = await response.json();
+
+                    if (response.ok) {
+                        if (rememberMe) {
+                            localStorage.setItem('remembered_username', userVal);
+                            localStorage.setItem('remember_me_checked', 'true');
+                        } else {
+                            localStorage.removeItem('remembered_username');
+                            localStorage.setItem('remember_me_checked', 'false');
+                        }
+
+                        localStorage.setItem('token', result.access_token);
+                        localStorage.setItem('username', result.username);
+                        localStorage.setItem('role', result.role);
+                        window.location.href = result.role === 'admin' ? 'admin.html' : 'lobby.html';
+                    } else {
+                        showModal("🔒 登入失敗", result.detail || "帳號或密碼錯誤", false);
+                    }
+                } catch (err) {
+                    showModal("⚠️ 連線失敗", "無法連接到伺服器，請檢查後端是否啟動。", false);
+                }
+            };
+        }
+
+        const regForm = document.getElementById('regForm');
+        if (regForm) {
+            regForm.onsubmit = async (e) => {
+                e.preventDefault();
+                const u = document.getElementById('regUsername').value;
+                const e_mail = document.getElementById('regEmail').value;
+                const p = document.getElementById('regPassword').value;
+
+                try {
+                    const res = await fetch(`${API_URL}/auth/register`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: u, email: e_mail, password: p })
+                    });
+                    if (res.ok) {
+                        showModal("🎉 註冊成功", "歡迎加入！請登入開始冒險。", true);
+                        toggle('login');
+                        document.getElementById('loginUser').value = u;
+                    } else {
+                        const errData = await res.json().catch(() => ({}));
+                        showModal("❌ 註冊失敗", errData.detail || `伺服器錯誤 (${res.status})`, false);
+                    }
+                } catch (err) {
+                    showModal("⚠️ 連線失敗", "伺服器連線失敗", false);
+                }
+            };
+        }
+    });
+
+    function handleGoogleLogin() {
+        try {
+            if (typeof google === 'undefined') {
+                showModal("⚠️ 載入中", "Google 服務載入中，請稍候...", false);
+                return;
+            }
+            const client = google.accounts.oauth2.initTokenClient({
+                client_id: "174084310746-5nhhblrrd4bii9nd6smf4oqb2a0j1ro1.apps.googleusercontent.com",
+                scope: "openid email profile",
+                callback: async (tokenResponse) => {
+                    if (tokenResponse && tokenResponse.access_token) {
+                        handleGoogleUser(tokenResponse.access_token);
+                    }
+                },
+            });
+            client.requestAccessToken();
+        } catch (error) {
+            console.error(error);
+            showModal("❌ 錯誤", "無法啟動 Google 登入視窗", false);
+        }
+    }
+
+    async function handleGoogleUser(accessToken) {
+        try {
+            const res = await fetch(`${API_URL}/auth/google_v2`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ access_token: accessToken }) 
+            });
+
+            const result = await res.json();
+            if (res.ok) {
+                localStorage.setItem('token', result.access_token);
+                localStorage.setItem('username', result.username);
+                localStorage.setItem('role', result.role);
+                window.location.href = result.role === 'admin' ? 'admin.html' : 'lobby.html';
+            } else {
+                showModal("❌ 登入失敗", result.detail || "Google 驗證失敗", false);
+            }
+        } catch (err) {
+            showModal("❌ 錯誤", "連線伺服器失敗", false);
+        }
+    }
+
+    function toggle(mode) {
+        const isLogin = mode === 'login';
+        document.getElementById('loginForm').classList.toggle('active', isLogin);
+        document.getElementById('regForm').classList.toggle('active', !isLogin);
+        document.getElementById('loginTab').classList.toggle('active', isLogin);
+        document.getElementById('regTab').classList.toggle('active', !isLogin);
+    }
+
+    function showModal(title, message, isSuccess = true) {
+        const modal = document.getElementById('statusModal');
+        const titleEl = document.getElementById('modalTitle');
+        const msgEl = document.getElementById('modalMsg');
+        const btnEl = document.getElementById('modalBtn');
+
+        if (!modal || !titleEl || !msgEl) return;
+
+        titleEl.innerText = title;
+        msgEl.innerText = message;
+        titleEl.style.color = isSuccess ? "var(--pixel-green)" : "var(--pixel-red)";
+        
+        if (btnEl) {
+            btnEl.style.background = isSuccess ? "var(--bee-yellow)" : "var(--pixel-red)";
+            btnEl.style.color = isSuccess ? "#1e272e" : "#ffffff";
+        }
+        modal.style.display = 'flex';
+    }
+
+    function closeModal() {
+        const modal = document.getElementById('statusModal');
+        if (modal) modal.style.display = 'none';
     }
 </script>
-
 </body>
 </html>
