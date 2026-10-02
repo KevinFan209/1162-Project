@@ -3,92 +3,350 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PyPoly - 遊戲結算</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
+    <title>BeeRich - 遊戲結算</title>
+    <!-- 引入與全站一致的精選像素與高質感字型 -->
+    <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
     <style>
         :root {
-            --success-green: #00cdac;
-            --success-green-shadow: #00a88b;
-            --bg-gray: #f1f5f9;
-            --text-dark: #000000;
-            --text-gray: #64748b;
-            --border-light: #e2e8f0;
-            --gold: #f1c40f;
-            --sidebar-dark: #334155;
-            --sidebar-dark-shadow: #1e293b;
+            --pixel-border: #1e272e;
+            --bee-gold: #ffc048;
+            --bee-yellow: #ffdd59;
+            --bee-dark: #2f3542;
+            --pixel-green: #05c46b;
+            --pixel-blue: #0fbcf9;
+            --pixel-red: #ff3f34;
+            --bg-grid: #d2dae2;
+            --card-bg: #ffffff;
+            --text-dark: #1e272e;
+            --text-gray: #747d8c;
+            --gold: #ffc048;
+            --sidebar-dark: #2f3542;
+            --sidebar-dark-shadow: #1e272e;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
-        body { background-color: var(--bg-gray); height: 100%; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+        html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            outline: none !important;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+        }
 
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            image-rendering: pixelated;
+        }
+
+        body {
+            background-color: var(--bg-grid);
+            /* 像素幾何網格背景 */
+            background-image: 
+                linear-gradient(rgba(0, 0, 0, 0.05) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.05) 2px, transparent 2px);
+            background-size: 28px 28px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* 頂部像素風格導覽列 */
         header {
-            background: linear-gradient(to bottom, #ffffff 0%, #fcfcfc 100%);
-            padding: 0 40px; display: flex; justify-content: space-between; align-items: center;
-            height: 85px; z-index: 100; border-bottom: 1.5px solid var(--border-light); 
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+            margin: 0 !important;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: white;
+            padding: 0 35px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 80px;
+            z-index: 100;
+            border: none;
+            border-bottom: 4px solid var(--pixel-border);
+            box-shadow: none !important;
+            flex-shrink: 0;
         }
-        .header-left h1 {
-            font-size: 2.5rem;
-            font-weight: 900;
-            margin-bottom: 10px;
-            color: var(--text-dark);
-        }
-        .header-right { display: flex; align-items: center; gap: 20px; }
-        
-        /* 🏆 新增的標籤樣式 */
-        .page-tag { font-weight: 800; color: var(--text-gray); background: #f1f5f9; padding: 10px 22px; border-radius: 12px; font-size: 0.95rem; }
 
-        .menu-btn { background: transparent; border: none; cursor: pointer; display: flex; flex-direction: column; justify-content: center; padding: 10px; }
-        
+        .header-left h1 {
+            font-family: 'VT323', monospace;
+            font-size: 3.2rem;
+            line-height: 1;
+            color: var(--bee-gold);
+            text-shadow: 
+                2px 2px 0 var(--pixel-border),
+                -1.5px -1.5px 0 var(--pixel-border),
+                2px -1.5px 0 var(--pixel-border),
+                -1.5px 2px 0 var(--pixel-border),
+                4px 4px 0 var(--bee-dark);
+            letter-spacing: 2px;
+            user-select: none;
+            cursor: pointer;
+        }
+
+        .header-right { display: flex; align-items: center; gap: 18px; }
+
+        .page-tag {
+            background: #fffdf2;
+            border: 3px solid var(--pixel-border);
+            padding: 6px 16px;
+            border-radius: 4px;
+            font-weight: 900;
+            font-size: 1rem;
+            color: var(--text-dark);
+            box-shadow: 3px 3px 0 #000;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .menu-btn {
+            background: white;
+            border: 3px solid var(--pixel-border);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px;
+            box-shadow: 3px 3px 0 #000;
+            transition: 0.1s;
+        }
+        .menu-btn:hover { background: #fffdf2; }
+        .menu-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+
+        .menu-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.45); display: none; z-index: 999;
+        }
+        .menu-overlay.open { display: block; }
+
         .side-menu {
             position: fixed; top: 0; right: -320px; width: 320px; height: 100%;
-            background: white; box-shadow: -10px 0 30px rgba(0,0,0,0.05);
-            z-index: 1000; transition: 0.4s; padding: 100px 30px 40px; display: flex; flex-direction: column; gap: 15px;
+            background: white; border-left: 4px solid var(--pixel-border);
+            box-shadow: -8px 0 0 rgba(0,0,0,0.2);
+            z-index: 1000; transition: 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
+            padding: 90px 25px 35px; display: flex; flex-direction: column; gap: 14px;
         }
         .side-menu.open { right: 0; }
-        .menu-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.15); display: none; z-index: 999; backdrop-filter: blur(2px); }
-        .menu-overlay.open { display: block; }
-        .menu-item { padding: 18px 25px; border-radius: 15px; font-weight: 800; color: var(--text-gray); text-decoration: none; display: flex; align-items: center; gap: 15px; background: #f8fafc; }
-        .menu-item.danger { margin-top: auto; color: #ff4757; }
 
-        .results-main { flex: 1; display: grid; grid-template-columns: 1fr 400px; gap: 25px; padding: 25px; overflow: hidden; }
+        .menu-item {
+            padding: 14px 20px; font-weight: 900;
+            color: var(--text-dark); text-decoration: none; display: flex;
+            align-items: center; gap: 12px; transition: 0.1s; background: #f1f2f6;
+            border: 3px solid var(--pixel-border); box-shadow: 3px 3px 0 #000;
+        }
+        .menu-item:hover { background: var(--bee-yellow); }
+        .menu-item:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+        .menu-item.danger { margin-top: auto; color: white; background: var(--pixel-red); }
+
+        /* 主佈局架構 */
+        .results-main {
+            height: calc(100vh - 80px);
+            display: grid;
+            grid-template-columns: 1fr 420px;
+            gap: 25px;
+            padding: 24px;
+            overflow: hidden;
+        }
 
         /* 左側：排行榜 */
         .leaderboard-card {
-            background: white; border-radius: 40px; padding: 40px;
-            border: 1.5px solid var(--border-light); box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-            display: flex; flex-direction: column;
+            background: white;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0 #000;
+            padding: 30px 35px;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
         }
-        .section-title { font-weight: 900; font-size: 1.8rem; margin-bottom: 30px; display: flex; align-items: center; gap: 12px; }
-        .ranking-item { background: #f8fafc; padding: 25px; border-radius: 25px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border: 1.5px solid #f1f2f6; }
-        .ranking-item.winner { border: 2.5px solid var(--gold); background: #fffdf5; transform: scale(1.02); }
-        .rank-info { display: flex; align-items: center; gap: 20px; }
-        .rank-num { font-size: 1.8rem; font-weight: 900; color: var(--text-gray); width: 35px; }
-        .winner .rank-num { color: var(--gold); }
-        .player-meta h4 { font-weight: 900; font-size: 1.3rem; }
+
+        .section-title {
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            font-weight: 900;
+            font-size: 1.6rem;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--text-dark);
+            border-bottom: 3px solid var(--pixel-border);
+            padding-bottom: 12px;
+            letter-spacing: 0.5px;
+        }
+
+        .ranking-list {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .ranking-item {
+            background: #f8fafc;
+            padding: 18px 24px;
+            border: 3px solid var(--pixel-border);
+            box-shadow: 4px 4px 0 #000;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.08s ease;
+        }
+
+        .ranking-item.winner {
+            border: 4px solid var(--pixel-border);
+            background: #fffdf5;
+            box-shadow: 6px 6px 0 var(--bee-gold);
+            transform: translate(-2px, -2px);
+        }
+
+        .rank-info { display: flex; align-items: center; gap: 16px; }
+
+        .rank-num {
+            font-family: 'Silkscreen', 'Zen Maru Gothic', monospace;
+            font-size: 1.8rem;
+            font-weight: 900;
+            color: var(--text-gray);
+            width: 40px;
+            text-align: center;
+        }
+        .winner .rank-num { color: #d97706; }
+
+        .player-meta h4 {
+            font-weight: 900;
+            font-size: 1.25rem;
+            color: var(--text-dark);
+        }
+
         .rank-score { text-align: right; }
-        .score-val { font-size: 1.7rem; font-weight: 900; display: block; }
-        .score-val::before { content: "$ "; color: var(--gold); }
-
-        /* 右側：純數據學習報告 */
-        .report-card {
-            background: white; border-radius: 40px; padding: 35px;
-            border: 1.5px solid var(--border-light); box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-            display: flex; flex-direction: column;
+        .score-val {
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            font-size: 1.7rem;
+            font-weight: 900;
+            color: var(--text-dark);
+            display: block;
+            line-height: 1.2;
         }
-        .report-header { font-weight: 900; font-size: 1.4rem; margin-bottom: 25px; border-left: 8px solid var(--success-green); padding-left: 15px; }
-        
-        .data-box { flex: 1; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; }
-        .data-item { background: #f8fafc; padding: 20px; border-radius: 20px; border: 1px solid #f1f2f6; }
-        .data-label { font-size: 0.85rem; font-weight: 900; color: var(--text-gray); margin-bottom: 8px; text-transform: uppercase; }
-        .data-value { font-size: 1.2rem; font-weight: 900; color: var(--text-dark); }
-        .data-value span { color: var(--success-green); margin-left: 5px; }
+        .score-val::before { content: "$ "; color: #d97706; }
 
-        .btn-group { display: flex; gap: 15px; margin-top: 30px; }
-        .btn-3d { flex: 1; padding: 22px; border: none; border-radius: 20px; font-size: 1.2rem; font-weight: 900; cursor: pointer; transition: 0.1s; }
-        .btn-home { background: var(--sidebar-dark); color: white; box-shadow: 0 6px 0 var(--sidebar-dark-shadow); }
-        .btn-again { background: var(--success-green); color: white; box-shadow: 0 6px 0 var(--success-green-shadow); }
-        .btn-3d:active { transform: translateY(6px); box-shadow: none; }
+        /* 右側：學習數據報告卡片 */
+        .report-card {
+            background: white;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0 #000;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .report-header {
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            font-weight: 900;
+            font-size: 1.35rem;
+            margin-bottom: 20px;
+            border-left: 8px solid var(--pixel-green);
+            padding-left: 12px;
+            color: var(--text-dark);
+            letter-spacing: 0.5px;
+        }
+        
+        .data-box {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .data-item {
+            background: #f8fafc;
+            padding: 14px 18px;
+            border: 3px solid var(--pixel-border);
+            box-shadow: 3px 3px 0 #000;
+        }
+
+        .data-label {
+            font-size: 0.82rem;
+            font-weight: 900;
+            color: var(--text-gray);
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .data-value {
+            font-size: 1.35rem;
+            font-weight: 900;
+            color: var(--text-dark);
+        }
+        .data-value span { color: var(--pixel-green); margin-left: 4px; }
+
+        /* 底部雙按鈕 */
+        .btn-group { display: flex; gap: 12px; margin-top: 24px; }
+
+        .btn-3d {
+            flex: 1;
+            padding: 15px 10px;
+            border: 3px solid var(--pixel-border);
+            border-radius: 0;
+            font-size: 1.05rem;
+            font-weight: 900;
+            cursor: pointer;
+            transition: all 0.06s ease;
+            user-select: none;
+            letter-spacing: 0.5px;
+            text-align: center;
+        }
+
+        .btn-home {
+            background: #dfe4ea;
+            color: var(--text-dark);
+            box-shadow: 0 5px 0 #000;
+        }
+        .btn-home:hover { background: #ced6e0; }
+        .btn-home:active {
+            transform: translateY(5px);
+            box-shadow: 0 0 0 #000;
+        }
+
+        .btn-again {
+            background: var(--bee-yellow);
+            color: var(--text-dark);
+            box-shadow: 0 5px 0 #000;
+        }
+        .btn-again:hover { filter: brightness(1.04); }
+        .btn-again:active {
+            transform: translateY(5px);
+            box-shadow: 0 0 0 #000;
+        }
+
+        /* 滾動條樣式 */
+        .leaderboard-card::-webkit-scrollbar,
+        .data-box::-webkit-scrollbar {
+            width: 8px;
+        }
+        .leaderboard-card::-webkit-scrollbar-track,
+        .data-box::-webkit-scrollbar-track {
+            background: #dfe4ea;
+            border-left: 2px solid var(--pixel-border);
+        }
+        .leaderboard-card::-webkit-scrollbar-thumb,
+        .data-box::-webkit-scrollbar-thumb {
+            background: var(--pixel-border);
+        }
+
+        @media (max-width: 850px) {
+            header { padding: 0 20px; }
+            .results-main { grid-template-columns: 1fr; height: auto; overflow: auto; }
+            .report-card { height: auto; }
+        }
     </style>
 </head>
 <body>
@@ -104,11 +362,11 @@
 </div>
 
 <header>
-    <div class="header-left"><h1>PyPoly</h1></div>
+    <div class="header-left" onclick="location.href='lobby.html'"><h1>BeeRich</h1></div>
     <div class="header-right">
-        <div class="page-tag">遊戲對局結算 🏆</div>
+        <div class="page-tag"><span>🏆</span> 遊戲對局結算</div>
         <button class="menu-btn" onclick="toggleMenu()">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
                 <line x1="3" y1="12" x2="21" y2="12"></line>
                 <line x1="3" y1="6" x2="21" y2="6"></line>
                 <line x1="3" y1="18" x2="21" y2="18"></line>
@@ -119,9 +377,9 @@
 
 <div class="results-main">
     <section class="leaderboard-card">
-        <div class="section-title">🏆 誰是 Python 大富翁？</div>
+        <div class="section-title"><span>🏆</span> 誰是 Python 大富翁？</div>
         <div class="ranking-list" id="rankingList">
-            <div style="text-align:center; color:#94a3b8; font-weight:800; padding:40px;">載入結算資料中...</div>
+            <div style="text-align:center; color:var(--text-gray); font-weight:900; padding:40px;">載入結算資料中...</div>
         </div>
     </section>
 
@@ -141,27 +399,22 @@
         document.getElementById('sideMenu').classList.toggle('open');
         document.getElementById('overlay').classList.toggle('open');
     }
-	
+    
     const API_URL = location.origin;
 
-    // 由 game.html 跳轉時帶入 ?room=CODE
     const roomCode = new URLSearchParams(window.location.search).get('room');
 
-    // --- 頁面初始化：讀取該局結算資料 (含重試，避免比結算寫入更早抵達) ---
     window.onload = () => {
         if (!roomCode) {
             document.getElementById('rankingList').innerHTML =
-                `<div style="text-align:center;color:#ef4444;font-weight:800;padding:40px;">缺少房間代碼，無法顯示結算</div>`;
+                `<div style="text-align:center;color:var(--pixel-red);font-weight:900;padding:40px;">缺少房間代碼，無法顯示結算</div>`;
             return;
         }
-        finishRoom();       // 先通知後端這局結束了
-        cleanupGameState(); // 再清掉本機的局內殘留
+        finishRoom();
+        cleanupGameState();
         loadResults(0);
     };
 
-    // 🏆 通知後端結束對局。先前完全沒有這一步——「回大廳」只是換頁，
-    //    後端不知道對局已結束，房間就永遠留在大廳且進不去（殭屍房間）。
-    //    兩位玩家都會進到這頁，各會呼叫一次，後端端點具冪等性。
     async function finishRoom() {
         try {
             await fetch(`${API_URL}/rooms/finish/${encodeURIComponent(roomCode)}`,
@@ -172,9 +425,6 @@
         }
     }
 
-    // 🏆 清掉局內狀態，避免回大廳後被誤判成「還在房間中」
-    //    （modal.html 建房時會偵測 pypoly_active_room 並跳出確認框）。
-    //    ⚠️ 不動 pypoly_char_*（角色外觀）與 token / username / role。
     function cleanupGameState() {
         const exact = ['pypoly_active_room', 'room_code', 'room_info', 'is_host',
                        'pypoly_game_snapshot', 'pypoly_current_round', 'pypoly_turn_order',
@@ -182,7 +432,6 @@
                        'pypoly_used_questions', 'current_player_role'];
         exact.forEach(k => localStorage.removeItem(k));
 
-        // 帶房號或玩家名的動態鍵：pypoly_synced_map_* / pypoly_inv_* / pypoly_jumps_*
         const prefixes = ['pypoly_synced_map_', 'pypoly_inv_', 'pypoly_jumps_'];
         Object.keys(localStorage)
             .filter(k => prefixes.some(p => k.startsWith(p)))
@@ -192,11 +441,10 @@
     }
 
     async function loadResults(attempt) {
-        const MAX_RETRY = 10; // 最多重試 10 次 (約 10 秒)
+        const MAX_RETRY = 10;
         try {
             const res = await fetch(`${API_URL}/game/results/${encodeURIComponent(roomCode)}`);
             if (res.status === 404) {
-                // 結算尚未寫入，稍後重試
                 if (attempt < MAX_RETRY) return setTimeout(() => loadResults(attempt + 1), 1000);
                 throw new Error('結算資料尚未產生');
             }
@@ -207,18 +455,18 @@
         } catch (err) {
             console.error('讀取結算失敗:', err);
             document.getElementById('rankingList').innerHTML =
-                `<div style="text-align:center;color:#ef4444;font-weight:800;padding:40px;">讀取結算資料失敗<br><span style="font-size:0.85rem;color:#94a3b8;">${err.message}</span></div>`;
+                `<div style="text-align:center;color:var(--pixel-red);font-weight:900;padding:40px;">讀取結算資料失敗<br><span style="font-size:0.85rem;color:var(--text-gray);">${err.message}</span></div>`;
         }
     }
 
     function renderLeaderboard(list) {
         const box = document.getElementById('rankingList');
         if (!list.length) {
-            box.innerHTML = `<div style="text-align:center;color:#94a3b8;font-weight:800;padding:40px;">本局無結算資料</div>`;
+            box.innerHTML = `<div style="text-align:center;color:var(--text-gray);font-weight:900;padding:40px;">本局無結算資料</div>`;
             return;
         }
         box.innerHTML = list.map(p => {
-            const accColor = p.is_winner ? 'var(--success-green)' : 'var(--text-gray)';
+            const accColor = p.is_winner ? 'var(--pixel-green)' : 'var(--text-gray)';
             return `
             <div class="ranking-item ${p.is_winner ? 'winner' : ''}">
                 <div class="rank-info">
@@ -227,7 +475,7 @@
                 </div>
                 <div class="rank-score">
                     <span class="score-val">${Number(p.final_money).toLocaleString()}</span>
-                    <span style="color:${accColor}; font-weight:800; font-size:0.9rem;">答對率 ${p.accuracy}%</span>
+                    <span style="color:${accColor}; font-weight:900; font-size:0.9rem;">答對率 ${p.accuracy}%</span>
                 </div>
             </div>`;
         }).join('');
@@ -251,11 +499,6 @@
     function escapeHtml(s) {
         return String(s ?? '').replace(/[&<>"']/g, c =>
             ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    }
-
-    function toggleMenu() {
-        document.getElementById('sideMenu').classList.toggle('open');
-        document.getElementById('overlay').classList.toggle('open');
     }
 </script>
 </body>
