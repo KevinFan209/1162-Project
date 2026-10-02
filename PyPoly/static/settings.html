@@ -3,92 +3,294 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PyPoly - Settings</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
+    <title>BeeRich - 遊戲設定</title>
+    <!-- 引入與登入、大廳、個人主頁一致的精選字型 -->
+    <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary-blue: #4facfe;
-            --success-green: #00cdac;
-            --success-green-shadow: #00a88b;
-            --bg-gray: #f1f5f9;
-            --text-dark: #000000;
-            --text-gray: #64748b;
-            --border-light: #e2e8f0;
-            --sidebar-dark: #334155;
-            --sidebar-dark-shadow: #1e293b;
+            --pixel-border: #1e272e;
+            --bee-gold: #ffc048;
+            --bee-yellow: #ffdd59;
+            --bee-dark: #2f3542;
+            --pixel-green: #05c46b;
+            --pixel-blue: #0fbcf9;
+            --pixel-red: #ff3f34;
+            --bg-grid: #d2dae2;
+            --card-bg: #ffffff;
+            --text-dark: #1e272e;
+            --text-gray: #747d8c;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
-        body { background-color: var(--bg-gray); height: 100%; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+        html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            outline: none !important;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+        }
 
-        /* 🏆 Header 同步 */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            image-rendering: pixelated;
+        }
+
+        body {
+            background-color: var(--bg-grid);
+            /* 像素幾何網格背景 */
+            background-image: 
+                linear-gradient(rgba(0, 0, 0, 0.05) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.05) 2px, transparent 2px);
+            background-size: 28px 28px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        /* 頂部像素風格導覽列 */
         header {
-            background: linear-gradient(to bottom, #ffffff 0%, #fcfcfc 100%);
-            padding: 0 40px; display: flex; justify-content: space-between; align-items: center;
-            height: 85px; z-index: 100; border-bottom: 1.5px solid var(--border-light); 
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+            margin: 0 !important;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: white;
+            padding: 0 35px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 80px;
+            z-index: 100;
+            border: none;
+            border-bottom: 4px solid var(--pixel-border);
+            box-shadow: none !important;
+            flex-shrink: 0;
         }
-        .header-left h1 { font-size: 2.5rem; font-weight: 900; margin-bottom: 10px;color: var(--text-dark); }
-        .header-right { display: flex; align-items: center; gap: 20px; }
-        .page-tag { font-weight: 800; color: var(--text-gray); background: #f1f5f9; padding: 10px 22px; border-radius: 12px; font-size: 0.95rem; }
 
-        .menu-btn { background: transparent; border: none; cursor: pointer; display: flex; flex-direction: column; justify-content: center; padding: 10px; transition: 0.2s; }
+        .header-left h1 {
+            font-family: 'VT323', monospace;
+            font-size: 3.2rem;
+            line-height: 1;
+            color: var(--bee-gold);
+            text-shadow: 
+                2px 2px 0 var(--pixel-border),
+                -1.5px -1.5px 0 var(--pixel-border),
+                2px -1.5px 0 var(--pixel-border),
+                -1.5px 2px 0 var(--pixel-border),
+                4px 4px 0 var(--bee-dark);
+            letter-spacing: 2px;
+            user-select: none;
+            cursor: pointer;
+        }
 
-        /* 🏆 側邊選單與遮罩 */
-        .menu-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.15); display: none; z-index: 999; backdrop-filter: blur(2px); }
+        .header-right { display: flex; align-items: center; gap: 18px; }
+
+        .page-tag {
+            background: #fffdf2;
+            border: 3px solid var(--pixel-border);
+            padding: 6px 16px;
+            border-radius: 4px;
+            font-weight: 900;
+            font-size: 1rem;
+            color: var(--text-dark);
+            box-shadow: 3px 3px 0 #000;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .menu-btn {
+            background: white;
+            border: 3px solid var(--pixel-border);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px;
+            box-shadow: 3px 3px 0 #000;
+            transition: 0.1s;
+        }
+        .menu-btn:hover { background: #fffdf2; }
+        .menu-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+
+        /* 側邊選單與遮罩 */
+        .menu-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.45); display: none; z-index: 999;
+        }
         .menu-overlay.open { display: block; }
-        .side-menu { position: fixed; top: 0; right: -320px; width: 320px; height: 100%; background: white; box-shadow: -10px 0 30px rgba(0,0,0,0.05); z-index: 1000; transition: 0.4s; padding: 100px 30px 40px; display: flex; flex-direction: column; gap: 15px; }
+
+        .side-menu {
+            position: fixed; top: 0; right: -320px; width: 320px; height: 100%;
+            background: white; border-left: 4px solid var(--pixel-border);
+            box-shadow: -8px 0 0 rgba(0,0,0,0.2);
+            z-index: 1000; transition: 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
+            padding: 90px 25px 35px; display: flex; flex-direction: column; gap: 14px;
+        }
         .side-menu.open { right: 0; }
-        .menu-item { padding: 18px 25px; border-radius: 15px; font-weight: 800; color: var(--text-gray); text-decoration: none; display: flex; align-items: center; gap: 15px; background: #f8fafc; }
-        .menu-item:hover { background: var(--bg-gray); color: var(--text-dark); }
 
-        /* 🏆 設定主區域：改為單一清爽卡片 */
-        .settings-main { flex: 1; display: flex; justify-content: center; align-items: center; padding: 25px; }
+        .menu-item {
+            padding: 14px 20px; font-weight: 900;
+            color: var(--text-dark); text-decoration: none; display: flex;
+            align-items: center; gap: 12px; transition: 0.1s; background: #f1f2f6;
+            border: 3px solid var(--pixel-border); box-shadow: 3px 3px 0 #000;
+        }
+        .menu-item:hover { background: var(--bee-yellow); }
+        .menu-item:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+
+        /* 設定主區域 */
+        .settings-main {
+            height: calc(100vh - 80px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            overflow: hidden;
+        }
+
         .settings-card {
-            width: 100%; max-width: 600px; background: white; border-radius: 40px; padding: 40px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1.5px solid var(--border-light);
-            display: flex; flex-direction: column; gap: 30px;
+            width: 100%;
+            max-width: 580px;
+            background: white;
+            border-radius: 6px;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 8px 8px 0px #000;
+            padding: 36px 36px 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
         }
 
-        .setting-item { display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; border-bottom: 1.5px solid #f1f5f9; }
-        .setting-label { font-weight: 900; color: var(--text-dark); font-size: 1.1rem; }
-        .setting-desc { font-size: 0.85rem; color: var(--text-gray); font-weight: 700; margin-top: 4px; }
+        .card-header {
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            font-size: 1.45rem;
+            font-weight: 900;
+            color: var(--text-dark);
+            border-bottom: 3px solid var(--pixel-border);
+            padding-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
 
-        /* iOS 風格開關 */
-        .switch { position: relative; display: inline-block; width: 55px; height: 28px; }
+        .setting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 20px;
+            border-bottom: 3px dashed var(--pixel-border);
+            gap: 16px;
+        }
+
+        .setting-label {
+            font-weight: 900;
+            color: var(--text-dark);
+            font-size: 1.15rem;
+            letter-spacing: 0.5px;
+        }
+
+        .setting-desc {
+            font-size: 0.9rem;
+            color: var(--text-gray);
+            font-weight: 900;
+            margin-top: 5px;
+            line-height: 1.5;
+        }
+
+        /* 像素風格滑塊開關 */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 32px;
+            flex-shrink: 0;
+        }
+
         .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #e2e8f0; transition: .4s; border-radius: 34px; }
-        .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
-        input:checked + .slider { background-color: var(--success-green); }
-        input:checked + .slider:before { transform: translateX(27px); }
 
-        /* 3D 按鈕 */
-        .btn-save { 
-            width: 100%; padding: 20px; background: var(--success-green); color: white; 
-            border: none; border-radius: 20px; font-size: 1.3rem; font-weight: 900; 
-            cursor: pointer; box-shadow: 0 6px 0 var(--success-green-shadow); transition: 0.1s; 
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #dfe4ea;
+            border: 3px solid var(--pixel-border);
+            box-shadow: 2px 2px 0 #000;
+            transition: 0.12s steps(2);
         }
-        .btn-save:active { transform: translateY(4px); box-shadow: none; }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 4px;
+            background-color: #ffffff;
+            border: 2px solid var(--pixel-border);
+            box-shadow: 1px 1px 0 #000;
+            transition: 0.12s ease;
+        }
+
+        input:checked + .slider {
+            background-color: var(--bee-yellow);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+            background-color: var(--pixel-green);
+        }
+
+        /* 像素立體按鈕 */
+        .btn-save {
+            width: 100%;
+            padding: 15px;
+            background: var(--bee-yellow);
+            color: var(--text-dark);
+            border: 3px solid var(--pixel-border);
+            font-size: 1.2rem;
+            font-weight: 900;
+            cursor: pointer;
+            box-shadow: 0 6px 0 #000;
+            transition: all 0.06s ease;
+            user-select: none;
+            letter-spacing: 0.5px;
+            margin-top: 6px;
+        }
+
+        .btn-save:hover { filter: brightness(1.04); }
+        .btn-save:active {
+            transform: translateY(6px);
+            box-shadow: 0 0 0 #000;
+        }
+
+        @media (max-width: 640px) {
+            header { padding: 0 20px; }
+            .settings-card { padding: 25px 20px; }
+        }
     </style>
 </head>
 <body>
 
 <div class="menu-overlay" id="overlay" onclick="toggleMenu()"></div>
+
 <div class="side-menu" id="sideMenu">
     <a href="profile.html" class="menu-item"><span>👤</span> 個人主頁</a>
     <a href="guide.html" class="menu-item"><span>📖</span> 遊戲說明</a>
     <a href="learn.html" class="menu-item"><span>📊</span> 學習統計</a>
     <a href="settings.html" class="menu-item"><span>⚙️</span> 遊戲設定</a>
     <a href="lobby.html" class="menu-item"><span>🏠</span> 返回大廳</a>
-    <a href="login.html" class="menu-item" style="margin-top:auto; color:#ff4757;"><span>🚪</span> 登出遊戲</a>
+    <a href="login.html" class="menu-item" style="margin-top:auto; color:white; background:var(--pixel-red);"><span>🚪</span> 登出遊戲</a>
 </div>
 
 <header>
-    <div class="header-left"><h1>PyPoly</h1></div>
+    <div class="header-left" onclick="location.href='lobby.html'"><h1>BeeRich</h1></div>
     <div class="header-right">
-        <div class="page-tag">遊戲設定 ⚙️</div>
+        <div class="page-tag"><span>⚙️</span> 遊戲設定</div>
         <button class="menu-btn" onclick="toggleMenu()">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
                 <line x1="3" y1="12" x2="21" y2="12"></line>
                 <line x1="3" y1="6" x2="21" y2="6"></line>
                 <line x1="3" y1="18" x2="21" y2="18"></line>
@@ -99,6 +301,10 @@
 
 <div class="settings-main">
     <div class="settings-card">
+        <div class="card-header">
+            <span>🕹️</span> 系統偏好設定
+        </div>
+
         <div class="setting-item">
             <div>
                 <p class="setting-label">背景音樂 (BGM)</p>
@@ -123,7 +329,7 @@
             <label class="switch"><input type="checkbox"><span class="slider"></span></label>
         </div>
 
-        <button class="btn-save" onclick="location.href='lobby.html'">確認儲存</button>
+        <button class="btn-save" onclick="location.href='lobby.html'">GO! 確認儲存</button>
     </div>
 </div>
 
