@@ -31,7 +31,6 @@
 
         body {
             background-color: var(--bg-grid);
-            /* 與登入頁相同的經典像素格線底紋 */
             background-image: 
                 linear-gradient(rgba(0, 0, 0, 0.05) 2px, transparent 2px),
                 linear-gradient(90deg, rgba(0, 0, 0, 0.05) 2px, transparent 2px);
@@ -43,7 +42,7 @@
             position: relative;
         }
 
-        /* 頂部像素風格導覽列 */
+        /* 頂部導覽列：移除多餘陰影，徹底消除重疊橫線 */
         header {
             background: white;
             padding: 0 35px;
@@ -53,7 +52,7 @@
             height: 80px;
             z-index: 100;
             border-bottom: 4px solid var(--pixel-border);
-            box-shadow: 0 4px 0 rgba(0, 0, 0, 0.15);
+            box-shadow: none; /* 💡 移除陰影，線條乾淨純粹 */
         }
 
         .header-left h1 {
@@ -144,7 +143,7 @@
             align-items: stretch;
         }
 
-        /* 左側人物資訊欄 (8-bit 街機框) */
+        /* 左側人物欄 */
         .sidebar {
             width: clamp(280px, 25vw, 320px);
             height: 100%;
@@ -436,7 +435,6 @@
     let syncTimer = null; 
     let pendingRoomId = null;
 
-    // --- 1. 選單切換邏輯 ---
     function toggleMenu() {
         const sideMenu = document.getElementById('sideMenu');
         const overlay = document.getElementById('overlay');
@@ -451,7 +449,6 @@
         const username = localStorage.getItem('username');
         await fetch(`${API_URL}/auth/logout?username=${username}&confirm=true`, { method: 'POST' });
         
-        // 🏆 終極防禦修正：掃描並備份「所有」自定義虛擬人物相關資料
         const charBackups = {};
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
@@ -462,7 +459,6 @@
         
         localStorage.clear();
         
-        // 🏆 還原備份
         Object.keys(charBackups).forEach(key => {
             localStorage.setItem(key, charBackups[key]);
         });
@@ -470,7 +466,6 @@
         window.location.href = 'login.html';
     }
 
-    // --- 3. 頁面初始化 ---
     window.onload = async function() {
         const token = localStorage.getItem('token');
         const username = localStorage.getItem('username');
@@ -480,12 +475,10 @@
             return;
         }
         
-        // 🏆 整合版：優先讀取玩家自定義的專屬人臉或預覽圖
         const charBox = document.getElementById('lobby-char-box');
         const myFace = localStorage.getItem(`pypoly_char_face_${username}`) || localStorage.getItem('pypoly_char_face');
         const savedCharImage = localStorage.getItem('pypoly_char_preview');
         
-        // ✅ 新的正確邏輯：不論有沒有人臉，一律優先顯示精美的「3D 全身自定義模型」！
         if (charBox) {
             if (savedCharImage) {
                 charBox.innerHTML = `<img src="${savedCharImage}" alt="我的角色" style="width: 100%; height: 100%; object-fit: contain; transform: scale(1.15);">`;
@@ -502,7 +495,6 @@
             const data = await res.json();
 
             if (data.status === "success") {
-                console.log("狀態已復活");
                 if (document.getElementById('topPlayerName')) document.getElementById('topPlayerName').innerText = username;
                 if (document.getElementById('sidePlayerName')) document.getElementById('sidePlayerName').innerText = username;
 
@@ -522,7 +514,6 @@
         setInterval(renderRooms, 10000);
     };
     
-    // 🏆 自定義像素風格 UI 彈窗取代系統原生 alert
     function showCustomAlert(title, message, isSuccess = false) {
         const existingAlert = document.getElementById('custom-ui-alert');
         if (existingAlert) existingAlert.remove();
@@ -570,14 +561,12 @@
         });
     }
     
-    // 🏆 檢查是否已建立虛擬人物的核心函式
     function hasCreatedCharacter() {
         const currentUsername = localStorage.getItem('username');
         let isCreated = localStorage.getItem(`pypoly_char_created_${currentUsername}`);
         
         const hasPreview = localStorage.getItem('pypoly_char_preview');
         if (hasPreview && isCreated !== "true") {
-            console.log("🛠️ [系統防禦] 偵測到已有角色模型預覽圖，正在自動為帳號補發通行標記...");
             localStorage.setItem(`pypoly_char_created_${currentUsername}`, "true");
             isCreated = "true";
         }
@@ -592,21 +581,11 @@
         return true;
     }
 
-    // 🏆 建立新對局的阻斷函式
     function checkAndCreateRoom() {
         if (!hasCreatedCharacter()) return;
         location.href = 'modal.html';
     }
 
-    const myName = localStorage.getItem('username');
-    const myFace = localStorage.getItem(`pypoly_char_face_${myName}`) || localStorage.getItem('pypoly_char_face');
-
-    const avatarContainer = document.getElementById('player-avatar-preview'); 
-    if (avatarContainer && myFace) {
-        avatarContainer.innerHTML = `<img src="${myFace}" style="width:100%; height:100%; object-fit:cover; border:2px solid var(--bee-yellow);">`;
-    }
-
-    // --- 4. 渲染房間列表 ---
     async function renderRooms() {
         const grid = document.getElementById('roomList');
         if (!grid) return;
@@ -658,23 +637,6 @@
         }
     }
     
-    async function checkGhostRoom() {
-        const localRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
-        if (!localRoom) return;
-
-        try {
-            const res = await fetch(`${API_URL}/rooms/verify/${localRoom.code}`);
-            if (res.status === 404) {
-                console.log("清理不存在的房間緩存...");
-                localStorage.removeItem('pypoly_active_room');
-                localStorage.removeItem('is_host');
-            }
-        } catch (e) {
-            console.error("連線檢查失敗");
-        }
-    }
-
-    // --- 5. 加入房間邏輯 ---
     async function joinRoom(roomCode, type) {
         if (!hasCreatedCharacter()) return;
         const myName = localStorage.getItem('username');
@@ -686,13 +648,11 @@
 
             if (joinRes.ok) {
                 const serverRoom = await joinRes.json();
-                
                 localStorage.setItem('pypoly_active_room', JSON.stringify(serverRoom));
                 
                 const isActuallyHost = (serverRoom.hostId === myName);
                 localStorage.setItem('is_host', isActuallyHost ? 'true' : 'false');
 
-                console.log("✅ 加入成功，前往等待室...");
                 location.href = 'WaitingRoom.html';
             } else {
                 const errorData = await joinRes.json();
@@ -701,19 +661,6 @@
         } catch (err) { 
             console.error("連線失敗", err);
             alert("連線伺服器失敗，請檢查網路"); 
-        }
-    }
-
-    async function verifySpecificRoom(targetCode) {
-        const inputVal = document.getElementById('inputRoomCode').value.toUpperCase().trim();
-        if (inputVal !== targetCode) {
-            alert("❌ 邀請碼不正確！");
-            return;
-        }
-        const quickInput = document.getElementById('quickRoomCode');
-        if (quickInput) {
-            quickInput.value = targetCode;
-            await quickVerify();
         }
     }
 
@@ -731,12 +678,6 @@
         if (quickInput) quickInput.value = inputCode;
         
         await quickVerify(); 
-    }
-
-    function enterWaitingRoom(roomId, isHost) {
-        localStorage.setItem('is_host', isHost ? 'true' : 'false');
-        localStorage.setItem('current_player_role', isHost ? 'host' : 'guest');
-        location.href = 'WaitingRoom.html';
     }
 
     function closePasswordModal() {
@@ -759,7 +700,6 @@
             
             if (joinRes.ok) {
                 const serverRoom = await joinRes.json();
-                
                 localStorage.setItem('pypoly_active_room', JSON.stringify(serverRoom));
                 
                 const isActuallyHost = (serverRoom.hostId === myName);
@@ -776,7 +716,6 @@
         }
     }
 
-    // --- 6. 核心監控循環 ---
     function startSyncLoop(username, token) {
         if (syncTimer) clearInterval(syncTimer);
         syncTimer = setInterval(async () => {
