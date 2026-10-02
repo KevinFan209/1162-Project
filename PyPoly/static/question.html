@@ -3,117 +3,365 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PyPoly - Admin Question Editor</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
+    <title>BeeRich - Admin Question Editor</title>
+    <!-- 引入與全站一致的精選像素與高質感字型 -->
+    <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary-blue: #4facfe;
-            --success-green: #00cdac;
-            --success-green-shadow: #00a88b;
-            --bg-gray: #f1f5f9;
-            --text-dark: #000000;
-            --text-gray: #64748b;
-            --sidebar-dark: #334155;
-            --sidebar-dark-shadow: #1e293b;
-            --border-light: #e2e8f0;
-            --danger-red: #ff7675;
-            --difficulty-easy: #00b894;
-            --difficulty-hard: #d63031;
+            --pixel-border: #1e272e;
+            --bee-gold: #ffc048;
+            --bee-yellow: #ffdd59;
+            --bee-dark: #2f3542;
+            --pixel-green: #05c46b;
+            --pixel-blue: #0fbcf9;
+            --pixel-red: #ff3f34;
+            --bg-grid: #d2dae2;
+            --card-bg: #ffffff;
+            --text-dark: #1e272e;
+            --text-gray: #747d8c;
+            --border-light: #1e272e;
+            --danger-red: #ff3f34;
+            --difficulty-easy: #05c46b;
+            --difficulty-hard: #ff3f34;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
-        body { background-color: var(--bg-gray); height: 100%; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+        html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            outline: none !important;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+        }
 
-        /* 🏆 Header：移除選單按鈕 */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            image-rendering: pixelated;
+        }
+
+        body {
+            background-color: var(--bg-grid);
+            /* 像素幾何網格背景 */
+            background-image: 
+                linear-gradient(rgba(0, 0, 0, 0.05) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.05) 2px, transparent 2px);
+            background-size: 28px 28px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* 頂部像素風格導覽列 */
         header {
-            background: linear-gradient(to bottom, #ffffff 0%, #fcfcfc 100%);
-            padding: 0 40px; display: flex; justify-content: space-between; align-items: center;
-            height: 85px; z-index: 100; border-bottom: 1.5px solid var(--border-light); 
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+            margin: 0 !important;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: white;
+            padding: 0 35px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 80px;
+            z-index: 100;
+            border: none;
+            border-bottom: 4px solid var(--pixel-border);
+            box-shadow: none !important;
+            flex-shrink: 0;
         }
-        .header-left h1 { font-size: 2.5rem; font-weight: 900; margin-bottom: 10px; color: var(--text-dark); }
-        .header-right { display: flex; align-items: center; gap: 20px; }
-        .page-tag { font-weight: 800; color: var(--text-gray); background: #f1f5f9; padding: 10px 22px; border-radius: 12px; font-size: 0.95rem; }
 
-        /* 🏆 Admin Layout */
-        .admin-main { flex: 1; display: flex; justify-content: center; align-items: center; padding: 20px; }
-        .admin-container { display: flex; gap: 30px; width: 95%; max-width: 1250px; height: 82vh; }
+        .header-left h1 {
+            font-family: 'VT323', monospace;
+            font-size: 3.2rem;
+            line-height: 1;
+            color: var(--bee-gold);
+            text-shadow: 
+                2px 2px 0 var(--pixel-border),
+                -1.5px -1.5px 0 var(--pixel-border),
+                2px -1.5px 0 var(--pixel-border),
+                -1.5px 2px 0 var(--pixel-border),
+                4px 4px 0 var(--bee-dark);
+            letter-spacing: 2px;
+            user-select: none;
+            cursor: pointer;
+        }
 
-        /* Sidebar Nav */
+        .header-right { display: flex; align-items: center; gap: 18px; }
+
+        .page-tag {
+            background: #fffdf2;
+            border: 3px solid var(--pixel-border);
+            padding: 6px 16px;
+            border-radius: 4px;
+            font-weight: 900;
+            font-size: 1rem;
+            color: var(--text-dark);
+            box-shadow: 3px 3px 0 #000;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* 主要佈局 */
+        .admin-main {
+            height: calc(100vh - 80px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            overflow: hidden;
+        }
+
+        .admin-container {
+            display: flex;
+            gap: 25px;
+            width: 95%;
+            max-width: 1280px;
+            height: 100%;
+            align-items: stretch;
+        }
+
+        /* 側邊導覽欄 */
         .admin-nav {
-            width: 280px; background: white; border-radius: 35px; padding: 30px 20px;
-            display: flex; flex-direction: column; gap: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #f1f2f6;
+            width: 280px;
+            background: white;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0px #000;
+            padding: 24px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            flex-shrink: 0;
         }
-        .nav-link { 
-            width: 100%; padding: 16px; border: none; border-radius: 15px; 
-            font-weight: 900; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 12px;
-            background: #f8fafc; color: var(--text-gray); transition: 0.2s; text-decoration: none;
-        }
-        .nav-link.active { background: var(--sidebar-dark); color: white; box-shadow: 0 6px 0 var(--sidebar-dark-shadow); }
-        .nav-link:hover:not(.active) { background: #f1f5f9; }
 
-        /* Main Board */
-        .admin-board { flex: 1; display: flex; flex-direction: column; gap: 20px; overflow: hidden; }
+        .admin-nav h2 {
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            font-weight: 900;
+            font-size: 1.35rem;
+            margin-bottom: 10px;
+            padding-left: 6px;
+            color: var(--text-dark);
+            border-bottom: 3px solid var(--pixel-border);
+            padding-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+
+        .nav-link { 
+            width: 100%;
+            padding: 13px 16px;
+            border: 3px solid var(--pixel-border);
+            font-size: 0.95rem;
+            font-weight: 900;
+            cursor: pointer;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #f8fafc;
+            color: var(--text-dark);
+            transition: all 0.06s ease;
+            text-decoration: none;
+            box-shadow: 3px 3px 0 #000;
+            user-select: none;
+        }
+
+        .nav-link:hover:not(.active) {
+            background: #fffdf2;
+            transform: translate(-1px, -1px);
+            box-shadow: 4px 4px 0 #000;
+        }
+
+        .nav-link.active {
+            background: var(--bee-yellow);
+            color: var(--text-dark);
+            transform: translate(2px, 2px);
+            box-shadow: 1px 1px 0 #000;
+        }
+
+        .nav-link:active {
+            transform: translate(3px, 3px);
+            box-shadow: 0 0 0 #000;
+        }
+
+        /* 右側主看板 */
+        .admin-board {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            overflow: hidden;
+            height: 100%;
+        }
         
         .board-header { 
-            background: white; padding: 20px 30px; border-radius: 25px; 
-            display: flex; justify-content: space-between; align-items: center; 
-            box-shadow: 0 4px 20px rgba(0,0,0,0.03); border: 1px solid #f1f2f6; 
+            background: white;
+            padding: 16px 24px;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0 #000;
+            display: flex;
+            justify-content: space-between;
+            align-items: center; 
         }
-        .filter-group { display: flex; gap: 10px; }
-        .select-filter { padding: 10px 15px; border-radius: 10px; border: 1.5px solid var(--border-light); font-weight: 800; background: #f8fafc; }
-        .btn-add { padding: 12px 25px; background: var(--success-green); color: white; border: none; border-radius: 12px; font-weight: 900; cursor: pointer; box-shadow: 0 6px 0 var(--success-green-shadow); }
-        .btn-add:active { transform: translateY(4px); box-shadow: none; }
 
+        .filter-group { display: flex; gap: 12px; }
+        
+        .select-filter { 
+            padding: 9px 16px;
+            border: 3px solid var(--pixel-border);
+            border-radius: 0;
+            font-weight: 900;
+            font-size: 0.9rem;
+            background: #fffdf5;
+            color: var(--text-dark);
+            outline: none;
+            box-shadow: 2px 2px 0 #000;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%231e272e' stroke-width='3' stroke-linecap='square' stroke-linejoin='miter'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            background-size: 12px;
+            padding-right: 32px;
+        }
+        .select-filter:focus { background-color: #feffea; border-color: #000; }
+
+        .btn-add { 
+            padding: 11px 22px;
+            background: var(--bee-yellow);
+            color: var(--text-dark);
+            border: 3px solid var(--pixel-border);
+            border-radius: 0;
+            font-weight: 900;
+            font-size: 0.95rem;
+            cursor: pointer;
+            box-shadow: 0 5px 0 #000;
+            transition: 0.06s ease;
+            user-select: none;
+            letter-spacing: 0.5px;
+        }
+        .btn-add:hover { filter: brightness(1.05); }
+        .btn-add:active { transform: translateY(4px); box-shadow: 0 1px 0 #000; }
+
+        /* 題目列表容器 */
         .question-list { 
-            background: white; flex: 1; border-radius: 40px; padding: 30px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #f1f2f6;
+            background: white;
+            flex: 1;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0 #000;
+            padding: 24px 28px; 
             overflow-y: auto;
         }
 
         .q-item {
-            background: #f8fafc; padding: 25px 30px; border-radius: 25px;
-            display: flex; justify-content: space-between; align-items: flex-start;
-            margin-bottom: 20px; border: 1px solid #f1f2f6;
-            transition: 0.2s;
+            background: #f8fafc;
+            padding: 20px 24px;
+            border: 3px solid var(--pixel-border);
+            box-shadow: 4px 4px 0 #000;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+            transition: all 0.08s ease;
         }
-        .q-item:hover { transform: translateY(-3px); box-shadow: 0 5px 15px rgba(0,0,0,0.05); border-color: var(--primary-blue); }
+        .q-item:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 #000;
+            background: #fffdf5;
+        }
 
         .q-content { flex: 1; }
-        .q-tag-row { display: flex; gap: 8px; margin-bottom: 12px; }
-        .q-tag { padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 900; text-transform: uppercase; }
-        .tag-category { background: #eef2ff; color: #4338ca; }
+        .q-tag-row { display: flex; gap: 8px; margin-bottom: 10px; }
+        
+        .q-tag { 
+            padding: 3px 10px;
+            border: 2px solid var(--pixel-border);
+            box-shadow: 2px 2px 0 #000;
+            font-size: 0.75rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .tag-category { background: #e0f2fe; color: #0284c7; }
         .tag-easy { background: #ebfffa; color: var(--difficulty-easy); }
         .tag-hard { background: #fff5f5; color: var(--difficulty-hard); }
 
-        .q-text { font-weight: 900; font-size: 1.1rem; color: var(--text-dark); line-height: 1.4; margin-bottom: 10px; }
-        .q-code { background: #1e293b; color: #f8fafc; padding: 12px; border-radius: 10px; font-family: 'Consolas', monospace; font-size: 0.9rem; margin-bottom: 10px; }
+        .q-text { 
+            font-weight: 900;
+            font-size: 1.1rem;
+            color: var(--text-dark);
+            line-height: 1.5;
+            margin-bottom: 8px; 
+        }
 
+        .q-code { 
+            background: #1e272e;
+            color: #ffdd59;
+            padding: 12px 16px;
+            border: 2px solid var(--pixel-border);
+            box-shadow: inset 2px 2px 0 rgba(0,0,0,0.4);
+            font-family: 'Consolas', monospace;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+            line-height: 1.5;
+        }
+
+        /* 動作按鈕 */
         .action-btns { display: flex; flex-direction: column; gap: 8px; margin-left: 20px; }
-        .btn-q { padding: 10px 20px; border: none; border-radius: 10px; cursor: pointer; font-weight: 800; font-size: 0.85rem; width: 100px; }
-        .btn-edit { background: #e2e8f0; color: var(--text-dark); }
-        .btn-del { background: #fff5f5; color: var(--danger-red); }
+        
+        .btn-q { 
+            padding: 8px 16px;
+            border: 2px solid var(--pixel-border);
+            box-shadow: 3px 3px 0 #000;
+            cursor: pointer;
+            font-weight: 900;
+            font-size: 0.85rem;
+            width: 90px;
+            transition: 0.06s ease;
+            user-select: none;
+            text-align: center;
+        }
+        .btn-q:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+        .btn-edit { background: #dfe4ea; color: var(--text-dark); }
+        .btn-edit:hover { background: #ced6e0; }
+        .btn-del { background: #fff5f5; color: var(--pixel-red); }
+        .btn-del:hover { background: #ffe0e0; }
+
+        /* 滾動條樣式 */
+        .question-list::-webkit-scrollbar { width: 8px; }
+        .question-list::-webkit-scrollbar-track { background: #dfe4ea; border-left: 2px solid var(--pixel-border); }
+        .question-list::-webkit-scrollbar-thumb { background: var(--pixel-border); }
+
+        @media (max-width: 900px) {
+            header { padding: 0 20px; }
+            .admin-container { flex-direction: column; height: auto; }
+            .admin-nav { width: 100%; }
+        }
     </style>
 </head>
 <body>
 
 <header>
-    <div class="header-left"><h1>PyPoly</h1></div>
+    <div class="header-left"><h1 onclick="location.href='admin.html'">BeeRich</h1></div>
     <div class="header-right">
-        <div class="page-tag">管理後台中心 ⚙️</div>
+        <div class="page-tag"><span>⚙️</span> 管理後台中心</div>
     </div>
 </header>
 
 <div class="admin-main">
     <div class="admin-container">
         <aside class="admin-nav">
-            <h2 style="font-weight: 900; font-size: 1.4rem; margin-bottom: 15px; padding-left: 10px;">後台選單</h2>
+            <h2><span>📋</span> 後台選單</h2>
             <a href="admin.html" class="nav-link"><span>👥</span> 用戶權限管理</a>
             <a href="question.html" class="nav-link active"><span>❓</span> 考題庫編輯</a>
             <a href="camera.html" class="nav-link"><span>📷</span> 影像辨識偵錯</a>
-            <a href="game data.html" class="nav-link"><span>📈</span> 遊戲數據監控</a>
-            <a href="Login.html" class="nav-link" style="margin-top: auto; color: var(--danger-red);"><span>🚪</span> 登出系統</a>
+            <a href="game_data.html" class="nav-link"><span>📈</span> 遊戲數據監控</a>
+            <a href="Login.html" class="nav-link" style="margin-top: auto; color: white; background: var(--pixel-red);"><span>🚪</span> 登出系統</a>
         </aside>
 
         <main class="admin-board">
@@ -133,7 +381,7 @@
                             <span class="q-tag tag-easy">Easy</span>
                         </div>
                         <p class="q-text">下列哪一個變數名稱在 Python 中是合法的？</p>
-                        <p style="color: var(--text-gray); font-weight: 700; font-size: 0.9rem;">(A) 2_variable (B) _my_var (C) class (D) my-var</p>
+                        <p style="color: var(--text-gray); font-weight: 900; font-size: 0.9rem;">(A) 2_variable (B) _my_var (C) class (D) my-var</p>
                     </div>
                     <div class="action-btns">
                         <button class="btn-q btn-edit">編輯</button>
@@ -152,7 +400,7 @@
                             for i in range(1, 4):<br>
                             &nbsp;&nbsp;print(i * 2, end=" ")
                         </div>
-                        <p style="color: var(--text-gray); font-weight: 700; font-size: 0.9rem;">(A) 1 2 3 (B) 2 4 6 (C) 2 4 (D) 0 2 4</p>
+                        <p style="color: var(--text-gray); font-weight: 900; font-size: 0.9rem;">(A) 1 2 3 (B) 2 4 6 (C) 2 4 (D) 0 2 4</p>
                     </div>
                     <div class="action-btns">
                         <button class="btn-q btn-edit">編輯</button>
@@ -167,7 +415,7 @@
                             <span class="q-tag tag-easy">Easy</span>
                         </div>
                         <p class="q-text">Python 中使用哪一個關鍵字來處理多重條件判斷？</p>
-                        <p style="color: var(--text-gray); font-weight: 700; font-size: 0.9rem;">(A) else if (B) elseif (C) elif (D) switch</p>
+                        <p style="color: var(--text-gray); font-weight: 900; font-size: 0.9rem;">(A) else if (B) elseif (C) elif (D) switch</p>
                     </div>
                     <div class="action-btns">
                         <button class="btn-q btn-edit">編輯</button>
