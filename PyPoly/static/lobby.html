@@ -172,16 +172,17 @@
             flex-shrink: 0;
         }
 
+        /* 💡 遊戲大廳標題：粗體 900 清晰呈現 */
         .side-title {
-            font-family: 'Silkscreen', 'Zen Maru Gothic', sans-serif;
-            font-weight: 700;
-            font-size: 1.45rem;
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif !important;
+            font-weight: 900 !important;
+            font-size: 1.6rem;
             color: var(--text-dark);
             margin-bottom: 20px;
             letter-spacing: 1px;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
         }
 
         .char-box {
@@ -320,8 +321,8 @@
         }
 
         .room-scroll-title {
-            font-family: 'Silkscreen', 'Zen Maru Gothic', sans-serif;
-            font-weight: 700;
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif !important;
+            font-weight: 900;
             font-size: 1.25rem;
             color: var(--text-dark);
             margin-bottom: 18px;
@@ -608,7 +609,7 @@
             if (!res.ok) throw new Error("伺服器回應錯誤");
             const rooms = await res.json();
 
-            let newHtml = `<div class="room-scroll-title"><span>📜</span> 公開房間列表</div>`;
+            let newHtml = `<div class="room-scroll-title"><span>📜</span> 房間列表</div>`;
 
             if (rooms && rooms.length > 0) {
                 rooms.forEach(room => {
