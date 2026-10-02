@@ -159,7 +159,7 @@
             align-items: stretch;
         }
 
-        /* 左側人物卡片 (像素街機卡) */
+        /* 左側人物卡片 */
         .profile-aside {
             width: clamp(280px, 28vw, 320px);
             background: var(--card-bg);
@@ -190,17 +190,18 @@
         .avatar-box:hover { background: #feffea; }
         .avatar-box:active { transform: scale(0.98); }
 
+        /* 💡 換成好看、清晰圓潤粗壯的字體 */
         .current-id {
-            font-family: 'Silkscreen', 'Zen Maru Gothic', sans-serif;
-            font-size: 1.45rem;
-            font-weight: 700;
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif !important;
+            font-size: 1.55rem;
+            font-weight: 900;
             color: var(--text-dark);
-            margin-bottom: 6px;
-            letter-spacing: 1px;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
         }
 
         .current-email {
-            font-size: 0.9rem;
+            font-size: 0.88rem;
             color: var(--text-gray);
             font-weight: 900;
             word-break: break-all;
@@ -217,55 +218,54 @@
             background: white;
             border: 4px solid var(--pixel-border);
             box-shadow: 6px 6px 0px #000;
-            padding: 35px 40px;
+            padding: 30px 36px;
             overflow-y: auto;
         }
 
         .content-title {
             font-family: 'Silkscreen', 'Zen Maru Gothic', sans-serif;
             font-weight: 700;
-            font-size: 1.4rem;
+            font-size: 1.35rem;
             color: var(--text-dark);
-            margin-bottom: 24px;
+            margin-bottom: 18px;
             display: flex;
             align-items: center;
             gap: 8px;
             border-bottom: 3px solid var(--pixel-border);
-            padding-bottom: 12px;
+            padding-bottom: 10px;
         }
 
-        .form-group { margin-bottom: 24px; position: relative; }
-        .label-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        /* 💡 縮小適中行距，版面更緊湊美觀 */
+        .form-group { margin-bottom: 16px; position: relative; }
+        .label-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
         
-        /* 💡 統一所有欄目標籤與框框的間距 */
         .form-label {
             display: flex;
             align-items: center;
             gap: 6px;
-            font-size: 0.95rem;
+            font-size: 0.92rem;
             font-weight: 900;
             color: var(--text-dark);
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            margin-bottom: 10px;
+            margin-bottom: 6px;
         }
 
         .forgot-link {
-            font-size: 0.9rem;
+            font-size: 0.88rem;
             color: #0984e3;
             text-decoration: none;
             font-weight: 900;
         }
         .forgot-link:hover { text-decoration: underline; }
 
-        /* 💡 加深輸入框內部 padding，讓字在框內也有呼吸感 */
         .form-input {
             width: 100%;
-            padding: 14px 16px;
+            padding: 11px 14px;
             border: 3px solid var(--pixel-border);
             border-radius: 0px;
             background: #ffffff;
-            font-size: 1.05rem;
+            font-size: 1rem;
             font-weight: 700;
             color: var(--text-dark);
             outline: none;
@@ -289,22 +289,22 @@
             color: var(--text-dark);
             border: 3px solid var(--pixel-border);
             box-shadow: 4px 4px 0 #000;
-            padding: 12px 16px;
+            padding: 10px 14px;
             font-weight: 900;
-            font-size: 0.95rem;
+            font-size: 0.9rem;
             display: flex;
             align-items: center;
-            gap: 10px;
-            margin-bottom: 22px;
+            gap: 8px;
+            margin-bottom: 18px;
         }
 
-        .btn-group { display: flex; gap: 16px; margin-top: 28px; }
+        .btn-group { display: flex; gap: 14px; margin-top: 22px; }
 
         .btn-pixel {
             flex: 1;
-            padding: 14px;
+            padding: 13px;
             border: 3px solid var(--pixel-border);
-            font-size: 1.15rem;
+            font-size: 1.1rem;
             font-weight: 900;
             cursor: pointer;
             transition: all 0.06s ease;
@@ -334,9 +334,9 @@
         .btn-cancel:hover { background: #ced6e0; }
 
         .btn-verify-otp {
-            width: 120px;
+            width: 110px;
             padding: 0;
-            font-size: 0.95rem;
+            font-size: 0.92rem;
             background: var(--bee-yellow);
             color: var(--text-dark);
             border: 3px solid var(--pixel-border);
@@ -366,7 +366,7 @@
         }
         .modal-content {
             background: white;
-            padding: 35px 30px 30px;
+            padding: 32px 28px 26px;
             border: 4px solid var(--pixel-border);
             box-shadow: 8px 8px 0px #000000;
             width: 380px;
@@ -379,16 +379,16 @@
             font-size: 1.5rem !important;
             font-weight: 900 !important;
             color: var(--text-dark);
-            margin-bottom: 14px;
+            margin-bottom: 12px;
             letter-spacing: 0.5px;
         }
 
         #modalMsg {
             font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif !important;
-            font-size: 1.15rem !important;
+            font-size: 1.12rem !important;
             font-weight: 900 !important;
             color: #2f3542;
-            margin-bottom: 26px;
+            margin-bottom: 22px;
             line-height: 1.6;
             letter-spacing: 0.5px;
         }
@@ -475,7 +475,7 @@
                     </div>
                 </div>
 
-                <div id="emailOtpGroup" class="form-group" style="display: none; margin-top: 15px;">
+                <div id="emailOtpGroup" class="form-group" style="display: none; margin-top: 12px;">
                     <label class="form-label"><span>🔑</span> 新信箱驗證碼</label>
                     <input type="text" id="emailOtp" class="form-input" placeholder="請輸入 6 位數驗證碼">
                     <small style="color: #0984e3; font-weight: 900; margin-top: 4px; display: block;">* 請至新信箱查收驗證碼</small>
@@ -483,7 +483,7 @@
             </div>
 
             <div id="passwordEditSection">
-                <hr style="border: 0; border-top: 3px dashed var(--pixel-border); margin: 26px 0;">
+                <hr style="border: 0; border-top: 3px dashed var(--pixel-border); margin: 20px 0;">
 
                 <div class="form-group">
                     <div class="label-row">
@@ -520,7 +520,6 @@
     const API_URL = location.origin;
     let syncTimer = null;
 
-    // --- 1. 頁面初始化：驗證、復活與資料載入 ---
     window.onload = async function() {
         const username = localStorage.getItem('username');
         const token = localStorage.getItem('token');
@@ -573,7 +572,6 @@
         }
     };
 
-    // --- 2. 核心監控循環 ---
     function startSyncLoop(username, token) {
         if (syncTimer) clearInterval(syncTimer);
         syncTimer = setInterval(async () => {
@@ -598,7 +596,6 @@
         }, 5000);
     }
 
-    // --- 3. 導航與登出 ---
     function toggleMenu() {
         document.getElementById('sideMenu').classList.toggle('open');
         document.getElementById('overlay').classList.toggle('open');
@@ -631,7 +628,6 @@
         window.location.href = 'login.html';
     }
 
-    // --- 4. 修改資料邏輯 ---
     async function sendEmailOTP() {
         const newEmail = document.getElementById('newEmailInput').value.trim();
         if (!newEmail) return showModal("⚠️ 提示", "請先輸入新的 Email 喔！", false);
@@ -696,7 +692,6 @@
         }
     }
 
-    // --- 5. 彈窗 UI 控制 ---
     function showModal(title, message, isSuccess = true) {
         const modal = document.getElementById('statusModal');
         document.getElementById('modalTitle').innerText = title;
