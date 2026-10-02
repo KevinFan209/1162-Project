@@ -151,7 +151,6 @@
             position: relative;
         }
 
-        /* 標籤字體：清晰、好讀 */
         label {
             display: flex;
             align-items: center;
@@ -216,7 +215,7 @@
             user-select: none;
         }
 
-        /* 記住我的框框：全黑厚外線 */
+        /* 記住我全黑外線核取框 */
         .remember-me input[type="checkbox"] {
             appearance: none;
             -webkit-appearance: none;
@@ -284,23 +283,24 @@
             box-shadow: 0 0 0 var(--pixel-border);
         }
 
+        /* 全黑實線分割線 */
         .divider {
-            margin: 22px 0 18px;
+            margin: 24px 0 20px;
             display: flex;
             align-items: center;
-            color: var(--text-gray);
-            font-size: 0.75rem;
+            color: #000000;
+            font-size: 0.8rem;
             font-family: 'Silkscreen', cursive;
             font-weight: 700;
+            letter-spacing: 1px;
         }
 
         .divider::before, .divider::after { 
             content: ""; 
             flex: 1; 
-            height: 2px; 
-            background: #000; 
-            border-bottom: 2px dashed #a4b0be; 
-            margin: 0 12px; 
+            height: 3px; 
+            background: #000000; 
+            margin: 0 14px; 
         }
 
         /* Google 登入按鈕 */
