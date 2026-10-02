@@ -3,146 +3,564 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BeeRich - 角色自定義（方案A：Canvas 繪製五官）</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
+    <title>BeeRich - 角色自定義</title>
+    <!-- 引入與登入、大廳、個人主頁、學習統計一致的精選字型 -->
+    <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
     <script src="js/character-face.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
     <style>
         :root {
-            --primary-blue: #4facfe;
-            --success-green: #00cdac;
-            --primary-yellow: #ffde59;
-            --bg-gray: #f1f5f9;
-            --text-dark: #000000;
-            --text-gray: #64748b;
-            --border-light: #e2e8f0;
+            --pixel-border: #1e272e;
+            --bee-gold: #ffc048;
+            --bee-yellow: #ffdd59;
+            --bee-dark: #2f3542;
+            --pixel-green: #05c46b;
+            --pixel-blue: #0fbcf9;
+            --pixel-red: #ff3f34;
+            --bg-grid: #d2dae2;
+            --card-bg: #ffffff;
+            --text-dark: #1e272e;
+            --text-gray: #747d8c;
         }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
-        body { background: var(--bg-gray); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
+        html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            outline: none !important;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            image-rendering: pixelated;
+        }
+
+        body {
+            background-color: var(--bg-grid);
+            /* 像素幾何網格背景 */
+            background-image: 
+                linear-gradient(rgba(0, 0, 0, 0.05) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.05) 2px, transparent 2px);
+            background-size: 28px 28px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        /* 頂部像素風格導覽列 */
         header {
-            background: linear-gradient(to bottom, #ffffff, #fcfcfc);
-            padding: 0 40px; display: flex; justify-content: space-between; align-items: center;
-            height: 85px; border-bottom: 1.5px solid var(--border-light);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.04); z-index: 100; flex-shrink: 0;
+            margin: 0 !important;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: white;
+            padding: 0 35px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 80px;
+            z-index: 100;
+            border: none;
+            border-bottom: 4px solid var(--pixel-border);
+            box-shadow: none !important;
+            flex-shrink: 0;
         }
-        .header-left h1 { font-size: 2.5rem; font-weight: 900; cursor: pointer; color: var(--text-dark); }
-        .header-right { display: flex; align-items: center; gap: 20px; }
-        .page-tag { font-weight: 800; color: var(--text-gray); background: #f1f5f9; padding: 10px 22px; border-radius: 12px; font-size: 0.95rem; }
-        .menu-btn { background: transparent; border: none; cursor: pointer; display: flex; flex-direction: column; gap: 5px; padding: 10px; transition: 0.2s; }
-        .menu-btn:hover { opacity: 0.6; }
-        .menu-btn span { display: block; width: 24px; height: 3px; background: #333; border-radius: 2px; }
 
-        .menu-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.15); display: none; z-index: 999; backdrop-filter: blur(2px); }
+        .header-left h1 {
+            font-family: 'VT323', monospace;
+            font-size: 3.2rem;
+            line-height: 1;
+            color: var(--bee-gold);
+            text-shadow: 
+                2px 2px 0 var(--pixel-border),
+                -1.5px -1.5px 0 var(--pixel-border),
+                2px -1.5px 0 var(--pixel-border),
+                -1.5px 2px 0 var(--pixel-border),
+                4px 4px 0 var(--bee-dark);
+            letter-spacing: 2px;
+            user-select: none;
+            cursor: pointer;
+        }
+
+        .header-right { display: flex; align-items: center; gap: 18px; }
+
+        .page-tag {
+            background: #fffdf2;
+            border: 3px solid var(--pixel-border);
+            padding: 6px 16px;
+            border-radius: 4px;
+            font-weight: 900;
+            font-size: 1rem;
+            color: var(--text-dark);
+            box-shadow: 3px 3px 0 #000;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .menu-btn {
+            background: white;
+            border: 3px solid var(--pixel-border);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px;
+            box-shadow: 3px 3px 0 #000;
+            transition: 0.1s;
+        }
+        .menu-btn:hover { background: #fffdf2; }
+        .menu-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+
+        .menu-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.45); display: none; z-index: 999;
+        }
         .menu-overlay.open { display: block; }
-        .side-menu { position: fixed; top: 0; right: -320px; width: 320px; height: 100%; background: white; box-shadow: -10px 0 30px rgba(0,0,0,0.05); z-index: 1000; transition: 0.4s cubic-bezier(0.165,0.84,0.44,1); padding: 100px 30px 40px; display: flex; flex-direction: column; gap: 15px; }
-        .side-menu.open { right: 0; }
-        .menu-item { padding: 18px 25px; border-radius: 15px; font-weight: 800; color: var(--text-gray); text-decoration: none; display: flex; align-items: center; gap: 12px; transition: 0.2s; background: #f8fafc; cursor: pointer; }
-        .menu-item:hover { background: var(--bg-gray); color: var(--text-dark); }
-        .menu-item.danger { margin-top: auto; color: #ff4757; }
 
-        main { flex: 1; display: flex; justify-content: center; align-items: center; padding: 20px; overflow: hidden; }
-        .container { display: flex; gap: 20px; width: 100%; max-width: 1150px; height: calc(100vh - 125px); }
-
-        .model-panel {
-            flex: 1; background: white; border-radius: 30px;
-            border: 1.5px solid var(--border-light);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-            display: flex; flex-direction: column; overflow: hidden; position: relative;
+        .side-menu {
+            position: fixed; top: 0; right: -320px; width: 320px; height: 100%;
+            background: white; border-left: 4px solid var(--pixel-border);
+            box-shadow: -8px 0 0 rgba(0,0,0,0.2);
+            z-index: 1000; transition: 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
+            padding: 90px 25px 35px; display: flex; flex-direction: column; gap: 14px;
         }
-        .panel-header { padding: 22px 28px 8px; }
-        .panel-title { font-weight: 900; font-size: 1.1rem; color: var(--text-dark); }
-        .panel-sub { font-size: 0.8rem; color: var(--text-gray); font-weight: 600; margin-top: 3px; }
-        #model-canvas { flex: 1; width: 100%; display: block; }
+        .side-menu.open { right: 0; }
 
-        .right-panel { width: 360px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
-        .right-panel::-webkit-scrollbar { width: 0; }
+        .menu-item {
+            padding: 14px 20px; font-weight: 900;
+            color: var(--text-dark); text-decoration: none; display: flex;
+            align-items: center; gap: 12px; transition: 0.1s; background: #f1f2f6;
+            border: 3px solid var(--pixel-border); box-shadow: 3px 3px 0 #000;
+        }
+        .menu-item:hover { background: var(--bee-yellow); }
+        .menu-item:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+        .menu-item.danger { margin-top: auto; color: white; background: var(--pixel-red); }
+
+        /* 主容器佈局 */
+        main {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            overflow: hidden;
+            height: calc(100vh - 80px);
+        }
+
+        .container {
+            display: flex;
+            gap: 24px;
+            width: 100%;
+            max-width: 1180px;
+            height: 100%;
+        }
+
+        /* 3D 模型預覽面板 */
+        .model-panel {
+            flex: 1;
+            background: white;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0px #000;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .panel-header {
+            padding: 18px 24px 10px;
+            border-bottom: 3px solid var(--pixel-border);
+            background: #fffdf5;
+        }
+
+        .panel-title {
+            font-family: 'Silkscreen', 'Zen Maru Gothic', sans-serif;
+            font-weight: 700;
+            font-size: 1.25rem;
+            color: var(--text-dark);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-sub {
+            font-size: 0.82rem;
+            color: var(--text-gray);
+            font-weight: 900;
+            margin-top: 4px;
+        }
+
+        #model-canvas {
+            flex: 1;
+            width: 100%;
+            display: block;
+        }
+
+        /* 右側編輯控制面板 */
+        .right-panel {
+            width: 380px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            overflow-y: auto;
+            padding-right: 6px;
+        }
 
         .card {
-            background: white; border-radius: 26px;
-            border: 1.5px solid var(--border-light);
-            box-shadow: 0 8px 24px rgba(0,0,0,0.05);
-            padding: 22px; flex-shrink: 0;
+            background: white;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0px #000;
+            padding: 20px;
+            flex-shrink: 0;
         }
-        .card-title { font-weight: 900; font-size: 1rem; color: var(--text-dark); margin-bottom: 14px; }
 
-        /* ── 顏色編輯 ── */
+        .card-title {
+            font-family: 'Silkscreen', 'Zen Maru Gothic', sans-serif;
+            font-weight: 700;
+            font-size: 1.15rem;
+            color: var(--text-dark);
+            margin-bottom: 14px;
+            border-bottom: 3px solid var(--pixel-border);
+            padding-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* 顏色編輯 */
         .color-section { display: flex; flex-direction: column; gap: 8px; }
-        .color-row { display: flex; align-items: center; gap: 10px; background: #f8fafc; padding: 10px 12px; border-radius: 12px; border: 1.5px solid transparent; transition: 0.15s; cursor: pointer; }
-        .color-row:hover { border-color: var(--border-light); }
-        .color-swatch { width: 30px; height: 30px; border-radius: 8px; border: 2px solid rgba(0,0,0,0.12); flex-shrink: 0; position: relative; overflow: hidden; cursor: pointer; }
-        .color-swatch input[type="color"] { position: absolute; inset: -4px; width: calc(100% + 8px); height: calc(100% + 8px); opacity: 0; cursor: pointer; border: none; padding: 0; }
-        .color-label-text { flex: 1; font-weight: 800; font-size: 0.85rem; color: var(--text-dark); }
-        .color-hex { font-size: 0.72rem; font-weight: 700; color: var(--text-gray); font-family: monospace; letter-spacing: 0.02em; }
-        .section-label { font-size: 0.73rem; font-weight: 800; color: var(--text-gray); text-transform: uppercase; letter-spacing: 0.06em; margin: 12px 0 8px; }
-        .preset-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
-        .preset-btn { padding: 7px 4px; border: 1.5px solid var(--border-light); border-radius: 10px; background: white; cursor: pointer; font-size: 0.72rem; font-weight: 800; color: var(--text-gray); transition: 0.15s; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px; }
-        .preset-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); background: #eff8ff; }
-        .preset-dots { display: flex; gap: 2px; }
-        .preset-dot { width: 7px; height: 7px; border-radius: 50%; }
 
-        /* ── 臉部五官 ── */
-        .face-preview-wrap {
-            width: 100%; background: #f5c18a; border-radius: 14px;
-            overflow: hidden; border: 1.5px solid var(--border-light);
-            margin-bottom: 14px; line-height: 0;
+        .color-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: #f8fafc;
+            padding: 8px 12px;
+            border: 2px solid var(--pixel-border);
+            box-shadow: 2px 2px 0 #000;
+            transition: 0.1s;
+            cursor: pointer;
         }
+
+        .color-row:hover { background: #fffdf2; }
+
+        .color-swatch {
+            width: 32px;
+            height: 32px;
+            border: 2px solid var(--pixel-border);
+            box-shadow: 1px 1px 0 #000;
+            flex-shrink: 0;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        .color-swatch input[type="color"] {
+            position: absolute;
+            inset: -4px;
+            width: calc(100% + 8px);
+            height: calc(100% + 8px);
+            opacity: 0;
+            cursor: pointer;
+            border: none;
+            padding: 0;
+        }
+
+        .color-label-text {
+            flex: 1;
+            font-weight: 900;
+            font-size: 0.92rem;
+            color: var(--text-dark);
+        }
+
+        .color-hex {
+            font-size: 0.8rem;
+            font-weight: 900;
+            color: var(--text-gray);
+            font-family: monospace;
+            letter-spacing: 0.04em;
+        }
+
+        .section-label {
+            font-size: 0.82rem;
+            font-weight: 900;
+            color: var(--text-dark);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin: 14px 0 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .preset-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+        }
+
+        .preset-btn {
+            padding: 7px 4px;
+            border: 2px solid var(--pixel-border);
+            box-shadow: 2px 2px 0 #000;
+            background: white;
+            cursor: pointer;
+            font-size: 0.78rem;
+            font-weight: 900;
+            color: var(--text-dark);
+            transition: 0.06s ease;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .preset-btn:hover { background: #fffdf2; }
+        .preset-btn:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 #000; }
+
+        .preset-dots { display: flex; gap: 2px; }
+        .preset-dot {
+            width: 8px;
+            height: 8px;
+            border: 1px solid var(--pixel-border);
+        }
+
+        /* 臉部五官 */
+        .face-preview-wrap {
+            width: 100%;
+            background: #f5c18a;
+            border: 3px solid var(--pixel-border);
+            box-shadow: 3px 3px 0 #000;
+            overflow: hidden;
+            margin-bottom: 12px;
+            line-height: 0;
+        }
+
         .face-preview-wrap canvas { display: block; width: 100%; height: auto; }
 
-        .feature-row { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 2px; }
+        .feature-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 2px; }
+
         .feat-opt {
-            display: flex; flex-direction: column; align-items: center; gap: 3px;
-            border: 2px solid var(--border-light); border-radius: 10px;
-            padding: 4px 4px 3px; cursor: pointer; background: white; transition: 0.15s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+            border: 2px solid var(--pixel-border);
+            box-shadow: 2px 2px 0 #000;
+            padding: 4px;
+            cursor: pointer;
+            background: white;
+            transition: 0.06s ease;
         }
-        .feat-opt:hover { border-color: var(--primary-blue); }
-        .feat-opt.selected { border-color: var(--primary-blue); background: #eff8ff; }
-        .feat-opt canvas { display: block; border-radius: 6px; }
-        .feat-opt-label { font-size: 0.62rem; font-weight: 800; color: var(--text-gray); white-space: nowrap; }
-        .feat-opt.selected .feat-opt-label { color: var(--primary-blue); }
 
-        .expr-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 4px; }
+        .feat-opt:hover { background: #fffdf2; }
+        .feat-opt.selected {
+            background: var(--bee-yellow);
+            border-color: #000;
+        }
+
+        .feat-opt canvas {
+            display: block;
+            border: 1px solid var(--pixel-border);
+        }
+
+        .feat-opt-label {
+            font-size: 0.7rem;
+            font-weight: 900;
+            color: var(--text-dark);
+            white-space: nowrap;
+        }
+
+        .expr-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+            margin-top: 4px;
+        }
+
         .expr-btn {
-            padding: 8px 2px; border: 1.5px solid var(--border-light); border-radius: 10px;
-            background: white; cursor: pointer; font-size: 0.7rem; font-weight: 800;
-            color: var(--text-gray); transition: 0.15s; text-align: center; line-height: 1.3;
+            padding: 8px 4px;
+            border: 2px solid var(--pixel-border);
+            box-shadow: 2px 2px 0 #000;
+            background: white;
+            cursor: pointer;
+            font-size: 0.78rem;
+            font-weight: 900;
+            color: var(--text-dark);
+            transition: 0.06s ease;
+            text-align: center;
+            line-height: 1.3;
         }
-        .expr-btn:hover { border-color: var(--primary-blue); background: #eff8ff; color: var(--primary-blue); }
 
-        /* ── 相機 ── */
-        .cam-preview { width: 100%; aspect-ratio: 4/3; background: #0d0d0d; border-radius: 14px; overflow: hidden; position: relative; display: flex; align-items: center; justify-content: center; }
+        .expr-btn:hover { background: #fffdf2; }
+        .expr-btn:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 #000; }
+
+        /* 相機 */
+        .cam-preview {
+            width: 100%;
+            aspect-ratio: 4/3;
+            background: #1e272e;
+            border: 3px solid var(--pixel-border);
+            box-shadow: inset 3px 3px 0 rgba(0,0,0,0.3);
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
         .cam-preview video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: none; }
         .face-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; transform: scaleX(-1); }
-        .cam-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: #666; }
-        .cam-placeholder svg { opacity: 0.35; }
-        .cam-placeholder p { font-size: 0.78rem; font-weight: 700; opacity: 0.5; }
+        .cam-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #dfe4ea; }
+        .cam-placeholder svg { opacity: 0.6; }
+        .cam-placeholder p { font-size: 0.85rem; font-weight: 900; }
 
-        .btn { width: 100%; padding: 13px; border: none; border-radius: 13px; font-size: 0.9rem; font-weight: 900; cursor: pointer; transition: 0.18s; margin-top: 8px; }
-        .btn:active { transform: scale(0.97); }
-        .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-        .btn-blue { background: var(--primary-blue); color: white; }
-        .btn-blue:not(:disabled):hover { filter: brightness(1.08); }
-        .btn-green { background: var(--success-green); color: white; }
-        .btn-green:not(:disabled):hover { filter: brightness(1.08); }
-        .btn-red { background: #fff0f0; color: #e53e3e; border: 1.5px solid #ffd5d5; }
-        .btn-red:not(:disabled):hover { background: #ffe0e0; }
+        /* 按鈕通用像素風 */
+        .btn {
+            width: 100%;
+            padding: 13px;
+            border: 3px solid var(--pixel-border);
+            font-size: 0.95rem;
+            font-weight: 900;
+            cursor: pointer;
+            transition: 0.06s ease;
+            margin-top: 8px;
+            user-select: none;
+            letter-spacing: 0.5px;
+        }
 
-        .badge { display: block; text-align: center; padding: 8px 14px; border-radius: 10px; font-size: 0.78rem; font-weight: 800; margin: 8px 0; }
-        .badge.idle     { background: #f1f5f9; color: var(--text-gray); }
+        .btn:active {
+            transform: translate(2px, 2px) !important;
+            box-shadow: 0 0 0 #000 !important;
+        }
+
+        .btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: 0 4px 0 #000 !important;
+        }
+
+        .btn-blue {
+            background: var(--pixel-blue);
+            color: #ffffff;
+            box-shadow: 0 4px 0 #000;
+        }
+
+        .btn-green {
+            background: var(--pixel-green);
+            color: #ffffff;
+            box-shadow: 0 4px 0 #000;
+        }
+
+        .btn-red {
+            background: #dfe4ea;
+            color: var(--pixel-red);
+            border-color: var(--pixel-border);
+            box-shadow: 0 4px 0 #000;
+        }
+
+        .badge {
+            display: block;
+            text-align: center;
+            padding: 8px 12px;
+            border: 2px solid var(--pixel-border);
+            box-shadow: 2px 2px 0 #000;
+            font-size: 0.82rem;
+            font-weight: 900;
+            margin: 8px 0;
+        }
+
+        .badge.idle     { background: #f1f2f6; color: var(--text-dark); }
         .badge.live     { background: #dcfce7; color: #16a34a; }
         .badge.captured { background: #dbeafe; color: #1d4ed8; }
 
-        .divider { height: 1px; background: var(--border-light); margin: 10px 0; }
+        .divider {
+            height: 2px;
+            background: #000;
+            border-bottom: 2px dashed #a4b0be;
+            margin: 14px 0;
+        }
 
-        .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: none; align-items: center; justify-content: center; z-index: 9999; }
+        /* 像素對話彈窗 */
+        .modal-bg {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+            display: none; align-items: center; justify-content: center; z-index: 9999;
+        }
+
         .modal-bg.show { display: flex; }
-        .modal-box { background: white; border-radius: 24px; padding: 36px; max-width: 340px; width: 90%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.15); }
-        .modal-box h3 { font-size: 1.2rem; font-weight: 900; margin-bottom: 10px; }
-        .modal-box p  { color: var(--text-gray); font-size: 0.88rem; margin-bottom: 22px; line-height: 1.6; }
-        .modal-box button { padding: 13px 32px; border: none; border-radius: 14px; background: var(--primary-blue); color: white; font-weight: 900; font-size: 0.95rem; cursor: pointer; }
+
+        .modal-box {
+            background: white;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 8px 8px 0px #000;
+            padding: 34px 28px 28px;
+            max-width: 360px;
+            width: 90%;
+            text-align: center;
+            animation: pixelPop 0.15s ease forwards;
+        }
+
+        .modal-box h3 {
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif !important;
+            font-size: 1.45rem;
+            font-weight: 900;
+            margin-bottom: 12px;
+            color: var(--text-dark);
+        }
+
+        .modal-box p {
+            font-size: 1.05rem;
+            color: var(--text-dark);
+            font-weight: 900;
+            margin-bottom: 24px;
+            line-height: 1.6;
+        }
+
+        .modal-box button {
+            width: 100%;
+            padding: 13px;
+            border: 3px solid var(--pixel-border);
+            background: var(--bee-yellow);
+            color: var(--text-dark);
+            font-weight: 900;
+            font-size: 1.05rem;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #000;
+            transition: 0.06s ease;
+        }
+
+        .modal-box button:active {
+            transform: translate(2px, 2px);
+            box-shadow: 0 0 0 #000;
+        }
+
+        /* 滾動條樣式 */
+        .right-panel::-webkit-scrollbar { width: 8px; }
+        .right-panel::-webkit-scrollbar-track { background: #dfe4ea; border-left: 2px solid var(--pixel-border); }
+        .right-panel::-webkit-scrollbar-thumb { background: var(--pixel-border); }
+
+        @keyframes pixelPop {
+            from { transform: scale(0.9); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        @media (max-width: 850px) {
+            header { padding: 0 20px; }
+            .container { flex-direction: column; height: auto; }
+            .right-panel { width: 100%; }
+        }
     </style>
 </head>
 <body>
@@ -152,9 +570,13 @@
         <h1 onclick="window.location.href='../../static/lobby.html'">BeeRich</h1>
     </div>
     <div class="header-right">
-        <span class="page-tag">角色自定義</span>
+        <span class="page-tag"><span>🎨</span> 角色自定義</span>
         <button class="menu-btn" onclick="toggleMenu()">
-            <span></span><span></span><span></span>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
         </button>
     </div>
 </header>
@@ -174,7 +596,7 @@
         <!-- 左：3D 模型預覽 -->
         <div class="model-panel">
             <div class="panel-header">
-                <div class="panel-title">角色預覽</div>
+                <div class="panel-title"><span>👾</span> 角色預覽</div>
                 <div class="panel-sub">拖曳旋轉・滾輪縮放</div>
             </div>
             <canvas id="model-canvas"></canvas>
@@ -183,9 +605,9 @@
         <!-- 右：操作面板 -->
         <div class="right-panel">
 
-            <!-- ① 顏色編輯卡（原有） -->
+            <!-- ① 顏色編輯卡 -->
             <div class="card">
-                <div class="card-title">外觀顏色編輯</div>
+                <div class="card-title"><span>🎨</span> 外觀顏色編輯</div>
                 <div class="color-section">
                     <div class="color-row" onclick="document.getElementById('color-head').click()">
                         <div class="color-swatch" id="swatch-head" style="background:#f5c18a">
@@ -223,7 +645,7 @@
                         <span class="color-hex" id="hex-feet">#2c1f14</span>
                     </div>
                 </div>
-                <div class="section-label">快速套色</div>
+                <div class="section-label"><span>✨</span> 快速套色</div>
                 <div class="preset-grid">
                     <button class="preset-btn" onclick="applyPreset('default')"><div class="preset-dots"><div class="preset-dot" style="background:#f5c18a"></div><div class="preset-dot" style="background:#5cbaee"></div><div class="preset-dot" style="background:#4a90d9"></div><div class="preset-dot" style="background:#2c4a8c"></div><div class="preset-dot" style="background:#2c1f14"></div></div>預設</button>
                     <button class="preset-btn" onclick="applyPreset('cool')"><div class="preset-dots"><div class="preset-dot" style="background:#c8e6f5"></div><div class="preset-dot" style="background:#4a8cbe"></div><div class="preset-dot" style="background:#2c6e9e"></div><div class="preset-dot" style="background:#1a3a5c"></div><div class="preset-dot" style="background:#0f2035"></div></div>冷色</button>
@@ -238,9 +660,9 @@
                 <button class="btn btn-red"   onclick="resetColors()">還原預設顏色</button>
             </div>
 
-            <!-- ② 臉部五官自定義卡（新增） -->
+            <!-- ② 臉部五官自定義卡 -->
             <div class="card">
-                <div class="card-title">臉部五官自定義</div>
+                <div class="card-title"><span>👀</span> 臉部五官自定義</div>
 
                 <!-- 2D 臉部預覽 -->
                 <div class="face-preview-wrap">
@@ -260,16 +682,16 @@
                 <div class="feature-row" id="mouth-row"></div>
 
                 <div class="divider"></div>
-                <div class="section-label">表情套裝</div>
+                <div class="section-label"><span>🎭</span> 表情套裝</div>
                 <div class="expr-grid" id="expr-grid"></div>
 
                 <button class="btn btn-green" onclick="saveFaceFeatures()" style="margin-top:12px">儲存到遊戲</button>
                 <button class="btn btn-red"   onclick="clearFaceFeatures()">清除五官</button>
             </div>
 
-            <!-- ③ 相機人臉貼圖卡（原有） -->
+            <!-- ③ 相機人臉貼圖卡 -->
             <div class="card">
-                <div class="card-title">相機人臉貼圖</div>
+                <div class="card-title"><span>📷</span> 相機人臉貼圖</div>
                 <div class="cam-preview" id="camPreview">
                     <video id="camVideo" autoplay playsinline muted></video>
                     <canvas id="faceOverlay" class="face-overlay"></canvas>
@@ -301,10 +723,9 @@
 
 <script>
 // =====================================================
-//  路徑設定（此頁在 Facial_features/方案A/ 底下）
+//  路徑設定
 // =====================================================
 const API_URL = location.origin;
-
 
 const username = localStorage.getItem('username');
 const token    = localStorage.getItem('token');
@@ -384,10 +805,10 @@ const partColors = {
         const saved = JSON.parse(raw);
         Object.keys(saved).forEach(k => { if (k in partColors) partColors[k] = saved[k]; });
         Object.entries(partColors).forEach(([g, hex]) => {
-            const inp    = document.getElementById('color-'  + g);
+            const inp    = document.getElementById('color-'   + g);
             const swatch = document.getElementById('swatch-' + g);
             const hexEl  = document.getElementById('hex-'    + g);
-            if (inp)    inp.value              = hex;
+            if (inp)    inp.value               = hex;
             if (swatch) swatch.style.background = hex;
             if (hexEl)  hexEl.textContent       = hex;
         });
@@ -501,7 +922,6 @@ function onColorInput(group, hex) {
     document.getElementById('swatch-' + group).style.background = hex;
     document.getElementById('hex-'    + group).textContent       = hex;
     updateShaderColors();
-    // Refresh face texture so skin colour updates in features
     if (localStorage.getItem('pypoly_char_features')) composeFaceTexture();
 }
 function applyPreset(name) {
@@ -516,9 +936,7 @@ function applyPreset(name) {
     updateShaderColors();
     if (localStorage.getItem('pypoly_char_features')) composeFaceTexture();
 }
-// 🏆 把角色「配方」存進資料庫，換裝置或清快取後仍能還原。
-//    只送顏色與五官，不送合成後的圖片——game.html 會用共用模組自行重建。
-//    網路失敗只警告、不阻擋存檔，localStorage 仍是有效的本機快取。
+
 async function saveCharacterToServer() {
     const token = localStorage.getItem('token');
     if (!token) { console.warn('⚠️ 未登入，角色僅存於本機'); return; }
@@ -536,16 +954,11 @@ async function saveCharacterToServer() {
 }
 
 function saveColors() {
-    // 存成大廳看得懂的 pypoly_ 變數
     localStorage.setItem('pypoly_char_colors', JSON.stringify(partColors));
     saveCharacterToServer();
-
-    // 執行截圖
     saveCharacterPreviewImage();
-
     showModal('儲存成功', '角色外觀顏色已儲存！按下確定返回大廳。');
-    // 修改彈窗按鈕功能：按下確定後跳轉
-    document.querySelector('#modal button').onclick = () => window.location.href = 'lobby.html';
+    document.querySelector('#modal button').onclick = () => window.location.href = '../../static/lobby.html';
 }
 function resetColors() {
     localStorage.removeItem('pypoly_char_colors');
@@ -572,67 +985,62 @@ function loadSavedColors() {
 // =====================================================
 //  Model Loader
 // =====================================================
-    const loader = new THREE.GLTFLoader();
-    loader.load('models/minecraft_-_steve.glb', (gltf) => {
-        const model = gltf.scene;
+const loader = new THREE.GLTFLoader();
+loader.load('models/minecraft_-_steve.glb', (gltf) => {
+    const model = gltf.scene;
 
-        // Normalize height to 3 world units, feet on ground
-        const box0    = new THREE.Box3().setFromObject(model);
-        const size0   = box0.getSize(new THREE.Vector3());
-        const center0 = box0.getCenter(new THREE.Vector3());
-        const autoScale = 3 / size0.y;
-        model.scale.setScalar(autoScale);
-        model.position.set(
-            -center0.x * autoScale,
-            -box0.min.y * autoScale,
-            -center0.z * autoScale
-        );
+    const box0    = new THREE.Box3().setFromObject(model);
+    const size0   = box0.getSize(new THREE.Vector3());
+    const center0 = box0.getCenter(new THREE.Vector3());
+    const autoScale = 3 / size0.y;
+    model.scale.setScalar(autoScale);
+    model.position.set(
+        -center0.x * autoScale,
+        -box0.min.y * autoScale,
+        -center0.z * autoScale
+    );
 
-        scene.add(model);
-        const fbox = new THREE.Box3().setFromObject(model);
+    scene.add(model);
+    const fbox = new THREE.Box3().setFromObject(model);
 
-        // armThreshX: inner 50% of total width is torso; outer = arms
-        const armThreshX = (fbox.max.x - fbox.min.x) * 0.25;
+    const armThreshX = (fbox.max.x - fbox.min.x) * 0.25;
 
-        // Head occupies the top 25% of the Y range (t > 0.75)
-        const headMinY = fbox.min.y + 0.75 * (fbox.max.y - fbox.min.y);
-        const headMaxY = fbox.max.y;
-        const headMinX = -armThreshX;
-        const headMaxX =  armThreshX;
+    const headMinY = fbox.min.y + 0.75 * (fbox.max.y - fbox.min.y);
+    const headMaxY = fbox.max.y;
+    const headMinX = -armThreshX;
+    const headMaxX =  armThreshX;
 
-        shaderMat = buildShaderMat(
-            fbox.min.y, fbox.max.y, armThreshX,
-            headMinX, headMaxX, headMinY, headMaxY
-        );
+    shaderMat = buildShaderMat(
+        fbox.min.y, fbox.max.y, armThreshX,
+        headMinX, headMaxX, headMinY, headMaxY
+    );
 
-        model.traverse(child => {
-            if (!child.isMesh) return;
-            child.material = shaderMat;
-        });
-
-        // Fit camera
-        const fsize   = fbox.getSize(new THREE.Vector3());
-        const fcenter = fbox.getCenter(new THREE.Vector3());
-        const maxDim  = Math.max(fsize.x, fsize.y, fsize.z);
-        const fovR    = threeCamera.fov * (Math.PI / 180);
-        const dist    = (maxDim / 2) / Math.tan(fovR / 2) * 2.2;
-        threeCamera.position.set(fcenter.x, fcenter.y, fcenter.z + dist);
-        controls.target.copy(fcenter);
-        controls.minDistance = dist * 0.4;
-        controls.maxDistance = dist * 4;
-        controls.update();
-
-		loadSavedColors();
-		loadSavedFaceOrFeatures();
-
-    }, undefined, () => {
-        showModal('模型載入失敗', '找不到角色模型，請確認 models/minecraft_-_steve.glb 存在。');
+    model.traverse(child => {
+        if (!child.isMesh) return;
+        child.material = shaderMat;
     });
+
+    const fsize   = fbox.getSize(new THREE.Vector3());
+    const fcenter = fbox.getCenter(new THREE.Vector3());
+    const maxDim  = Math.max(fsize.x, fsize.y, fsize.z);
+    const fovR    = threeCamera.fov * (Math.PI / 180);
+    const dist    = (maxDim / 2) / Math.tan(fovR / 2) * 2.2;
+    threeCamera.position.set(fcenter.x, fcenter.y, fcenter.z + dist);
+    controls.target.copy(fcenter);
+    controls.minDistance = dist * 0.4;
+    controls.maxDistance = dist * 4;
+    controls.update();
+
+    loadSavedColors();
+    loadSavedFaceOrFeatures();
+
+}, undefined, () => {
+    showModal('模型載入失敗', '找不到角色模型，請確認 models/minecraft_-_steve.glb 存在。');
+});
 
 // =====================================================
 //  Face Features System (方案 A — Canvas 繪製)
 // =====================================================
-
 const faceFeatures = { eyebrow: 'standard', eye: 'round', nose: 'none', mouth: 'smile' };
 
 const FEATURE_OPTIONS = {
@@ -678,10 +1086,6 @@ const EXPRESSION_PRESETS = [
     { label:'😴 睡意', f:{ eyebrow:'none',     eye:'half',   nose:'none',   mouth:'neutral'  } },
 ];
 
-// ── 主臉部繪製（512×128 canvas） ──
-// drawFaceFeatures 已抽至 static/js/character-face.js（與 game.html 共用），避免兩處各留一份畫法而逐漸分歧
-
-// ── 縮圖繪製（46×46 canvas，只畫單一部件，置中） ──
 function drawFeatureThumbnail(type, id) {
     const c = document.createElement('canvas'); c.width = c.height = 46;
     const ctx = c.getContext('2d');
@@ -754,12 +1158,9 @@ function drawFeatureThumbnail(type, id) {
     return c;
 }
 
-// ── 合成臉部 texture 並推入 shader ──
 function composeFaceTexture() {
-    // 🏆 建畫布的部分改用共用模組，確保與 game.html 畫出來的臉完全一致
     const faceCanvas = buildFaceCanvas(partColors, faceFeatures);
 
-    // 更新 2D 預覽
     const prev = document.getElementById('face-feat-preview');
     if (prev) {
         const pc = prev.getContext('2d');
@@ -767,7 +1168,6 @@ function composeFaceTexture() {
         pc.drawImage(faceCanvas, 0, 0);
     }
 
-    // 推入 3D shader
     if (shaderMat) {
         const prevTex = shaderMat.uniforms.faceTex.value;
         if (prevTex) prevTex.dispose();
@@ -780,7 +1180,6 @@ function composeFaceTexture() {
     return faceCanvas;
 }
 
-// ── 建立功能選項列 ──
 function buildFeatureRows() {
     Object.keys(FEATURE_OPTIONS).forEach(type => {
         const row = document.getElementById(type + '-row');
@@ -807,7 +1206,6 @@ function buildFeatureRows() {
     });
 }
 
-// ── 建立表情套裝按鈕 ──
 function buildExpressionPresets() {
     const grid = document.getElementById('expr-grid');
     if (!grid) return;
@@ -821,24 +1219,20 @@ function buildExpressionPresets() {
     });
 }
 
-// ── 選擇單一部件 ──
 function selectFeature(type, id) {
     faceFeatures[type] = id;
-    // 更新選取樣式
     document.querySelectorAll(`.feat-opt[data-type="${type}"]`).forEach(btn => {
         btn.classList.toggle('selected', btn.dataset.id === id);
     });
     composeFaceTexture();
 }
 
-// ── 套用表情套裝 ──
 function applyExpressionPreset(preset) {
     Object.assign(faceFeatures, preset);
-    buildFeatureRows(); // 重建 rows 以更新選取狀態
+    buildFeatureRows();
     composeFaceTexture();
 }
 
-// ── 更新選取 UI（不重建 DOM） ──
 function updateFeatureSelectionUI() {
     Object.keys(faceFeatures).forEach(type => {
         document.querySelectorAll(`.feat-opt[data-type="${type}"]`).forEach(btn => {
@@ -847,24 +1241,16 @@ function updateFeatureSelectionUI() {
     });
 }
 
-// ── 儲存 ──
 function saveFaceFeatures() {
     const faceCanvas = composeFaceTexture();
-    
-    // 存成大廳看得懂的 pypoly_ 變數
     localStorage.setItem('pypoly_char_features', JSON.stringify(faceFeatures));
     localStorage.setItem('pypoly_char_face', faceCanvas.toDataURL('image/png'));
     saveCharacterToServer();
-
-    // 執行截圖
     saveCharacterPreviewImage();
-    
     showModal('儲存成功', '臉部五官已儲存！按下確定返回大廳。');
-    // 修改彈窗按鈕功能：按下確定後跳轉
-    document.querySelector('#modal button').onclick = () => window.location.href = 'lobby.html';
+    document.querySelector('#modal button').onclick = () => window.location.href = '../../static/lobby.html';
 }
 
-// ── 清除 ──
 function clearFaceFeatures() {
     localStorage.removeItem('pypoly_char_features');
     localStorage.removeItem('pypoly_char_face');
@@ -875,20 +1261,17 @@ function clearFaceFeatures() {
         shaderMat.uniforms.hasFace.value = 0.0;
         shaderMat.needsUpdate = true;
     }
-    // 清空預覽
     const prev = document.getElementById('face-feat-preview');
     if (prev) {
         const ctx = prev.getContext('2d');
         ctx.fillStyle = partColors.head || '#f5c18a';
         ctx.fillRect(0, 0, 512, 512);
     }
-    // 重設選取到預設
     Object.assign(faceFeatures, { eyebrow:'standard', eye:'round', nose:'none', mouth:'smile' });
     updateFeatureSelectionUI();
     showModal('已清除', '臉部五官已清除。');
 }
 
-// ── 載入儲存的五官或相機貼圖 ──
 function loadSavedFaceOrFeatures() {
     const featRaw = localStorage.getItem('pypoly_char_features');
     if (featRaw) {
@@ -899,8 +1282,7 @@ function loadSavedFaceOrFeatures() {
             return;
         } catch(e) {}
     }
-    // 沒有五官設定，試著載入相機貼圖
-	const dataUrl = localStorage.getItem('pypoly_char_face');
+    const dataUrl = localStorage.getItem('pypoly_char_face');
     if (!dataUrl || !shaderMat) return;
     const img = new Image();
     img.onload = () => {
@@ -920,11 +1302,9 @@ function loadSavedFaceOrFeatures() {
     img.src = dataUrl;
 }
 
-// 初始化 UI
 buildFeatureRows();
 buildExpressionPresets();
 
-// 更新縮圖底色（當皮膚色改變時呼叫）
 function refreshThumbnails() {
     Object.keys(FEATURE_OPTIONS).forEach(type => {
         document.querySelectorAll(`.feat-opt[data-type="${type}"] canvas`).forEach((thumbCanvas, i) => {
@@ -938,7 +1318,7 @@ function refreshThumbnails() {
 }
 
 // =====================================================
-//  Camera & Face Detection（原有，略有修改）
+//  Camera & Face Detection
 // =====================================================
 function initFaceDetector() {
     if (typeof FaceDetection === 'undefined' || faceDetector) return;
@@ -973,10 +1353,10 @@ function drawFaceOverlay(detections) {
     const x = (bb.xCenter - bb.width/2) * oc.width;
     const y = (bb.yCenter - bb.height/2) * oc.height;
     const w = bb.width * oc.width, h = bb.height * oc.height;
-    ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 3; ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#05c46b'; ctx.lineWidth = 3; ctx.lineJoin = 'miter';
     ctx.strokeRect(x, y, w, h);
-    ctx.fillStyle = '#00ff88';
-    ctx.font = `bold ${Math.max(11, oc.height*0.05)}px sans-serif`;
+    ctx.fillStyle = '#05c46b';
+    ctx.font = `900 ${Math.max(12, oc.height*0.05)}px "Zen Maru Gothic", sans-serif`;
     ctx.fillText('偵測到人臉', x, y > 18 ? y-5 : y+h+16);
 }
 
@@ -1031,7 +1411,6 @@ function applyFaceToModel() {
     shaderMat.uniforms.faceTex.value = tex;
     shaderMat.uniforms.hasFace.value = 1.0;
     shaderMat.needsUpdate = true;
-    // 相機貼圖覆蓋五官
     localStorage.setItem('pypoly_char_face', faceCanvas.toDataURL('image/jpeg', 0.85));
     localStorage.removeItem('pypoly_char_features');
     Object.assign(faceFeatures, { eyebrow:'standard', eye:'round', nose:'none', mouth:'smile' });
@@ -1051,7 +1430,6 @@ function clearFace() {
     setBadge('idle', '已清除人臉貼圖');
 }
 
-// 🏆 終極去背與巨大化完美版截圖 (給大廳顯示用)
 function saveCharacterPreviewImage() {
     try {
         if (!renderer || !scene || !threeCamera) return;
@@ -1061,11 +1439,9 @@ function saveCharacterPreviewImage() {
         renderer.getClearColor(oldClearColor);
         const oldClearAlpha = renderer.getClearAlpha();
 
-        // 清空背景，將渲染器設為完全透明
         scene.background = null;
         renderer.setClearColor(0x000000, 0); 
 
-        // 隱藏地板網格
         let gridObject = null;
         scene.traverse((child) => {
             if (child instanceof THREE.GridHelper) {
@@ -1074,34 +1450,26 @@ function saveCharacterPreviewImage() {
             }
         });
 
-        // 視角置中與拉近
         controls.target.set(0, 1.5, 0);       
         threeCamera.position.set(0, 1.5, 3.8); 
         threeCamera.updateProjectionMatrix(); 
         controls.update();
 
-        // 渲染與截圖
         renderer.render(scene, threeCamera);
         const previewImage = renderer.domElement.toDataURL('image/png');
-        localStorage.setItem('pypoly_char_preview', previewImage); // 存給大廳讀取
-		
-		// 🏆 關鍵新增：將預覽照綁定你的名字，這樣觀戰者才找得到！
-		const currentName = localStorage.getItem('username') || 'default_user';
-		localStorage.setItem(`pypoly_char_preview_${currentName}`, previewImage);
+        localStorage.setItem('pypoly_char_preview', previewImage);
+        
+        const currentName = localStorage.getItem('username') || 'default_user';
+        localStorage.setItem(`pypoly_char_preview_${currentName}`, previewImage);
 
-        // 復原環境設定
         scene.background = originalBackground;
         renderer.setClearColor(oldClearColor, oldClearAlpha);
         if (gridObject) gridObject.visible = true;
 
-        // 🏆 關鍵：發放通行證與儲存資料
         const currentUser = localStorage.getItem('username') || 'default_user';
         localStorage.setItem(`pypoly_char_created_${currentUser}`, "true"); 
-        
-        // 儲存顏色綁定該玩家
         localStorage.setItem(`pypoly_char_colors_${currentUser}`, JSON.stringify(partColors));
         
-        // 如果有臉部資料，一併綁定給該玩家
         const faceData = localStorage.getItem('pypoly_char_face');
         if (faceData) {
             localStorage.setItem(`pypoly_char_face_${currentUser}`, faceData);
