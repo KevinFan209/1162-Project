@@ -3,222 +3,348 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PyPoly - Lobby</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
+    <title>BeeRich - Lobby</title>
+    <!-- 引入與登入頁一致的精選字型 -->
+    <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary-blue: #4facfe;
-            --success-green: #00cdac;
-            --success-green-shadow: #00a88b;
-            --primary-yellow: #ffde59;
-            --yellow-shadow: #e6c543;
-            --bg-gray: #f1f5f9;
-            --text-dark: #000000;
-            --text-gray: #64748b;
-            --sidebar-dark: #334155;
-            --sidebar-dark-shadow: #1e293b;
-            --border-light: #e2e8f0;
+            --pixel-border: #1e272e;
+            --bee-gold: #ffc048;
+            --bee-yellow: #ffdd59;
+            --bee-dark: #2f3542;
+            --pixel-green: #05c46b;
+            --pixel-blue: #0fbcf9;
+            --pixel-red: #ff3f34;
+            --bg-grid: #d2dae2;
+            --card-bg: #ffffff;
+            --text-dark: #1e272e;
+            --text-gray: #747d8c;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            image-rendering: pixelated;
+        }
 
         body {
-            background-color: var(--bg-gray);
-            height: 100%;
+            background-color: var(--bg-grid);
+            /* 與登入頁相同的經典像素格線底紋 */
+            background-image: 
+                linear-gradient(rgba(0, 0, 0, 0.05) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.05) 2px, transparent 2px);
+            background-size: 28px 28px;
+            height: 100vh;
             display: flex;
             flex-direction: column;
             overflow: hidden;
             position: relative;
         }
 
+        /* 頂部像素風格導覽列 */
         header {
-            background: linear-gradient(to bottom, #ffffff 0%, #fcfcfc 100%);
-            padding: 0 40px;
+            background: white;
+            padding: 0 35px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            height: 85px;
+            height: 80px;
             z-index: 100;
-            border-bottom: 1.5px solid var(--border-light); 
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+            border-bottom: 4px solid var(--pixel-border);
+            box-shadow: 0 4px 0 rgba(0, 0, 0, 0.15);
         }
 
         .header-left h1 {
-            font-size: 2.5rem;
-            font-weight: 900;
-            margin-bottom: 10px;
-            color: var(--text-dark);
+            font-family: 'VT323', monospace;
+            font-size: 3.2rem;
+            line-height: 1;
+            color: var(--bee-gold);
+            text-shadow: 
+                2px 2px 0 var(--pixel-border),
+                -1.5px -1.5px 0 var(--pixel-border),
+                2px -1.5px 0 var(--pixel-border),
+                -1.5px 2px 0 var(--pixel-border),
+                4px 4px 0 var(--bee-dark);
+            letter-spacing: 2px;
+            user-select: none;
         }
 
-        .header-right { display: flex; align-items: center; gap: 20px; }
-        .player-name { font-weight: 800; color: var(--text-dark); font-size: 1.1rem; }
+        .header-right { display: flex; align-items: center; gap: 18px; }
+
+        .player-badge {
+            background: #fffdf2;
+            border: 3px solid var(--pixel-border);
+            padding: 6px 16px;
+            border-radius: 4px;
+            font-weight: 900;
+            font-size: 1rem;
+            color: var(--text-dark);
+            box-shadow: 3px 3px 0 #000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
 
         .menu-btn {
-            background: transparent;
-            border: none;
+            background: white;
+            border: 3px solid var(--pixel-border);
             cursor: pointer;
             display: flex;
-            flex-direction: column;
+            align-items: center;
             justify-content: center;
-            padding: 10px;
-            transition: 0.2s;
+            padding: 6px;
+            box-shadow: 3px 3px 0 #000;
+            transition: 0.1s;
         }
-        .menu-btn:hover { opacity: 0.6; }
+        .menu-btn:hover { background: #fffdf2; }
+        .menu-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
 
         .menu-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.15); display: none; z-index: 999;
-            backdrop-filter: blur(2px);
+            background: rgba(0, 0, 0, 0.45); display: none; z-index: 999;
         }
         .menu-overlay.open { display: block; }
 
         .side-menu {
             position: fixed; top: 0; right: -320px; width: 320px; height: 100%;
-            background: white; box-shadow: -10px 0 30px rgba(0,0,0,0.05);
-            z-index: 1000; transition: 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
-            padding: 100px 30px 40px; display: flex; flex-direction: column; gap: 15px;
-			
+            background: white; border-left: 4px solid var(--pixel-border);
+            box-shadow: -8px 0 0 rgba(0,0,0,0.2);
+            z-index: 1000; transition: 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
+            padding: 90px 25px 35px; display: flex; flex-direction: column; gap: 14px;
         }
         .side-menu.open { right: 0; }
 
         .menu-item {
-            padding: 18px 25px; border-radius: 15px; font-weight: 800;
-            color: var(--text-gray); text-decoration: none; display: flex;
-            align-items: center; gap: 15px; transition: 0.2s; background: #f8fafc;
+            padding: 14px 20px; font-weight: 900;
+            color: var(--text-dark); text-decoration: none; display: flex;
+            align-items: center; gap: 12px; transition: 0.1s; background: #f1f2f6;
+            border: 3px solid var(--pixel-border); box-shadow: 3px 3px 0 #000;
         }
-        .menu-item:hover { background: var(--bg-gray); color: var(--text-dark); }
-        .menu-item.danger { margin-top: auto; color: #ff4757; cursor: pointer; }
+        .menu-item:hover { background: var(--bee-yellow); }
+        .menu-item:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+        .menu-item.danger { margin-top: auto; color: white; background: var(--pixel-red); }
 
-		.lobby-main {
-			height: calc(100vh - 85px); /* 扣除 Header 高度 */
-			display: flex;
-			justify-content: center;
-			align-items: center;
-			padding: 20px;
-			overflow: hidden; 
-		}
-
-		.lobby-container {
-			display: flex;
-			gap: 30px;
-			width: 95%;
-			max-width: 1100px;
-			height: 100%;       /* ⚡ 關鍵：讓它填滿 lobby-main，裡面的東西才能伸縮 */
-			align-items: stretch; /* ⚡ 關鍵：強迫左右兩邊等高 */
-		}
-
-		.sidebar {
-			width: clamp(280px, 25vw, 320px); /* 寬度隨網頁縮放，但有上下限 */
-			height: 100%;           
-			background: white; 
-			border-radius: 35px;
-			padding: 30px 25px;
-			display: flex; 
-			flex-direction: column;
-			align-items: center; 
-			/* ⚡ 關鍵：靠頂部對齊，不要使用 space-between */
-			justify-content: flex-start; 
-			box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-			border: 1px solid #f1f2f6;
-		}
-
-		.char-box {
-			width: 100%; 
-			/* ⚡ 寬高比鎖定 1:1，大小會隨 sidebar 寬度自動等比例變動 */
-			aspect-ratio: 1 / 1; 
-			background: #f8fafc;
-			border: 2px solid var(--primary-blue); 
-			border-radius: 28px;
-			display: flex; 
-			justify-content: center; 
-			align-items: center;
-			
-			/* ⚡ 這裡設定與「名字標籤」的固定行距 */
-			margin-bottom: 20px; 
-			
-			box-shadow: inset 0 0 15px rgba(79, 172, 254, 0.1);
-			flex-shrink: 0; /* 防止被壓扁 */
-		}
-
-		.id-label {
-			width: 100%; 
-			background: #000; 
-			color: white; 
-			padding: 14px;
-			border-radius: 15px; 
-			font-weight: 900; 
-			text-align: center;
-			font-size: clamp(0.9rem, 1.2vw, 1.1rem); /* 字體也隨縮放微調 */
-			
-			/* ⚡ 這裡設定與「更換角色」按鈕的固定行距 */
-			margin-bottom: 15px; 
-			
-			flex-shrink: 0;
-		}
-
-		.btn-side { 
-			width: 100%; 
-			padding: 16px; 
-			background: var(--sidebar-dark); 
-			color: white; 
-			border-radius: 12px;
-			box-shadow: 0 6px 0 var(--sidebar-dark-shadow);
-			font-size: clamp(0.85rem, 1vw, 1rem);
-			
-			flex-shrink: 0;
-		}
-
-		/* 5. 確保裡面的 3D 角色或圖片會隨框框變大變小 */
-		.char-box canvas, .char-box img {
-			max-width: 100%;
-			max-height: 100%;
-			object-fit: contain;
-		}
-
-        .btn-3d {
-            border: none; border-radius: 12px; font-weight: 900;
-            cursor: pointer; transition: 0.1s; display: inline-flex;
-            align-items: center; justify-content: center;
+        .lobby-main {
+            height: calc(100vh - 80px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            overflow: hidden;
         }
- 
-		.main-board {
-			flex: 1;
-			display: flex;
-			flex-direction: column;
-			gap: 20px;
-			height: 100%; /* ⚡ 跟隨容器高度縮放 */
-		}
-		
+
+        .lobby-container {
+            display: flex;
+            gap: 25px;
+            width: 95%;
+            max-width: 1150px;
+            height: 100%;
+            align-items: stretch;
+        }
+
+        /* 左側人物資訊欄 (8-bit 街機框) */
+        .sidebar {
+            width: clamp(280px, 25vw, 320px);
+            height: 100%;
+            background: var(--card-bg);
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0px #000;
+            padding: 25px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            flex-shrink: 0;
+        }
+
+        .side-title {
+            font-family: 'Silkscreen', 'Zen Maru Gothic', sans-serif;
+            font-weight: 700;
+            font-size: 1.45rem;
+            color: var(--text-dark);
+            margin-bottom: 20px;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .char-box {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            background: #f1f2f6;
+            border: 4px solid var(--pixel-border);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 16px;
+            box-shadow: inset 4px 4px 0 rgba(0,0,0,0.08);
+            cursor: pointer;
+            overflow: hidden;
+            transition: transform 0.1s ease;
+            position: relative;
+        }
+        .char-box:hover { background: #feffea; }
+        .char-box:active { transform: scale(0.98); }
+
+        .char-box canvas, .char-box img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .id-label {
+            width: 100%;
+            background: var(--pixel-border);
+            color: #ffffff;
+            padding: 12px;
+            font-weight: 900;
+            text-align: center;
+            font-size: clamp(0.95rem, 1.1vw, 1.1rem);
+            margin-bottom: 14px;
+            border: 2px solid #000;
+            letter-spacing: 1px;
+            box-shadow: 3px 3px 0 var(--bee-gold);
+        }
+
+        .btn-pixel {
+            border: 3px solid var(--pixel-border);
+            font-weight: 900;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            transition: all 0.06s ease;
+        }
+        .btn-pixel:active {
+            transform: translate(3px, 3px) !important;
+            box-shadow: 0 0 0 #000 !important;
+        }
+
+        .btn-side {
+            width: 100%;
+            padding: 14px;
+            background: var(--bee-yellow);
+            color: var(--text-dark);
+            box-shadow: 0 5px 0 #000;
+            font-size: 0.95rem;
+            margin-top: 10px;
+        }
+        .btn-side:hover { filter: brightness(1.05); }
+
+        /* 右側主舞台 */
+        .main-board {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            height: 100%;
+        }
+
         .board-header {
-            background: white; padding: 25px 40px; border-radius: 25px;
-            display: flex; justify-content: space-between; align-items: center;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.03); border: 1px solid #f1f2f6;
+            background: white;
+            padding: 18px 30px;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0 #000;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
-        .btn-create { padding: 14px 25px; background: var(--success-green); color: white; box-shadow: 0 6px 0 var(--success-green-shadow); }
 
-		.room-scroll {
-			background: white;
-			flex: 1; /* ⚡ 房間列表也會隨網頁高度自動伸縮 */
-			border-radius: 40px;
-			padding: 30px;
-			box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-			overflow-y: auto; /* ⚡ 房間太多時內部捲動，而不是撐開頁面 */
-			border: 1px solid #f1f2f6;
-		}
-		
+        .btn-create {
+            padding: 12px 24px;
+            background: var(--pixel-green);
+            color: white;
+            box-shadow: 0 5px 0 #000;
+            font-size: 1.05rem;
+        }
+        .btn-create:hover { filter: brightness(1.05); }
+
+        .quick-join-bar {
+            background: white;
+            padding: 14px 28px;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0 #000;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .quick-input {
+            flex: 1;
+            padding: 10px 14px;
+            border: 3px solid var(--pixel-border);
+            font-weight: 900;
+            letter-spacing: 2px;
+            text-align: center;
+            outline: none;
+            font-size: 1.05rem;
+            background: #fffdf5;
+            box-shadow: inset 2px 2px 0 rgba(0,0,0,0.08);
+        }
+        .quick-input:focus { border-color: #000; background: #feffea; }
+
+        .btn-join {
+            padding: 10px 24px;
+            background: var(--bee-yellow);
+            color: var(--text-dark);
+            box-shadow: 0 5px 0 #000;
+            font-size: 1rem;
+        }
+        .btn-join:hover { filter: brightness(1.05); }
+
+        /* 房間列表容器 */
+        .room-scroll {
+            background: white;
+            flex: 1;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0 #000;
+            padding: 24px;
+            overflow-y: auto;
+        }
+
+        .room-scroll-title {
+            font-family: 'Silkscreen', 'Zen Maru Gothic', sans-serif;
+            font-weight: 700;
+            font-size: 1.25rem;
+            color: var(--text-dark);
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
         .room-item {
-            background: #f8fafc; padding: 25px 30px; border-radius: 25px;
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 20px; border: 1px solid #f1f2f6;
+            background: #f8fafc;
+            padding: 20px 24px;
+            border: 3px solid var(--pixel-border);
+            box-shadow: 4px 4px 0 #000;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            transition: transform 0.1s ease;
         }
-        .btn-join { padding: 12px 40px; background: var(--primary-yellow); color: #574b10; box-shadow: 0 6px 0 var(--yellow-shadow); }
+        .room-item:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 #000;
+            background: #fffdf5;
+        }
 
-        .btn-3d:active { transform: translateY(4px); box-shadow: none; }
-        .room-item { transition: transform 0.2s; cursor: pointer; }
-        .room-item:hover { transform: scale(1.01); border-color: var(--primary-blue); }
+        .room-mode-tag {
+            background: #dfe4ea;
+            border: 2px solid var(--pixel-border);
+            padding: 2px 8px;
+            font-size: 0.75rem;
+            font-weight: 900;
+        }
 
-        .room-scroll::-webkit-scrollbar { width: 6px; }
-        .room-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .room-scroll::-webkit-scrollbar { width: 8px; }
+        .room-scroll::-webkit-scrollbar-track { background: #dfe4ea; border-left: 2px solid var(--pixel-border); }
+        .room-scroll::-webkit-scrollbar-thumb { background: var(--pixel-border); }
 
         @media (max-width: 850px) {
             header { padding: 0 20px; }
@@ -241,11 +367,14 @@
 </div>
 
 <header>
-    <div class="header-left"><h1>PyPoly</h1></div>
+    <div class="header-left"><h1>BeeRich</h1></div>
     <div class="header-right">
-        <div class="player-name" id="topPlayerName">載入中...</div>
+        <div class="player-badge">
+            <span>👾</span>
+            <span id="topPlayerName">載入中...</span>
+        </div>
         <button class="menu-btn" onclick="toggleMenu()">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
                 <line x1="3" y1="12" x2="21" y2="12"></line>
                 <line x1="3" y1="6" x2="21" y2="6"></line>
                 <line x1="3" y1="18" x2="21" y2="18"></line>
@@ -256,49 +385,51 @@
 
 <div class="lobby-main">
     <div class="lobby-container">
+        <!-- 左側人物欄 -->
         <aside class="sidebar">
-            <h2 style="font-weight: 900; font-size: 1.8rem; color: var(--text-dark); margin-bottom: 25px; letter-spacing: 1px;">遊戲大廳</h2>
-            <div class="char-box" id="lobby-char-box" onclick="location.href='character.html'"><div style="color:var(--primary-blue); font-weight:800;">[Q版角色]</div></div>
+            <h2 class="side-title"><span>⚔️</span> 遊戲大廳</h2>
+            <div class="char-box" id="lobby-char-box" onclick="location.href='character.html'">
+                <div style="color:var(--text-gray); font-weight:900;">[Q版角色]</div>
+            </div>
             <div class="id-label" id="sidePlayerName">載入中...</div>
-            <button class="btn-3d btn-side" style="margin-top: 25px;" onclick="location.href='character.html'">建立專屬虛擬人物</button>
+            <button class="btn-pixel btn-side" onclick="location.href='character.html'">建立專屬虛擬人物</button>
         </aside>
 
-		<main class="main-board">
-			<header class="board-header">
-				<h3 style="font-weight: 900; font-size: 1.4rem;">尋找挑戰者</h3>
-				<button class="btn-3d btn-create" onclick="checkAndCreateRoom()">+ 建立新對局</button>
-			</header>
+        <!-- 右側主視窗 -->
+        <main class="main-board">
+            <header class="board-header">
+                <h3 style="font-weight: 900; font-size: 1.35rem; color: var(--text-dark);">尋找挑戰者</h3>
+                <button class="btn-pixel btn-create" onclick="checkAndCreateRoom()">+ 建立新對局</button>
+            </header>
 
-			<div id="quickJoinArea" style="background: white; padding: 20px 40px; border-radius: 25px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); border: 1px solid #f1f2f6; display: flex; align-items: center; gap: 20px;">
-				<span style="font-weight: 900; color: var(--primary-blue); white-space: nowrap;">快速加入 🔑</span>
-				<input type="text" id="quickRoomCode" placeholder="輸入六位邀請碼..." 
-					   style="flex: 1; padding: 12px; border-radius: 12px; border: 2px solid var(--border-light); font-weight: 800; letter-spacing: 2px; text-align: center; outline: none;">
-				<button class="btn-3d btn-join" style="padding: 12px 30px; margin: 0;" onclick="quickVerify()">加入房間</button>
-			</div>
-			
-			<section class="room-scroll" id="roomList">
-				<div style="font-weight: 900; font-size: 1.4rem; color: var(--text-black); margin-bottom: 20px; padding-left: 5px;">
-					房間列表
-				</div>
-			</section>
-		</main>
+            <div id="quickJoinArea" class="quick-join-bar">
+                <span style="font-weight: 900; color: var(--text-dark); white-space: nowrap;">🔑 快速加入</span>
+                <input type="text" id="quickRoomCode" placeholder="輸入六位邀請碼..." class="quick-input">
+                <button class="btn-pixel btn-join" onclick="quickVerify()">加入房間</button>
+            </div>
+            
+            <section class="room-scroll" id="roomList">
+                <div class="room-scroll-title">
+                    <span>📜</span> 房間列表
+                </div>
+            </section>
+        </main>
     </div>
 </div>
 
+<!-- 像素化私人邀請碼輸入彈窗 -->
 <div id="passwordModal" class="menu-overlay" style="display: none; align-items: center; justify-content: center; pointer-events: auto; z-index: 3000;">
-    <div class="sidebar" style="width: 350px; height: auto; display: block; padding: 30px; position: relative; background: white; border-radius: 20px;">
-        <h3 style="font-weight: 900; margin-bottom: 20px; text-align: center; color: var(--text-dark);">🔒 輸入私人邀請碼</h3>
-        <input type="text" id="inputRoomCode" class="input-box" 
-               style="width:100%; margin-bottom: 20px; text-align: center; letter-spacing: 4px; font-size: 1.5rem; border: 2px solid var(--border-light); border-radius: 10px; padding: 10px;" 
+    <div style="width: 380px; background: white; border: 4px solid var(--pixel-border); box-shadow: 8px 8px 0 #000; padding: 30px; text-align: center;">
+        <h3 style="font-weight: 900; font-size: 1.25rem; margin-bottom: 18px; color: var(--text-dark);">🔒 輸入私人邀請碼</h3>
+        <input type="text" id="inputRoomCode" 
+               style="width: 100%; margin-bottom: 22px; text-align: center; letter-spacing: 4px; font-size: 1.4rem; border: 3px solid var(--pixel-border); padding: 10px; font-weight: 900; outline: none; background: #fffdf5;" 
                placeholder="六位代碼">
-        <div style="display: flex; gap: 10px;">
-            <button class="btn-3d" style="background: var(--text-gray); flex: 1; border: none; color: white; border-radius: 10px; cursor: pointer;" onclick="closePasswordModal()">取消</button>
-            <button class="btn-3d btn-create" style="flex: 1; padding: 10px; border: none; color: white; border-radius: 10px; cursor: pointer;" onclick="verifyRoomCode()">加入</button>
+        <div style="display: flex; gap: 12px;">
+            <button class="btn-pixel" style="background: #dfe4ea; flex: 1; padding: 12px; color: var(--text-dark); box-shadow: 0 4px 0 #000;" onclick="closePasswordModal()">取消</button>
+            <button class="btn-pixel btn-create" style="flex: 1; padding: 12px;" onclick="verifyRoomCode()">加入</button>
         </div>
     </div>
 </div>
-
-
 
 <script>
     const API_URL = location.origin;
@@ -315,7 +446,7 @@
         }
     }
 
-	async function logout() {
+    async function logout() {
         if (syncTimer) clearInterval(syncTimer);
         const username = localStorage.getItem('username');
         await fetch(`${API_URL}/auth/logout?username=${username}&confirm=true`, { method: 'POST' });
@@ -340,299 +471,267 @@
     }
 
     // --- 3. 頁面初始化 ---
-	window.onload = async function() {
-		const token = localStorage.getItem('token');
-		const username = localStorage.getItem('username');
+    window.onload = async function() {
+        const token = localStorage.getItem('token');
+        const username = localStorage.getItem('username');
 
-		if (!token || !username) {
-			window.location.href = 'login.html';
-			return;
-		}
-		
+        if (!token || !username) {
+            window.location.href = 'login.html';
+            return;
+        }
+        
         // 🏆 整合版：優先讀取玩家自定義的專屬人臉或預覽圖
-		const charBox = document.getElementById('lobby-char-box');
+        const charBox = document.getElementById('lobby-char-box');
         const myFace = localStorage.getItem(`pypoly_char_face_${username}`) || localStorage.getItem('pypoly_char_face');
         const savedCharImage = localStorage.getItem('pypoly_char_preview');
         
-		// ✅ 新的正確邏輯：不論有沒有人臉，一律優先顯示精美的「3D 全身自定義模型」！
-		if (charBox) {
-			if (savedCharImage) {
-				// 優先顯示貼有人臉、換好顏色的全身 3D 截圖
-				charBox.innerHTML = `<img src="${savedCharImage}" alt="我的角色" style="width: 100%; height: 100%; object-fit: contain; border-radius: 26px; transform: scale(1.15);">`;
-			} else if (myFace) {
-				// 備份方案：如果全身截圖不幸遺失，才退回顯示平面人臉
-				charBox.innerHTML = `<img src="${myFace}" style="width:100%; height:100%; border-radius: 26px; object-fit:cover; border:3px solid #ffde59;">`;
-			}
-		}
+        // ✅ 新的正確邏輯：不論有沒有人臉，一律優先顯示精美的「3D 全身自定義模型」！
+        if (charBox) {
+            if (savedCharImage) {
+                charBox.innerHTML = `<img src="${savedCharImage}" alt="我的角色" style="width: 100%; height: 100%; object-fit: contain; transform: scale(1.15);">`;
+            } else if (myFace) {
+                charBox.innerHTML = `<img src="${myFace}" style="width:100%; height:100%; object-fit:cover; border:2px solid var(--bee-yellow);">`;
+            }
+        }
 
-		try {
-			const res = await fetch(`${API_URL}/auth/verify_and_refresh?username=${encodeURIComponent(username)}`, {
-				method: "POST",
-				headers: { 'Authorization': `Bearer ${token}` }
-			});
-			const data = await res.json();
+        try {
+            const res = await fetch(`${API_URL}/auth/verify_and_refresh?username=${encodeURIComponent(username)}`, {
+                method: "POST",
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
 
-			if (data.status === "success") {
-				console.log("狀態已復活");
-				if (document.getElementById('topPlayerName')) document.getElementById('topPlayerName').innerText = username;
-				if (document.getElementById('sidePlayerName')) document.getElementById('sidePlayerName').innerText = username;
+            if (data.status === "success") {
+                console.log("狀態已復活");
+                if (document.getElementById('topPlayerName')) document.getElementById('topPlayerName').innerText = username;
+                if (document.getElementById('sidePlayerName')) document.getElementById('sidePlayerName').innerText = username;
 
-				startSyncLoop(username, token);
-				renderRooms(); 
-			} else {
-				localStorage.clear();
-				window.location.href = "login.html";
-			}
-		} catch (err) {
-			console.error("驗證連線失敗:", err);
-			window.location.href = "login.html";
-		}
-		
-		localStorage.removeItem('pypoly_game_snapshot');
-		renderRooms();
-		setInterval(renderRooms, 10000);
-	};
-	
-// 🏆 1. 建立自定義 UI 彈窗取代系統原生 alert
-function showCustomAlert(title, message, isSuccess = false) {
-    // 先檢查是否已經有彈窗，有的話先移除
-    const existingAlert = document.getElementById('custom-ui-alert');
-    if (existingAlert) existingAlert.remove();
-
-    // 建立背景遮罩
-    const overlay = document.createElement('div');
-    overlay.id = 'custom-ui-alert';
-    overlay.style.cssText = `
-        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-        background: rgba(0, 0, 0, 0.3); backdrop-filter: blur(5px);
-        display: flex; align-items: center; justify-content: center;
-        z-index: 99999; opacity: 0; transition: opacity 0.3s ease;
-    `;
-
-    // 判斷按鈕顏色（成功為綠色，錯誤/警告為紅色或深灰色）
-    const btnColor = isSuccess ? 'var(--success-green)' : '#ff4757'; 
-    const btnShadow = isSuccess ? 'var(--success-green-shadow)' : '#ff6b81';
-
-    // 建立彈窗內容 (使用您既有的設計語彙)
-    overlay.innerHTML = `
-        <div style="
-            background: white; padding: 40px; border-radius: 35px;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.15); border: 2px solid var(--border-light);
-            width: 90%; max-width: 420px; text-align: center;
-            transform: translateY(30px) scale(0.95); 
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        ">
-            <div style="font-size: 3rem; margin-bottom: 10px;">
-                ${isSuccess ? '🎉' : '⚠️'}
-            </div>
-            <h2 style="font-size: 1.8rem; font-weight: 900; color: var(--text-dark); margin-bottom: 15px;">
-                ${title}
-            </h2>
-            <p style="font-size: 1.1rem; color: var(--text-gray); font-weight: 700; line-height: 1.6; margin-bottom: 30px;">
-                ${message}
-            </p>
-            <button class="btn-3d" onclick="document.getElementById('custom-ui-alert').remove()" style="
-                background: ${btnColor}; color: white; padding: 16px 40px; border: none;
-                border-radius: 15px; font-weight: 900; font-size: 1.1rem; cursor: pointer;
-                box-shadow: 0 6px 0 ${btnShadow}; width: 100%; transition: 0.1s;
-            ">我知道了</button>
-        </div>
-    `;
-
-    document.body.appendChild(overlay);
-
-    // 觸發進場動畫
-    requestAnimationFrame(() => {
-        overlay.style.opacity = "1";
-        overlay.children[0].style.transform = "translateY(0) scale(1)";
-    });
-}
-	
-// 🏆 檢查是否已建立虛擬人物的核心函式（升級：終極自動修復防禦版）
-function hasCreatedCharacter() {
-    const currentUsername = localStorage.getItem('username');
-    let isCreated = localStorage.getItem(`pypoly_char_created_${currentUsername}`);
+                startSyncLoop(username, token);
+                renderRooms(); 
+            } else {
+                localStorage.clear();
+                window.location.href = "login.html";
+            }
+        } catch (err) {
+            console.error("驗證連線失敗:", err);
+            window.location.href = "login.html";
+        }
+        
+        localStorage.removeItem('pypoly_game_snapshot');
+        renderRooms();
+        setInterval(renderRooms, 10000);
+    };
     
-    // 🌟 終極修復核心：如果大廳看得到圖片(pypoly_char_preview)，說明角色絕對存在！
-    // 直接在前端幫玩家自動補蓋「帳號通行章」，防止被誤判阻擋
-    const hasPreview = localStorage.getItem('pypoly_char_preview');
-    if (hasPreview && isCreated !== "true") {
-        console.log("🛠️ [系統防禦] 偵測到已有角色模型預覽圖，正在自動為帳號補發通行標記...");
-        localStorage.setItem(`pypoly_char_created_${currentUsername}`, "true");
-        isCreated = "true"; // 強制將狀態改為已建立，讓下方順利過關
+    // 🏆 自定義像素風格 UI 彈窗取代系統原生 alert
+    function showCustomAlert(title, message, isSuccess = false) {
+        const existingAlert = document.getElementById('custom-ui-alert');
+        if (existingAlert) existingAlert.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'custom-ui-alert';
+        overlay.style.cssText = `
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 99999; opacity: 0; transition: opacity 0.2s ease;
+        `;
+
+        const btnColor = isSuccess ? 'var(--pixel-green)' : 'var(--pixel-red)'; 
+
+        overlay.innerHTML = `
+            <div style="
+                background: white; padding: 35px; border: 4px solid var(--pixel-border);
+                box-shadow: 8px 8px 0px #000000;
+                width: 90%; max-width: 420px; text-align: center;
+                transform: scale(0.95); transition: all 0.2s ease;
+            ">
+                <div style="font-size: 2.8rem; margin-bottom: 12px;">
+                    ${isSuccess ? '🎉' : '⚠️'}
+                </div>
+                <h2 style="font-size: 1.6rem; font-weight: 900; color: var(--text-dark); margin-bottom: 14px;">
+                    ${title}
+                </h2>
+                <p style="font-size: 1.05rem; color: var(--text-gray); font-weight: 700; line-height: 1.6; margin-bottom: 26px;">
+                    ${message}
+                </p>
+                <button class="btn-pixel" onclick="document.getElementById('custom-ui-alert').remove()" style="
+                    background: ${btnColor}; color: white; padding: 14px;
+                    font-weight: 900; font-size: 1.1rem; cursor: pointer;
+                    box-shadow: 0 5px 0 #000; width: 100%;
+                ">我知道了</button>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        requestAnimationFrame(() => {
+            overlay.style.opacity = "1";
+            overlay.children[0].style.transform = "scale(1)";
+        });
+    }
+    
+    // 🏆 檢查是否已建立虛擬人物的核心函式
+    function hasCreatedCharacter() {
+        const currentUsername = localStorage.getItem('username');
+        let isCreated = localStorage.getItem(`pypoly_char_created_${currentUsername}`);
+        
+        const hasPreview = localStorage.getItem('pypoly_char_preview');
+        if (hasPreview && isCreated !== "true") {
+            console.log("🛠️ [系統防禦] 偵測到已有角色模型預覽圖，正在自動為帳號補發通行標記...");
+            localStorage.setItem(`pypoly_char_created_${currentUsername}`, "true");
+            isCreated = "true";
+        }
+
+        if (isCreated !== "true") {
+            showCustomAlert(
+                "角色尚未建立", 
+                "請先點擊左側的<span style='color: var(--pixel-blue);'>「建立專屬虛擬人物」</span>按鈕完成自定義，才能夠加入對局喔！"
+            );
+            return false;
+        }
+        return true;
     }
 
-    if (isCreated !== "true") {
-        // 使用自定義 UI 彈窗
-        showCustomAlert(
-            "角色尚未建立", 
-            "請先點擊左側的<span style='color: var(--primary-blue);'>「建立專屬虛擬人物」</span>按鈕完成自定義，才能夠加入對局喔！"
-        );
-        return false;
+    // 🏆 建立新對局的阻斷函式
+    function checkAndCreateRoom() {
+        if (!hasCreatedCharacter()) return;
+        location.href = 'modal.html';
     }
-    return true;
-}
 
-// 🏆 建立新對局的阻斷函式 (對應步驟一的按鈕)
-function checkAndCreateRoom() {
-    if (!hasCreatedCharacter()) return;
-    location.href = 'modal.html';
-}
-	
-	
-// 🏆 在大廳加載完成後，渲染右側虛擬人物照片
-const myName = localStorage.getItem('username');
-const myFace = localStorage.getItem(`pypoly_char_face_${myName}`) || localStorage.getItem('pypoly_char_face');
+    const myName = localStorage.getItem('username');
+    const myFace = localStorage.getItem(`pypoly_char_face_${myName}`) || localStorage.getItem('pypoly_char_face');
 
-// 假設您右側有一個存放頭像的 DOM 元素（例如 id="player-avatar-preview"）
-const avatarContainer = document.getElementById('player-avatar-preview'); 
-if (avatarContainer && myFace) {
-    avatarContainer.innerHTML = `<img src="${myFace}" style="width:100%; height:100%; border-radius:50%; object-fit:cover; border:3px solid #ffde59;">`;
-}
+    const avatarContainer = document.getElementById('player-avatar-preview'); 
+    if (avatarContainer && myFace) {
+        avatarContainer.innerHTML = `<img src="${myFace}" style="width:100%; height:100%; object-fit:cover; border:2px solid var(--bee-yellow);">`;
+    }
 
-    // --- 4. 渲染房間列表 (整合動態與私人邏輯) ---
-	async function renderRooms() {
-		const grid = document.getElementById('roomList');
-		if (!grid) return;
+    // --- 4. 渲染房間列表 ---
+    async function renderRooms() {
+        const grid = document.getElementById('roomList');
+        if (!grid) return;
 
-		try {
-			const res = await fetch(`${API_URL}/rooms/public`);
-			if (!res.ok) throw new Error("伺服器回應錯誤");
-			const rooms = await res.json();
+        try {
+            const res = await fetch(`${API_URL}/rooms/public`);
+            if (!res.ok) throw new Error("伺服器回應錯誤");
+            const rooms = await res.json();
 
-			let newHtml = `<div style="font-weight: 900; font-size: 1.4rem; color: var(--text-dark); margin-bottom: 20px;">公開房間列表</div>`;
+            let newHtml = `<div class="room-scroll-title"><span>📜</span> 公開房間列表</div>`;
 
-			if (rooms && rooms.length > 0) {
-				rooms.forEach(room => {
-					// 🏆 計算人數比例與顏色
-					const currentPlayers = room.players ? room.players.length : 0;
-					const maxPlayers = room.max_players || 2;
-					const isFull = currentPlayers >= maxPlayers;
-					const statusColor = isFull ? 'var(--text-gray)' : 'var(--success-green)';
+            if (rooms && rooms.length > 0) {
+                rooms.forEach(room => {
+                    const currentPlayers = room.players ? room.players.length : 0;
+                    const maxPlayers = room.max_players || 2;
+                    const isFull = currentPlayers >= maxPlayers;
+                    const statusColor = isFull ? 'var(--text-gray)' : 'var(--pixel-green)';
 
-					newHtml += `
-						<div class="room-item">
-							<div style="flex: 1;">
-								<div style="display: flex; align-items: center; gap: 10px;">
-									<span style="font-weight: 900; font-size: 1.3rem;">${room.name}</span>
-									<span style="background: #e2e8f0; padding: 2px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 800;">
-										${room.mode === 'advanced' ? '🚀 進階' : '🌱 基礎'}
-									</span>
-								</div>
-								<p style="font-size: 0.9rem; color: #64748b; font-weight: 700; margin-top: 6px;">
-									🏆 ${room.winLaps} 回合 | 🔥 難度: ${room.difficulty || '普通'}
-								</p>
-							</div>
-							<div style="text-align: right; min-width: 100px;">
-								<div style="color: ${statusColor}; font-weight: 900; font-size: 1.1rem; margin-bottom: 8px;">
-									👥 ${currentPlayers} / ${maxPlayers}
-								</div>
-								<button class="btn-3d btn-join" onclick="joinRoom('${room.code}', '${room.type}')" ${isFull ? 'disabled' : ''}>
-									${isFull ? '已滿' : '加入'}
-								</button>
-							</div>
-						</div>`;
-				});
-			} else {
-				newHtml += '<div style="color:var(--text-gray); padding:20px; font-weight:700;">目前沒有冒險教室</div>';
-			}
+                    newHtml += `
+                        <div class="room-item">
+                            <div style="flex: 1;">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <span style="font-weight: 900; font-size: 1.25rem; color: var(--text-dark);">${room.name}</span>
+                                    <span class="room-mode-tag">
+                                        ${room.mode === 'advanced' ? '🚀 進階' : '🌱 基礎'}
+                                    </span>
+                                </div>
+                                <p style="font-size: 0.95rem; color: var(--text-gray); font-weight: 700; margin-top: 6px;">
+                                    🏆 ${room.winLaps} 回合 | 🔥 難度: ${room.difficulty || '普通'}
+                                </p>
+                            </div>
+                            <div style="text-align: right; min-width: 105px;">
+                                <div style="color: ${statusColor}; font-weight: 900; font-size: 1.1rem; margin-bottom: 8px;">
+                                    👥 ${currentPlayers} / ${maxPlayers}
+                                </div>
+                                <button class="btn-pixel btn-join" onclick="joinRoom('${room.code}', '${room.type}')" ${isFull ? 'disabled' : ''}>
+                                    ${isFull ? '已滿' : '加入'}
+                                </button>
+                            </div>
+                        </div>`;
+                });
+            } else {
+                newHtml += '<div style="color:var(--text-gray); padding:20px; font-weight:900;">目前沒有冒險教室</div>';
+            }
 
-			if (grid.innerHTML !== newHtml) grid.innerHTML = newHtml;
-		} catch (err) {
-			console.error("刷新列表失敗");
-		}
-	}
-	
-	// 🏆 自動清理幽靈房間
-	async function checkGhostRoom() {
-		const localRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
-		if (!localRoom) return;
+            if (grid.innerHTML !== newHtml) grid.innerHTML = newHtml;
+        } catch (err) {
+            console.error("刷新列表失敗");
+        }
+    }
+    
+    async function checkGhostRoom() {
+        const localRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
+        if (!localRoom) return;
 
-		try {
-			const res = await fetch(`${API_URL}/rooms/verify/${localRoom.code}`);
-			if (res.status === 404) {
-				// 如果伺服器說這房間不存在，就清掉本地資料
-				console.log("清理不存在的房間緩存...");
-				localStorage.removeItem('pypoly_active_room');
-				localStorage.removeItem('is_host');
-			}
-		} catch (e) {
-			console.error("連線檢查失敗");
-		}
-	}
+        try {
+            const res = await fetch(`${API_URL}/rooms/verify/${localRoom.code}`);
+            if (res.status === 404) {
+                console.log("清理不存在的房間緩存...");
+                localStorage.removeItem('pypoly_active_room');
+                localStorage.removeItem('is_host');
+            }
+        } catch (e) {
+            console.error("連線檢查失敗");
+        }
+    }
 
     // --- 5. 加入房間邏輯 ---
-	// 🏆 修正後的 joinRoom：處理列表點擊
-/**
- * 完整修正版：加入房間邏輯
- * 解決平板訪客身分判定衝突、房間存在性驗證、以及私密房彈窗邏輯
- */
-// --- lobby.html 中的 joinRoom 完整修正 ---
-async function joinRoom(roomCode, type) {
-	if (!hasCreatedCharacter()) return;
-    const myName = localStorage.getItem('username');
-    
-    try {
-        // 🏆 修正：使用 POST 請求正式加入房間
-        const joinRes = await fetch(`${API_URL}/rooms/join/${roomCode}?username=${encodeURIComponent(myName)}`, {
-            method: 'POST'
-        });
+    async function joinRoom(roomCode, type) {
+        if (!hasCreatedCharacter()) return;
+        const myName = localStorage.getItem('username');
+        
+        try {
+            const joinRes = await fetch(`${API_URL}/rooms/join/${roomCode}?username=${encodeURIComponent(myName)}`, {
+                method: 'POST'
+            });
 
-        if (joinRes.ok) {
-            const serverRoom = await joinRes.json();
-            
-            // 儲存房間資料
-            localStorage.setItem('pypoly_active_room', JSON.stringify(serverRoom));
-            
-            // 🏆 關鍵：判定「我」是否為房主並存入 localStorage
-            const isActuallyHost = (serverRoom.hostId === myName);
-            localStorage.setItem('is_host', isActuallyHost ? 'true' : 'false');
+            if (joinRes.ok) {
+                const serverRoom = await joinRes.json();
+                
+                localStorage.setItem('pypoly_active_room', JSON.stringify(serverRoom));
+                
+                const isActuallyHost = (serverRoom.hostId === myName);
+                localStorage.setItem('is_host', isActuallyHost ? 'true' : 'false');
 
-            console.log("✅ 加入成功，前往等待室...");
-            location.href = 'WaitingRoom.html';
-        } else {
-            const errorData = await joinRes.json();
-            alert(`❌ 無法加入：${errorData.detail || "房間可能已滿或不存在"}`);
+                console.log("✅ 加入成功，前往等待室...");
+                location.href = 'WaitingRoom.html';
+            } else {
+                const errorData = await joinRes.json();
+                alert(`❌ 無法加入：${errorData.detail || "房間可能已滿或不存在"}`);
+            }
+        } catch (err) { 
+            console.error("連線失敗", err);
+            alert("連線伺服器失敗，請檢查網路"); 
         }
-    } catch (err) { 
-        console.error("連線失敗", err);
-        alert("連線伺服器失敗，請檢查網路"); 
     }
-}
 
-	// 專門給 Modal 點擊確定的輔助函式
-	// 輔助函式：確保彈窗驗證也走 API
-	async function verifySpecificRoom(targetCode) {
-		const inputVal = document.getElementById('inputRoomCode').value.toUpperCase().trim();
-		if (inputVal !== targetCode) {
-			alert("❌ 邀請碼不正確！");
-			return;
-		}
-		const quickInput = document.getElementById('quickRoomCode');
-		if (quickInput) {
-			quickInput.value = targetCode;
-			await quickVerify();
-		}
-	}
+    async function verifySpecificRoom(targetCode) {
+        const inputVal = document.getElementById('inputRoomCode').value.toUpperCase().trim();
+        if (inputVal !== targetCode) {
+            alert("❌ 邀請碼不正確！");
+            return;
+        }
+        const quickInput = document.getElementById('quickRoomCode');
+        if (quickInput) {
+            quickInput.value = targetCode;
+            await quickVerify();
+        }
+    }
 
-	// 🏆 修正後的 verifyRoomCode：給密碼彈窗用的
-	async function verifyRoomCode() {
-		const inputField = document.getElementById('inputRoomCode');
-		if (!inputField) return;
-		
-		const inputCode = inputField.value.toUpperCase().trim();
-		if (!inputCode) {
-			alert("請輸入邀請碼！");
-			return;
-		}
+    async function verifyRoomCode() {
+        const inputField = document.getElementById('inputRoomCode');
+        if (!inputField) return;
+        
+        const inputCode = inputField.value.toUpperCase().trim();
+        if (!inputCode) {
+            alert("請輸入邀請碼！");
+            return;
+        }
 
-		// 直接複用 quickVerify 的邏輯去問後端伺服器
-		const quickInput = document.getElementById('quickRoomCode');
-		if (quickInput) quickInput.value = inputCode;
-		
-		// 執行向伺服器請求資料的動作
-		await quickVerify(); 
-	}
+        const quickInput = document.getElementById('quickRoomCode');
+        if (quickInput) quickInput.value = inputCode;
+        
+        await quickVerify(); 
+    }
 
     function enterWaitingRoom(roomId, isHost) {
         localStorage.setItem('is_host', isHost ? 'true' : 'false');
@@ -640,67 +739,42 @@ async function joinRoom(roomCode, type) {
         location.href = 'WaitingRoom.html';
     }
 
-	function closePasswordModal() {
-		const pwdModal = document.getElementById('passwordModal');
-		if (pwdModal) pwdModal.style.display = 'none';
-		const overlay = document.getElementById('overlay');
-		if (overlay) overlay.classList.remove('open');
-	}
-	
-	function quickVerify() {
-		const code = document.getElementById('quickRoomCode').value.toUpperCase().trim();
-		if (!code) {
-			alert("請輸入代碼！");
-			return;
-		}
-
-		const localRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
-		
-		// 🏆 比對代碼是否正確
-		if (localRoom && code === localRoom.code) {
-			localStorage.setItem('is_host', 'false');
-			localStorage.setItem('current_player_role', 'guest');
-			location.href = 'WaitingRoom.html';
-		} else {
-			alert("❌ 找不到該房間或邀請碼錯誤");
-		}
-	}
-	
-	// 🏆 處理平板/跨裝置加入房間的核心函式
-// lobby.html 修正
-async function quickVerify() {
-	if (!hasCreatedCharacter()) return;
-    const code = document.getElementById('quickRoomCode').value.toUpperCase().trim();
-    const myName = localStorage.getItem('username');
-    if (!code) return alert("請輸入代碼");
-
-    try {
-        // 🏆 步驟 A：正式發送「加入」請求給後端
-        const joinRes = await fetch(`${API_URL}/rooms/join/${code}?username=${encodeURIComponent(myName)}`, {
-            method: 'POST'
-        });
-        
-        if (joinRes.ok) {
-            const serverRoom = await joinRes.json();
-            
-            // 🏆 步驟 B：儲存伺服器回傳的最新房間狀態
-            localStorage.setItem('pypoly_active_room', JSON.stringify(serverRoom));
-            
-            // 判定是否為房主 (通常加入者會是 false)
-            const isActuallyHost = (serverRoom.hostId === myName);
-            localStorage.setItem('is_host', isActuallyHost ? 'true' : 'false');
-
-            location.href = 'WaitingRoom.html';
-        } else {
-            const errorData = await joinRes.json();
-            alert(`❌ 無法加入：${errorData.detail || "房間可能已滿或不存在"}`);
-        }
-    } catch (err) { 
-        console.error("連線失敗", err);
-        alert("連線失敗，請檢查網路環境"); 
+    function closePasswordModal() {
+        const pwdModal = document.getElementById('passwordModal');
+        if (pwdModal) pwdModal.style.display = 'none';
+        const overlay = document.getElementById('overlay');
+        if (overlay) overlay.classList.remove('open');
     }
-}
+    
+    async function quickVerify() {
+        if (!hasCreatedCharacter()) return;
+        const code = document.getElementById('quickRoomCode').value.toUpperCase().trim();
+        const myName = localStorage.getItem('username');
+        if (!code) return alert("請輸入代碼");
 
+        try {
+            const joinRes = await fetch(`${API_URL}/rooms/join/${code}?username=${encodeURIComponent(myName)}`, {
+                method: 'POST'
+            });
+            
+            if (joinRes.ok) {
+                const serverRoom = await joinRes.json();
+                
+                localStorage.setItem('pypoly_active_room', JSON.stringify(serverRoom));
+                
+                const isActuallyHost = (serverRoom.hostId === myName);
+                localStorage.setItem('is_host', isActuallyHost ? 'true' : 'false');
+
+                location.href = 'WaitingRoom.html';
+            } else {
+                const errorData = await joinRes.json();
+                alert(`❌ 無法加入：${errorData.detail || "房間可能已滿或不存在"}`);
+            }
+        } catch (err) { 
+            console.error("連線失敗", err);
+            alert("連線失敗，請檢查網路環境"); 
+        }
+    }
 
     // --- 6. 核心監控循環 ---
     function startSyncLoop(username, token) {
