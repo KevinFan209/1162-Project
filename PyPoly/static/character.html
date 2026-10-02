@@ -967,7 +967,7 @@ function saveColors() {
     localStorage.setItem('pypoly_char_colors', JSON.stringify(partColors));
     saveCharacterToServer();
     saveCharacterPreviewImage();
-    showModal('儲存成功', '角色外觀顏色已儲存！按下確定返回大廳。');
+    showModal('儲存成功', '外觀顏色已儲存！按下確定返回大廳。');
     document.querySelector('#modal button').onclick = () => window.location.href = '../../static/lobby.html';
 }
 function resetColors() {
