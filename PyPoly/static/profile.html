@@ -43,6 +43,7 @@
 
         body {
             background-color: var(--bg-grid);
+            /* 像素幾何網格背景 */
             background-image: 
                 linear-gradient(rgba(0, 0, 0, 0.05) 2px, transparent 2px),
                 linear-gradient(90deg, rgba(0, 0, 0, 0.05) 2px, transparent 2px);
@@ -158,6 +159,7 @@
             align-items: stretch;
         }
 
+        /* 左側人物卡片 (像素街機卡) */
         .profile-aside {
             width: clamp(280px, 28vw, 320px);
             background: var(--card-bg);
@@ -209,6 +211,7 @@
             width: 100%;
         }
 
+        /* 右側編輯內容 (像素主面版) */
         .profile-content {
             flex: 1;
             background: white;
@@ -231,18 +234,20 @@
             padding-bottom: 12px;
         }
 
-        .form-group { margin-bottom: 20px; position: relative; }
-        .label-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .form-group { margin-bottom: 24px; position: relative; }
+        .label-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         
+        /* 💡 統一所有欄目標籤與框框的間距 */
         .form-label {
             display: flex;
             align-items: center;
             gap: 6px;
-            font-size: 0.9rem;
+            font-size: 0.95rem;
             font-weight: 900;
             color: var(--text-dark);
             text-transform: uppercase;
             letter-spacing: 0.5px;
+            margin-bottom: 10px;
         }
 
         .forgot-link {
@@ -253,13 +258,14 @@
         }
         .forgot-link:hover { text-decoration: underline; }
 
+        /* 💡 加深輸入框內部 padding，讓字在框內也有呼吸感 */
         .form-input {
             width: 100%;
-            padding: 12px 14px;
+            padding: 14px 16px;
             border: 3px solid var(--pixel-border);
             border-radius: 0px;
             background: #ffffff;
-            font-size: 1rem;
+            font-size: 1.05rem;
             font-weight: 700;
             color: var(--text-dark);
             outline: none;
@@ -328,7 +334,7 @@
         .btn-cancel:hover { background: #ced6e0; }
 
         .btn-verify-otp {
-            width: 110px;
+            width: 120px;
             padding: 0;
             font-size: 0.95rem;
             background: var(--bee-yellow);
@@ -411,7 +417,7 @@
     <a href="profile.html" class="menu-item"><span>👤</span> 個人主頁</a>
     <a href="guide.html" class="menu-item"><span>📖</span> 遊戲說明</a>
     <a href="learn.html" class="menu-item"><span>📊</span> 學習統計</a>
-    <a href="settings.html" class="menu-item"><span>⚙️️</span> 遊戲設定</a>
+    <a href="settings.html" class="menu-item"><span>⚙️</span> 遊戲設定</a>
     <a href="lobby.html" class="menu-item"><span>🏠</span> 返回大廳</a>
     <a href="javascript:void(0)" onclick="logout()" class="menu-item danger"><span>🚪</span> 登出遊戲</a>
 </div>
@@ -481,7 +487,7 @@
 
                 <div class="form-group">
                     <div class="label-row">
-                        <label class="form-label"><span>🔒</span> 原密碼 (Old Password)</label>
+                        <label class="form-label" style="margin-bottom: 0;"><span>🔒</span> 原密碼 (Old Password)</label>
                         <a href="forgot.html" class="forgot-link">忘記密碼？</a>
                     </div>
                     <input type="password" id="oldPassword" class="form-input" placeholder="請輸入當前密碼以進行修改">
