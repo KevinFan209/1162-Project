@@ -4,39 +4,39 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <title>PyPoly - Python Adventure</title>
-    <!-- 引入像素字體與高質感黑體 -->
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=DotGothic16&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
+    <title>BeeRich - Python Adventure</title>
+    <!-- 精選優質像素與復古圓體字型 -->
+    <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
     <style>
         :root {
             --pixel-border: #1e272e;
-            --pixel-yellow: #ffd32a;
-            --pixel-yellow-shadow: #d4ac0d;
+            --bee-gold: #ffc048;
+            --bee-yellow: #ffdd59;
+            --bee-dark: #2f3542;
             --pixel-green: #05c46b;
-            --pixel-green-shadow: #0f8f4c;
             --pixel-blue: #0fbcf9;
             --pixel-red: #ff3f34;
             --bg-grid: #eef2f7;
             --card-bg: #ffffff;
             --text-dark: #1e272e;
-            --text-gray: #808e9b;
+            --text-gray: #747d8c;
         }
 
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: 'DotGothic16', 'Noto Sans TC', sans-serif;
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
             image-rendering: pixelated;
         }
 
         body {
             background-color: #d2dae2;
-            /* 經典復古像素網格背景 */
+            /* 蜜蜂幾何像素網格背景 */
             background-image: 
-                linear-gradient(rgba(0, 0, 0, 0.04) 2px, transparent 2px),
-                linear-gradient(90deg, rgba(0, 0, 0, 0.04) 2px, transparent 2px);
-            background-size: 32px 32px;
+                linear-gradient(rgba(0, 0, 0, 0.05) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.05) 2px, transparent 2px);
+            background-size: 28px 28px;
             min-height: 100vh;
             display: flex;
             justify-content: center;
@@ -50,13 +50,12 @@
         .card {
             background: var(--card-bg);
             width: 440px;
-            padding: 40px 36px 36px;
-            border-radius: 8px;
+            padding: 42px 36px 36px;
+            border-radius: 6px;
             border: 4px solid var(--pixel-border);
-            /* 經典 8-bit 立體無模糊陰影 */
             box-shadow: 
-                8px 8px 0px rgba(0, 0, 0, 0.8),
-                12px 12px 0px rgba(15, 188, 249, 0.3);
+                8px 8px 0px rgba(0, 0, 0, 0.85),
+                12px 12px 0px rgba(255, 192, 72, 0.4);
             text-align: center;
             display: flex;
             flex-direction: column;
@@ -64,57 +63,64 @@
             z-index: 10;
         }
 
-        /* 標題與像素 Logo */
+        /* 標題與 BeeRich Logo 區塊 */
         .logo-wrap {
             position: relative;
-            margin-bottom: 25px;
+            margin-bottom: 24px;
         }
 
         .pixel-badge {
             display: inline-block;
-            background: var(--pixel-yellow);
+            background: var(--bee-yellow);
             border: 2px solid var(--pixel-border);
-            padding: 2px 10px;
-            font-family: 'Press Start 2P', cursive;
-            font-size: 0.65rem;
-            color: #1e272e;
+            padding: 3px 12px;
+            font-family: 'Silkscreen', cursive;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--pixel-border);
             box-shadow: 2px 2px 0 #000;
-            margin-bottom: 8px;
-            animation: bounce 1.2s infinite alternate;
+            margin-bottom: 10px;
+            letter-spacing: 0.5px;
+            animation: floatBadge 1.4s infinite alternate ease-in-out;
         }
 
         h1 {
-            font-family: 'Press Start 2P', cursive;
-            font-size: 2.2rem;
-            color: var(--pixel-blue);
+            font-family: 'VT323', monospace;
+            font-size: 3.6rem;
+            line-height: 1;
+            color: var(--bee-gold);
             text-shadow: 
-                3px 3px 0 #1e272e,
-                -2px -2px 0 #1e272e,
-                2px -2px 0 #1e272e,
-                -2px 2px 0 #1e272e,
-                5px 5px 0 var(--pixel-yellow);
-            margin-bottom: 8px;
-            letter-spacing: -1px;
+                3px 3px 0 var(--pixel-border),
+                -2px -2px 0 var(--pixel-border),
+                2px -2px 0 var(--pixel-border),
+                -2px 2px 0 var(--pixel-border),
+                6px 6px 0 var(--bee-dark);
+            margin-bottom: 4px;
+            letter-spacing: 2px;
             user-select: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
         }
 
         .tagline {
-            font-family: 'Press Start 2P', cursive;
-            font-size: 0.65rem;
+            font-family: 'Silkscreen', cursive;
+            font-size: 0.7rem;
             color: var(--text-gray);
-            letter-spacing: 1px;
+            letter-spacing: 2px;
             text-transform: uppercase;
         }
 
         /* 像素分頁籤 */
         .tabs {
             display: flex;
-            background: #d2dae2;
+            background: #dfe4ea;
             border: 3px solid var(--pixel-border);
-            margin-bottom: 25px;
+            margin-bottom: 24px;
             padding: 4px;
             gap: 6px;
-            box-shadow: inset 2px 2px 0 rgba(0,0,0,0.15);
+            box-shadow: inset 2px 2px 0 rgba(0,0,0,0.12);
         }
 
         .tab {
@@ -122,10 +128,10 @@
             padding: 10px 4px;
             cursor: pointer;
             font-weight: 900;
-            font-size: 1rem;
+            font-size: 1.05rem;
             color: var(--text-gray);
             border: 2px solid transparent;
-            transition: transform 0.05s ease;
+            transition: 0.1s;
             user-select: none;
         }
 
@@ -139,7 +145,7 @@
         .form-container { width: 100%; text-align: left; }
 
         form { display: none; }
-        form.active { display: block; animation: pixelSlide 0.2s steps(4) forwards; }
+        form.active { display: block; animation: pixelSlide 0.18s steps(4) forwards; }
 
         .input-group {
             margin-bottom: 20px; 
@@ -150,8 +156,9 @@
             display: flex;
             align-items: center;
             gap: 6px;
-            font-family: 'Press Start 2P', cursive;
-            font-size: 0.65rem;
+            font-family: 'Silkscreen', 'Zen Maru Gothic', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 700;
             margin-bottom: 6px;
             color: var(--text-dark);
             text-transform: uppercase;
@@ -159,22 +166,22 @@
 
         input {
             width: 100%;
-            padding: 13px 15px;
+            padding: 12px 14px;
             border: 3px solid var(--pixel-border);
             border-radius: 0px;
             background: #ffffff;
-            font-size: 1.05rem;
+            font-size: 1rem;
             font-weight: 700;
-            color: #1e272e;
+            color: var(--text-dark);
             outline: none;
-            box-shadow: inset 3px 3px 0 #d2dae2;
+            box-shadow: inset 3px 3px 0 #dfe4ea;
             transition: 0.1s;
         }
 
         input:focus {
-            background: #feffea;
+            background: #fffdf2;
             border-color: #000;
-            box-shadow: inset 3px 3px 0 rgba(255, 211, 42, 0.4);
+            box-shadow: inset 3px 3px 0 rgba(255, 192, 72, 0.45);
         }
 
         input::-webkit-calendar-picker-indicator {
@@ -186,7 +193,7 @@
             left: 2px;
             bottom: -18px;
             font-size: 0.75rem;
-            font-weight: bold;
+            font-weight: 900;
         }
 
         .form-options {
@@ -218,35 +225,34 @@
         .forgot-pw {
             font-size: 0.9rem;
             font-weight: 900;
-            color: var(--pixel-blue);
+            color: #0984e3;
             text-decoration: none;
         }
 
         .forgot-pw:hover {
-            color: #0c8ec4;
             text-decoration: underline;
         }
 
-        /* 像素實體按鈕 (街機下壓反饋感) */
+        /* 街機立體按鈕 */
         button.btn-submit {
             width: 100%;
-            padding: 16px;
+            padding: 15px;
             border: 3px solid var(--pixel-border);
-            background: var(--pixel-yellow);
+            background: var(--bee-yellow);
             color: #1e272e;
             font-size: 1.15rem;
             font-weight: 900;
             cursor: pointer;
             box-shadow: 0 6px 0 var(--pixel-border);
-            margin-top: 5px;
-            transition: all 0.08s ease;
+            margin-top: 4px;
+            transition: all 0.06s ease;
             position: relative;
             user-select: none;
-            letter-spacing: 1px;
+            letter-spacing: 0.5px;
         }
 
         button.btn-submit:hover {
-            filter: brightness(1.05);
+            filter: brightness(1.04);
         }
 
         button.btn-submit:active {
@@ -259,8 +265,9 @@
             display: flex;
             align-items: center;
             color: var(--text-gray);
-            font-size: 0.8rem;
-            font-weight: 900;
+            font-size: 0.75rem;
+            font-family: 'Silkscreen', cursive;
+            font-weight: 700;
         }
 
         .divider::before, .divider::after { 
@@ -268,38 +275,38 @@
             flex: 1; 
             height: 2px; 
             background: #000; 
-            border-bottom: 2px dashed #b2bec3; 
+            border-bottom: 2px dashed #a4b0be; 
             margin: 0 12px; 
         }
 
-        /* Google 登入按鈕 (融入像素方塊風) */
+        /* Google 登入按鈕 */
         .google-btn {
             width: 100%;
-            padding: 13px;
+            padding: 12px;
             border: 3px solid var(--pixel-border);
             background: white;
             font-weight: 900;
             font-size: 0.95rem;
-            color: #1e272e;
+            color: var(--text-dark);
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 10px;
             cursor: pointer;
             box-shadow: 0 4px 0 var(--pixel-border);
-            transition: all 0.08s ease;
+            transition: all 0.06s ease;
         }
 
-        .google-btn:hover { background: #f8fafc; }
+        .google-btn:hover { background: #f1f2f6; }
         .google-btn:active {
             transform: translateY(4px);
             box-shadow: 0 0 0 var(--pixel-border);
         }
 
-        /* 像素風格對話彈窗 (RPG 對話框) */
+        /* 像素對話彈窗 */
         .modal-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.6); display: none;
+            background: rgba(0, 0, 0, 0.65); display: none;
             align-items: center; justify-content: center; z-index: 1000;
         }
 
@@ -313,13 +320,13 @@
             animation: pixelPop 0.15s ease forwards;
         }
 
-        @keyframes bounce {
+        @keyframes floatBadge {
             from { transform: translateY(0); }
             to { transform: translateY(-4px); }
         }
 
         @keyframes pixelSlide {
-            from { opacity: 0; transform: translateY(8px); }
+            from { opacity: 0; transform: translateY(6px); }
             to { opacity: 1; transform: translateY(0); }
         }
 
@@ -333,21 +340,21 @@
 
     <div class="card">
         <div class="logo-wrap">
-            <div class="pixel-badge">✦ LEVEL 1 READY ✦</div>
-            <h1>PyPoly</h1>
+            <div class="pixel-badge">✦ GET RICH WITH PYTHON ✦</div>
+            <h1>🐝 BeeRich</h1>
             <p class="tagline">Python Adventure</p>
         </div>
 
         <div class="tabs">
-            <div id="loginTab" class="tab active" onclick="toggle('login')">⚔️ 登入遊戲</div>
-            <div id="regTab" class="tab" onclick="toggle('register')">🛡️ 加入冒險</div>
+            <div id="loginTab" class="tab active" onclick="toggle('login')">⚔️ 登入冒險</div>
+            <div id="regTab" class="tab" onclick="toggle('register')">🛡️ 創建角色</div>
         </div>
 
         <div class="form-container">
             <form id="loginForm" class="active">
                 <div class="input-group">
                     <label><span>👾</span> PLAYER ID</label>
-                    <input type="text" id="loginUser" name="username" autocomplete="username" placeholder="輸入冒險者帳號...">
+                    <input type="text" id="loginUser" name="username" autocomplete="username" placeholder="輸入玩家帳號...">
                     <datalist id="idHistory"></datalist>
                 </div>
                 <div class="input-group">
@@ -397,7 +404,7 @@
     <!-- 像素 RPG 對話視窗 -->
     <div id="statusModal" class="modal-overlay">
         <div class="modal-card">
-            <h2 id="modalTitle" style="font-family: 'Press Start 2P', cursive; font-size: 1.1rem; margin-bottom: 16px;">TITLE</h2>
+            <h2 id="modalTitle" style="font-family: 'Silkscreen', cursive; font-size: 1.15rem; margin-bottom: 16px;">TITLE</h2>
             <p id="modalMsg" style="font-size: 1.05rem; font-weight: 900; color: #2d3436; margin-bottom: 25px; line-height: 1.6;">內容訊息</p>
             <button id="modalBtn" class="btn-submit" onclick="closeModal()">OK (確認)</button>
         </div>
@@ -578,7 +585,7 @@
         titleEl.style.color = isSuccess ? "var(--pixel-green)" : "var(--pixel-red)";
         
         if (btnEl) {
-            btnEl.style.background = isSuccess ? "var(--pixel-yellow)" : "var(--pixel-red)";
+            btnEl.style.background = isSuccess ? "var(--bee-yellow)" : "var(--pixel-red)";
             btnEl.style.color = isSuccess ? "#1e272e" : "#ffffff";
         }
         modal.style.display = 'flex';
