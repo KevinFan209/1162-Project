@@ -1742,40 +1742,17 @@ def _build_learn_stats(username: str, db: Session) -> dict:
 
 
 @app.get("/learn/stats")
-async def get_learn_stats(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    username = current_user.username
+def learn_stats(username: str = None, authorization: str = Header(None),
+                db: Session = Depends(database.get_db)):
+    """學習統計。省略 username 時用 token 解出自己的身分。
 
-    # 1. 查詢該使用者的所有作答歷史（同時包含答對與答錯）
-    # 請確認欄位包含：question_text, category, chosen_answer, correct_answer, is_correct
-    answers = db.execute(text("""
-        SELECT question_text as question, 
-               category as topic, 
-               chosen_answer as chosen, 
-               correct_answer as correct, 
-               is_correct 
-        FROM game_answer_logs 
-        WHERE username = :uname 
-        ORDER BY id DESC LIMIT 50
-    """), {"uname": username}).mappings().all()
+    從未遊玩過的人回傳 games_played=0 的空統計而非 404——
+    「還沒有資料」不是錯誤，前端要能顯示空狀態而不是報錯。
+    """
+    if not username:
+        username = auth_utils.get_current_user(authorization)   # 無效 token 會拋 401
+    return _build_learn_stats(username, db)
 
-    # 2. 組合成清單
-    question_list = [dict(row) for row in answers]
-
-    # 3. 計算正確率與總題數
-    total = len(question_list)
-    correct_count = sum(1 for q in question_list if q.get("is_correct") == 1 or q.get("is_correct") is True)
-    accuracy = round((correct_count / total * 100), 1) if total > 0 else 0
-
-    return {
-        "games_played": 1,  # 依你的邏輯計算場次
-        "summary": {
-            "total": total,
-            "correct": correct_count,
-            "accuracy": accuracy
-        },
-        "questions": question_list, # 👈 關鍵：必須回傳包含所有答題歷史的清單！
-        "dimensions": calculate_dimensions(question_list) # 依分類計算各維度百分比
-    }
 
 @app.post("/learn/ai_report")
 async def learn_ai_report(request: Request,                     # 1. 這裡加入 request: Request (並將 def 改為 async def)
