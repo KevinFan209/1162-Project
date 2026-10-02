@@ -373,6 +373,8 @@
         .feat-opt canvas {
             display: block;
             border: 1px solid var(--pixel-border);
+            width: 46px;
+            height: 46px;
         }
 
         .feat-opt-label {
@@ -939,7 +941,7 @@ function applyPreset(name) {
 
 async function saveCharacterToServer() {
     const token = localStorage.getItem('token');
-    if (!token) { console.warn('⚠️ 未登入，角色僅存於本機'); return; }
+    if (!token) { console.warn('⚠️️ 未登入，角色僅存於本機'); return; }
     try {
         const res = await fetch(`${API_URL}/auth/character`, {
             method: 'PUT',
@@ -1128,7 +1130,7 @@ function drawFeatureThumbnail(type, id) {
         } else if (id === 'dot') {
             ctx.fillStyle='rgba(0,0,0,0.25)';
             ctx.beginPath(); ctx.arc(cx-7,cy,3,0,Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(cx+7,cy,3,0,Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(cx+7,cy,3,0,Math.PI*2); ctx.fill();
         } else if (id === 'cat') {
             ctx.fillStyle='#d6609a';
             ctx.beginPath(); ctx.moveTo(cx,cy-9); ctx.lineTo(cx-12,cy+8); ctx.lineTo(cx+12,cy+8); ctx.closePath(); ctx.fill();
@@ -1192,7 +1194,7 @@ function buildFeatureRows() {
             btn.dataset.id   = opt.id;
 
             const thumb = drawFeatureThumbnail(type, opt.id);
-            thumb.width = thumb.height = 46;
+            // 💡 關鍵修復：不再重設 thumb.width = thumb.height，保留原本繪製的五官
             btn.appendChild(thumb);
 
             const label = document.createElement('span');
