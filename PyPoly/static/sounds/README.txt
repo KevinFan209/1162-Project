@@ -5,10 +5,13 @@ PyPoly 音效資料夾 (需求⑥)
 
   buy_success.mp3   收購成功：歡呼聲       （買地成功時播放）
   jail_drop.mp3     監獄：砸下來的聲音     （監獄鐵籠落下動畫時播放）
-  bird_fly.mp3      小鳥飛：輕快           （進入小鳥飛獎勵遊戲時播放）
+  all_game.mp3      輕快           （遊戲中播放）
   steal_coin.mp3    搶錢：敲金幣聲         （發動「向對方收取金幣」道具時播放）
 
 備註：
 - 缺檔或被瀏覽器自動播放限制擋下時會靜默略過，不影響遊戲運作。
 - 若要改檔名或格式，請同步修改 game.html 內的 SFX 物件路徑。
 - 支援瀏覽器可播放的格式即可（.mp3 / .wav / .ogg）。
+
+
+all_game.mp3 不屬於 SFX 物件，它的路徑是在上面新增的 new Audio(...) 設定。buy_success.mp3、jail_drop.mp3、steal_coin.mp3 才由 SFX 控制。
