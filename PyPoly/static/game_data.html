@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BeeRich - Admin Dashboard</title>
+    <title>BeeRich - Game Monitoring</title>
     <!-- 引入與全站一致的精選像素與高質感字型 -->
     <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
     <style>
@@ -109,7 +109,7 @@
             gap: 6px;
         }
 
-        /* Admin 主要佈局 */
+        /* Admin 主版面佈局 */
         .admin-main {
             height: calc(100vh - 80px);
             display: flex;
@@ -190,25 +190,26 @@
             box-shadow: 0 0 0 #000;
         }
 
-        /* 右側主看板 */
+        /* 主監控區塊 */
         .admin-board {
             flex: 1;
-            display: grid;
-            grid-template-rows: auto 1fr;
+            display: flex;
+            flex-direction: column;
             gap: 18px;
             overflow: hidden;
             height: 100%;
         }
-        
-        .stats-grid {
+
+        /* 頂部 4 大指標卡片 */
+        .monitor-stats {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(4, 1fr);
             gap: 16px;
         }
 
         .stat-card {
             background: white;
-            padding: 16px 20px;
+            padding: 18px 16px;
             border: 4px solid var(--pixel-border);
             box-shadow: 6px 6px 0 #000;
             text-align: center;
@@ -218,8 +219,8 @@
             font-size: 0.82rem;
             font-weight: 900;
             color: var(--text-gray);
-            text-transform: uppercase;
             margin-bottom: 6px;
+            text-transform: uppercase;
             letter-spacing: 0.5px;
         }
 
@@ -232,132 +233,126 @@
         }
 
         .stat-val span {
-            color: var(--pixel-green);
             font-size: 0.95rem;
+            color: var(--pixel-green);
             margin-left: 4px;
         }
 
-        .board-content {
+        /* 即時監控內容面版 */
+        .monitor-content { 
             background: white;
+            flex: 1;
             border: 4px solid var(--pixel-border);
             box-shadow: 6px 6px 0 #000;
-            padding: 24px 28px;
+            padding: 28px 32px; 
             overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        .section-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 3px solid var(--pixel-border);
-            padding-bottom: 12px;
         }
 
         .section-title {
             font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
             font-weight: 900;
-            font-size: 1.3rem;
-            border-left: 8px solid var(--pixel-blue);
+            font-size: 1.35rem;
+            margin-bottom: 20px;
+            border-left: 8px solid var(--gold-yellow);
             padding-left: 14px;
             color: var(--text-dark);
             letter-spacing: 0.5px;
         }
 
-        .vision-debug-grid {
-            display: grid;
-            grid-template-columns: 1fr 320px;
-            gap: 20px;
-            height: 100%;
-        }
-
-        .camera-feed {
-            background: #1e272e;
-            border: 4px solid var(--pixel-border);
-            box-shadow: inset 3px 3px 0 rgba(0,0,0,0.3);
-            position: relative;
-            overflow: hidden;
+        .chart-placeholder {
+            width: 100%;
+            height: 160px;
+            background: #fffdf5;
+            border: 3px dashed var(--pixel-border);
+            box-shadow: inset 3px 3px 0 rgba(0,0,0,0.05);
+            margin-bottom: 24px;
             display: flex;
-            justify-content: center;
             align-items: center;
-            color: rgba(255,255,255,0.4);
-            min-height: 380px;
-        }
-
-        .debug-overlay-info {
-            position: absolute;
-            top: 16px;
-            left: 16px;
-            background: rgba(0,0,0,0.75);
-            border: 2px solid var(--pixel-green);
-            box-shadow: 3px 3px 0 #000;
-            padding: 12px 14px;
-            color: var(--pixel-green);
-            font-family: 'Consolas', monospace;
-            font-size: 0.85rem;
-            font-weight: 700;
-            line-height: 1.5;
-            pointer-events: none;
-        }
-        
-        .debug-sidebar { display: flex; flex-direction: column; gap: 12px; }
-
-        .debug-log-box {
-            flex: 1;
-            background: #f8fafc;
-            border: 3px solid var(--pixel-border);
-            box-shadow: inset 2px 2px 0 rgba(0,0,0,0.06);
-            padding: 14px;
-            font-size: 0.82rem;
-            font-family: 'Consolas', monospace;
-            font-weight: 700;
-            overflow-y: auto;
-            max-height: 330px;
-        }
-
-        .log-entry {
-            margin-bottom: 8px;
-            border-bottom: 2px dashed #dfe4ea;
-            padding-bottom: 6px;
-            color: var(--text-dark);
-        }
-        .log-entry.success { color: var(--pixel-green); }
-        .log-entry.warn { color: #d97706; }
-
-        .btn-refresh {
-            padding: 11px 18px;
-            background: var(--bee-yellow);
-            color: var(--text-dark);
-            border: 3px solid var(--pixel-border);
-            font-size: 0.95rem;
+            justify-content: center;
+            color: var(--text-gray);
             font-weight: 900;
-            cursor: pointer;
-            box-shadow: 0 4px 0 #000;
-            transition: 0.06s ease;
-            user-select: none;
+            font-size: 1.05rem;
             letter-spacing: 0.5px;
         }
-        .btn-refresh:hover { filter: brightness(1.05); }
-        .btn-refresh:active {
-            transform: translate(2px, 2px);
-            box-shadow: 0 0 0 #000;
+
+        .match-list-title {
+            font-weight: 900;
+            font-size: 1.15rem;
+            color: var(--text-dark);
+            margin-bottom: 14px;
+            padding-left: 2px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .match-item {
+            background: #f8fafc;
+            padding: 16px 22px;
+            border: 3px solid var(--pixel-border);
+            box-shadow: 4px 4px 0 #000;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+            transition: all 0.08s ease;
+        }
+
+        .match-item:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 #000;
+            background: #fffdf5;
+        }
+
+        .match-info h4 {
+            font-weight: 900;
+            font-size: 1.1rem;
+            color: var(--text-dark);
+        }
+
+        .match-info p {
+            font-size: 0.88rem;
+            color: var(--text-gray);
+            font-weight: 900;
+            margin-top: 4px;
+        }
+        
+        .match-progress { text-align: right; }
+
+        .prog-tag {
+            display: inline-block;
+            padding: 4px 10px;
+            background: #fff9db;
+            color: #d97706;
+            border: 2px solid var(--pixel-border);
+            box-shadow: 2px 2px 0 #000;
+            font-size: 0.82rem;
+            font-weight: 900;
+        }
+
+        .prog-tag.success {
+            background: #ebfffa;
+            color: var(--pixel-green);
+        }
+
+        .time-tag {
+            display: block;
+            margin-top: 6px;
+            color: var(--text-gray);
+            font-weight: 900;
+            font-size: 0.8rem;
         }
 
         /* 滾動條樣式 */
-        .board-content::-webkit-scrollbar,
-        .debug-log-box::-webkit-scrollbar { width: 8px; }
-        .board-content::-webkit-scrollbar-track,
-        .debug-log-box::-webkit-scrollbar-track { background: #dfe4ea; border-left: 2px solid var(--pixel-border); }
-        .board-content::-webkit-scrollbar-thumb,
-        .debug-log-box::-webkit-scrollbar-thumb { background: var(--pixel-border); }
+        .monitor-content::-webkit-scrollbar { width: 8px; }
+        .monitor-content::-webkit-scrollbar-track { background: #dfe4ea; border-left: 2px solid var(--pixel-border); }
+        .monitor-content::-webkit-scrollbar-thumb { background: var(--pixel-border); }
 
-        @media (max-width: 950px) {
+        @media (max-width: 900px) {
             header { padding: 0 20px; }
             .admin-container { flex-direction: column; height: auto; }
             .admin-nav { width: 100%; }
-            .vision-debug-grid { grid-template-columns: 1fr; }
+            .monitor-stats { grid-template-columns: repeat(2, 1fr); }
         }
     </style>
 </head>
@@ -366,7 +361,7 @@
 <header>
     <div class="header-left"><h1 onclick="location.href='admin.html'">BeeRich</h1></div>
     <div class="header-right">
-        <div class="page-tag"><span>📷</span> 辨識監控中心</div>
+        <div class="page-tag"><span>⚙️</span> 管理後台中心</div>
     </div>
 </header>
 
@@ -376,58 +371,72 @@
             <h2><span>📋</span> 後台選單</h2>
             <a href="admin.html" class="nav-link"><span>👥</span> 用戶權限管理</a>
             <a href="question.html" class="nav-link"><span>❓</span> 考題庫編輯</a>
-            <a href="camera.html" class="nav-link active"><span>📷</span> 影像辨識偵錯</a>
-            <a href="game_data.html" class="nav-link"><span>📈</span> 遊戲數據監控</a>
-            <a href="Login.html" class="nav-link" style="margin-top: auto; color: white; background: var(--pixel-red);"><span>🚪</span> 登出系統</a>
+            <a href="camera.html" class="nav-link"><span>📷</span> 影像辨識偵錯</a>
+            <a href="game data.html" class="nav-link active"><span>📈</span> 遊戲數據監控</a>
+            <a href="javascript:void(0)" onclick="logout()" class="nav-link" style="margin-top: auto; color: white; background: var(--pixel-red);"><span>🚪</span> 登出系統</a>
         </aside>
 
         <main class="admin-board">
-            <div class="stats-grid">
+            <div class="monitor-stats">
                 <div class="stat-card">
-                    <div class="stat-label">辨識準確率</div>
-                    <div class="stat-val">98.2<span>%</span></div>
+                    <div class="stat-label">當前在線人數</div>
+                    <div class="stat-val">124<span>+12%</span></div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">平均辨識延遲</div>
-                    <div class="stat-val">42<span>ms</span></div>
+                    <div class="stat-label">正在進行對局</div>
+                    <div class="stat-val">32<span>場</span></div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">當前活動鏡頭</div>
-                    <div class="stat-val">12<span>台</span></div>
+                    <div class="stat-label">今日考題正確率</div>
+                    <div class="stat-val">76.5<span>%</span></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">伺服器延遲</div>
+                    <div class="stat-val">18<span>ms</span></div>
                 </div>
             </div>
 
-            <div class="board-content">
-                <div class="section-header">
-                    <div class="section-title">影像辨識偵錯 (Camera ID: #CAM-084)</div>
-                    <button class="btn-refresh">🔄 重新校準 AI</button>
+            <div class="monitor-content">
+                <div class="section-title">全服即時活動監控</div>
+
+                <div class="chart-placeholder">
+                    [ 📈 近 24 小時在線人數趨勢圖表預留區 ]
                 </div>
 
-                <div class="vision-debug-grid">
-                    <div class="camera-feed">
-                        <div style="text-align: center; font-weight: 900;">
-                            <p style="font-size: 1.1rem; color: #dfe4ea; margin-bottom: 6px;">[ Camera Stream Offline / Simulation Mode ]</p>
-                            <small style="color: var(--bee-yellow); font-family: monospace;">Mediapipe Hands Loading...</small>
-                        </div>
-                        <div class="debug-overlay-info">
-                            FPS: 60.2<br>
-                            Action: KNOCK_UP<br>
-                            Confidence: 0.94<br>
-                            Landmarks: DETECTED
-                        </div>
-                    </div>
+                <div class="match-list-title">
+                    <span>🔴</span> 進行中對局 (LIVE)
+                </div>
 
-                    <div class="debug-sidebar">
-                        <div class="stat-label" style="text-align: left; margin-bottom: 2px;">即時辨識日誌</div>
-                        <div class="debug-log-box">
-                            <div class="log-entry success">[12:30:01] Player_Sandy: KNOCK_UP detected. (Conf: 0.98)</div>
-                            <div class="log-entry">[12:30:05] Waiting for number gesture...</div>
-                            <div class="log-entry success">[12:30:08] Gesture "THREE" detected. (Conf: 0.91)</div>
-                            <div class="log-entry warn">[12:30:15] Low lighting warning on CAM-084.</div>
-                            <div class="log-entry">[12:30:20] Bot_AI: Dice roll trigger received.</div>
-                            <div class="log-entry success">[12:30:25] Squat action verified for Customs check.</div>
-                        </div>
-                        <button class="btn-refresh" style="background: var(--pixel-blue); color: white;">💾 下載偵錯數據</button>
+                <div class="match-item">
+                    <div class="match-info">
+                        <h4>柏睿的基礎教室</h4>
+                        <p>P1: Sandy | P2: AI Bot | 難度：Easy</p>
+                    </div>
+                    <div class="match-progress">
+                        <span class="prog-tag">進度：圈數 3/5</span>
+                        <span class="time-tag">已進行：12:45</span>
+                    </div>
+                </div>
+
+                <div class="match-item">
+                    <div class="match-info">
+                        <h4>Python 進階大作戰</h4>
+                        <p>P1: User_882 | P2: User_014 | 難度：Hard</p>
+                    </div>
+                    <div class="match-progress">
+                        <span class="prog-tag">進度：圈數 1/3</span>
+                        <span class="time-tag">已進行：05:20</span>
+                    </div>
+                </div>
+
+                <div class="match-item">
+                    <div class="match-info">
+                        <h4>新手練習房 #04</h4>
+                        <p>P1: Momo | P2: AI Bot | 難度：Easy</p>
+                    </div>
+                    <div class="match-progress">
+                        <span class="prog-tag success">即將結束</span>
+                        <span class="time-tag">已進行：18:10</span>
                     </div>
                 </div>
             </div>
@@ -435,7 +444,6 @@
     </div>
 </div>
 
-<script src="js/ngrok-fetch.js"></script>
 <script>
     const API_URL = location.origin;
     let syncTimer = null;
