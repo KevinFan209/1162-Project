@@ -3,159 +3,274 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PyPoly - 建立房間</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;900&display=swap" rel="stylesheet">
+    <title>BeeRich - 建立房間</title>
+    <!-- 引入與全站一致的精選像素與高質感字型 -->
+    <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
     <script src="js/ngrok-fetch.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
     <style>
         :root {
-            --primary-blue: #4facfe;
-            --primary-yellow: #ffde59;
-            --yellow-shadow: #e6c543;
-            --success-green: #00cdac;
-            --bg-gray: #f1f5f9;
-            --text-dark: #2d3436;
-            --text-gray: #a2a8b9;
-            --border-color: #edf2f7;
+            --pixel-border: #1e272e;
+            --bee-gold: #ffc048;
+            --bee-yellow: #ffdd59;
+            --bee-dark: #2f3542;
+            --pixel-green: #05c46b;
+            --pixel-blue: #0fbcf9;
+            --pixel-red: #ff3f34;
+            --bg-grid: #d2dae2;
+            --card-bg: #ffffff;
+            --text-dark: #1e272e;
+            --text-gray: #747d8c;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            image-rendering: pixelated;
+        }
 
         body {
-            background-color: var(--bg-gray);
+            background-color: var(--bg-grid);
+            /* 像素幾何網格背景 */
+            background-image: 
+                linear-gradient(rgba(0, 0, 0, 0.05) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.05) 2px, transparent 2px);
+            background-size: 28px 28px;
             height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
+            padding: 20px;
+            overflow: hidden;
         }
 
-        /* 🏆 核心面板：寬度縮小，增加大圓角 */
+        /* 核心卡片面版 */
         .modal-card {
             background: white;
-            width: 420px; /* 寬度從 580 縮小至 420 */
-            border-radius: 32px; /* 更圓潤的設計 */
-            padding: 35px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.05);
-            border: 1px solid rgba(255,255,255,0.8);
+            width: 440px;
+            max-width: 95vw;
+            border-radius: 6px;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 8px 8px 0px #000;
+            padding: 30px 28px 26px;
+            position: relative;
         }
 
         .modal-header {
-            margin-bottom: 25px;
+            margin-bottom: 20px;
             text-align: center;
+            border-bottom: 3px solid var(--pixel-border);
+            padding-bottom: 12px;
         }
 
         .modal-header h2 {
-            font-size: 1.4rem;
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            font-size: 1.55rem;
             font-weight: 900;
             color: var(--text-dark);
-            letter-spacing: -0.5px;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }
 
-        .setting-group { margin-bottom: 20px; }
+        .setting-group { margin-bottom: 16px; }
 
         .setting-label {
-            font-size: 0.85rem;
-            font-weight: 700;
-            color: var(--text-gray);
-            margin-bottom: 10px;
+            font-size: 0.88rem;
+            font-weight: 900;
+            color: var(--text-dark);
+            margin-bottom: 6px;
             display: block;
-            padding-left: 5px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
-        /* 🏆 圓潤下拉選單與輸入框 */
+        /* 像素風格輸入框與下拉選單 */
         .input-box {
             width: 100%;
-            padding: 12px 18px;
-            border: 2px solid var(--border-color);
-            border-radius: 18px; /* 增加圓角 */
+            padding: 10px 14px;
+            border: 3px solid var(--pixel-border);
+            border-radius: 0px;
             font-size: 0.95rem;
+            font-weight: 700;
             color: var(--text-dark);
             outline: none;
-            transition: all 0.3s ease;
-            background: #fcfdfe;
-            appearance: none; /* 去除原生箭頭 */
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23a2a8b9' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            transition: all 0.1s;
+            background: #ffffff;
+            box-shadow: inset 2px 2px 0 #dfe4ea;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%231e272e' stroke-width='3' stroke-linecap='square' stroke-linejoin='miter'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
             background-repeat: no-repeat;
-            background-position: right 15px center;
-            background-size: 15px;
+            background-position: right 12px center;
+            background-size: 14px;
         }
 
         .input-box:focus {
-            border-color: var(--primary-blue);
-            background: white;
-            box-shadow: 0 5px 15px rgba(79, 172, 254, 0.1);
+            background: #fffdf2;
+            border-color: #000;
+            box-shadow: inset 2px 2px 0 rgba(255, 192, 72, 0.45);
         }
 
-        /* 文字輸入框不需要自定義箭頭 */
-        input.input-box { background-image: none; }
+        input.input-box {
+            background-image: none;
+        }
 
-        .flex-row { display: flex; gap: 15px; }
+        .flex-row { display: flex; gap: 12px; }
         .flex-item { flex: 1; }
 
-        /* 🏆 遊戲化選項卡片 */
-        .version-box { display: flex; gap: 12px; }
+        /* 模式切換卡片 */
+        .version-box { display: flex; gap: 10px; }
         .version-option {
-            flex: 1; padding: 15px 10px;
-            border: 2px solid var(--border-color);
-            border-radius: 20px;
+            flex: 1;
+            padding: 10px 8px;
+            border: 3px solid var(--pixel-border);
+            box-shadow: 3px 3px 0 #000;
             text-align: center;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.08s ease;
             background: #ffffff;
+            user-select: none;
         }
-        .version-option.active {
-            border-color: var(--success-green);
-            background: rgba(0, 205, 172, 0.05);
-            transform: translateY(-2px);
-        }
-        .version-option h4 { font-size: 0.95rem; font-weight: 900; color: var(--text-dark); }
-        .version-option p { font-size: 0.75rem; color: var(--text-gray); margin-top: 2px; }
-        .version-option.active h4 { color: var(--success-green); }
 
-        /* 私人代碼區域 */
+        .version-option:hover {
+            background: #fffdf5;
+        }
+
+        .version-option.active {
+            background: var(--bee-yellow);
+            border-color: #000;
+            transform: translate(2px, 2px);
+            box-shadow: 1px 1px 0 #000;
+        }
+
+        .version-option h4 {
+            font-size: 0.95rem;
+            font-weight: 900;
+            color: var(--text-dark);
+        }
+
+        .version-option p {
+            font-size: 0.72rem;
+            color: var(--text-gray);
+            font-weight: 900;
+            margin-top: 3px;
+        }
+
+        .version-option.active p {
+            color: #4a3d00;
+        }
+
+        /* 測試模式核取框 */
+        .test-mode-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            user-select: none;
+            font-size: 0.85rem;
+            font-weight: 900;
+            color: var(--text-dark);
+            background: #f8fafc;
+            border: 2px solid var(--pixel-border);
+            padding: 8px 10px;
+        }
+
+        .test-mode-label input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border: 2px solid #000000;
+            border-radius: 2px;
+            background: #ffffff;
+            cursor: pointer;
+            outline: none;
+            display: grid;
+            place-content: center;
+            box-shadow: none;
+            padding: 0;
+            margin: 0;
+            flex-shrink: 0;
+        }
+
+        .test-mode-label input[type="checkbox"]:checked {
+            background-color: var(--bee-yellow);
+        }
+
+        .test-mode-label input[type="checkbox"]:checked::before {
+            content: "✓";
+            font-size: 13px;
+            font-weight: 900;
+            color: #000000;
+            line-height: 1;
+        }
+
+        /* 私人邀請代碼區域 */
         #codeArea {
             display: none;
-            margin-top: 15px;
-            padding: 15px;
-            background: #f8fbff;
-            border-radius: 20px;
+            margin-top: 14px;
+            padding: 12px;
+            background: #fffdf5;
+            border: 3px dashed var(--pixel-border);
             text-align: center;
-            border: 2px dashed var(--primary-blue);
-        }
-        .code-text {
-            font-family: 'Inter', sans-serif;
-            font-size: 1.6rem;
-            font-weight: 900;
-            letter-spacing: 5px;
-            color: var(--primary-blue);
         }
 
-        /* 🏆 圓滾滾的大按鈕 */
-        .btn-stack { margin-top: 30px; display: flex; flex-direction: column; gap: 12px; }
+        .code-text {
+            font-family: 'Silkscreen', 'Zen Maru Gothic', monospace;
+            font-size: 1.5rem;
+            font-weight: 900;
+            letter-spacing: 4px;
+            color: var(--text-dark);
+            margin-top: 4px;
+        }
+
+        /* 按鈕群組 */
+        .btn-stack {
+            margin-top: 22px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
 
         .btn-submit {
-            background: linear-gradient(135deg, var(--primary-yellow) 0%, #f1c40f 100%);
-            color: #4a3d00;
-            border: none;
-            padding: 16px;
-            border-radius: 50px; /* 完全膠囊型按鈕 */
+            width: 100%;
+            background: var(--bee-yellow);
+            color: var(--text-dark);
+            border: 3px solid var(--pixel-border);
+            padding: 13px;
             font-weight: 900;
             font-size: 1.1rem;
             cursor: pointer;
-            box-shadow: 0 6px 0 var(--yellow-shadow);
-            transition: all 0.1s;
+            box-shadow: 0 5px 0 #000;
+            transition: all 0.06s ease;
+            user-select: none;
+            letter-spacing: 0.5px;
         }
 
-        .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 8px 0 var(--yellow-shadow); }
-        .btn-submit:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--yellow-shadow); }
+        .btn-submit:hover { filter: brightness(1.04); }
+        .btn-submit:active {
+            transform: translateY(5px);
+            box-shadow: 0 0 0 #000;
+        }
 
         .btn-cancel {
             text-align: center;
-            color: var(--text-gray);
+            color: var(--text-dark);
             text-decoration: none;
             font-size: 0.9rem;
-            font-weight: 600;
-            padding: 5px;
+            font-weight: 900;
+            padding: 8px;
+            border: 2px solid transparent;
+            transition: 0.1s;
+        }
+
+        .btn-cancel:hover {
+            color: var(--pixel-red);
+            text-decoration: underline;
         }
     </style>
 </head>
@@ -163,7 +278,7 @@
 
 <div class="modal-card">
     <div class="modal-header">
-        <h2>建立冒險</h2>
+        <h2><span>⚔️</span> 建立冒險教室</h2>
     </div>
 
     <div class="setting-group">
@@ -197,15 +312,14 @@
         <div class="setting-group flex-item">
             <label class="setting-label">遊玩回合</label>
             <select id="winLaps" class="input-box">
-                <!-- 🧪 測試用：雙方各走一輪後立刻進結算，用於驗證結算頁 -->
                 <option value="1">1 回合（測試用）</option>
                 <option value="3">3 回合</option>
                 <option value="5">5 回合</option>
                 <option value="10">10 回合</option>
                 <option value="15" selected>15 回合</option>
                 <option value="20">20 回合</option>
-				<option value="25">25 回合</option>
-				<option value="30">30 回合</option>
+                <option value="25">25 回合</option>
+                <option value="30">30 回合</option>
             </select>
         </div>
     </div>
@@ -227,45 +341,41 @@
         </div>
     </div>
 
-    <!-- 🏆 測試模式：大部分冒險格改為空白格（踩到直接換人），只保留 4 格答題，
-         讓一局能快速跑完以驗證結算頁。正式對局請勿勾選。 -->
     <div class="setting-group">
-        <label class="setting-label" style="display:flex; align-items:center; gap:10px; cursor:pointer;">
-            <input type="checkbox" id="testMode" style="width:18px; height:18px; cursor:pointer;">
+        <label class="test-mode-label">
+            <input type="checkbox" id="testMode">
             <span>🧪 測試模式（多數格子改為空白，快速跑完一局）</span>
         </label>
     </div>
 
     <div id="codeArea">
-        <div class="setting-label" style="margin-bottom:2px; color: var(--primary-blue);">專屬邀請代碼</div>
+        <div class="setting-label" style="margin-bottom:2px; color: var(--text-dark);">專屬邀請代碼</div>
         <div id="roomCodeDisplay" class="code-text">------</div>
     </div>
 
     <div class="btn-stack">
-        <button class="btn-submit" onclick="createAndGo()">建立房間</button>
+        <button class="btn-submit" onclick="createAndGo()">GO! 建立房間</button>
         <a href="lobby.html" class="btn-cancel">返回大廳</a>
     </div>
 </div>
 
 <script>
-    // 🏆 使用 var 或更改名稱避免初始化錯誤
     let roomConfig = {
         name: "", mode: "基礎填空", difficulty: "normal",
         winLaps: 3, players: 2, type: "public", code: "", vsAI: false
     };
-	
-	function generateRoomCode() {
-		const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 排除易混淆字元
-		let result = '';
-		for (let i = 0; i < 6; i++) {
-			result += chars.charAt(Math.floor(Math.random() * chars.length));
-		}
-		roomConfig.code = result;
-		console.log("產生的房間代碼為:", roomConfig.code);
-	}
+    
+    function generateRoomCode() {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        let result = '';
+        for (let i = 0; i < 6; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        roomConfig.code = result;
+        console.log("產生的房間代碼為:", roomConfig.code);
+    }
 
-	// 初始化代碼
-	generateRoomCode();
+    generateRoomCode();
 
     function selectMode(val) {
         document.getElementById('modeBasic').classList.toggle('active', val === '基礎填空');
@@ -282,7 +392,7 @@
             const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
             let result = '';
             for (let i = 0; i < 6; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
-            roomConfig.code = result; // 🏆 這裡正確寫入隨機碼
+            roomConfig.code = result;
             document.getElementById('roomCodeDisplay').innerText = result;
             codeArea.style.display = 'block';
             gsap.from(codeArea, { scale: 0.8, opacity: 0, duration: 0.3 });
@@ -297,75 +407,69 @@
         roomConfig.vsAI = (roomConfig.players === "1");
     }
 
-	// 修改後的 createAndGo
-	async function createAndGo() {
-		const activeRoom = localStorage.getItem('pypoly_active_room');
-		
-		// 如果本地有舊資料，直接彈窗問使用者要不要清除
-		if (activeRoom) {
-			const reset = confirm("偵測到舊對局資料，是否強制清除並建立新房間？");
-			if (!reset) return;
-			localStorage.removeItem('pypoly_active_room');
-		}
+    async function createAndGo() {
+        const activeRoom = localStorage.getItem('pypoly_active_room');
+        
+        if (activeRoom) {
+            const reset = confirm("偵測到舊對局資料，是否強制清除並建立新房間？");
+            if (!reset) return;
+            localStorage.removeItem('pypoly_active_room');
+        }
 
-		// 取得表單資料 (確保這些 ID 都對應正確)
-		const newRoomData = {
-			hostId: localStorage.getItem('username'),
-			name: document.getElementById('roomName').value || "冒險教室",
-			mode: document.querySelector('.version-option.active h4').innerText,
-			difficulty: document.getElementById('difficulty').value,
-			winLaps: document.getElementById('winLaps').value,
-			type: document.getElementById('typeSelect').value,
-			code: roomConfig.code, // 🔍 檢查這裡
-			// 存進房間資料後，客人加入時會從 /rooms/join 的回傳一併取得，雙方地圖才一致
-			testMode: document.getElementById('testMode')?.checked || false
-		};
+        const newRoomData = {
+            hostId: localStorage.getItem('username'),
+            name: document.getElementById('roomName').value || "冒險教室",
+            mode: document.querySelector('.version-option.active h4').innerText,
+            difficulty: document.getElementById('difficulty').value,
+            winLaps: document.getElementById('winLaps').value,
+            type: document.getElementById('typeSelect').value,
+            code: roomConfig.code,
+            testMode: document.getElementById('testMode')?.checked || false
+        };
 
-		console.log("準備傳送給後端的資料:", newRoomData);
+        console.log("準備傳送給後端的資料:", newRoomData);
 
-		if (!newRoomData.code) {
-			alert("錯誤：房間代碼未產生，請重新整理頁面！");
-			generateRoomCode(); // 補救措施
-			return;
-		}
+        if (!newRoomData.code) {
+            alert("錯誤：房間代碼未產生，請重新整理頁面！");
+            generateRoomCode();
+            return;
+        }
 
-		try {
-			const response = await fetch(`${API_URL}/rooms/create`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(newRoomData)
-			});
+        try {
+            const response = await fetch(`${API_URL}/rooms/create`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newRoomData)
+            });
 
-			if (response.ok) {
-				localStorage.setItem('pypoly_active_room', JSON.stringify(newRoomData));
-				localStorage.setItem('is_host', 'true');
-				window.location.href = 'WaitingRoom.html';
-			} else {
-				const err = await response.json();
-				alert("建立失敗：" + (err.detail || "未知錯誤"));
-			}
-		} catch (err) {
-			alert("無法連線至伺服器");
-		}
-	}
-	
-    window.onload = () => {
-        gsap.from(".modal-card", { y: 20, opacity: 0, duration: 0.6, ease: "power2.out" });
-    };
-	
+            if (response.ok) {
+                localStorage.setItem('pypoly_active_room', JSON.stringify(newRoomData));
+                localStorage.setItem('is_host', 'true');
+                window.location.href = 'WaitingRoom.html';
+            } else {
+                const err = await response.json();
+                alert("建立失敗：" + (err.detail || "未知錯誤"));
+            }
+        } catch (err) {
+            alert("無法連線至伺服器");
+        }
+    }
+    
     const API_URL = location.origin;
-    let syncTimer = null; // 🏆 用於維持在線狀態
+    let syncTimer = null;
 
-    // --- 1. 選單與導航 ---
     function toggleMenu() {
         const sideMenu = document.getElementById('sideMenu');
         const overlay = document.getElementById('overlay');
-        sideMenu.classList.toggle('open');
-        overlay.classList.toggle('open');
+        if (sideMenu && overlay) {
+            sideMenu.classList.toggle('open');
+            overlay.classList.toggle('open');
+        }
     }
 
-    // --- 2. 頁面初始化：驗證、復活與保活 ---
     window.onload = async () => {
+        gsap.from(".modal-card", { y: 20, opacity: 0, duration: 0.3, ease: "power2.out" });
+
         const username = localStorage.getItem('username');
         const token = localStorage.getItem('token');
 
@@ -375,7 +479,6 @@
         }
 
         try {
-            // 🏆 核心：老師的邏輯 - 進場立刻復活
             const res = await fetch(`${API_URL}/auth/verify_and_refresh?username=${encodeURIComponent(username)}`, {
                 method: "POST",
                 headers: { 'Authorization': `Bearer ${token}` }
@@ -383,8 +486,7 @@
             const data = await res.json();
 
             if (data.status === "success") {
-                console.log("說明頁面：狀態已復活");
-                // 🏆 啟動心跳監控，防止看說明看太久被踢
+                console.log("建立房間頁面：狀態已復活");
                 startSyncLoop(username, token);
             } else {
                 localStorage.clear();
@@ -392,22 +494,18 @@
             }
         } catch (err) {
             console.error("驗證失敗:", err);
-            // 如果後端沒反應，建議先留在頁面但顯示錯誤，或跳回登入
         }
     };
 
-    // --- 3. 監控循環 ---
     function startSyncLoop(username, token) {
         if (syncTimer) clearInterval(syncTimer);
         syncTimer = setInterval(async () => {
             try {
-                // 發送心跳更新時間
                 fetch(`${API_URL}/auth/heartbeat?username=${encodeURIComponent(username)}`, {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
-                // 同步檢查是否被登出
                 const res = await fetch(`${API_URL}/auth/me?username=${encodeURIComponent(username)}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
@@ -423,33 +521,27 @@
         }, 5000);
     }
 
-    // --- 4. 手動登出 ---
-	async function logout() {
-		// 🏆 1. 第一步：立刻停止心跳，防止登出後被「自動復活」
-		if (typeof syncTimer !== 'undefined' && syncTimer) {
-			clearInterval(syncTimer);
-		}
+    async function logout() {
+        if (typeof syncTimer !== 'undefined' && syncTimer) {
+            clearInterval(syncTimer);
+        }
 
-		const username = localStorage.getItem('username');
-		if (!username) return;
+        const username = localStorage.getItem('username');
+        if (!username) return;
 
-		// 🏆 2. 第二步：關鍵修正！網址尾巴必須加上 &confirm=true
-		// 這樣後端 main.py 才會看到 confirm，並執行 db_user.is_online = 0
-		const url = `${API_URL}/auth/logout?username=${encodeURIComponent(username)}&confirm=true`;
-		
-		try {
-			const response = await fetch(url, { method: 'POST' });
-			const result = await response.json();
-			console.log("後端回應：", result.message);
-		} catch (err) {
-			console.error("登出連線失敗", err);
-		}
+        const url = `${API_URL}/auth/logout?username=${encodeURIComponent(username)}&confirm=true`;
+        
+        try {
+            const response = await fetch(url, { method: 'POST' });
+            const result = await response.json();
+            console.log("後端回應：", result.message);
+        } catch (err) {
+            console.error("登出連線失敗", err);
+        }
 
-		// 🏆 3. 第三步：清理本地資料並跳轉
-		localStorage.clear();
-		window.location.href = 'login.html';
-	}
-    // 🏆 確保沒有 window.addEventListener('beforeunload')！
+        localStorage.clear();
+        window.location.href = 'login.html';
+    }
 </script>
 
 </body>

@@ -3,222 +3,362 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PyPoly - Lobby</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
+    <title>BeeRich - Lobby</title>
+    <!-- 引入與登入頁一致的精選字型 -->
+    <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary-blue: #4facfe;
-            --success-green: #00cdac;
-            --success-green-shadow: #00a88b;
-            --primary-yellow: #ffde59;
-            --yellow-shadow: #e6c543;
-            --bg-gray: #f1f5f9;
-            --text-dark: #000000;
-            --text-gray: #64748b;
-            --sidebar-dark: #334155;
-            --sidebar-dark-shadow: #1e293b;
-            --border-light: #e2e8f0;
+            --pixel-border: #1e272e;
+            --bee-gold: #ffc048;
+            --bee-yellow: #ffdd59;
+            --bee-dark: #2f3542;
+            --pixel-green: #05c46b;
+            --pixel-blue: #0fbcf9;
+            --pixel-red: #ff3f34;
+            --bg-grid: #d2dae2;
+            --card-bg: #ffffff;
+            --text-dark: #1e272e;
+            --text-gray: #747d8c;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
+        /* 徹底重置所有內外距，避免頂部產生縫隙與線條殘留 */
+        html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            outline: none !important;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            image-rendering: pixelated;
+        }
 
         body {
-            background-color: var(--bg-gray);
-            height: 100%;
+            background-color: var(--bg-grid);
+            background-image: 
+                linear-gradient(rgba(0, 0, 0, 0.05) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.05) 2px, transparent 2px);
+            background-size: 28px 28px;
             display: flex;
             flex-direction: column;
-            overflow: hidden;
             position: relative;
         }
 
+        /* 頂部導覽列：貼齊最頂端，無任何上邊框與陰影 */
         header {
-            background: linear-gradient(to bottom, #ffffff 0%, #fcfcfc 100%);
-            padding: 0 40px;
+            margin: 0 !important;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: white;
+            padding: 0 35px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            height: 85px;
+            height: 80px;
             z-index: 100;
-            border-bottom: 1.5px solid var(--border-light); 
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+            border: none;
+            border-bottom: 4px solid var(--pixel-border);
+            box-shadow: none !important;
         }
 
         .header-left h1 {
-            font-size: 2.5rem;
-            font-weight: 900;
-            margin-bottom: 10px;
-            color: var(--text-dark);
+            font-family: 'VT323', monospace;
+            font-size: 3.2rem;
+            line-height: 1;
+            color: var(--bee-gold);
+            text-shadow: 
+                2px 2px 0 var(--pixel-border),
+                -1.5px -1.5px 0 var(--pixel-border),
+                2px -1.5px 0 var(--pixel-border),
+                -1.5px 2px 0 var(--pixel-border),
+                4px 4px 0 var(--bee-dark);
+            letter-spacing: 2px;
+            user-select: none;
         }
 
-        .header-right { display: flex; align-items: center; gap: 20px; }
-        .player-name { font-weight: 800; color: var(--text-dark); font-size: 1.1rem; }
+        .header-right { display: flex; align-items: center; gap: 18px; }
+
+        .player-badge {
+            background: #fffdf2;
+            border: 3px solid var(--pixel-border);
+            padding: 6px 16px;
+            border-radius: 4px;
+            font-weight: 900;
+            font-size: 1rem;
+            color: var(--text-dark);
+            box-shadow: 3px 3px 0 #000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
 
         .menu-btn {
-            background: transparent;
-            border: none;
+            background: white;
+            border: 3px solid var(--pixel-border);
             cursor: pointer;
             display: flex;
-            flex-direction: column;
+            align-items: center;
             justify-content: center;
-            padding: 10px;
-            transition: 0.2s;
+            padding: 6px;
+            box-shadow: 3px 3px 0 #000;
+            transition: 0.1s;
         }
-        .menu-btn:hover { opacity: 0.6; }
+        .menu-btn:hover { background: #fffdf2; }
+        .menu-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
 
         .menu-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.15); display: none; z-index: 999;
-            backdrop-filter: blur(2px);
+            background: rgba(0, 0, 0, 0.45); display: none; z-index: 999;
         }
         .menu-overlay.open { display: block; }
 
         .side-menu {
             position: fixed; top: 0; right: -320px; width: 320px; height: 100%;
-            background: white; box-shadow: -10px 0 30px rgba(0,0,0,0.05);
-            z-index: 1000; transition: 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
-            padding: 100px 30px 40px; display: flex; flex-direction: column; gap: 15px;
-			
+            background: white; border-left: 4px solid var(--pixel-border);
+            box-shadow: -8px 0 0 rgba(0,0,0,0.2);
+            z-index: 1000; transition: 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
+            padding: 90px 25px 35px; display: flex; flex-direction: column; gap: 14px;
         }
         .side-menu.open { right: 0; }
 
         .menu-item {
-            padding: 18px 25px; border-radius: 15px; font-weight: 800;
-            color: var(--text-gray); text-decoration: none; display: flex;
-            align-items: center; gap: 15px; transition: 0.2s; background: #f8fafc;
+            padding: 14px 20px; font-weight: 900;
+            color: var(--text-dark); text-decoration: none; display: flex;
+            align-items: center; gap: 12px; transition: 0.1s; background: #f1f2f6;
+            border: 3px solid var(--pixel-border); box-shadow: 3px 3px 0 #000;
         }
-        .menu-item:hover { background: var(--bg-gray); color: var(--text-dark); }
-        .menu-item.danger { margin-top: auto; color: #ff4757; cursor: pointer; }
+        .menu-item:hover { background: var(--bee-yellow); }
+        .menu-item:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+        .menu-item.danger { margin-top: auto; color: white; background: var(--pixel-red); }
 
-		.lobby-main {
-			height: calc(100vh - 85px); /* 扣除 Header 高度 */
-			display: flex;
-			justify-content: center;
-			align-items: center;
-			padding: 20px;
-			overflow: hidden; 
-		}
-
-		.lobby-container {
-			display: flex;
-			gap: 30px;
-			width: 95%;
-			max-width: 1100px;
-			height: 100%;       /* ⚡ 關鍵：讓它填滿 lobby-main，裡面的東西才能伸縮 */
-			align-items: stretch; /* ⚡ 關鍵：強迫左右兩邊等高 */
-		}
-
-		.sidebar {
-			width: clamp(280px, 25vw, 320px); /* 寬度隨網頁縮放，但有上下限 */
-			height: 100%;           
-			background: white; 
-			border-radius: 35px;
-			padding: 30px 25px;
-			display: flex; 
-			flex-direction: column;
-			align-items: center; 
-			/* ⚡ 關鍵：靠頂部對齊，不要使用 space-between */
-			justify-content: flex-start; 
-			box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-			border: 1px solid #f1f2f6;
-		}
-
-		.char-box {
-			width: 100%; 
-			/* ⚡ 寬高比鎖定 1:1，大小會隨 sidebar 寬度自動等比例變動 */
-			aspect-ratio: 1 / 1; 
-			background: #f8fafc;
-			border: 2px solid var(--primary-blue); 
-			border-radius: 28px;
-			display: flex; 
-			justify-content: center; 
-			align-items: center;
-			
-			/* ⚡ 這裡設定與「名字標籤」的固定行距 */
-			margin-bottom: 20px; 
-			
-			box-shadow: inset 0 0 15px rgba(79, 172, 254, 0.1);
-			flex-shrink: 0; /* 防止被壓扁 */
-		}
-
-		.id-label {
-			width: 100%; 
-			background: #000; 
-			color: white; 
-			padding: 14px;
-			border-radius: 15px; 
-			font-weight: 900; 
-			text-align: center;
-			font-size: clamp(0.9rem, 1.2vw, 1.1rem); /* 字體也隨縮放微調 */
-			
-			/* ⚡ 這裡設定與「更換角色」按鈕的固定行距 */
-			margin-bottom: 15px; 
-			
-			flex-shrink: 0;
-		}
-
-		.btn-side { 
-			width: 100%; 
-			padding: 16px; 
-			background: var(--sidebar-dark); 
-			color: white; 
-			border-radius: 12px;
-			box-shadow: 0 6px 0 var(--sidebar-dark-shadow);
-			font-size: clamp(0.85rem, 1vw, 1rem);
-			
-			flex-shrink: 0;
-		}
-
-		/* 5. 確保裡面的 3D 角色或圖片會隨框框變大變小 */
-		.char-box canvas, .char-box img {
-			max-width: 100%;
-			max-height: 100%;
-			object-fit: contain;
-		}
-
-        .btn-3d {
-            border: none; border-radius: 12px; font-weight: 900;
-            cursor: pointer; transition: 0.1s; display: inline-flex;
-            align-items: center; justify-content: center;
+        .lobby-main {
+            height: calc(100vh - 80px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            overflow: hidden;
         }
- 
-		.main-board {
-			flex: 1;
-			display: flex;
-			flex-direction: column;
-			gap: 20px;
-			height: 100%; /* ⚡ 跟隨容器高度縮放 */
-		}
-		
+
+        .lobby-container {
+            display: flex;
+            gap: 25px;
+            width: 95%;
+            max-width: 1150px;
+            height: 100%;
+            align-items: stretch;
+        }
+
+        /* 左側人物欄 */
+        .sidebar {
+            width: clamp(280px, 25vw, 320px);
+            height: 100%;
+            background: var(--card-bg);
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0px #000;
+            padding: 25px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            flex-shrink: 0;
+        }
+
+        /* 💡 遊戲大廳標題：粗體 900 清晰呈現 */
+        .side-title {
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif !important;
+            font-weight: 900 !important;
+            font-size: 1.6rem;
+            color: var(--text-dark);
+            margin-bottom: 20px;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .char-box {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            background: #f1f2f6;
+            border: 4px solid var(--pixel-border);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 16px;
+            box-shadow: inset 4px 4px 0 rgba(0,0,0,0.08);
+            cursor: pointer;
+            overflow: hidden;
+            transition: transform 0.1s ease;
+            position: relative;
+        }
+        .char-box:hover { background: #feffea; }
+        .char-box:active { transform: scale(0.98); }
+
+        .char-box canvas, .char-box img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .id-label {
+            width: 100%;
+            background: var(--pixel-border);
+            color: #ffffff;
+            padding: 12px;
+            font-weight: 900;
+            text-align: center;
+            font-size: clamp(0.95rem, 1.1vw, 1.1rem);
+            margin-bottom: 14px;
+            border: 2px solid #000;
+            letter-spacing: 1px;
+            box-shadow: 3px 3px 0 var(--bee-gold);
+        }
+
+        .btn-pixel {
+            border: 3px solid var(--pixel-border);
+            font-weight: 900;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            transition: all 0.06s ease;
+        }
+        .btn-pixel:active {
+            transform: translate(3px, 3px) !important;
+            box-shadow: 0 0 0 #000 !important;
+        }
+
+        .btn-side {
+            width: 100%;
+            padding: 14px;
+            background: var(--bee-yellow);
+            color: var(--text-dark);
+            box-shadow: 0 5px 0 #000;
+            font-size: 0.95rem;
+            margin-top: 10px;
+        }
+        .btn-side:hover { filter: brightness(1.05); }
+
+        /* 右側主舞台 */
+        .main-board {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            height: 100%;
+        }
+
         .board-header {
-            background: white; padding: 25px 40px; border-radius: 25px;
-            display: flex; justify-content: space-between; align-items: center;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.03); border: 1px solid #f1f2f6;
+            background: white;
+            padding: 18px 30px;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0 #000;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
-        .btn-create { padding: 14px 25px; background: var(--success-green); color: white; box-shadow: 0 6px 0 var(--success-green-shadow); }
 
-		.room-scroll {
-			background: white;
-			flex: 1; /* ⚡ 房間列表也會隨網頁高度自動伸縮 */
-			border-radius: 40px;
-			padding: 30px;
-			box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-			overflow-y: auto; /* ⚡ 房間太多時內部捲動，而不是撐開頁面 */
-			border: 1px solid #f1f2f6;
-		}
-		
+        .btn-create {
+            padding: 12px 24px;
+            background: var(--pixel-green);
+            color: white;
+            box-shadow: 0 5px 0 #000;
+            font-size: 1.05rem;
+        }
+        .btn-create:hover { filter: brightness(1.05); }
+
+        .quick-join-bar {
+            background: white;
+            padding: 14px 28px;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0 #000;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .quick-input {
+            flex: 1;
+            padding: 10px 14px;
+            border: 3px solid var(--pixel-border);
+            font-weight: 900;
+            letter-spacing: 2px;
+            text-align: center;
+            outline: none;
+            font-size: 1.05rem;
+            background: #fffdf5;
+            box-shadow: inset 2px 2px 0 rgba(0,0,0,0.08);
+        }
+        .quick-input:focus { border-color: #000; background: #feffea; }
+
+        .btn-join {
+            padding: 10px 24px;
+            background: var(--bee-yellow);
+            color: var(--text-dark);
+            box-shadow: 0 5px 0 #000;
+            font-size: 1rem;
+        }
+        .btn-join:hover { filter: brightness(1.05); }
+
+        /* 房間列表容器 */
+        .room-scroll {
+            background: white;
+            flex: 1;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0 #000;
+            padding: 24px;
+            overflow-y: auto;
+        }
+
+        .room-scroll-title {
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif !important;
+            font-weight: 900;
+            font-size: 1.25rem;
+            color: var(--text-dark);
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
         .room-item {
-            background: #f8fafc; padding: 25px 30px; border-radius: 25px;
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 20px; border: 1px solid #f1f2f6;
+            background: #f8fafc;
+            padding: 20px 24px;
+            border: 3px solid var(--pixel-border);
+            box-shadow: 4px 4px 0 #000;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            transition: transform 0.1s ease;
         }
-        .btn-join { padding: 12px 40px; background: var(--primary-yellow); color: #574b10; box-shadow: 0 6px 0 var(--yellow-shadow); }
+        .room-item:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 #000;
+            background: #fffdf5;
+        }
 
-        .btn-3d:active { transform: translateY(4px); box-shadow: none; }
-        .room-item { transition: transform 0.2s; cursor: pointer; }
-        .room-item:hover { transform: scale(1.01); border-color: var(--primary-blue); }
+        .room-mode-tag {
+            background: #dfe4ea;
+            border: 2px solid var(--pixel-border);
+            padding: 2px 8px;
+            font-size: 0.75rem;
+            font-weight: 900;
+        }
 
-        .room-scroll::-webkit-scrollbar { width: 6px; }
-        .room-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .room-scroll::-webkit-scrollbar { width: 8px; }
+        .room-scroll::-webkit-scrollbar-track { background: #dfe4ea; border-left: 2px solid var(--pixel-border); }
+        .room-scroll::-webkit-scrollbar-thumb { background: var(--pixel-border); }
 
         @media (max-width: 850px) {
             header { padding: 0 20px; }
@@ -228,7 +368,6 @@
     </style>
 </head>
 <body>
-
 <div class="menu-overlay" id="overlay" onclick="toggleMenu()"></div>
 
 <div class="side-menu" id="sideMenu">
@@ -241,11 +380,13 @@
 </div>
 
 <header>
-    <div class="header-left"><h1>PyPoly</h1></div>
+    <div class="header-left"><h1>BeeRich</h1></div>
     <div class="header-right">
-        <div class="player-name" id="topPlayerName">載入中...</div>
+        <div class="player-badge">
+            <span id="topPlayerName">載入中...</span>
+        </div>
         <button class="menu-btn" onclick="toggleMenu()">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
                 <line x1="3" y1="12" x2="21" y2="12"></line>
                 <line x1="3" y1="6" x2="21" y2="6"></line>
                 <line x1="3" y1="18" x2="21" y2="18"></line>
@@ -256,49 +397,51 @@
 
 <div class="lobby-main">
     <div class="lobby-container">
+        <!-- 左側人物欄 -->
         <aside class="sidebar">
-            <h2 style="font-weight: 900; font-size: 1.8rem; color: var(--text-dark); margin-bottom: 25px; letter-spacing: 1px;">遊戲大廳</h2>
-            <div class="char-box" id="lobby-char-box" onclick="location.href='character.html'"><div style="color:var(--primary-blue); font-weight:800;">[Q版角色]</div></div>
+            <h2 class="side-title"><span>⚔️</span> 遊戲大廳</h2>
+            <div class="char-box" id="lobby-char-box" onclick="location.href='character.html'">
+                <div style="color:var(--text-gray); font-weight:900;">[Q版角色]</div>
+            </div>
             <div class="id-label" id="sidePlayerName">載入中...</div>
-            <button class="btn-3d btn-side" style="margin-top: 25px;" onclick="location.href='character.html'">建立專屬虛擬人物</button>
+            <button class="btn-pixel btn-side" onclick="location.href='character.html'">建立專屬虛擬人物</button>
         </aside>
 
-		<main class="main-board">
-			<header class="board-header">
-				<h3 style="font-weight: 900; font-size: 1.4rem;">尋找挑戰者</h3>
-				<button class="btn-3d btn-create" onclick="checkAndCreateRoom()">+ 建立新對局</button>
-			</header>
+        <!-- 右側主視窗 -->
+        <main class="main-board">
+            <header class="board-header">
+                <h3 style="font-weight: 900; font-size: 1.35rem; color: var(--text-dark);">尋找挑戰者</h3>
+                <button class="btn-pixel btn-create" onclick="checkAndCreateRoom()">+ 建立新對局</button>
+            </header>
 
-			<div id="quickJoinArea" style="background: white; padding: 20px 40px; border-radius: 25px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); border: 1px solid #f1f2f6; display: flex; align-items: center; gap: 20px;">
-				<span style="font-weight: 900; color: var(--primary-blue); white-space: nowrap;">快速加入 🔑</span>
-				<input type="text" id="quickRoomCode" placeholder="輸入六位邀請碼..." 
-					   style="flex: 1; padding: 12px; border-radius: 12px; border: 2px solid var(--border-light); font-weight: 800; letter-spacing: 2px; text-align: center; outline: none;">
-				<button class="btn-3d btn-join" style="padding: 12px 30px; margin: 0;" onclick="quickVerify()">加入房間</button>
-			</div>
-			
-			<section class="room-scroll" id="roomList">
-				<div style="font-weight: 900; font-size: 1.4rem; color: var(--text-black); margin-bottom: 20px; padding-left: 5px;">
-					房間列表
-				</div>
-			</section>
-		</main>
+            <div id="quickJoinArea" class="quick-join-bar">
+                <span style="font-weight: 900; color: var(--text-dark); white-space: nowrap;">🔑 快速加入</span>
+                <input type="text" id="quickRoomCode" placeholder="輸入六位邀請碼..." class="quick-input">
+                <button class="btn-pixel btn-join" onclick="quickVerify()">加入房間</button>
+            </div>
+            
+            <section class="room-scroll" id="roomList">
+                <div class="room-scroll-title">
+                    <span>📜</span> 房間列表
+                </div>
+            </section>
+        </main>
     </div>
 </div>
 
+<!-- 像素化私人邀請碼輸入彈窗 -->
 <div id="passwordModal" class="menu-overlay" style="display: none; align-items: center; justify-content: center; pointer-events: auto; z-index: 3000;">
-    <div class="sidebar" style="width: 350px; height: auto; display: block; padding: 30px; position: relative; background: white; border-radius: 20px;">
-        <h3 style="font-weight: 900; margin-bottom: 20px; text-align: center; color: var(--text-dark);">🔒 輸入私人邀請碼</h3>
-        <input type="text" id="inputRoomCode" class="input-box" 
-               style="width:100%; margin-bottom: 20px; text-align: center; letter-spacing: 4px; font-size: 1.5rem; border: 2px solid var(--border-light); border-radius: 10px; padding: 10px;" 
+    <div style="width: 380px; background: white; border: 4px solid var(--pixel-border); box-shadow: 8px 8px 0 #000; padding: 30px; text-align: center;">
+        <h3 style="font-weight: 900; font-size: 1.25rem; margin-bottom: 18px; color: var(--text-dark);">🔒 輸入私人邀請碼</h3>
+        <input type="text" id="inputRoomCode" 
+               style="width: 100%; margin-bottom: 22px; text-align: center; letter-spacing: 4px; font-size: 1.4rem; border: 3px solid var(--pixel-border); padding: 10px; font-weight: 900; outline: none; background: #fffdf5;" 
                placeholder="六位代碼">
-        <div style="display: flex; gap: 10px;">
-            <button class="btn-3d" style="background: var(--text-gray); flex: 1; border: none; color: white; border-radius: 10px; cursor: pointer;" onclick="closePasswordModal()">取消</button>
-            <button class="btn-3d btn-create" style="flex: 1; padding: 10px; border: none; color: white; border-radius: 10px; cursor: pointer;" onclick="verifyRoomCode()">加入</button>
+        <div style="display: flex; gap: 12px;">
+            <button class="btn-pixel" style="background: #dfe4ea; flex: 1; padding: 12px; color: var(--text-dark); box-shadow: 0 4px 0 #000;" onclick="closePasswordModal()">取消</button>
+            <button class="btn-pixel btn-create" style="flex: 1; padding: 12px;" onclick="verifyRoomCode()">加入</button>
         </div>
     </div>
 </div>
-
-
 
 <script src="js/ngrok-fetch.js"></script>
 <script>
@@ -306,7 +449,6 @@
     let syncTimer = null; 
     let pendingRoomId = null;
 
-    // --- 1. 選單切換邏輯 ---
     function toggleMenu() {
         const sideMenu = document.getElementById('sideMenu');
         const overlay = document.getElementById('overlay');
@@ -316,12 +458,11 @@
         }
     }
 
-	async function logout() {
+    async function logout() {
         if (syncTimer) clearInterval(syncTimer);
         const username = localStorage.getItem('username');
         await fetch(`${API_URL}/auth/logout?username=${username}&confirm=true`, { method: 'POST' });
         
-        // 🏆 終極防禦修正：掃描並備份「所有」自定義虛擬人物相關資料
         const charBackups = {};
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
@@ -332,7 +473,6 @@
         
         localStorage.clear();
         
-        // 🏆 還原備份
         Object.keys(charBackups).forEach(key => {
             localStorage.setItem(key, charBackups[key]);
         });
@@ -340,18 +480,16 @@
         window.location.href = 'login.html';
     }
 
-    // --- 3. 頁面初始化 ---
-	window.onload = async function() {
-		const token = localStorage.getItem('token');
-		const username = localStorage.getItem('username');
+    window.onload = async function() {
+        const token = localStorage.getItem('token');
+        const username = localStorage.getItem('username');
 
-		if (!token || !username) {
-			window.location.href = 'login.html';
-			return;
-		}
-		
-        // 🏆 整合版：優先讀取玩家自定義的專屬人臉或預覽圖
-		const charBox = document.getElementById('lobby-char-box');
+        if (!token || !username) {
+            window.location.href = 'login.html';
+            return;
+        }
+        
+        const charBox = document.getElementById('lobby-char-box');
         const myFace = localStorage.getItem(`pypoly_char_face_${username}`) || localStorage.getItem('pypoly_char_face');
         const savedCharImage = localStorage.getItem('pypoly_char_preview');
         
@@ -359,10 +497,10 @@
 		if (charBox) {
 			if (savedCharImage) {
 				// 優先顯示貼有人臉、換好顏色的全身 3D 截圖
-				charBox.innerHTML = `<img src="${savedCharImage}" alt="我的角色" style="width: 100%; height: 100%; object-fit: contain; border-radius: 26px; transform: scale(1.15);">`;
+				charBox.innerHTML = `<img src="${savedCharImage}" alt="我的角色" style="width: 100%; height: 100%; object-fit: contain; transform: scale(1.15);">`;
 			} else if (myFace) {
 				// 備份方案：如果全身截圖不幸遺失，才退回顯示平面人臉
-				charBox.innerHTML = `<img src="${myFace}" style="width:100%; height:100%; border-radius: 26px; object-fit:cover; border:3px solid #ffde59;">`;
+				charBox.innerHTML = `<img src="${myFace}" style="width:100%; height:100%; object-fit:cover; border:2px solid var(--bee-yellow);">`;
 			}
 		}
 
@@ -766,6 +904,5 @@ async function quickVerify() {
         }, 5000);
     }
 </script>
-
 </body>
 </html>

@@ -2639,8 +2639,165 @@ PyPoly 變更紀錄 (changeLog)
   判斷、以及 bot.py 的錯誤處理函式收到 WrongChannel 時回覆的
   訊息內容與 ephemeral 旗標都正確。
 
-  ⚠️ 尚未做：沒有實際頻道 ID 可以測，需要你在 ops/.env 填入
-  CHANNEL_OPS_ID（「伺服器啟動」頻道）與 CHANNEL_ISSUE_ID
-  （「代辦bug事項」頻道）後重啟 bot，在兩個頻道分別打指令確認
-  「該通的通、該擋的擋」，錯誤訊息裡的頻道連結能正確點擊跳轉。
+  已於 2026-09-28 實測通過：ops/.env 填入 CHANNEL_OPS_ID（「伺服器
+  啟動」頻道）與 CHANNEL_ISSUE_ID（「代辦bug事項」頻道）後重啟
+  bot，兩個頻道分別打指令確認「該通的通、該擋的擋」都正確。
+========================================================================
+
+[2026-09-28] #67 手勢辨識偵測不到：isHandsProcessing 鎖只接了 4 個呼叫點裡的 1 個
+
+  背景：prob.md 記錄的緊急問題，對局中比手勢畫面預覽正常但辨識永遠
+  沒反應，卡住遊戲進程。hsuan_advance 分支的 d6057b5（"feat: solve
+  camera problem"）加了 window.isHandsProcessing 這把鎖，防止 MediaPipe
+  上一幀還沒處理完就送下一幀，避免 WASM 辨識管線卡死。這次合併進
+  main 後實測還是辨識不到，派兩個 Explore agent 分頭查（一個追蹤
+  game.html 整個 MediaPipe 呼叫圖，一個查 git 歷史＋伺服器端邏輯），
+  獨立收斂到同一個結論，自己也逐一讀過對應程式碼確認。
+
+  根因：static/game.html 有 4 個地方會呼叫共用的 globalHands/globalPose
+  單例（initMediaPipeOnce()，頁面載入時只建一次），d6057b5 那把鎖
+  只接在 initCameraAndStartVision（每回合擲骰/購買手勢）這一個地方。
+  另外三個——initPoseAndStartVision（冒險格開合跳+ROCK手勢跳過）、
+  startFlappyBirdMiniGame（小鳥飛小遊戲）、startRecognitionProcess
+  （賽前決定先後手的舉拳手勢，每局遊戲第一個一定要做的手勢）——
+  的 onFrame 完全無條件呼叫 send()，從最初建立 MediaPipe 骨架的
+  commit 13e01c0 起就沒被動過，跟這次合併無關（git blame/diff 確認
+  d6057b5 跟合併 commit 都沒有弄丟或衝突任何一行鎖的程式碼）。
+
+  ⚠️ 賽前舉拳決定先後手是每局遊戲第一個一定要做的手勢、小鳥飛是
+  回報裡點名的小遊戲，這兩個都完全沒接鎖——如果 bug 從這兩處先
+  觸發，hsuan_advance 的修法自始至終都不會生效。
+
+  畫面預覽為什麼不受影響：render loop 直接 drawImage(video,...)，
+  跟 MediaPipe 的 send/onResults 完全獨立；Camera.stop() 只取消 RAF
+  排程、不會中止已在途的 send()。沒接鎖的呼叫點的幀，可能跟已接鎖
+  那個呼叫點「正在等待中」的 send() 重疊送進同一個 WASM 實例，卡死
+  該 pipeline；鎖唯一的重置點在 onResults 內跟 catch 裡，pipeline
+  真的卡住時兩者都不會執行，鎖永久卡 true，之後整個分頁都收不到
+  辨識結果，直到重新整理（globalHands/globalPose 同一頁不會重建）。
+
+  修法：新增兩個共用的防重疊送幀 helper（sendHandsFrame/
+  sendPoseFrame，各自對應 isHandsProcessing/isPoseProcessing 兩把鎖，
+  Pose 是獨立 WASM 實例需要自己的鎖），用 finally 保證鎖一定會在
+  send() 這個 promise 定案後解開，不再依賴某個特定 onResults 回呼
+  內部有沒有寫重置邏輯（四個地方各自呼叫 onResults() 會互相覆蓋
+  對方註冊的回呼，這是預期中的設計，但代表鎖的重置絕對不能只塞在
+  單一個 onResults 回呼裡）。四個呼叫點的 onFrame 全部改成呼叫這兩個
+  helper，其餘 UI/狀態邏輯不動。
+
+  順手補上：initMediaPipeOnce() 內的兩個建構子呼叫包一層 try/catch，
+  失敗時 console.error 記錄清楚原因（原本完全沒有任何記錄，CDN 連線
+  不穩時 globalHands/globalPose 會整個 session 保持 null，之後所有
+  onFrame 都會靜默不送任何幀，跟這次症狀是同一類「預覽正常、辨識
+  死掉」但成因不同，算是第二個獨立風險，順手一起防）。
+
+  驗證：抽出整段 inline <script>（不含 src= 的外部腳本）用 Node
+  vm.Script 做語法檢查，沒有語法錯誤。MediaPipe 手勢/姿勢辨識、
+  攝影機這部分完全沒辦法用無瀏覽器的腳本測試取代（見復測筆記），
+  只能真人在瀏覽器裡對著鏡頭比手勢。
+
+  ⚠️ 尚未做：需要你實際在瀏覽器測這四個關卡（賽前舉拳決定先後手→
+  正常回合擲骰/購買手勢→冒險格開合跳→小鳥飛），確認四個都能正常
+  辨識。哪一個還有問題麻煩明確講是哪一關，因為分類邏輯多半在伺服器
+  端（/ws/vision/...），四個呼叫點的分類邏輯彼此獨立，出錯要分開排查。
+  另外沒動 activeCamera/cameraInstance 兩個相機控制變數互不檢查的
+  潛在併發風險（需要特定時序才會觸發，目前沒證據是這次症狀成因），
+  也沒清掉死變數 activeHands——都刻意留到這輪鎖修好、若還有殘留
+  問題再處理。
+========================================================================
+
+[2026-09-28] #68 棋盤重建沒釋放 GPU 資源，很可能是手勢辨識變得更容易卡死的放大器
+
+  背景：#67 修完 MediaPipe 送幀鎖之後，你提出「Fan-map 開分支之前
+  測試相機辨識都正常」，要求先查出真正是哪裡的改動造成的，再測新
+  程式碼。用 git 比對 Fan-map/hsuan_advance/jiajiun 共同分岔點
+  （commit 1a4a5e3）的 game.html，確認 #67 修的那個「鎖只接一半」
+  問題在分岔前就已經存在（當時 4 個呼叫點全部都還沒有任何鎖），
+  不是這次合併造成的——所以繼續往下查 Fan-map 自己實際改了什麼。
+
+  找到的 regression：Fan-map 把 create3DBoard() 從「頁面載入時建
+  一次、之後不重建」改成「gameMap 資料非同步到齊時要整個重蓋，同一次
+  頁面載入最多重建 3-4 次」，但清除舊棋盤只有 scene.remove(t)——這
+  只是把物件從場景拿掉，不會釋放幾何體/材質的 GPU/VRAM，Three.js
+  要真的釋放必須明確呼叫 .geometry.dispose()／.material.dispose()。
+  搜過 game.html、board-build.js、board-terrain.js、board-props.js
+  全部檔案，.dispose() 一次都沒被呼叫過。這對應你們之前討論過、後來
+  「照指示撤回」的 disposeBoardTiles GPU 資源沒釋放那個懷疑——當時
+  似乎沒有真的補上釋放邏輯，這個洞一直開到現在。
+
+  每次重建／每次 applyBoardAppearanceTo() 重套外觀，都會留下孤兒的
+  tile 材質、支柱、連接橋、陰影、地形裝飾（樹/石頭/蘆葦）、功能格
+  建築（拱門/道具店/監獄/單槓/禮物箱）——這些全部不吃貼圖（貼圖只有
+  兩個模組級快取 _terrainTextureCache/_shadowTextureCache，全域共用，
+  跟格子清除無關，這次也沒去動它們）。GPU 資源持續累積，很可能就是
+  讓 #67 那個「本來就沒鎖好、但平常很難踩到」的送幀競速問題，從
+  「極少發生」放大成「幾乎每次都卡死」的放大器——這才是「Fan-map
+  之前正常、之後不正常」的真正差異來源。
+
+  修法：board-build.js 新增 disposeObject3D(obj)，用 obj.traverse()
+  遞迴 dispose 一個 Object3D 底下所有 mesh 的 geometry/material，
+  不特別列舉每種裝飾物類型。套用在兩個地方：
+  - game.html 的 create3DBoard()：清空 allTileMeshes 前，每個 tile
+    先 disposeObject3D() 再 scene.remove()——.traverse() 會自動連同
+    tile 底下的支柱/連接橋/陰影/裝飾一起處理，不用個別處理子物件。
+  - board-build.js 的 applyBoardAppearanceTo()：清除上一輪
+    BOARD_DECOR_NAME 裝飾物時，tile.remove() 前先 disposeObject3D()。
+    這個路徑比整個棋盤重建更常觸發，是目前累積最快的洩漏來源。
+
+  不改 addGroundPlane()／addBoardEnclosure()（只呼叫一次，不隨棋盤
+  重蓋而重蓋）；不改 createShadowTexture()／createTerrainTexture()
+  （模組級快取，本來就該一直存在，不能 dispose）。
+
+  驗證：抽出 board-build.js 跟 game.html 的 inline script 分別用
+  Node vm.Script 做語法檢查，都過。GPU 資源累積對手勢辨識的實際
+  影響沒辦法用腳本測，需要你實際長時間遊玩、多次進出會用到相機的
+  關卡（開合跳、小鳥飛）觀察是否還會卡死；方便的話瀏覽器開發者工具
+  的 chrome://gpu 或 Memory 分頁可以看 GPU 記憶體是否還在持續往上飆。
+========================================================================
+
+[2026-10-01] #69 ngrok-fetch.js 誤把標頭加到第三方 CDN，CORS 擋死 MediaPipe 的 wasm 載入
+
+  背景：組員在 ngrok 下實測 #67/#68 兩個手勢辨識修法時，回報「一開始
+  的辨識流程完全無法辨識，console 瘋狂報錯，平板在相機辨識頁面過一
+  段時間直接顯示 Chrome 的『糟糕』崩潰頁」。組員貼了部分 console 錯誤：
+
+      Access to fetch at 'https://cdn.jsdelivr.net/npm/@mediapipe/hands/
+      hands_solution_simd_wasm_bin.wasm' ... blocked by CORS policy:
+      Request header field ngrok-skip-browser-warning is not allowed by
+      Access-Control-Allow-Headers in preflight response.
+      ...
+      hands_solution_simd_wasm_bin.js:9 still waiting on run dependencies
+
+  根因跟 #67/#68 完全無關，是更早的 commit e675f29（修平板走 ngrok 時
+  房間列表永遠空白）加的 static/js/ngrok-fetch.js：它把 window.fetch
+  整個包一層，對**所有**請求都加上 ngrok-skip-browser-warning 標頭，
+  目的是跳過 ngrok 免費版的瀏覽器警告頁。但這個包裝沒有限定「只對
+  自己後端的請求加」——MediaPipe 的 Hands/Pose 內部也是用 fetch 去
+  cdn.jsdelivr.net 下載 wasm/js 檔，這個標頭被一起塞進去之後，
+  jsdelivr 的 CORS 設定沒有把這個自訂標頭列進
+  Access-Control-Allow-Headers，瀏覽器在 preflight 階段直接擋下來，
+  wasm 永遠載入失敗，globalHands/globalPose 整個卡在初始化、手勢辨識
+  從頭就啟動不了（console 持續印「still waiting on run dependencies」
+  正是 MediaPipe 自己在等那個永遠不會成功的 wasm fetch）。平板資源
+  本來就比較吃緊，這樣卡住很可能就是壓垮 Chrome 渲染行程、跳出
+  「糟糕」崩潰頁的原因。
+
+  本機/區網測試完全不會中：ngrok-fetch.js 本身就有
+  `if (!/ngrok(-free)?\.(dev|app|io)$/.test(host)) return;` 這個網域
+  判斷，只有走 ngrok 網址才會啟用整個包裝，這也是這個問題一直沒在
+  本機測出來、只在組員走 ngrok 測 #67/#68 時才爆出來的原因。
+
+  修法：window.fetch 包裝內加一個同源判斷——只有目標網址跟目前頁面
+  同源（也就是打這個 ngrok tunnel 自己的後端）才加
+  ngrok-skip-browser-warning，跨網域打第三方 CDN 一律維持原生 fetch、
+  不加任何標頭。解析網址失敗時保守地當作同源（維持原行為，不冒風險
+  漏加）。這樣完全不影響 ngrok-fetch.js 原本要解決的大廳房間列表問題
+  （那些 fetch 都是打自己的後端，同源），只排除掉像 MediaPipe 這種
+  打第三方 CDN 的狀況。
+
+  驗證：node --check 語法檢查過關。CORS/ngrok 這塊沒辦法用無瀏覽器
+  腳本測試取代，需要你或組員實際走 ngrok 網址重新整理後再測一次手勢
+  辨識（尤其是賽前決定先後手那關，先前的錯誤訊息就是卡在這裡爆出來
+  的），確認 wasm 檔能正常載入、不再出現 CORS 錯誤，平板也不會再在
+  相機辨識頁面放一段時間就崩潰。
 ========================================================================

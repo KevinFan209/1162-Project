@@ -14,8 +14,10 @@
 }
 
 .minimap-container {
-    background: #ffffff; border-radius: 25px; padding: 30px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.4); border: 5px solid #e2e8f0;
+    background: white;
+    border: 5px solid var(--pixel-border);
+    box-shadow: 10px 10px 0 #000;
+    padding: 24px;
     display: grid; gap: 8px; width: 850px; max-width: 95vw;
     grid-template-columns: repeat(9, 1fr);
     grid-template-rows: repeat(6, 1fr);
@@ -23,32 +25,42 @@
 }
 
 .minimap-tile {
-    aspect-ratio: 1 / 1; border-radius: 12px; border: 3px solid #e2e8f0;
+    aspect-ratio: 1 / 1;
+    border: 3px solid var(--pixel-border);
+    box-shadow: 2px 2px 0 #000;
     display: flex; align-items: center; justify-content: center;
-    font-size: 1.8rem; cursor: pointer; transition: 0.2s;
-    background: #f8fafc; position: relative; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    font-size: 1.6rem; cursor: pointer; transition: 0.1s;
+    background: #f8fafc; position: relative;
 }
 
 .minimap-tile:hover {
-    transform: scale(1.15); z-index: 10;
-    box-shadow: 0 10px 20px rgba(0,0,0,0.15);
-    border-color: #ffde59;
+    transform: scale(1.12); z-index: 10;
+    box-shadow: 4px 4px 0 #000;
+    border-color: #000;
+    background: #fffdf5;
 }
 
-/* 隱藏地圖中間沒有格子的區域 */
 .minimap-empty { visibility: hidden; }
 
-/* 小地圖資訊彈窗 */
 #minimap-info-modal {
     position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    background: rgba(30, 41, 59, 0.98); color: white; padding: 25px 35px;
-    border-radius: 20px; border: 3px solid #ffde59; display: none;
-    z-index: 9999999; /* 🏆 修正：彈窗必須比小地圖本身還要更高層 */
-    width: 400px; box-shadow: 0 15px 40px rgba(0,0,0,0.5);
-    text-align: left; pointer-events: none;
+    background: white; color: var(--text-dark); padding: 25px 30px;
+    border: 4px solid var(--pixel-border); box-shadow: 8px 8px 0 #000; display: none;
+    z-index: 9999999; width: 380px; text-align: left; pointer-events: none;
 }
 
-.minimap-info-title { font-size: 1.8rem; color: #ffde59; font-weight: 900; margin-bottom: 15px; border-bottom: 2px dashed #475569; padding-bottom: 10px;}
-.minimap-info-desc { font-size: 1.1rem; line-height: 1.6; color: #e2e8f0; font-weight: 800; }
-.minimap-info-highlight { color: #00cdac; font-size: 1.3rem; font-weight: 900; }
-.minimap-info-danger { color: #ff4757; font-size: 1.3rem; font-weight: 900; }
+.minimap-info-title { font-size: 1.6rem; color: var(--text-dark); font-weight: 900; margin-bottom: 12px; border-bottom: 3px solid var(--pixel-border); padding-bottom: 8px;}
+.minimap-info-desc { font-size: 1rem; line-height: 1.6; color: var(--text-dark); font-weight: 900; }
+.minimap-info-highlight { color: var(--pixel-green); font-size: 1.2rem; font-weight: 900; }
+.minimap-info-danger { color: var(--pixel-red); font-size: 1.2rem; font-weight: 900; }
+
+/* 關閉按鈕（原本散落在 game.html 的 inline <style>，與 sandyai 合併時
+   一併移進來，理由跟檔案開頭一樣：小地圖本身的控制元件，跟預覽頁共用。 */
+.close-minimap-btn {
+    position: absolute; top: -18px; right: -18px; background: var(--pixel-red);
+    color: white; border: 3px solid var(--pixel-border);
+    width: 42px; height: 42px; font-size: 1.3rem; font-weight: 900;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    box-shadow: 4px 4px 0 #000; transition: 0.08s;
+}
+.close-minimap-btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 #000; }

@@ -40,6 +40,26 @@ const SHADOW_SCALE = 1.4;          // 陰影比格子本身大一圈，看起來
 const SHADOW_WORLD_Y = GROUND_Y + 0.01;
 
 /**
+ * 遞迴釋放一個 Object3D 底下所有 mesh 的 geometry/material（GPU 資源）。
+ * 不會動到 _terrainTextureCache / _shadowTextureCache 這兩個模組級
+ * 快取貼圖——本檔案＋ board-terrain.js／board-props.js 產生的材質
+ * 除了 tile 本體跟陰影的 map 指到這兩個快取以外，其餘全部不吃貼圖，
+ * 這裡只 dispose geometry/material 本身，dispose material 不會連帶
+ * dispose 它的 .map，所以安全。
+ */
+function disposeObject3D(obj) {
+    obj.traverse((child) => {
+        if (!child.isMesh) return;
+        if (child.geometry) child.geometry.dispose();
+        if (Array.isArray(child.material)) {
+            child.material.forEach((m) => m.dispose());
+        } else if (child.material) {
+            child.material.dispose();
+        }
+    });
+}
+
+/**
  * 建立整個 26 格棋盤。
  * @param {THREE.Scene} scene  要加進去的場景
  * @param {Array} gameMap      26 格的資料（可為空，之後再用 applyBoardAppearanceTo 套）
@@ -317,7 +337,10 @@ function applyBoardAppearanceTo(tiles, gameMap) {
 
         // 先清掉上一輪的裝飾，避免重複套用時越疊越多
         for (let i = tile.children.length - 1; i >= 0; i--) {
-            if (tile.children[i].name === BOARD_DECOR_NAME) tile.remove(tile.children[i]);
+            if (tile.children[i].name === BOARD_DECOR_NAME) {
+                disposeObject3D(tile.children[i]);
+                tile.remove(tile.children[i]);
+            }
         }
 
         const glow = createTileEdgeGlow(terrain);

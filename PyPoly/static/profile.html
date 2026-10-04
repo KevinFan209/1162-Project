@@ -3,109 +3,410 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PyPoly - 個人主頁</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
+    <title>BeeRich - 個人主頁</title>
+    <!-- 引入與登入頁、大廳一致的精選像素與高質感字型 -->
+    <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary-blue: #4facfe;
-            --success-green: #00cdac;
-            --success-green-shadow: #00a88b;
-            --bg-gray: #f1f5f9;
-            --text-dark: #000000;
-            --text-gray: #64748b;
-            --sidebar-dark: #334155;
-            --sidebar-dark-shadow: #1e293b;
-            --border-light: #e2e8f0;
-            --google-red: #ea4335;
-            --primary-yellow: #ffde59;
-            --error-red: #ff7675;
+            --pixel-border: #1e272e;
+            --bee-gold: #ffc048;
+            --bee-yellow: #ffdd59;
+            --bee-dark: #2f3542;
+            --pixel-green: #05c46b;
+            --pixel-blue: #0fbcf9;
+            --pixel-red: #ff3f34;
+            --bg-grid: #d2dae2;
+            --card-bg: #ffffff;
+            --text-dark: #1e272e;
+            --text-gray: #747d8c;
+            --sidebar-dark: #2f3542;
+            --sidebar-dark-shadow: #1e272e;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
-        body { background-color: var(--bg-gray); height: 100%; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+        html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            outline: none !important;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            image-rendering: pixelated;
+        }
+
+        body {
+            background-color: var(--bg-grid);
+            /* 像素幾何網格背景 */
+            background-image: 
+                linear-gradient(rgba(0, 0, 0, 0.05) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.05) 2px, transparent 2px);
+            background-size: 28px 28px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
 
         header {
-            background: linear-gradient(to bottom, #ffffff 0%, #fcfcfc 100%);
-            padding: 0 40px; display: flex; justify-content: space-between; align-items: center;
-            height: 85px; z-index: 100; border-bottom: 1.5px solid var(--border-light); 
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+            margin: 0 !important;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: white;
+            padding: 0 35px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 80px;
+            z-index: 100;
+            border: none;
+            border-bottom: 4px solid var(--pixel-border);
+            box-shadow: none !important;
         }
-        .header-left h1 { font-size: 2.5rem; font-weight: 900; margin-bottom: 10px; color: var(--text-dark); cursor: pointer; }
-        .header-right { display: flex; align-items: center; gap: 20px; }
-        .page-tag { font-weight: 800; color: var(--text-gray); background: #f1f5f9; padding: 10px 22px; border-radius: 12px; font-size: 0.95rem; }
 
-        .menu-btn { background: transparent; border: none; cursor: pointer; display: flex; flex-direction: column; justify-content: center; padding: 10px; transition: 0.2s; }
-        .menu-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.15); display: none; z-index: 999; backdrop-filter: blur(2px); }
+        .header-left h1 {
+            font-family: 'VT323', monospace;
+            font-size: 3.2rem;
+            line-height: 1;
+            color: var(--bee-gold);
+            text-shadow: 
+                2px 2px 0 var(--pixel-border),
+                -1.5px -1.5px 0 var(--pixel-border),
+                2px -1.5px 0 var(--pixel-border),
+                -1.5px 2px 0 var(--pixel-border),
+                4px 4px 0 var(--bee-dark);
+            letter-spacing: 2px;
+            user-select: none;
+            cursor: pointer;
+        }
+
+        .header-right { display: flex; align-items: center; gap: 18px; }
+
+        .page-tag {
+            background: #fffdf2;
+            border: 3px solid var(--pixel-border);
+            padding: 6px 16px;
+            border-radius: 4px;
+            font-weight: 900;
+            font-size: 1rem;
+            color: var(--text-dark);
+            box-shadow: 3px 3px 0 #000;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .menu-btn {
+            background: white;
+            border: 3px solid var(--pixel-border);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px;
+            box-shadow: 3px 3px 0 #000;
+            transition: 0.1s;
+        }
+        .menu-btn:hover { background: #fffdf2; }
+        .menu-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+
+        .menu-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.45); display: none; z-index: 999;
+        }
         .menu-overlay.open { display: block; }
 
         .side-menu {
             position: fixed; top: 0; right: -320px; width: 320px; height: 100%;
-            background: white; box-shadow: -10px 0 30px rgba(0,0,0,0.05);
-            z-index: 1000; transition: 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
-            padding: 100px 30px 40px; display: flex; flex-direction: column; gap: 15px;
+            background: white; border-left: 4px solid var(--pixel-border);
+            box-shadow: -8px 0 0 rgba(0,0,0,0.2);
+            z-index: 1000; transition: 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
+            padding: 90px 25px 35px; display: flex; flex-direction: column; gap: 14px;
         }
         .side-menu.open { right: 0; }
 
         .menu-item {
-            padding: 18px 25px; border-radius: 15px; font-weight: 800;
-            color: var(--text-gray); text-decoration: none; display: flex;
-            align-items: center; gap: 15px; transition: 0.2s; background: #f8fafc;
+            padding: 14px 20px; font-weight: 900;
+            color: var(--text-dark); text-decoration: none; display: flex;
+            align-items: center; gap: 12px; transition: 0.1s; background: #f1f2f6;
+            border: 3px solid var(--pixel-border); box-shadow: 3px 3px 0 #000;
         }
-        .menu-item:hover { background: var(--bg-gray); color: var(--text-dark); }
-        .menu-item.danger { margin-top: auto; color: #ff4757; cursor: pointer; }
+        .menu-item:hover { background: var(--bee-yellow); }
+        .menu-item:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+        .menu-item.danger { margin-top: auto; color: white; background: var(--pixel-red); }
 
-        .profile-main { flex: 1; display: flex; justify-content: center; align-items: center; padding: 25px; }
-        .profile-container { display: flex; gap: 30px; width: 95%; max-width: 1000px; height: 80vh; }
+        .profile-main {
+            height: calc(100vh - 80px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            overflow: hidden;
+        }
 
+        .profile-container {
+            display: flex;
+            gap: 25px;
+            width: 95%;
+            max-width: 1050px;
+            height: 100%;
+            align-items: stretch;
+        }
+
+        /* 左側人物卡片 */
         .profile-aside {
-            width: 320px; background: white; border-radius: 35px; padding: 40px 30px;
-            display: flex; flex-direction: column; align-items: center;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1.5px solid var(--border-light);
+            width: clamp(280px, 28vw, 320px);
+            background: var(--card-bg);
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0px #000;
+            padding: 30px 22px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex-shrink: 0;
         }
-        .avatar-box {
-            width: 100%; aspect-ratio: 1; background: #f8fafc;
-            border: 3px solid var(--primary-blue); border-radius: 30px;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            margin-bottom: 25px; color: var(--primary-blue); font-weight: 800;
-        }
-        .current-id { font-size: 1.5rem; font-weight: 900; color: var(--text-dark); margin-bottom: 5px; }
-        .current-email { font-size: 0.85rem; color: var(--text-gray); font-weight: 700; word-break: break-all; text-align: center;}
 
+        .avatar-box {
+            width: 100%;
+            aspect-ratio: 1;
+            background: #f1f2f6;
+            border: 4px solid var(--pixel-border);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 20px;
+            color: var(--text-dark);
+            box-shadow: inset 4px 4px 0 rgba(0,0,0,0.08);
+            cursor: pointer;
+            transition: 0.1s ease;
+        }
+        .avatar-box:hover { background: #feffea; }
+        .avatar-box:active { transform: scale(0.98); }
+
+        /* 💡 換成好看、清晰圓潤粗壯的字體 */
+        .current-id {
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif !important;
+            font-size: 1.55rem;
+            font-weight: 900;
+            color: var(--text-dark);
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+
+        .current-email {
+            font-size: 0.88rem;
+            color: var(--text-gray);
+            font-weight: 900;
+            word-break: break-all;
+            text-align: center;
+            background: #dfe4ea;
+            border: 2px solid var(--pixel-border);
+            padding: 4px 10px;
+            width: 100%;
+        }
+
+        /* 右側編輯內容 (像素主面版) */
         .profile-content {
-            flex: 1; background: white; border-radius: 35px; padding: 45px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1.5px solid var(--border-light);
+            flex: 1;
+            background: white;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0px #000;
+            padding: 30px 36px;
             overflow-y: auto;
         }
-        .form-group { margin-bottom: 22px; position: relative; }
-        .label-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        .form-label { font-weight: 900; color: var(--text-dark); font-size: 1rem; }
-        .forgot-link { font-size: 0.85rem; color: var(--primary-blue); text-decoration: none; font-weight: 800; }
-        
-        .form-input {
-            width: 100%; padding: 16px 20px; border-radius: 15px;
-            border: 2px solid var(--bg-gray); background: #f8fafc;
-            font-size: 1rem; font-weight: 700; transition: 0.2s;
+
+        .content-title {
+            font-family: 'Silkscreen', 'Zen Maru Gothic', sans-serif;
+            font-weight: 700;
+            font-size: 1.35rem;
+            color: var(--text-dark);
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 3px solid var(--pixel-border);
+            padding-bottom: 10px;
         }
-        .form-input:focus { outline: none; border-color: var(--primary-blue); background: white; }
-        .form-input:disabled { background: #f1f5f9; cursor: not-allowed; opacity: 0.7; }
+
+        /* 💡 縮小適中行距，版面更緊湊美觀 */
+        .form-group { margin-bottom: 16px; position: relative; }
+        .label-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        
+        .form-label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.92rem;
+            font-weight: 900;
+            color: var(--text-dark);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+
+        .forgot-link {
+            font-size: 0.88rem;
+            color: #0984e3;
+            text-decoration: none;
+            font-weight: 900;
+        }
+        .forgot-link:hover { text-decoration: underline; }
+
+        .form-input {
+            width: 100%;
+            padding: 11px 14px;
+            border: 3px solid var(--pixel-border);
+            border-radius: 0px;
+            background: #ffffff;
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            outline: none;
+            box-shadow: inset 3px 3px 0 #dfe4ea;
+            transition: 0.1s;
+        }
+        .form-input:focus {
+            background: #fffdf2;
+            border-color: #000;
+            box-shadow: inset 3px 3px 0 rgba(255, 192, 72, 0.45);
+        }
+        .form-input:disabled {
+            background: #dfe4ea;
+            cursor: not-allowed;
+            color: #747d8c;
+            box-shadow: none;
+        }
 
         .google-badge {
-            background: #fff5f5; color: var(--google-red); 
-            padding: 10px 15px; border-radius: 12px; font-weight: 800; font-size: 0.9rem;
-            display: flex; align-items: center; gap: 8px; margin-bottom: 20px;
+            background: #ffeaa7;
+            color: var(--text-dark);
+            border: 3px solid var(--pixel-border);
+            box-shadow: 4px 4px 0 #000;
+            padding: 10px 14px;
+            font-weight: 900;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 18px;
         }
 
-        .btn-group { display: flex; gap: 15px; margin-top: 20px; }
-        .btn-3d {
-            flex: 1; padding: 20px; border: none; border-radius: 18px;
-            font-size: 1.2rem; font-weight: 900; cursor: pointer; transition: 0.1s;
-            display: flex; align-items: center; justify-content: center;
-        }
-        .btn-save { background: var(--success-green); color: white; box-shadow: 0 6px 0 var(--success-green-shadow); }
-        .btn-cancel { background: var(--sidebar-dark); color: white; box-shadow: 0 6px 0 var(--sidebar-dark-shadow); }
-        .btn-3d:active { transform: translateY(4px); box-shadow: none; }
+        .btn-group { display: flex; gap: 14px; margin-top: 22px; }
 
-        .modal { z-index: 2000; }
+        .btn-pixel {
+            flex: 1;
+            padding: 13px;
+            border: 3px solid var(--pixel-border);
+            font-size: 1.1rem;
+            font-weight: 900;
+            cursor: pointer;
+            transition: all 0.06s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            letter-spacing: 0.5px;
+        }
+        .btn-pixel:active {
+            transform: translate(3px, 3px) !important;
+            box-shadow: 0 0 0 #000 !important;
+        }
+
+        .btn-save {
+            background: var(--pixel-green);
+            color: white;
+            box-shadow: 0 5px 0 #000;
+        }
+        .btn-save:hover { filter: brightness(1.05); }
+
+        .btn-cancel {
+            background: #dfe4ea;
+            color: var(--text-dark);
+            box-shadow: 0 5px 0 #000;
+        }
+        .btn-cancel:hover { background: #ced6e0; }
+
+        .btn-verify-otp {
+            width: 110px;
+            padding: 0;
+            font-size: 0.92rem;
+            background: var(--bee-yellow);
+            color: var(--text-dark);
+            border: 3px solid var(--pixel-border);
+            box-shadow: 0 4px 0 #000;
+            flex-shrink: 0;
+            font-weight: 900;
+            cursor: pointer;
+            transition: 0.06s ease;
+        }
+        .btn-verify-otp:active {
+            transform: translate(2px, 2px);
+            box-shadow: 0 0 0 #000;
+        }
+
+        /* 像素對話彈窗 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.65);
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+        .modal-content {
+            background: white;
+            padding: 32px 28px 26px;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 8px 8px 0px #000000;
+            width: 380px;
+            text-align: center;
+            animation: pixelPop 0.15s ease forwards;
+        }
+
+        #modalTitle {
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif !important;
+            font-size: 1.5rem !important;
+            font-weight: 900 !important;
+            color: var(--text-dark);
+            margin-bottom: 12px;
+            letter-spacing: 0.5px;
+        }
+
+        #modalMsg {
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif !important;
+            font-size: 1.12rem !important;
+            font-weight: 900 !important;
+            color: #2f3542;
+            margin-bottom: 22px;
+            line-height: 1.6;
+            letter-spacing: 0.5px;
+        }
+
+        .profile-content::-webkit-scrollbar { width: 8px; }
+        .profile-content::-webkit-scrollbar-track { background: #dfe4ea; border-left: 2px solid var(--pixel-border); }
+        .profile-content::-webkit-scrollbar-thumb { background: var(--pixel-border); }
+
+        @keyframes pixelPop {
+            from { transform: scale(0.9); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        @media (max-width: 850px) {
+            header { padding: 0 20px; }
+            .profile-container { flex-direction: column; width: 100%; height: auto; }
+            .profile-aside { width: 100%; }
+        }
     </style>
 </head>
 <body>
@@ -122,11 +423,11 @@
 </div>
 
 <header>
-    <div class="header-left" onclick="location.href='lobby.html'"><h1>PyPoly</h1></div>
+    <div class="header-left" onclick="location.href='lobby.html'"><h1>BeeRich</h1></div>
     <div class="header-right">
-        <div class="page-tag">個人主頁 👤</div>
+        <div class="page-tag"><span>👤</span> 個人主頁</div>
         <button class="menu-btn" onclick="toggleMenu()">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
                 <line x1="3" y1="12" x2="21" y2="12"></line>
                 <line x1="3" y1="6" x2="21" y2="6"></line>
                 <line x1="3" y1="18" x2="21" y2="18"></line>
@@ -137,88 +438,89 @@
 
 <div class="profile-main">
     <div class="profile-container">
+        <!-- 左側資訊欄 -->
         <aside class="profile-aside">
             <div class="avatar-box">
-                <div style="font-size: 3rem;">👤</div>
-                <p style="margin-top:10px;">點擊更換頭像</p>
+                <div style="font-size: 3.2rem;">👾</div>
+                <p style="margin-top: 10px; font-weight: 900; font-size: 0.95rem;">點擊更換頭像</p>
             </div>
             <div class="current-id" id="displayUsername">載入中...</div>
             <div class="current-email" id="displayEmail">載入中...</div>
         </aside>
 
+        <!-- 右側資料編輯面版 -->
         <main class="profile-content">
-            <h2 style="font-weight: 900; margin-bottom: 25px;">編輯帳戶資訊</h2>
+            <h2 class="content-title"><span>📝</span> 編輯帳戶資訊</h2>
 
             <div id="googleNotice" style="display: none;" class="google-badge">
                 <span>🌐</span> 您目前使用 Google 帳號登入，密碼由 Google 管理。
             </div>
             
             <div class="form-group">
-                <label class="form-label">更改使用者 ID</label>
+                <label class="form-label"><span>👾</span> 更改使用者 ID</label>
                 <input type="text" id="inputUsername" class="form-input">
             </div>
 
-			<div class="form-group">
-				<label class="form-label">目前電子信箱 (Current Email)</label>
-				<input type="email" id="displayInputEmail" class="form-input" disabled style="background: #f1f5f9; cursor: not-allowed;">
-			</div>
+            <div class="form-group">
+                <label class="form-label"><span>✉️</span> 目前電子信箱 (Current Email)</label>
+                <input type="email" id="displayInputEmail" class="form-input" disabled>
+            </div>
 
-			<div id="emailChangeSection">
-				<div class="form-group">
-					<label class="form-label">新電子信箱 (New Email)</label>
-					<div style="display: flex; gap: 10px; align-items: stretch;">
-						<input type="email" id="newEmailInput" class="form-input" placeholder="請輸入新信箱" style="flex: 1;">
-						<button type="button" onclick="sendEmailOTP()" class="btn-3d" style="width: 100px; padding: 0; font-size: 0.9rem; background: var(--primary-blue); color: white; box-shadow: 0 4px 0 #3d8bcd; flex-shrink: 0;">驗證信箱</button>
-					</div>
-				</div>
+            <div id="emailChangeSection">
+                <div class="form-group">
+                    <label class="form-label"><span>📬</span> 新電子信箱 (New Email)</label>
+                    <div style="display: flex; gap: 10px; align-items: stretch;">
+                        <input type="email" id="newEmailInput" class="form-input" placeholder="請輸入新信箱" style="flex: 1;">
+                        <button type="button" onclick="sendEmailOTP()" class="btn-verify-otp">驗證信箱</button>
+                    </div>
+                </div>
 
-				<div id="emailOtpGroup" class="form-group" style="display: none; margin-top: 15px;">
-					<label class="form-label">新信箱驗證碼</label>
-					<input type="text" id="emailOtp" class="form-input" placeholder="請輸入 6 位數驗證碼">
-					<small style="color: var(--primary-blue); font-weight: 700;">* 請至新信箱查收驗證碼</small>
-				</div>
-			</div>
+                <div id="emailOtpGroup" class="form-group" style="display: none; margin-top: 12px;">
+                    <label class="form-label"><span>🔑</span> 新信箱驗證碼</label>
+                    <input type="text" id="emailOtp" class="form-input" placeholder="請輸入 6 位數驗證碼">
+                    <small style="color: #0984e3; font-weight: 900; margin-top: 4px; display: block;">* 請至新信箱查收驗證碼</small>
+                </div>
+            </div>
 
             <div id="passwordEditSection">
-                <hr style="border: 0; border-top: 2px dashed var(--border-light); margin: 30px 0;">
+                <hr style="border: 0; border-top: 3px dashed var(--pixel-border); margin: 20px 0;">
 
                 <div class="form-group">
                     <div class="label-row">
-                        <label class="form-label">原密碼 (Old Password)</label>
+                        <label class="form-label" style="margin-bottom: 0;"><span>🔒</span> 原密碼 (Old Password)</label>
                         <a href="forgot.html" class="forgot-link">忘記密碼？</a>
                     </div>
                     <input type="password" id="oldPassword" class="form-input" placeholder="請輸入當前密碼以進行修改">
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">設定新密碼 (New Password)</label>
+                    <label class="form-label"><span>✨</span> 設定新密碼 (New Password)</label>
                     <input type="password" id="newPassword" class="form-input" placeholder="請輸入新密碼">
                 </div>
             </div>
 
             <div class="btn-group">
-                <button class="btn-3d btn-cancel" onclick="location.href='lobby.html'">返回大廳</button>
-                <button class="btn-3d btn-save" onclick="saveChanges()">確認儲存</button>
+                <button class="btn-pixel btn-cancel" onclick="location.href='lobby.html'">返回大廳</button>
+                <button class="btn-pixel btn-save" onclick="saveChanges()">確認儲存</button>
             </div>
         </main>
     </div>
 </div>
 
-<div id="statusModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); justify-content: center; align-items: center;">
-    <div class="modal-content" style="background: white; padding: 40px; border-radius: 40px; width: 380px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.15);">
-        <h3 id="modalTitle" style="font-weight: 900; margin-bottom: 15px; font-size: 1.5rem;">提示</h3>
-        <p id="modalMsg" style="margin-bottom: 25px; color: var(--text-gray); font-weight: 700; line-height: 1.5;"></p>
-        <button onclick="closeModal()" class="btn-3d" id="modalBtn" style="width: 100%; background: var(--primary-yellow); box-shadow: 0 6px 0 #e6c543; color: #574b10; border: none; padding: 15px; border-radius: 15px; font-weight: 900; cursor: pointer;">確定</button>
+<!-- 像素對話彈窗 -->
+<div id="statusModal" class="modal">
+    <div class="modal-content">
+        <h3 id="modalTitle">提示</h3>
+        <p id="modalMsg"></p>
+        <button onclick="closeModal()" class="btn-pixel" id="modalBtn" style="width: 100%; background: var(--bee-yellow); color: var(--text-dark); box-shadow: 0 5px 0 #000;">確定</button>
     </div>
 </div>
 
 <script src="js/ngrok-fetch.js"></script>
 <script>
     const API_URL = location.origin;
-    let syncTimer = null; // 用於儲存心跳計時器
+    let syncTimer = null;
 
-    // --- 1. 頁面初始化：驗證、復活與資料載入 ---
-    // 這裡實作了老師要求的「驗證與自動續期」邏輯
     window.onload = async function() {
         const username = localStorage.getItem('username');
         const token = localStorage.getItem('token');
@@ -229,9 +531,6 @@
         }
 
         try {
-            // =============================
-            // 🏆 核心：老師建議的驗證與續期 (對接 FastAPI)
-            // =============================
             const verifyRes = await fetch(`${API_URL}/auth/verify_and_refresh?username=${encodeURIComponent(username)}`, {
                 method: "POST",
                 headers: { 'Authorization': `Bearer ${token}` }
@@ -246,10 +545,8 @@
 
             console.log("個人主頁驗證成功，狀態已復活");
 
-            // 啟動監控循環 (檢查是否被踢出)
             startSyncLoop(username, token);
 
-            // 載入用戶資料顯示於頁面
             const response = await fetch(`${API_URL}/auth/me?username=${encodeURIComponent(username)}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -265,7 +562,6 @@
                     currentEmailField.value = data.email;
                 }
 
-                // 判斷是否為 Google 用戶
                 if (data.is_google_user === true) {
                     document.getElementById('passwordEditSection').style.display = 'none';
                     document.getElementById('emailChangeSection').style.display = 'none';
@@ -277,24 +573,20 @@
         }
     };
 
-    // --- 2. 核心監控循環 ---
     function startSyncLoop(username, token) {
         if (syncTimer) clearInterval(syncTimer);
         syncTimer = setInterval(async () => {
             try {
-                // 發送心跳 (確保 last_active 持續更新)
                 fetch(`${API_URL}/auth/heartbeat?username=${encodeURIComponent(username)}`, {
                     method: 'POST', 
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
-                // 同步狀態校對 (防止重複登入或被封鎖)
                 const res = await fetch(`${API_URL}/auth/me?username=${encodeURIComponent(username)}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (res.ok) {
                     const data = await res.json();
-                    // 如果被後端判定為離線，立刻跳轉回登入頁
                     if (data.is_online === 0 || data.role === 'banned') {
                         clearInterval(syncTimer);
                         localStorage.clear();
@@ -305,49 +597,38 @@
         }, 5000);
     }
 
-    // --- 3. 導航與登出 ---
     function toggleMenu() {
         document.getElementById('sideMenu').classList.toggle('open');
         document.getElementById('overlay').classList.toggle('open');
     }
 
-		// 🏆 修正後的登出功能：帶上 confirm=true 參數繞過攔截
-		
-	async function logout() {
-		// 1. 停止心跳，防止登出後被「復活」
-		if (typeof syncTimer !== 'undefined' && syncTimer) {
-			clearInterval(syncTimer);
-		}
+    async function logout() {
+        if (typeof syncTimer !== 'undefined' && syncTimer) {
+            clearInterval(syncTimer);
+        }
 
-		const username = localStorage.getItem('username');
-		if (!username) return;
+        const username = localStorage.getItem('username');
+        if (!username) return;
 
-		// 🏆 暴力拼接網址，確保 confirm=true 一定會被帶過去
-		const url = API_URL + "/auth/logout?username=" + encodeURIComponent(username) + "&confirm=true";
-		
-		// 檢查點：請在 F12 控制台看看這行印出的網址尾巴有沒有 confirm=true
-		console.log("正在發送登出請求到:", url);
+        const url = API_URL + "/auth/logout?username=" + encodeURIComponent(username) + "&confirm=true";
+        console.log("正在發送登出請求到:", url);
 
-		try {
-			const response = await fetch(url, { 
-				method: 'POST',
-				mode: 'cors', // 確保跨域正常
-				cache: 'no-cache' // 告訴瀏覽器不要用快取
-			});
-			const result = await response.json();
-			console.log("後端回應：", result);
-		} catch (err) {
-			console.error("登出連線失敗", err);
-		}
+        try {
+            const response = await fetch(url, { 
+                method: 'POST',
+                mode: 'cors',
+                cache: 'no-cache'
+            });
+            const result = await response.json();
+            console.log("後端回應：", result);
+        } catch (err) {
+            console.error("登出連線失敗", err);
+        }
 
-		// 2. 清理本地端資料
-		localStorage.clear();
-		
-		// 3. 跳轉
-		window.location.href = 'login.html';
-	}
+        localStorage.clear();
+        window.location.href = 'login.html';
+    }
 
-    // --- 4. 修改資料邏輯 (保留你原本的功能) ---
     async function sendEmailOTP() {
         const newEmail = document.getElementById('newEmailInput').value.trim();
         if (!newEmail) return showModal("⚠️ 提示", "請先輸入新的 Email 喔！", false);
@@ -412,7 +693,6 @@
         }
     }
 
-    // --- 5. 彈窗 UI 控制 ---
     function showModal(title, message, isSuccess = true) {
         const modal = document.getElementById('statusModal');
         document.getElementById('modalTitle').innerText = title;
@@ -423,9 +703,6 @@
     function closeModal() {
         document.getElementById('statusModal').style.display = 'none';
     }
-
-    // 🏆 已經徹底移除 window.addEventListener('beforeunload')！
-    // 解決了跳轉就登出的問題。
 </script>
 </body>
 </html>
