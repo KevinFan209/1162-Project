@@ -1741,13 +1741,9 @@ function startAdventureRecognition(questionObj) {
     const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
 
-    // 🚨 極致偵錯：直接彈出視窗，讓你我都能看到到底傳了什麼資料進來！
     const qCategory = questionObj ? questionObj.category : '找不到';
-    const qContent = questionObj ? questionObj.content : '找不到';
     const rMode = roomData ? roomData.mode : '找不到';
-    
-    alert(`【系統抓漏報告】\n\n1. 後端傳來的題目類別: ${qCategory}\n2. 題目內容: ${qContent}\n3. 房間目前的模式: ${rMode}`);
-    
+
     console.log("🚨 [深度偵錯] 完整的 questionObj:", questionObj);
     console.log("🚨 [深度偵錯] 完整的 roomData:", roomData);
 
@@ -4451,6 +4447,17 @@ function showAdventureTaskUI(questionObj) {
     initCameraAndStartVision(); // 開啟視訊
 }
 
+// 🏆 觀戰者看到的「只有按鈕、看不到內容」選項清單——固定 4 個。
+// 抽成共用函式的原因：原本 showAdventureTaskUI_Spectator() 跟
+// updateSpectatorUI() 的 QUIZ 分支各自土炮一份一樣的 HTML，兩邊各是
+// 玩家中途切進觀戰模式／已經在觀戰中收到即時廣播兩個不同進入點，
+// 只改了其中一處導致另一處漏改、永遠少第 4 個選項（issue #12）。
+function renderSpectatorOptionPills() {
+    return [1, 2, 3, 4].map(num =>
+        `<div class="opt-pill" id="spec-opt-${num}">選項 ${num}</div>`
+    ).join("");
+}
+
 // 🏆 這是給「觀戰者」看的 (隱藏選項內容 + 不開相機)
 function showAdventureTaskUI_Spectator(questionObj) {
     const taskUI = document.getElementById('adventure-task-ui');
@@ -4458,10 +4465,7 @@ function showAdventureTaskUI_Spectator(questionObj) {
     document.getElementById('adv-question-text').innerText = `【觀戰模式】題目：${questionObj.content}`;
 
     // 觀戰者只看得到按鈕，看不到裡面寫什麼 [需求：看不到內容，只能看到按鈕]
-    // 🏆 修正：原本寫死只有 [1,2,3]，永遠少第 4 個選項按鈕
-    document.getElementById('adv-options').innerHTML = [1, 2, 3, 4].map(num =>
-        `<div class="opt-pill" id="spec-opt-${num}">選項 ${num}</div>`
-    ).join("");
+    document.getElementById('adv-options').innerHTML = renderSpectatorOptionPills();
 
     taskUI.style.display = 'block';
     // 觀戰者不需要 window.uiState = "GESTURE"，因為他們不必比手勢
@@ -7611,9 +7615,7 @@ function updateSpectatorUI(data) {
         // 🏆 2. 延遲 2.5 秒 (與主角的準備時間完美同步)，再顯示真實選項
         setTimeout(() => {
             questionText.innerText = `【觀戰】題目：${data.payload?.question?.content || "回答問題中"}`;
-            optionsArea.innerHTML = [1, 2, 3].map(num => 
-                `<div class="opt-pill" id="spec-opt-${num}">選項 ${num}</div>`
-            ).join("");
+            optionsArea.innerHTML = renderSpectatorOptionPills();
             optionsArea.style.display = 'flex';
 
             // 補回亮燈：如果玩家已經選了，立即顯示顏色
