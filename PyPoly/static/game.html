@@ -788,7 +788,7 @@
         }
 
         const audio = sfxPlayers[key] ??= new Audio(src);
-        audio.volume = 0.9;
+        audio.volume = 1.0;
         audio.currentTime = 0;
 
         audio.play()
@@ -798,7 +798,7 @@
     
     const gameBgm = new Audio('/static/sounds/all_game.mp3');
     gameBgm.loop = true;
-    gameBgm.volume = 0.25;
+    gameBgm.volume = 0.08;
 
     document.addEventListener('click', () => {
         gameBgm.play().catch(error => console.warn('背景音樂播放失敗：', error));
@@ -3689,7 +3689,7 @@ async function executeStealAnimation(attackerName) {
     // 2. 動畫結束後，扣除金錢並廣播
     updateMoneyUI(victimName, -300);
     updateMoneyUI(attackerName, 300);
-    playSfx('steal'); // 🏆 需求⑥：搶錢（敲金幣聲）
+    //playSfx('steal'); // 🏆 需求⑥：搶錢（敲金幣聲）
 
     // 扣除背包道具 (用掉一次)
     deductItemFromInventory(attackerName, "item_steal"); // 🏆 使用道具，即時更新 UI
@@ -3774,6 +3774,8 @@ async function playStealAnimationCore(attackerName, victimName) {
             tl.to(attackerModel.rotation, { x: -0.6, duration: 0.25, ease: "power2.inOut" }) 
               .to(attackerModel.rotation, { x: 0.7, duration: 0.12, ease: "none" }) 
               .add(() => {
+                  playSfx('steal');
+
                   gsap.to(victimModel.position, { x: victimModel.position.x + (i%2===0?0.15:-0.15), duration: 0.05, yoyo: true, repeat: 3 });
                   // 🏆 呼叫專屬 2D 跳字特效 (紅色)
                   spawnCombatText('right', "🪙 -$50", "#ff4757"); 
