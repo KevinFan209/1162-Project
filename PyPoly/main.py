@@ -1668,6 +1668,11 @@ async def handle_buy_land(sid, data):
     user = data['user']
     tile_index = data['tileIndex']
     price = data.get('price', 500)
+    # 🏆 修正：加蓋第二棟房子時前端已經正確把過路費算成兩倍（window.newToll），
+    # 但這裡原本沒有把 toll 收進來、也沒有廣播出去，導致雙方畫面上的過路費
+    # 永遠停在舊值（只算一棟的錢）。這裡原封不動轉發前端送來的值即可，
+    # 不需要在伺服器端重新計算。
+    toll = data.get('toll', 0)
 
     # 🏆 依房內玩家索引分配固定色盤，避免以隨機 sid 字串判斷造成兩人同色
     palette = ["#4facfe", "#ffde59", "#ff6b6b", "#51cf66"]
@@ -1682,7 +1687,8 @@ async def handle_buy_land(sid, data):
         'user': user,
         'tileIndex': tile_index,
         'color': color,
-        'price': price
+        'price': price,
+        'toll': toll
     }, room=room)
 
 # 🏆 模擬/實際抓取南投縣開放平台數據的函式

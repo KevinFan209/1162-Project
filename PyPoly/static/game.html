@@ -4078,7 +4078,17 @@ function fillDecisionUI(data, activePlayerName) {
 
 
 // 🏆 修正 3：從 localStorage 恢復土地所有權記憶，防止重新整理後資料遺失！
-let globalOwnedLands = JSON.parse(localStorage.getItem('pypoly_global_owned_lands')) || []; 
+// 🏆 修正：土地資料要綁在目前這個房號上；房號換了（新的一局）就清掉
+// 上一局殘留的資料，房號沒換（同一局重新整理）才繼續沿用——不然重建
+// 的房子不會消失，過路費也會繼續算到上一局的舊地主身上。
+const _activeRoomForLands = JSON.parse(localStorage.getItem('pypoly_active_room')) || {};
+const _lastLandRoomCode = localStorage.getItem('pypoly_land_ownership_room');
+if (_activeRoomForLands.code && _activeRoomForLands.code !== _lastLandRoomCode) {
+    localStorage.removeItem('pypoly_land_ownership');
+    localStorage.removeItem('pypoly_global_owned_lands');
+    localStorage.setItem('pypoly_land_ownership_room', _activeRoomForLands.code);
+}
+let globalOwnedLands = JSON.parse(localStorage.getItem('pypoly_global_owned_lands')) || [];
 window.landOwnership = JSON.parse(localStorage.getItem('pypoly_land_ownership')) || {};
 
 // 🏆 修正一、三、四：過路費精準判定、地主廣播、道具略過動畫
@@ -4426,9 +4436,12 @@ function resetChoiceUI() {
 
 function showAdventureTaskUI(questionObj) {
     const taskUI = document.getElementById('adventure-task-ui');
+    // 🏆 修正：先隱藏再更新內容，避免「新容器可見、舊選項內容還沒換掉」
+    // 同時存在的一瞬間——先前這裡會讓玩家第二次當答題者時先閃過上一輪的選項。
+    taskUI.style.display = 'none';
     document.getElementById('adv-question-text').innerText = `【挑戰題目】${questionObj.content}`;
     document.getElementById('adv-options').innerHTML = questionObj.options.map(opt => `<div class="opt-pill">${opt}</div>`).join("");
-    
+
     taskUI.style.display = 'block';
 
     // 🏆 重要：將辨識目標鎖定為正確答案的數字 (例如題目答案是 2)
@@ -4441,13 +4454,15 @@ function showAdventureTaskUI(questionObj) {
 // 🏆 這是給「觀戰者」看的 (隱藏選項內容 + 不開相機)
 function showAdventureTaskUI_Spectator(questionObj) {
     const taskUI = document.getElementById('adventure-task-ui');
+    taskUI.style.display = 'none';
     document.getElementById('adv-question-text').innerText = `【觀戰模式】題目：${questionObj.content}`;
-    
+
     // 觀戰者只看得到按鈕，看不到裡面寫什麼 [需求：看不到內容，只能看到按鈕]
-    document.getElementById('adv-options').innerHTML = [1, 2, 3].map(num => 
+    // 🏆 修正：原本寫死只有 [1,2,3]，永遠少第 4 個選項按鈕
+    document.getElementById('adv-options').innerHTML = [1, 2, 3, 4].map(num =>
         `<div class="opt-pill" id="spec-opt-${num}">選項 ${num}</div>`
     ).join("");
-    
+
     taskUI.style.display = 'block';
     // 觀戰者不需要 window.uiState = "GESTURE"，因為他們不必比手勢
 }
