@@ -257,15 +257,12 @@
             height: 100%;
         }
 
-        /* 💡 確實加上了 box-shadow: 6px 6px 0 #000; */
+        /* 💡 修正陰影：改為右下方塊狀像素陰影 box-shadow: 6px 6px 0 #000; */
         .board-header {
             background: white;
             padding: 18px 30px;
             border: 4px solid var(--pixel-border);
             box-shadow: 6px 6px 0 #000;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
         }
 
         .btn-create {
@@ -409,10 +406,10 @@
 
         <!-- 右側主視窗 -->
         <main class="main-board">
-            <header class="board-header">
+            <div class="board-header" style="display: flex; justify-content: space-between; align-items: center;">
                 <h3 style="font-weight: 900; font-size: 1.35rem; color: var(--text-dark);">尋找挑戰者</h3>
                 <button class="btn-pixel btn-create" onclick="checkAndCreateRoom()">+ 建立新對局</button>
-            </header>
+            </div>
 
             <div id="quickJoinArea" class="quick-join-bar">
                 <span style="font-weight: 900; color: var(--text-dark); white-space: nowrap;">🔑 快速加入</span>
@@ -719,7 +716,7 @@
             }
         } catch (err) { 
             console.error("連線失敗", err);
-            alert("連線伺服器失敗，請檢查網路"); 
+            alert("連線失敗，請檢查網路"); 
         }
     }
 
