@@ -272,21 +272,19 @@
             padding: 12px 24px;
             background: var(--pixel-green);
             color: white;
-            box-shadow: 0 5px 0 #000;
+            box-shadow: none; /* 移除下方黑色陰影 */
             font-size: 1.05rem;
         }
         .btn-create:hover { filter: brightness(1.05); }
 
-        /* 💡 移除陰影：改為純邊框外觀 */
-        .quick-join-bar {
-            background: white;
-            padding: 14px 28px;
-            border: 4px solid var(--pixel-border);
-            box-shadow: none !important;
-            display: flex;
-            align-items: center;
-            gap: 16px;
+        .btn-join {
+            padding: 10px 24px;
+            background: var(--bee-yellow);
+            color: var(--text-dark);
+            box-shadow: none; /* 移除下方黑色陰影 */
+            font-size: 1rem;
         }
+        .btn-join:hover { filter: brightness(1.05); }
 
         .quick-input {
             flex: 1;
