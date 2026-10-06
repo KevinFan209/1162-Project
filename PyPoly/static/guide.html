@@ -3,108 +3,300 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Beerich - 冒險生存手冊</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
+    <title>BeeRich - 冒險生存手冊</title>
+    <!-- 引入與全站一致的精選像素與高質感字型 -->
+    <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
     <style>
         :root {
-            --success-green: #00cdac;
-            --success-green-shadow: #00a88b;
-            --bg-gray: #f1f5f9;
-            --text-dark: #000000;
-            --text-gray: #64748b;
-            --border-light: #e2e8f0;
-            --primary-blue: #4facfe;
-            --danger-red: #ff7675;
+            --pixel-border: #1e272e;
+            --bee-gold: #ffc048;
+            --bee-yellow: #ffdd59;
+            --bee-dark: #2f3542;
+            --pixel-green: #05c46b;
+            --pixel-blue: #0fbcf9;
+            --pixel-red: #ff3f34;
+            --bg-grid: #d2dae2;
+            --card-bg: #ffffff;
+            --text-dark: #1e272e;
+            --text-gray: #747d8c;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', '微軟正黑體', sans-serif; }
+        html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            outline: none !important;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            image-rendering: pixelated;
+        }
 
         body {
-            background-color: var(--bg-gray);
-            height: 100%;
-            display: flex; flex-direction: column;
-            overflow: hidden;
+            background-color: var(--bg-grid);
+            /* 像素幾何網格背景 */
+            background-image: 
+                linear-gradient(rgba(0, 0, 0, 0.05) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.05) 2px, transparent 2px);
+            background-size: 28px 28px;
+            display: flex;
+            flex-direction: column;
             position: relative;
         }
 
+        /* 頂部像素風格導覽列 */
         header {
-            background: linear-gradient(to bottom, #ffffff 0%, #fcfcfc 100%);
-            padding: 0 40px; display: flex; justify-content: space-between; align-items: center;
-            height: 85px; 
-            /* 🏆 提高層級，確保 Logo 點擊不會被內容遮擋 */
-            z-index: 1001; 
-            border-bottom: 1.5px solid var(--border-light); 
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+            margin: 0 !important;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: white;
+            padding: 0 35px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 80px;
+            z-index: 1001;
+            border: none;
+            border-bottom: 4px solid var(--pixel-border);
+            box-shadow: none !important;
             position: relative;
+            flex-shrink: 0;
         }
 
         .header-left h1 {
-            font-size: 2.5rem;
-            font-weight: 900;
-            margin-bottom: 10px;
-            color: var(--text-dark);
+            font-family: 'VT323', monospace;
+            font-size: 3.2rem;
+            line-height: 1;
+            color: var(--bee-gold);
+            text-shadow: 
+                2px 2px 0 var(--pixel-border),
+                -1.5px -1.5px 0 var(--pixel-border),
+                2px -1.5px 0 var(--pixel-border),
+                -1.5px 2px 0 var(--pixel-border),
+                4px 4px 0 var(--bee-dark);
+            letter-spacing: 2px;
+            user-select: none;
+            cursor: pointer;
         }
-        .header-right { display: flex; align-items: center; gap: 20px; }
-        .page-tag { font-weight: 800; color: var(--text-gray); background: #f1f5f9; padding: 10px 22px; border-radius: 12px; font-size: 0.95rem; }
+
+        .header-right { display: flex; align-items: center; gap: 18px; }
+
+        .page-tag {
+            background: #fffdf2;
+            border: 3px solid var(--pixel-border);
+            padding: 6px 16px;
+            border-radius: 4px;
+            font-weight: 900;
+            font-size: 1rem;
+            color: var(--text-dark);
+            box-shadow: 3px 3px 0 #000;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
 
         .menu-btn {
-            background: transparent; border: none; cursor: pointer;
-            display: flex; flex-direction: column; justify-content: center;
-            padding: 10px; transition: 0.2s;
+            background: white;
+            border: 3px solid var(--pixel-border);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px;
+            box-shadow: 3px 3px 0 #000;
+            transition: 0.1s;
         }
-        .menu-btn:hover { opacity: 0.6; }
+        .menu-btn:hover { background: #fffdf2; }
+        .menu-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
 
         .menu-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.15); display: none; z-index: 999;
-            backdrop-filter: blur(2px);
+            background: rgba(0, 0, 0, 0.45); display: none; z-index: 999;
         }
         .menu-overlay.open { display: block; }
 
         .side-menu {
             position: fixed; top: 0; right: -320px; width: 320px; height: 100%;
-            background: white; box-shadow: -10px 0 30px rgba(0,0,0,0.05);
-            z-index: 1000; transition: 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
-            padding: 100px 30px 40px; display: flex; flex-direction: column; gap: 15px;
+            background: white; border-left: 4px solid var(--pixel-border);
+            box-shadow: -8px 0 0 rgba(0,0,0,0.2);
+            z-index: 1000; transition: 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
+            padding: 90px 25px 35px; display: flex; flex-direction: column; gap: 14px;
         }
         .side-menu.open { right: 0; }
 
         .menu-item {
-            padding: 18px 25px; border-radius: 15px; font-weight: 800;
-            color: var(--text-gray); text-decoration: none; display: flex;
-            align-items: center; gap: 15px; transition: 0.2s; background: #f8fafc;
+            padding: 14px 20px; font-weight: 900;
+            color: var(--text-dark); text-decoration: none; display: flex;
+            align-items: center; gap: 12px; transition: 0.1s; background: #f1f2f6;
+            border: 3px solid var(--pixel-border); box-shadow: 3px 3px 0 #000;
         }
-        .menu-item:hover { background: var(--bg-gray); color: var(--text-dark); }
-        .menu-item.danger { margin-top: auto; color: #ff4757; cursor: pointer; }
+        .menu-item:hover { background: var(--bee-yellow); }
+        .menu-item:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+        .menu-item.danger { margin-top: auto; color: white; background: var(--pixel-red); }
 
-        .guide-main { flex: 1; display: flex; justify-content: center; align-items: center; padding: 20px; z-index: 1; }
+        /* 主卡片容器 */
+        .guide-main {
+            height: calc(100vh - 80px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            z-index: 1;
+            overflow: hidden;
+        }
+
         .guide-card {
-            background: white; width: 95%; max-width: 850px; height: 85vh;
-            padding: 40px 60px; border-radius: 40px; box-shadow: 0 20px 60px rgba(0,0,0,0.08);
-            border: 1.5px solid var(--border-light); display: flex; flex-direction: column;
-            animation: cardSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+            background: white;
+            width: 95%;
+            max-width: 880px;
+            height: 100%;
+            padding: 30px 40px 25px;
+            border-radius: 6px;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 8px 8px 0px #000;
+            display: flex;
+            flex-direction: column;
+            animation: cardSlideUp 0.2s ease-out;
         }
-        @keyframes cardSlideUp { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
-        
-        .guide-header { text-align: center; margin-bottom: 30px; }
-        .guide-header h2 { font-weight: 900; font-size: 2.2rem; color: var(--text-dark); letter-spacing: 1px; }
 
-        .guide-scroll { flex: 1; overflow-y: auto; padding-right: 15px; }
-        .rule-section { margin-bottom: 20px; display: flex; gap: 20px; padding: 25px; background: #f8fafc; border-radius: 30px; border: 1.5px solid #f1f2f6; transition: 0.4s; }
-        .rule-section:hover { border-color: var(--success-green); background: #ffffff; transform: translateY(-5px); }
-        .rule-icon { background: var(--success-green); color: white; width: 48px; height: 48px; border-radius: 16px; display: flex; justify-content: center; align-items: center; font-weight: 900; flex-shrink: 0; box-shadow: 0 5px 0 var(--success-green-shadow); }
-        .rule-info h3 { font-weight: 900; font-size: 1.25rem; margin-bottom: 8px; color: var(--text-dark); }
-        .rule-info p { color: var(--text-gray); font-weight: 700; line-height: 1.7; font-size: 1rem; }
-        
-        .highlight-blue { color: var(--primary-blue); font-weight: 900; }
-        .highlight-red { color: var(--danger-red); font-weight: 900; }
-        .start-bonus-tag { background: #fff9db; color: #fab005; padding: 2px 8px; border-radius: 6px; font-weight: 900; }
+        @keyframes cardSlideUp {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
 
-        .btn-start { margin-top: 25px; padding: 22px; background: var(--success-green); color: white; border: none; border-radius: 25px; font-size: 1.4rem; font-weight: 900; cursor: pointer; box-shadow: 0 8px 0 var(--success-green-shadow); transition: 0.2s; }
-        .btn-start:active { transform: translateY(8px); box-shadow: 0 0 0 var(--success-green-shadow); }
-        
+        .guide-header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 3px solid var(--pixel-border);
+            padding-bottom: 12px;
+        }
+
+        .guide-header h2 {
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            font-weight: 900;
+            font-size: 1.8rem;
+            color: var(--text-dark);
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .guide-scroll {
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 12px;
+        }
+
+        .rule-section {
+            margin-bottom: 16px;
+            display: flex;
+            gap: 16px;
+            padding: 18px 20px;
+            background: #f8fafc;
+            border: 3px solid var(--pixel-border);
+            box-shadow: 4px 4px 0 #000;
+            transition: 0.1s ease;
+        }
+
+        .rule-section:hover {
+            border-color: #000;
+            background: #fffdf5;
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 #000;
+        }
+
+        .rule-icon {
+            background: var(--bee-yellow);
+            color: var(--text-dark);
+            width: 44px;
+            height: 44px;
+            border: 3px solid var(--pixel-border);
+            border-radius: 4px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Silkscreen', 'Zen Maru Gothic', monospace;
+            font-size: 1.25rem;
+            font-weight: 900;
+            flex-shrink: 0;
+            box-shadow: 3px 3px 0 #000;
+        }
+
+        .rule-info h3 {
+            font-weight: 900;
+            font-size: 1.2rem;
+            margin-bottom: 6px;
+            color: var(--text-dark);
+        }
+
+        .rule-info p {
+            color: #2f3542;
+            font-weight: 900;
+            line-height: 1.65;
+            font-size: 0.95rem;
+        }
+
+        .highlight-blue {
+            color: var(--pixel-blue);
+            font-weight: 900;
+        }
+
+        .highlight-red {
+            color: var(--pixel-red);
+            font-weight: 900;
+        }
+
+        .start-bonus-tag {
+            background: #ffeaa7;
+            color: var(--text-dark);
+            border: 2px solid var(--pixel-border);
+            padding: 1px 6px;
+            font-weight: 900;
+            box-shadow: 2px 2px 0 #000;
+            display: inline-block;
+        }
+
+        .btn-start {
+            margin-top: 18px;
+            padding: 16px;
+            background: var(--bee-yellow);
+            color: var(--text-dark);
+            border: 3px solid var(--pixel-border);
+            border-radius: 0;
+            font-size: 1.25rem;
+            font-weight: 900;
+            cursor: pointer;
+            box-shadow: 0 6px 0 #000;
+            transition: all 0.06s ease;
+            user-select: none;
+            letter-spacing: 1px;
+            width: 100%;
+        }
+
+        .btn-start:hover { filter: brightness(1.05); }
+        .btn-start:active {
+            transform: translateY(6px);
+            box-shadow: 0 0 0 #000;
+        }
+
         .guide-scroll::-webkit-scrollbar { width: 8px; }
-        .guide-scroll::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        .guide-scroll::-webkit-scrollbar-track { background: #dfe4ea; border-left: 2px solid var(--pixel-border); }
+        .guide-scroll::-webkit-scrollbar-thumb { background: var(--pixel-border); }
+
+        @media (max-width: 850px) {
+            header { padding: 0 20px; }
+            .guide-card { padding: 25px 20px; width: 100%; }
+        }
     </style>
 </head>
 <body>
@@ -121,12 +313,11 @@
 </div>
 
 <header>
-    <div class="header-left"><h1>Beerich</h1>
-    </div>
+    <div class="header-left" onclick="location.href='lobby.html'"><h1>BeeRich</h1></div>
     <div class="header-right">
-        <div class="page-tag">遊戲說明 📖</div>
+        <div class="page-tag"><span>📖</span> 遊戲說明</div>
         <button class="menu-btn" onclick="toggleMenu()">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
                 <line x1="3" y1="12" x2="21" y2="12"></line>
                 <line x1="3" y1="6" x2="21" y2="6"></line>
                 <line x1="3" y1="18" x2="21" y2="18"></line>
@@ -139,6 +330,7 @@
     <div class="guide-card">
         <div class="guide-header"><h2>📖 冒險生存手冊</h2></div>
         <div class="guide-scroll">
+            
             <div class="rule-section">
                 <div class="rule-icon">1</div>
                 <div class="rule-info">
@@ -194,6 +386,7 @@
                     <p>每繞行棋盤一圈並經過起點，可領取 <span class="start-bonus-tag">$1,000</span> 補給金。</p>
                 </div>
             </div>
+
         </div>
         <button class="btn-start" onclick="location.href='lobby.html'">我準備好了，出發！</button>
     </div>
@@ -202,7 +395,7 @@
 <script src="js/ngrok-fetch.js"></script>
 <script>
     const API_URL = location.origin;
-    let syncTimer = null; // 🏆 用於維持在線狀態
+    let syncTimer = null;
 
     // --- 1. 選單與導航 ---
     function toggleMenu() {
@@ -223,7 +416,6 @@
         }
 
         try {
-            // 🏆 核心：老師的邏輯 - 進場立刻復活
             const res = await fetch(`${API_URL}/auth/verify_and_refresh?username=${encodeURIComponent(username)}`, {
                 method: "POST",
                 headers: { 'Authorization': `Bearer ${token}` }
@@ -232,7 +424,6 @@
 
             if (data.status === "success") {
                 console.log("說明頁面：狀態已復活");
-                // 🏆 啟動心跳監控，防止看說明看太久被踢
                 startSyncLoop(username, token);
             } else {
                 localStorage.clear();
@@ -240,7 +431,6 @@
             }
         } catch (err) {
             console.error("驗證失敗:", err);
-            // 如果後端沒反應，建議先留在頁面但顯示錯誤，或跳回登入
         }
     };
 
@@ -249,13 +439,11 @@
         if (syncTimer) clearInterval(syncTimer);
         syncTimer = setInterval(async () => {
             try {
-                // 發送心跳更新時間
                 fetch(`${API_URL}/auth/heartbeat?username=${encodeURIComponent(username)}`, {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
-                // 同步檢查是否被登出
                 const res = await fetch(`${API_URL}/auth/me?username=${encodeURIComponent(username)}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
@@ -272,32 +460,27 @@
     }
 
     // --- 4. 手動登出 ---
-	async function logout() {
-		// 🏆 1. 第一步：立刻停止心跳，防止登出後被「自動復活」
-		if (typeof syncTimer !== 'undefined' && syncTimer) {
-			clearInterval(syncTimer);
-		}
+    async function logout() {
+        if (typeof syncTimer !== 'undefined' && syncTimer) {
+            clearInterval(syncTimer);
+        }
 
-		const username = localStorage.getItem('username');
-		if (!username) return;
+        const username = localStorage.getItem('username');
+        if (!username) return;
 
-		// 🏆 2. 第二步：關鍵修正！網址尾巴必須加上 &confirm=true
-		// 這樣後端 main.py 才會看到 confirm，並執行 db_user.is_online = 0
-		const url = `${API_URL}/auth/logout?username=${encodeURIComponent(username)}&confirm=true`;
-		
-		try {
-			const response = await fetch(url, { method: 'POST' });
-			const result = await response.json();
-			console.log("後端回應：", result.message);
-		} catch (err) {
-			console.error("登出連線失敗", err);
-		}
+        const url = `${API_URL}/auth/logout?username=${encodeURIComponent(username)}&confirm=true`;
+        
+        try {
+            const response = await fetch(url, { method: 'POST' });
+            const result = await response.json();
+            console.log("後端回應：", result.message);
+        } catch (err) {
+            console.error("登出連線失敗", err);
+        }
 
-		// 🏆 3. 第三步：清理本地資料並跳轉
-		localStorage.clear();
-		window.location.href = 'login.html';
-	}
-    // 🏆 確保沒有 window.addEventListener('beforeunload')！
+        localStorage.clear();
+        window.location.href = 'login.html';
+    }
 </script>
 </body>
 </html>
