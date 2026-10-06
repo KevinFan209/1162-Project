@@ -2871,3 +2871,52 @@ PyPoly 變更紀錄 (changeLog)
   ⚠️ 尚未做：麻煩再測一次，確認「中途切進觀戰」跟「已經在觀戰中收到
   即時更新」這兩種情況下觀戰者都看得到 4 個選項按鈕。
 ========================================================================
+
+[2026-10-06] #72 合併 4 個分支到 main：Fan-fix-issue-v1、hsuan_advance、jiajiun-next、sandyui
+
+  背景：這 4 個分支都已經各自推上 GitHub，依序合併回 main。先用
+  git merge-tree（唯讀，不碰任何 ref/worktree）把全部分支對 main、
+  以及分支互相之間的合併結果都模擬過一次，確認真正的衝突只有 2 個，
+  才動手在暫時分支上依序合併：Fan-fix-issue-v1 → hsuan_advance →
+  jiajiun-next → sandyui。
+
+  Fan-fix-issue-v1（這幾天修的 3 個 urgent issue）、jiajiun-next
+  （新增音效、竹山備用測站、更新遊戲說明）、sandyui（13 個 UI 微調
+  commit，這次正確地接在合併後的 main 上接續開發，不是像上次 sandyai
+  那樣從舊版本分岔）這三個都跟 main 乾淨合併，沒有衝突。
+
+  唯一真正需要手動處理的是 results.html（main ⇄ hsuan_advance）：
+  跟之前合併 sandyai 時 lobby.html 的狀況一樣，兩邊都有各自獨立的
+  真實內容，不能無腦二選一。main 現在的版本是 sandyai UI 改版帶來的
+  像素風頁面，但沒有蜜蜂動畫、沒有答題紀錄顯示；hsuan_advance 的版本
+  還是舊的 Inter 字型/綠色配色（因為它分岔自更早的 main，沒跟上 UI
+  改版），但多了蜜蜂 Logo 浮動動畫、贏家的 3D 虛擬人物、以及呼叫新端點
+  GET /game/answer_logs 顯示每題作答明細（這支 API 是 main.py 新增的
+  乾淨功能，合併時完全沒衝突）。處理方式：把 hsuan_advance 新增的
+  三個功能區塊（動畫覆蓋層、資產明細展開、答題紀錄清單）移植進 main
+  現有的像素風版面，CSS 變數改用 main 的 --pixel-border/--pixel-green
+  等既有色票，不是照搬 hsuan_advance 的舊配色變數（那些變數main的
+  :root 根本沒定義）。
+
+  另外發現 main 原本這頁的漢堡選單按鈕（.menu-btn，呼叫
+  document.getElementById('sideMenu')）其實是壞的——對應的
+  #sideMenu/#overlay 這兩個 DOM 元素從來沒被加進這頁的 HTML，點了
+  只會噴 JS 例外，是從別的頁面複製 CSS/JS 時漏帶 HTML 的既有問題。
+  這次重寫這頁時沒有把這個壞按鈕一起搬過來，但也沒有去補完整的側邊
+  選單（跟這次合併無關，不擴大範圍）。
+
+  guide.html（jiajiun-next ⇄ sandyui）衝突是單純措辭差異（兩邊講的
+  是同一套遊戲規則，只是句子寫法不同），全部採用 jiajiun-next 這次
+  特意潤飾過的版本。
+
+  驗證：所有改動過的檔案都用 Node vm.Script／py_compile 過語法檢查；
+  把伺服器實際開起來，確認開機不報錯，curl 打過 results.html、
+  guide.html、game.html、lobby.html、question.html、login.html、
+  新端點 /game/answer_logs（無資料時正確回空陣列，不會 500）、以及
+  logo.jpg／player-model.js／ngrok-fetch.js 這幾個這次移植依賴到的
+  靜態檔案，全部正常。
+
+  ⚠️ 尚未做：結算頁（蜜蜂動畫／3D 人物／答題紀錄）跟遊戲說明頁的
+  實際遊玩體驗沒辦法用無瀏覽器腳本測試取代，需要你或組員實際跑完
+  一局確認畫面跟文字都正常。
+========================================================================
