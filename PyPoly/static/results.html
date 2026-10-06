@@ -6,6 +6,9 @@
     <title>BeeRich - 遊戲結算</title>
     <!-- 引入與全站一致的精選像素與高質感字型 -->
     <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
+    <!-- 結算贏家的 3D 虛擬人物要用到（來自 hsuan_advance：完成遊戲結算頁面、蜜蜂動畫與答題紀錄 API） -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="js/player-model.js"></script>
     <style>
         :root {
             --pixel-border: #1e272e;
@@ -45,7 +48,7 @@
         body {
             background-color: var(--bg-grid);
             /* 像素幾何網格背景 */
-            background-image: 
+            background-image:
                 linear-gradient(rgba(0, 0, 0, 0.05) 2px, transparent 2px),
                 linear-gradient(90deg, rgba(0, 0, 0, 0.05) 2px, transparent 2px);
             background-size: 28px 28px;
@@ -80,7 +83,7 @@
             font-size: 3.2rem;
             line-height: 1;
             color: var(--bee-gold);
-            text-shadow: 
+            text-shadow:
                 2px 2px 0 var(--pixel-border),
                 -1.5px -1.5px 0 var(--pixel-border),
                 2px -1.5px 0 var(--pixel-border),
@@ -107,46 +110,7 @@
             gap: 6px;
         }
 
-        .menu-btn {
-            background: white;
-            border: 3px solid var(--pixel-border);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 6px;
-            box-shadow: 3px 3px 0 #000;
-            transition: 0.1s;
-        }
-        .menu-btn:hover { background: #fffdf2; }
-        .menu-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
-
-        .menu-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.45); display: none; z-index: 999;
-        }
-        .menu-overlay.open { display: block; }
-
-        .side-menu {
-            position: fixed; top: 0; right: -320px; width: 320px; height: 100%;
-            background: white; border-left: 4px solid var(--pixel-border);
-            box-shadow: -8px 0 0 rgba(0,0,0,0.2);
-            z-index: 1000; transition: 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
-            padding: 90px 25px 35px; display: flex; flex-direction: column; gap: 14px;
-        }
-        .side-menu.open { right: 0; }
-
-        .menu-item {
-            padding: 14px 20px; font-weight: 900;
-            color: var(--text-dark); text-decoration: none; display: flex;
-            align-items: center; gap: 12px; transition: 0.1s; background: #f1f2f6;
-            border: 3px solid var(--pixel-border); box-shadow: 3px 3px 0 #000;
-        }
-        .menu-item:hover { background: var(--bee-yellow); }
-        .menu-item:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
-        .menu-item.danger { margin-top: auto; color: white; background: var(--pixel-red); }
-
-        /* 主佈局架構 */
+        /* 主佈局架構：左欄（排行榜＋答題紀錄）／右欄（數據報告） */
         .results-main {
             height: calc(100vh - 80px);
             display: grid;
@@ -156,18 +120,27 @@
             overflow: hidden;
         }
 
-        /* 左側：排行榜 */
-        .leaderboard-card {
+        .left-column {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+            overflow-y: auto;
+        }
+
+        .right-column { height: 100%; }
+
+        .leaderboard-card, .report-card, .q-log-card {
             background: white;
             border: 4px solid var(--pixel-border);
             box-shadow: 6px 6px 0 #000;
             padding: 30px 35px;
             display: flex;
             flex-direction: column;
-            overflow-y: auto;
         }
 
-        .section-title {
+        .report-card { height: 100%; overflow-y: auto; }
+
+        .section-title, .report-header, .q-log-header {
             font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
             font-weight: 900;
             font-size: 1.6rem;
@@ -176,15 +149,34 @@
             align-items: center;
             gap: 10px;
             color: var(--text-dark);
-            border-bottom: 3px solid var(--pixel-border);
-            padding-bottom: 12px;
             letter-spacing: 0.5px;
         }
+        .section-title {
+            border-bottom: 3px solid var(--pixel-border);
+            padding-bottom: 12px;
+        }
+        .report-header { border-left: 8px solid var(--pixel-green); padding-left: 12px; }
+        .q-log-header {
+            border-left: 8px solid var(--pixel-blue);
+            padding-left: 12px;
+            justify-content: space-between;
+            font-size: 1.35rem;
+        }
+        .q-log-hint {
+            font-size: 0.8rem;
+            color: var(--text-dark);
+            font-weight: 900;
+            background: var(--bee-yellow);
+            border: 2px solid var(--pixel-border);
+            padding: 5px 12px;
+            box-shadow: 2px 2px 0 #000;
+        }
 
-        .ranking-list {
+        .ranking-list, .q-list {
             display: flex;
             flex-direction: column;
             gap: 14px;
+            overflow-y: auto;
         }
 
         .ranking-item {
@@ -192,9 +184,6 @@
             padding: 18px 24px;
             border: 3px solid var(--pixel-border);
             box-shadow: 4px 4px 0 #000;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
             transition: all 0.08s ease;
         }
 
@@ -234,34 +223,44 @@
         }
         .score-val::before { content: "$ "; color: #d97706; }
 
-        /* 右側：學習數據報告卡片 */
-        .report-card {
-            background: white;
-            border: 4px solid var(--pixel-border);
-            box-shadow: 6px 6px 0 #000;
-            padding: 30px;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
+        /* 展開「資產明細計算」 */
+        .expand-btn {
+            background: none; border: none; color: var(--pixel-blue);
+            font-weight: 900; cursor: pointer; font-size: 0.9rem;
+            padding: 8px 0; display: block; margin-left: auto;
+        }
+        .expand-btn:hover { text-decoration: underline; }
+        .settle-details {
+            margin-top: 15px; border-top: 3px dashed var(--pixel-border);
+            padding-top: 15px; display: none;
+        }
+        .detail-row {
+            display: flex; justify-content: space-between; font-size: 0.95rem;
+            color: var(--text-dark); font-weight: 900; margin-bottom: 10px;
+        }
+        .detail-row.total {
+            font-size: 1.25rem; border-top: 3px solid var(--pixel-border);
+            padding-top: 12px; margin-top: 10px;
+        }
+        .land-detail-box {
+            background: #f8fafc; border-left: 4px solid var(--pixel-border);
+            padding: 10px 14px; margin-bottom: 10px;
+        }
+        .land-calc-row {
+            display: flex; justify-content: space-between; font-size: 0.8rem;
+            color: var(--text-gray); font-weight: 700; margin-top: 4px;
+        }
+        .land-final-row {
+            display: flex; justify-content: space-between; font-size: 0.95rem;
+            color: var(--pixel-green); font-weight: 900; margin-top: 8px;
+            border-top: 2px dashed var(--pixel-border); padding-top: 8px;
         }
 
-        .report-header {
-            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
-            font-weight: 900;
-            font-size: 1.35rem;
-            margin-bottom: 20px;
-            border-left: 8px solid var(--pixel-green);
-            padding-left: 12px;
-            color: var(--text-dark);
-            letter-spacing: 0.5px;
-        }
-        
         .data-box {
             flex: 1;
             display: flex;
             flex-direction: column;
             gap: 12px;
-            overflow-y: auto;
             padding-right: 4px;
         }
 
@@ -288,14 +287,11 @@
         }
         .data-value span { color: var(--pixel-green); margin-left: 4px; }
 
-        /* 底部雙按鈕 */
-        .btn-group { display: flex; gap: 12px; margin-top: 24px; }
-
         .btn-3d {
-            flex: 1;
+            width: 100%;
+            margin-top: 20px;
             padding: 15px 10px;
             border: 3px solid var(--pixel-border);
-            border-radius: 0;
             font-size: 1.05rem;
             font-weight: 900;
             cursor: pointer;
@@ -303,42 +299,42 @@
             user-select: none;
             letter-spacing: 0.5px;
             text-align: center;
-        }
-
-        .btn-home {
-            background: #dfe4ea;
-            color: var(--text-dark);
-            box-shadow: 0 5px 0 #000;
-        }
-        .btn-home:hover { background: #ced6e0; }
-        .btn-home:active {
-            transform: translateY(5px);
-            box-shadow: 0 0 0 #000;
-        }
-
-        .btn-again {
             background: var(--bee-yellow);
             color: var(--text-dark);
             box-shadow: 0 5px 0 #000;
         }
-        .btn-again:hover { filter: brightness(1.04); }
-        .btn-again:active {
-            transform: translateY(5px);
-            box-shadow: 0 0 0 #000;
+        .btn-3d:hover { filter: brightness(1.04); }
+        .btn-3d:active { transform: translateY(5px); box-shadow: 0 0 0 #000; }
+
+        /* 答題紀錄清單 */
+        .q-item {
+            background: #f8fafc; padding: 18px 22px; border: 3px solid var(--pixel-border);
+            border-left: 8px solid var(--pixel-border); box-shadow: 3px 3px 0 #000;
+            display: flex; flex-direction: column; gap: 10px;
         }
+        .q-item.correct { border-left-color: var(--pixel-green); }
+        .q-item.wrong { border-left-color: var(--pixel-red); }
+        .q-content { font-weight: 900; color: var(--text-dark); font-size: 1.05rem; line-height: 1.5; }
+        .q-status { font-weight: 900; font-size: 1rem; text-align: right; }
 
         /* 滾動條樣式 */
         .leaderboard-card::-webkit-scrollbar,
-        .data-box::-webkit-scrollbar {
+        .data-box::-webkit-scrollbar,
+        .left-column::-webkit-scrollbar,
+        .report-card::-webkit-scrollbar {
             width: 8px;
         }
         .leaderboard-card::-webkit-scrollbar-track,
-        .data-box::-webkit-scrollbar-track {
+        .data-box::-webkit-scrollbar-track,
+        .left-column::-webkit-scrollbar-track,
+        .report-card::-webkit-scrollbar-track {
             background: #dfe4ea;
             border-left: 2px solid var(--pixel-border);
         }
         .leaderboard-card::-webkit-scrollbar-thumb,
-        .data-box::-webkit-scrollbar-thumb {
+        .data-box::-webkit-scrollbar-thumb,
+        .left-column::-webkit-scrollbar-thumb,
+        .report-card::-webkit-scrollbar-thumb {
             background: var(--pixel-border);
         }
 
@@ -347,66 +343,88 @@
             .results-main { grid-template-columns: 1fr; height: auto; overflow: auto; }
             .report-card { height: auto; }
         }
+
+        /* 🏆 動畫覆蓋層與蜜蜂獎盃（來自 hsuan_advance） */
+        #animation-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(210, 218, 226, 0.98); z-index: 50000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .award-visuals { display: flex; align-items: flex-end; justify-content: center; gap: 30px; margin-bottom: 40px; }
+        .bee-container { position: relative; display: inline-block; animation: float 2.5s ease-in-out infinite; }
+        .bee-logo { width: 220px; height: 220px; object-fit: contain; border-radius: 30px; box-shadow: 6px 6px 0 #000; border: 4px solid var(--pixel-border); }
+        .trophy-icon { position: absolute; bottom: -30px; right: -30px; font-size: 6rem; filter: drop-shadow(0 10px 15px rgba(0,0,0,0.3)); opacity: 0; transform: scale(0); }
+        #winner-canvas { width: 200px; height: 300px; }
+        .award-text { font-size: 3rem; font-weight: 900; color: var(--text-dark); opacity: 0; text-align: center; line-height: 1.4; }
+        .winner-name-anim { color: #d97706; font-size: 4rem; display: inline-block; padding: 0 15px; }
+
+        @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-25px); } 100% { transform: translateY(0px); } }
     </style>
 </head>
 <body>
-
-<div class="menu-overlay" id="overlay" onclick="toggleMenu()"></div>
-<div class="side-menu" id="sideMenu">
-    <a href="profile.html" class="menu-item"><span>👤</span> 個人主頁</a>
-    <a href="guide.html" class="menu-item"><span>📖</span> 遊戲說明</a>
-    <a href="learn.html" class="menu-item"><span>📊</span> 學習統計</a>
-    <a href="settings.html" class="menu-item"><span>⚙️</span> 遊戲設定</a>
-    <a href="lobby.html" class="menu-item"><span>🏠</span> 返回大廳</a>
-    <a href="login.html" class="menu-item danger"><span>🚪</span> 登出遊戲</a>
-</div>
 
 <header>
     <div class="header-left" onclick="location.href='lobby.html'"><h1>BeeRich</h1></div>
     <div class="header-right">
         <div class="page-tag"><span>🏆</span> 遊戲對局結算</div>
-        <button class="menu-btn" onclick="toggleMenu()">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
-                <line x1="3" y1="12" x2="21" y2="12"></line>
-                <line x1="3" y1="6" x2="21" y2="6"></line>
-                <line x1="3" y1="18" x2="21" y2="18"></line>
-            </svg>
-        </button>
     </div>
 </header>
 
-<div class="results-main">
-    <section class="leaderboard-card">
-        <div class="section-title"><span>🏆</span> 誰是 Python 大富翁？</div>
-        <div class="ranking-list" id="rankingList">
-            <div style="text-align:center; color:var(--text-gray); font-weight:900; padding:40px;">載入結算資料中...</div>
+<div id="animation-overlay">
+    <div class="award-visuals">
+        <div class="bee-container">
+            <!-- 🏆 修正 Logo 路徑，優先抓 static 目錄 -->
+            <img src="static/logo.jpg" alt="Bee Logo" class="bee-logo" onerror="this.src='logo.jpg'">
+            <div class="trophy-icon" id="trophyIcon">🏆</div>
         </div>
-    </section>
+        <!-- 🏆 3D 虛擬人物 -->
+        <canvas id="winner-canvas"></canvas>
+    </div>
+    <div class="award-text" id="awardText">正在進行遊戲結算...</div>
+</div>
 
-    <section class="report-card">
-        <div class="report-header">本局整體答題數據</div>
-        <div class="data-box" id="dataBox"></div>
-        
-        <div class="btn-group">
-            <button class="btn-3d btn-home" onclick="location.href='lobby.html'">回大廳</button>
-            <button class="btn-3d btn-again" onclick="location.href='lobby.html'">再玩一場</button>
-        </div>
-    </section>
+<div class="results-main">
+    <div class="left-column">
+        <section class="leaderboard-card">
+            <div class="section-title"><span>🏆</span> 誰是 Python 大富翁？</div>
+            <div class="ranking-list" id="rankingList">
+                <div style="text-align:center; color:var(--text-gray); font-weight:900; padding:40px;">載入結算資料中...</div>
+            </div>
+        </section>
+
+        <section class="q-log-card" id="qLogSection">
+            <div class="q-log-header">
+                <span>📝 你的答題紀錄</span>
+                <span class="q-log-hint">💡 答題紀錄可至大廳右側選單中的學習統計查詢</span>
+            </div>
+            <div class="q-list" id="qList">
+                <div style="text-align:center; color:var(--text-gray); font-weight:900; padding:20px;">載入題目紀錄中...</div>
+            </div>
+        </section>
+    </div>
+
+    <div class="right-column">
+        <section class="report-card">
+            <div class="report-header">本局整體答題數據</div>
+            <div class="data-box" id="dataBox"></div>
+            <button class="btn-3d" onclick="location.href='lobby.html'">返回大廳</button>
+        </section>
+    </div>
 </div>
 
 <script src="js/ngrok-fetch.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
 <script>
-    function toggleMenu() {
-        document.getElementById('sideMenu').classList.toggle('open');
-        document.getElementById('overlay').classList.toggle('open');
-    }
-    
     const API_URL = location.origin;
-
     const roomCode = new URLSearchParams(window.location.search).get('room');
+    const myName = localStorage.getItem('username');
+
+    const landOwnership = JSON.parse(localStorage.getItem('pypoly_land_ownership')) || {};
+    const mapCache = JSON.parse(localStorage.getItem(`pypoly_synced_map_${roomCode}`)) || [];
 
     window.onload = () => {
         if (!roomCode) {
+            document.getElementById('animation-overlay').style.display = 'none';
             document.getElementById('rankingList').innerHTML =
                 `<div style="text-align:center;color:var(--pixel-red);font-weight:900;padding:40px;">缺少房間代碼，無法顯示結算</div>`;
             return;
@@ -449,14 +467,152 @@
                 if (attempt < MAX_RETRY) return setTimeout(() => loadResults(attempt + 1), 1000);
                 throw new Error('結算資料尚未產生');
             }
-            if (!res.ok) throw new Error('HTTP ' + res.status);
             const data = await res.json();
-            renderLeaderboard(data.leaderboard || []);
+
+            const enrichedLeaderboard = calculateTotalAssets(data.leaderboard || []);
+            await playAwardAnimation(enrichedLeaderboard);
+
+            renderLeaderboard(enrichedLeaderboard);
             renderReport(data.report || {});
+            loadMyAnswerLogs();
+
         } catch (err) {
             console.error('讀取結算失敗:', err);
+            document.getElementById('animation-overlay').style.display = 'none';
             document.getElementById('rankingList').innerHTML =
-                `<div style="text-align:center;color:var(--pixel-red);font-weight:900;padding:40px;">讀取結算資料失敗<br><span style="font-size:0.85rem;color:var(--text-gray);">${err.message}</span></div>`;
+                `<div style="text-align:center;color:var(--pixel-red);font-weight:900;padding:40px;">讀取結算資料失敗<br><span style="font-size:0.85rem;color:var(--text-gray);">${escapeHtml(err.message)}</span></div>`;
+        }
+    }
+
+    function calculateTotalAssets(leaderboard) {
+        const playerRealEstate = {};
+        const finalRound = leaderboard.length > 0 ? (leaderboard[0].laps || 1) : 1;
+
+        Object.keys(landOwnership).forEach(tileIdx => {
+            const land = landOwnership[tileIdx];
+            if (!land.owner) return;
+
+            let landName = land.name;
+            if ((!landName || landName === "未知") && mapCache[tileIdx]) {
+                landName = mapCache[tileIdx].data?.name || mapCache[tileIdx].name || "優質地產";
+            }
+
+            const buyR = land.buyRound || 1;
+            const holdRounds = Math.max(0, finalRound - buyR);
+            const origPrice = land.originalPrice || 1000;
+
+            let currentVal = origPrice;
+            let yearDetails = [];
+            const rates = [0.03, 0.05, 0.08, 0.1, 0.15];
+
+            for (let i = 0; i < holdRounds; i++) {
+                let rate = rates[i % rates.length];
+                let added = Math.floor(currentVal * rate);
+                currentVal += added;
+                yearDetails.push(`第 ${buyR + i} 回合持有增值 ${Math.round(rate * 100)}%：+$${added.toLocaleString()}`);
+            }
+
+            if (!playerRealEstate[land.owner]) playerRealEstate[land.owner] = { totalValue: 0, lands: [] };
+
+            playerRealEstate[land.owner].totalValue += currentVal;
+            playerRealEstate[land.owner].lands.push({
+                name: landName,
+                origPrice: origPrice,
+                currentVal: currentVal,
+                holdRounds: holdRounds,
+                details: yearDetails
+            });
+        });
+
+        const enriched = leaderboard.map(p => {
+            const totalAssetsFromDB = parseInt(p.final_money) || 0;
+            const reData = playerRealEstate[p.username] || { totalValue: 0, lands: [] };
+            const actualCash = totalAssetsFromDB - reData.totalValue;
+
+            return {
+                ...p,
+                cash: actualCash,
+                realEstateValue: reData.totalValue,
+                lands: reData.lands,
+                totalAssets: totalAssetsFromDB
+            };
+        });
+
+        enriched.sort((a, b) => b.totalAssets - a.totalAssets);
+        enriched.forEach((p, index) => {
+            p.rank = index + 1;
+            p.is_winner = (index === 0);
+        });
+
+        return enriched;
+    }
+
+    function playAwardAnimation(leaderboard) {
+        return new Promise(resolve => {
+            const overlay = document.getElementById('animation-overlay');
+            const awardText = document.getElementById('awardText');
+            const trophy = document.getElementById('trophyIcon');
+            const winner = leaderboard.find(p => p.rank === 1);
+            const winnerName = winner ? winner.username : "玩家";
+
+            renderWinnerAvatar(winnerName);
+
+            const tl = gsap.timeline({
+                onComplete: () => {
+                    gsap.to(overlay, { opacity: 0, duration: 0.8, delay: 2.5, onComplete: () => {
+                        overlay.style.display = 'none';
+                        resolve();
+                    }});
+                }
+            });
+
+            tl.to(awardText, { opacity: 1, duration: 0.5 })
+              .to(awardText, { opacity: 0, duration: 0.5, delay: 1.0 })
+              .add(() => {
+                  awardText.innerHTML = `🎉 恭喜 <span class="winner-name-anim">${escapeHtml(winnerName)}</span><br> 奪得 Python 大富翁寶座！`;
+              })
+              .to(trophy, { opacity: 1, scale: 1, duration: 0.6, ease: "back.out(2)" })
+              .to(awardText, { opacity: 1, y: -20, duration: 0.8, ease: "power2.out" }, "-=0.4");
+        });
+    }
+
+    // 🏆 完美修正虛擬人物大小，確保全身入鏡
+    function renderWinnerAvatar(winnerName) {
+        const canvas = document.getElementById('winner-canvas');
+        if (!canvas) return;
+
+        const scene = new THREE.Scene();
+        // 將相機往後拉退 (z: 4.5)，讓全身有足夠空間顯示
+        const camera = new THREE.PerspectiveCamera(45, 200 / 300, 0.1, 100);
+        camera.position.set(0, 0.5, 4.5);
+
+        const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
+        renderer.setSize(200, 300);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+        dirLight.position.set(2, 4, 3);
+        scene.add(dirLight);
+
+        const colorsStr = localStorage.getItem(`pypoly_char_colors_${winnerName}`) || localStorage.getItem('pypoly_char_colors');
+        let colors = { head: '#f5c18a', arm: '#5cbaee', body: '#4a90d9', legs: '#2c4a8c', feet: '#2c1f14' };
+        if (colorsStr) try { colors = JSON.parse(colorsStr); } catch (e) {}
+        const faceUrl = localStorage.getItem(`pypoly_char_face_${winnerName}`) || localStorage.getItem('pypoly_char_face');
+
+        if (typeof createCustomBoxCharacter === 'function') {
+            const model = createCustomBoxCharacter(colors, faceUrl);
+            // 縮小人物比例並向下移動，讓它完美適應 200x300 的畫布
+            model.scale.set(0.75, 0.75, 0.75);
+            model.position.y = -1.0;
+            scene.add(model);
+
+            function animate() {
+                requestAnimationFrame(animate);
+                model.rotation.y -= 0.02;
+                renderer.render(scene, camera);
+            }
+            animate();
         }
     }
 
@@ -467,19 +623,142 @@
             return;
         }
         box.innerHTML = list.map(p => {
-            const accColor = p.is_winner ? 'var(--pixel-green)' : 'var(--text-gray)';
+            const isWinner = p.is_winner;
+
+            let landsHtml = '';
+            if (p.lands && p.lands.length > 0) {
+                landsHtml = p.lands.map(l => `
+                    <div class="land-detail-box">
+                        <div class="detail-row" style="margin-bottom:0;">
+                            <span>📍 ${escapeHtml(l.name)} <span style="font-size:0.8rem;color:var(--text-gray);">(原價 $${l.origPrice.toLocaleString()})</span></span>
+                            <span style="font-size:0.8rem; color:var(--text-gray);">持有 ${l.holdRounds} 回合</span>
+                        </div>
+                        ${l.details.length > 0 ? l.details.map(d => `<div class="land-calc-row">${d}</div>`).join('') : '<div class="land-calc-row">尚未產生複利</div>'}
+                        <div class="land-final-row">
+                            <span>結算價值</span>
+                            <span>$${l.currentVal.toLocaleString()}</span>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                landsHtml = `<div class="detail-row" style="justify-content:center; color:var(--text-gray);">本局無收購任何房產</div>`;
+            }
+
             return `
-            <div class="ranking-item ${p.is_winner ? 'winner' : ''}">
-                <div class="rank-info">
-                    <div class="rank-num">${p.rank}</div>
-                    <div class="player-meta"><h4>${escapeHtml(p.username)}</h4></div>
+            <div class="ranking-item ${isWinner ? 'winner' : ''}">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="rank-info">
+                        <div class="rank-num">${p.rank}</div>
+                        <div class="player-meta"><h4>${escapeHtml(p.username)}${p.username === myName ? '<span style="font-size:0.8rem;color:var(--text-gray);margin-left:5px;">（你）</span>' : ''}</h4></div>
+                    </div>
+                    <div class="rank-score">
+                        <span class="score-val">${p.totalAssets.toLocaleString()}</span>
+                        <span style="color:${isWinner ? 'var(--pixel-green)' : 'var(--text-gray)'}; font-weight:900; font-size:0.85rem;">結算總資產</span>
+                    </div>
                 </div>
-                <div class="rank-score">
-                    <span class="score-val">${Number(p.final_money).toLocaleString()}</span>
-                    <span style="color:${accColor}; font-weight:900; font-size:0.9rem;">答對率 ${p.accuracy}%</span>
+
+                <button class="expand-btn" onclick="toggleDetails('${p.username}')">點擊查看資產明細計算 ▼</button>
+
+                <div class="settle-details" id="details-${p.username}">
+                    <div class="detail-row" style="border-bottom:2px solid #e2e8f0; padding-bottom:10px;">
+                        <span>💰 遊戲結餘現金</span>
+                        <span>$ ${p.cash.toLocaleString()}</span>
+                    </div>
+                    <div style="margin: 15px 0 10px 0; font-weight: 900; color: var(--text-dark); font-size: 0.95rem;">🏠 房產增值結算（模擬複利）：</div>
+                    ${landsHtml}
+                    <div class="detail-row total">
+                        <span>🏆 最終總資產</span>
+                        <span>$ ${p.totalAssets.toLocaleString()}</span>
+                    </div>
                 </div>
             </div>`;
         }).join('');
+    }
+
+    // 🏆 智能比對選項，顯示所有題目細節
+    async function loadMyAnswerLogs() {
+        try {
+            const res = await fetch(`${API_URL}/game/answer_logs?room=${encodeURIComponent(roomCode)}&user=${encodeURIComponent(myName)}`);
+            if (res.ok) {
+                const logs = await res.json();
+                renderMyAnswerLogs(logs);
+            } else {
+                document.getElementById('qList').innerHTML = `<div style="text-align:center; color:var(--pixel-red); font-weight:900; padding:20px;">無答題紀錄</div>`;
+            }
+        } catch (err) {
+            console.error("無法載入答題紀錄:", err);
+        }
+    }
+
+    function renderMyAnswerLogs(logs) {
+        const listDiv = document.getElementById('qList');
+        if (!logs || logs.length === 0) {
+            listDiv.innerHTML = `<div style="text-align:center; color:var(--text-gray); font-weight:900; padding:20px;">本局未遇到答題關卡</div>`;
+            return;
+        }
+
+        // 從地圖快取建立題庫字典，方便後續比對選項
+        const qDict = {};
+        mapCache.forEach(tile => {
+            if (tile && tile.data && tile.data.question) {
+                const text = (tile.data.question.content || "").trim();
+                if (text) qDict[text] = tile.data.question;
+            }
+        });
+
+        listDiv.innerHTML = logs.map(log => {
+            const isCorrect = log.is_correct || (log.chosen_answer == log.correct_answer);
+            const statusClass = isCorrect ? 'correct' : 'wrong';
+            const statusText = isCorrect ? '✅ 答對' : '❌ 答錯';
+
+            const qText = (log.question_text || "").trim();
+            const foundQ = qDict[qText];
+
+            let optionsHtml = '';
+
+            // 💡 若成功找到原本的題目，渲染四個選項，並用顏色標示出玩家的選擇
+            if (foundQ && foundQ.options && foundQ.options.length > 0) {
+                optionsHtml = `<div style="margin-top:8px; font-size: 0.95rem; display: flex; flex-direction: column; gap: 8px;">
+                    ${foundQ.options.map((opt, i) => {
+                        const optNum = i + 1;
+                        const isChosen = (optNum == log.chosen_answer);
+
+                        // 樣式：未選中的選項灰灰的，選中的選項會依照對錯上色
+                        let optStyle = "color: var(--text-gray); background: #ffffff; border: 2px solid var(--pixel-border); padding: 8px 12px; font-weight: 700;";
+                        let optIcon = `<span style="display:inline-block; width: 25px; color:var(--text-gray);">(${optNum})</span>`;
+
+                        if (isChosen) {
+                            if (isCorrect) {
+                                optStyle = "color: var(--pixel-green); background: #effff5; border: 2px solid var(--pixel-green); font-weight: 900;";
+                                optIcon = "✅ 你的選擇：";
+                            } else {
+                                optStyle = "color: var(--pixel-red); background: #fff0ef; border: 2px solid var(--pixel-red); font-weight: 900;";
+                                optIcon = "❌ 你的選擇：";
+                            }
+                        }
+
+                        return `<div style="${optStyle}">${optIcon}${escapeHtml(opt)}</div>`;
+                    }).join('')}
+                </div>`;
+            } else {
+                // 防呆：如果是手寫程式碼題，或者找不到選項，就只顯示玩家當初寫了什麼
+                optionsHtml = `<div style="margin-top:8px; padding: 10px 14px; background: #ffffff; border: 2px dashed var(--pixel-border); color: var(--text-dark); font-weight: 800;">
+                    📝 你的作答：${escapeHtml(log.chosen_answer || '未作答')}
+                </div>`;
+            }
+
+            return `
+            <div class="q-item ${statusClass}">
+                <div class="q-content">Q: ${escapeHtml(qText || '未知題目')}</div>
+                ${optionsHtml}
+                <div class="q-status">${statusText}</div>
+            </div>`;
+        }).join('');
+    }
+
+    function toggleDetails(username) {
+        const el = document.getElementById(`details-${username}`);
+        el.style.display = (el.style.display === 'block') ? 'none' : 'block';
     }
 
     function renderReport(report) {

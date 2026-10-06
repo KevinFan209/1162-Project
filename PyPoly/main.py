@@ -2137,3 +2137,25 @@ async def learn_ai_report(request: Request,                     # 1. 這裡加�
         print(f"⚠️ AI 導師分析失敗，改用規則式退路：{e}")
         return {"status": "success", "source": "fallback",
                 "report": learn_ai._rule_based(ctx)}
+
+
+# ==========================================================
+# 🏆 取得單一玩家的本局作答紀錄 (供結算頁面 results.html 使用)
+# ==========================================================
+@app.get("/game/answer_logs")
+def get_user_answer_logs(room: str, user: str, db: Session = Depends(database.get_db)):
+    if not room or not user:
+        raise HTTPException(status_code=400, detail="缺少 room 或 user 參數")
+        
+    logs = db.query(models.GameAnswerLog).filter(
+        models.GameAnswerLog.room_code == room.upper(),
+        models.GameAnswerLog.username == user
+    ).order_by(models.GameAnswerLog.created_at.asc()).all()
+
+    return [{
+        "question_text": l.question_text,
+        "chosen_answer": l.chosen_answer,
+        "correct_answer": l.correct_answer,
+        "is_correct": l.is_correct,
+        "category": l.category
+    } for l in logs]

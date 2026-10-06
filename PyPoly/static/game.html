@@ -3496,17 +3496,13 @@ function initMediaPipeOnce() {
         }
         if (!globalPose) {
             globalPose = new Pose({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}` });
-            // 🏆 關鍵修正一：將 modelComplexity 從 1 降為 0，捨棄不需要的超高精度，換取極致流暢無延遲的畫面！
             globalPose.setOptions({ modelComplexity: 0, minDetectionConfidence: 0.5 });
         }
     } catch (err) {
-        // 建構子若在此失敗（例如 CDN 連線不穩），globalHands/globalPose 會維持
-        // null，之後所有 sendHandsFrame/sendPoseFrame 都會静默不送——這裡至少
-        // 把原因記下來，不要讓整個手勢辨識死掉卻完全沒有任何記錄可查。
         console.error("MediaPipe 初始化失敗:", err);
     }
 }
-initMediaPipeOnce(); // 頁面載入時只呼叫這一次
+initMediaPipeOnce();
 
 // --- 請替換整段 initCameraAndStartVision ---
 window.isHandsProcessing = false; // 宣告全域保護鎖
@@ -4251,21 +4247,17 @@ socket.on('land_bought_sync', async (data) => {
     const myName = localStorage.getItem('username');
     const correctColor = getPlayerLandColor(data.user);
 
-    // 1. 找出「舊地主」，用來發放強制收購的錢
     const oldLandData = window.landOwnership[data.tileIndex];
     const oldOwner = oldLandData ? oldLandData.owner : null;
 
-    // 🌟 終極真相大白：因為後端廣播會吃掉 isUpgrade，我們必須「自己判斷」！
-    // 如果這個地本來就是他的，那這次購買絕對是「加蓋升級」！
     const isActuallyUpgrade = (oldOwner === data.user);
     const oldFloorCount = oldLandData ? (oldLandData.floorCount || 1) : 1;
     const newFloorCount = isActuallyUpgrade ? oldFloorCount + 1 : 1;
 
-    console.log(`🔍 [深度偵錯] 買家: ${data.user}, 舊地主: ${oldOwner}`);
-    console.log(`🔍 [深度偵錯] 自己判斷是加蓋嗎？ ${isActuallyUpgrade}`);
-    console.log(`🔍 [深度偵錯] 樓層計算：舊 ${oldFloorCount} -> 新 ${newFloorCount}`);
+    // 🏆 核心修正：取得現在的回合數，如果是升級，沿用最初購買的回合
+    const currentRound = parseInt(localStorage.getItem('pypoly_current_round')) || 1;
+    const buyRound = oldLandData ? (oldLandData.buyRound || currentRound) : currentRound;
 
-    // 同步更新金幣 UI
     if (data.user !== myName) {
         updateMoneyUI(data.user, -data.price);
     }
@@ -4273,27 +4265,28 @@ socket.on('land_bought_sync', async (data) => {
         updateMoneyUI(oldOwner, data.price); 
     }
 
-    // 🏆 直接把我們自己算出來的正確樓層寫入全域資料
+    // 🏆 強制從地圖快取撈出真實名稱，絕不容許「未知」
+    let realLandName = data.landName;
+    if (!realLandName || realLandName === "未知" || realLandName.includes("--")) {
+        const tileNode = gameMap[data.tileIndex];
+        realLandName = (tileNode && tileNode.data && tileNode.data.name) ? tileNode.data.name : (tileNode ? tileNode.name : "優質地產");
+    }
+
     window.landOwnership[data.tileIndex] = { 
         owner: data.user, 
         toll: data.toll || (oldLandData ? oldLandData.toll : 0), 
         originalPrice: data.price,
-        name: data.landName || (oldLandData ? oldLandData.name : "未知"),
+        name: realLandName, 
         scenario: data.scenario || (oldLandData ? oldLandData.scenario : ""),
-        floorCount: newFloorCount 
+        floorCount: newFloorCount,
+        buyRound: buyRound // 🏆 記錄購買回合，為複利計算做準備
     };
 
     const targetTile = allTileMeshes[data.tileIndex];
-    if (targetTile) {
-        // 🏆 將正確的樓層指派給 3D 網格，絕對不能寫 targetTile.userData.hasHouse = true
-        targetTile.userData.floorCount = newFloorCount;
-    }
+    if (targetTile) targetTile.userData.floorCount = newFloorCount;
 
-    // 更新側邊欄清單
-    globalOwnedLands = globalOwnedLands.filter(l => l.name !== data.landName);
-    // 解決 landName 被後端吃掉變成 undefined 的問題
-    const safeLandName = data.landName || (oldLandData ? oldLandData.name : "未知土地");
-    globalOwnedLands.push({ owner: data.user, name: safeLandName, toll: data.toll || 0 });
+    globalOwnedLands = globalOwnedLands.filter(l => l.name !== realLandName);
+    globalOwnedLands.push({ owner: data.user, name: realLandName, toll: data.toll || 0 });
     renderOwnedLandsList();
     
     localStorage.setItem('pypoly_land_ownership', JSON.stringify(window.landOwnership));
@@ -4306,12 +4299,9 @@ socket.on('land_bought_sync', async (data) => {
                 document.getElementById('adventure-decision-ui').style.display = 'none';
                 setBoardVisibility(true);
             }, 800);
-            
-            // 🚀 最核心的修正：不再使用 data.isUpgrade，改用我們推算出來的 isActuallyUpgrade
             await runPurchaseAnimation(data.user, data.tileIndex, correctColor, isActuallyUpgrade);
             setTimeout(() => { autoSmoothExitToGodView(); }, 6000); 
         } else {
-            // 🚀 上帝視角同樣使用 isActuallyUpgrade
             await runPurchaseAnimation(data.user, data.tileIndex, correctColor, isActuallyUpgrade);
         }
     }
@@ -7116,50 +7106,68 @@ function triggerGameOver() {
     stopAllVision();
     if (virtualScreen) virtualScreen.visible = false;
     
-    // 強制進入上帝視角，鎖定畫面
     setBoardVisibility(true);
     if (panoSphere) panoSphere.visible = false;
     const godBtn = document.getElementById('back-to-god-btn');
     if (godBtn) godBtn.style.display = 'none';
 
-    showGameNotice("🏁 規定回合已結束！即將進入最終結算...", 5000);
+    showGameNotice("🎉 恭喜你！遊戲結束！", 4000);
     
     setTimeout(() => {
-        // 🌟 這裡暫時先用黑底大字卡擋住畫面，之後你寫好結算畫面，把這裡換成 window.location.href = "result.html"
-        showCustomNotice("💰 正在結算總資產...<br><span style='font-size: 1.5rem;'>即將進入結算畫面</span>", "center", 0);
-        // 🏆 需求⑨：權威端(最後一位玩家)送出結算，雙方都跳轉 results.html；results 端會自行重試
+        showCustomNotice("💰 正在進行遊戲結算...<br><span style='font-size: 1.5rem;'>即將為您轉跳至成績單</span>", "center", 0);
+        
         (function () {
             const gs = JSON.parse(localStorage.getItem('pypoly_game_snapshot')) || {};
             const players = gs.players || [];
             const rd = JSON.parse(localStorage.getItem('pypoly_active_room'));
             const rc = rd ? rd.code : localStorage.getItem('room_code');
             const myName = localStorage.getItem('username');
-            const finalRound = parseInt(localStorage.getItem('pypoly_current_round')) || 0;
+            const finalRound = parseInt(localStorage.getItem('pypoly_current_round')) || 1;
             const go = () => { window.location.href = `results.html?room=${encodeURIComponent(rc)}`; };
-            // 🏆 權威端改以「實際行動順序」的最後一位為準，與 endMyTurn 的判定一致。
-            //    用加入順序會在客人先手時選錯人。
+            
             const order = getTurnOrder();
             const isSettler = order.length ? (myName === order[order.length - 1]) : true;
+            
             if (isSettler) {
                 const payloadPlayers = players.map(p => {
                     const el = document.getElementById(`balance-${p}`);
-                    const money = el ? (parseInt(el.innerText.replace(/,/g, '')) || 0) : 0;
-                    // 🏆 補上 jump_count：後端早就有接，前端沒送導致報表永遠是 0
-                    return { username: p, final_money: money, laps: finalRound,
-                             jump_count: getJumpCount(p) };
+                    let cash = el ? (parseInt(el.innerText.replace(/,/g, '')) || 0) : 0;
+                    
+                    // 🏆 複利算法與結算頁完全同步
+                    const landOwnership = JSON.parse(localStorage.getItem('pypoly_land_ownership')) || {};
+                    let realEstateValue = 0;
+                    Object.values(landOwnership).forEach(land => {
+                        if (land.owner === p) {
+                            const buyR = land.buyRound || 1;
+                            const holdRounds = Math.max(0, finalRound - buyR);
+                            let currentVal = land.originalPrice || 1000;
+                            const rates = [0.03, 0.05, 0.08, 0.10, 0.15];
+                            for(let i=0; i < holdRounds; i++) {
+                                currentVal += Math.floor(currentVal * rates[i % rates.length]);
+                            }
+                            realEstateValue += currentVal;
+                        }
+                    });
+
+                    return { 
+                        username: p, 
+                        final_money: cash + realEstateValue, 
+                        laps: finalRound,
+                        jump_count: getJumpCount(p) 
+                    };
                 });
+                
                 fetch(`${API_URL}/game/settle`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ room_code: rc, players: payloadPlayers })
                 }).then(go).catch(err => { console.error('❌ 結算送出失敗', err); go(); });
             } else {
-                setTimeout(go, 1500); // 非權威端稍等結算寫入再跳轉
+                setTimeout(go, 1500);
             }
         })();
     }, 4000);
 }
-
 
 // 🏆 強化重置函式：徹底解決黑屏與 UI 殘留
 function resetToGodViewState() {
