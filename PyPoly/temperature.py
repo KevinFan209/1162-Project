@@ -93,59 +93,76 @@ def match_station(place_name: str | None, township: str | None = None) -> str | 
 
 
 def fetch_temperature(place_name: str | None, township: str | None = None) -> dict | None:
-    """依景點或鄉鎮自動取得最近測站氣溫與天氣現象。"""
+    """優先使用配對測站，缺少有效資料時查詢備用測站。"""
     target_station = match_station(place_name, township)
-    if not target_station:
+    if not target_station or not CWA_API_KEY:
         return None
 
-    if not CWA_API_KEY:
-        return None
+    fallback_stations = {
+        "竹山": ["臺大竹山"],
+    }
+    candidates = [target_station] + fallback_stations.get(target_station, [])
 
-    try:
-        params = {
-            "Authorization": CWA_API_KEY,
-            "StationName": target_station,
-        }
-        res = requests.get(CWA_API_URL, params=params, timeout=10, verify=False)
-        if res.status_code != 200:
-            return None
+    for station_name in candidates:
+        try:
+            res = requests.get(
+                CWA_API_URL,
+                params={
+                    "Authorization": CWA_API_KEY,
+                    "StationName": station_name,
+                },
+                timeout=10,
+                verify=False,
+            )
+            res.raise_for_status()
 
-        stations = res.json().get("records", {}).get("Station", [])
-        for st in stations:
-            weather_elem = st.get("WeatherElement", {})
-            air_temp_val = None
-            weather_desc = "晴"
+            stations = res.json().get("records", {}).get("Station", [])
+            for st in stations:
+                if st.get("StationName") != station_name:
+                    continue
 
-            # 支援 dict 與 list 兩種回傳結構
-            if isinstance(weather_elem, dict):
-                air_temp_val = weather_elem.get("AirTemperature")
-                weather_desc = weather_elem.get("Weather") or "晴"
-            elif isinstance(weather_elem, list):
-                for elem in weather_elem:
-                    elem_name = elem.get("ElementName")
-                    if elem_name == "AirTemperature":
-                        air_temp_val = elem.get("ElementValue")
-                    elif elem_name == "Weather":
-                        weather_desc = elem.get("ElementValue") or "晴"
+                weather_elem = st.get("WeatherElement", {})
+                air_temp_val = None
+                weather_desc = None
 
-            if air_temp_val is not None:
+                if isinstance(weather_elem, dict):
+                    air_temp_val = weather_elem.get("AirTemperature")
+                    weather_desc = weather_elem.get("Weather")
+                elif isinstance(weather_elem, list):
+                    for elem in weather_elem:
+                        if elem.get("ElementName") == "AirTemperature":
+                            air_temp_val = elem.get("ElementValue")
+                        elif elem.get("ElementName") == "Weather":
+                            weather_desc = elem.get("ElementValue")
+
                 try:
                     temp = float(air_temp_val)
-                    if temp < -50:
-                        continue
-                    status, multiplier = get_temp_status_and_multiplier(temp)
-                    print(f"🌡️ [{target_station}站] {township or ''}-{place_name}：{temp}°C，{weather_desc}（{status}），加成 ×{multiplier}")
-                    return {
-                        "has_temp_event": True,
-                        "station_name": target_station,
-                        "temperature": temp,
-                        "weather": weather_desc,
-                        "status": status,
-                        "multiplier": multiplier,
-                    }
-                except ValueError:
+                except (TypeError, ValueError):
                     continue
-    except Exception as e:
-        print(f"⚠️ 讀取氣象署 API 失敗：{e}")
+
+                # 排除 -99 等缺值，以及非正常數字
+                if not (-50 <= temp <= 60):
+                    continue
+
+                status, multiplier = get_temp_status_and_multiplier(temp)
+                weather_desc = weather_desc or "暫無天氣資料"
+
+                print(
+                    f"🌡️ [{station_name}站] {place_name}："
+                    f"{temp}°C，{weather_desc}，加成 ×{multiplier}"
+                )
+                return {
+                    "has_temp_event": True,
+                    "station_name": station_name,
+                    "temperature": temp,
+                    "weather": weather_desc,
+                    "status": status,
+                    "multiplier": multiplier,
+                }
+
+            print(f"⚠️ {station_name}站無有效氣溫，嘗試下一個測站")
+
+        except Exception as e:
+            print(f"⚠️ 查詢 {station_name}站失敗：{e}")
 
     return None

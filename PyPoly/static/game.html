@@ -899,19 +899,37 @@
 
 	// 🏆 需求⑥：音效系統。音檔由使用者放入 static/sounds/（缺檔或被瀏覽器擋下時靜默，不影響遊戲）。
 	const SFX = {
-		buy:   'static/sounds/buy_success.mp3', // 收購成功：歡呼聲
-		jail:  'static/sounds/jail_drop.mp3',   // 監獄：砸下來的聲音
-		bird:  'static/sounds/bird_fly.mp3',    // 小鳥飛：輕快
-		steal: 'static/sounds/steal_coin.mp3'   // 搶錢：敲金幣聲
+		buy:   '/static/sounds/buy_success.mp3', // 收購成功：歡呼聲
+		jail:  '/static/sounds/jail_drop.mp3',   // 監獄：砸下來的聲音
+		
+		steal: '/static/sounds/steal_coin.mp3'   // 搶錢：敲金幣聲
 	};
-	function playSfx(key) {
-		try {
-			const src = SFX[key];
-			if (!src) return;
-			const a = new Audio(src);
-			a.play().catch(() => {}); // 忽略自動播放限制/缺檔
-		} catch (e) {}
-	}
+	const sfxPlayers = {};
+
+    function playSfx(key) {
+        const src = SFX[key];
+        if (!src) {
+            console.warn('找不到音效設定：', key);
+            return;
+        }
+
+        const audio = sfxPlayers[key] ??= new Audio(src);
+        audio.volume = 1.0;
+        audio.currentTime = 0;
+
+        audio.play()
+            .then(() => console.log('音效已播放：', key))
+            .catch(error => console.error('音效播放失敗：', key, error));
+    }
+    
+    const gameBgm = new Audio('/static/sounds/all_game.mp3');
+    gameBgm.loop = true;
+    gameBgm.volume = 0.08;
+
+    document.addEventListener('click', () => {
+        gameBgm.play().catch(error => console.warn('背景音樂播放失敗：', error));
+    }, { once: true });
+   
 
 	// 2. 其次：初始化 Socket 連線 (現在它能抓到 API_URL 了)
 	// ⚠️ socket.io 的 polling 握手是 GET，走 ngrok 時會被免費方案的警告頁攔下
@@ -3817,7 +3835,7 @@ async function executeStealAnimation(attackerName) {
     // 2. 動畫結束後，扣除金錢並廣播
     updateMoneyUI(victimName, -300);
     updateMoneyUI(attackerName, 300);
-    playSfx('steal'); // 🏆 需求⑥：搶錢（敲金幣聲）
+    //playSfx('steal'); // 🏆 需求⑥：搶錢（敲金幣聲）
 
     // 扣除背包道具 (用掉一次)
     deductItemFromInventory(attackerName, "item_steal"); // 🏆 使用道具，即時更新 UI
@@ -3902,6 +3920,8 @@ async function playStealAnimationCore(attackerName, victimName) {
             tl.to(attackerModel.rotation, { x: -0.6, duration: 0.25, ease: "power2.inOut" }) 
               .to(attackerModel.rotation, { x: 0.7, duration: 0.12, ease: "none" }) 
               .add(() => {
+                  playSfx('steal');
+
                   gsap.to(victimModel.position, { x: victimModel.position.x + (i%2===0?0.15:-0.15), duration: 0.05, yoyo: true, repeat: 3 });
                   // 🏆 呼叫專屬 2D 跳字特效 (紅色)
                   spawnCombatText('right', "🪙 -$50", "#ff4757"); 
@@ -5312,7 +5332,7 @@ let birdData = { y: 240, pipes: [], coins: 0 };
 // 🏆 修正版：小鳥飛前置作業 (發送全網廣播，觀戰者將自動被拉入觀看情境)
 async function startBirdGameView() {
     console.log("🐦 進入獎勵遊戲：小鳥飛！");
-    playSfx('bird'); // 🏆 需求⑥：小鳥飛（輕快）音效
+    //playSfx('bird'); // 🏆 需求⑥：小鳥飛（輕快）音效
     scene.background = null; 
     setBoardVisibility(false);
 
