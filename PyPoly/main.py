@@ -42,6 +42,7 @@ import io
 from dotenv import load_dotenv
 from fastapi import Request
 from openai import AsyncOpenAI
+from fastapi.responses import FileResponse
 
 # 🏆 讀取 PyPoly/.env（機敏設定：SENDER_EMAIL / SENDER_PASSWORD / SECRET_KEY 等）
 load_dotenv()
@@ -70,6 +71,10 @@ os.makedirs("models", exist_ok=True)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/models", StaticFiles(directory="models"), name="models")
+
+@app.get('/favicon.ico', include_in_schema=False)
+async def favicon():
+    return FileResponse('static/favicon.ico')
 
 
 # 🏆 靜態檔一律要求瀏覽器重新驗證。
