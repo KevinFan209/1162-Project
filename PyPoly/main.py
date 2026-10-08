@@ -76,7 +76,7 @@ app.mount("/models", StaticFiles(directory="models"), name="models")
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     # 請確保你的蜜蜂圖片真的是放在 static 資料夾底下，且檔名叫 logo.jpg
-    return FileResponse("static/logo.jpg")
+    return FileResponse("static/favicon.jpg")
 
 
 # 🏆 靜態檔一律要求瀏覽器重新驗證。
