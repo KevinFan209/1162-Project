@@ -42,6 +42,7 @@ import io
 from dotenv import load_dotenv
 from fastapi import Request
 from openai import AsyncOpenAI
+from fastapi.responses import FileResponse
 
 # 🏆 讀取 PyPoly/.env（機敏設定：SENDER_EMAIL / SENDER_PASSWORD / SECRET_KEY 等）
 load_dotenv()
@@ -70,6 +71,12 @@ os.makedirs("models", exist_ok=True)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/models", StaticFiles(directory="models"), name="models")
+
+# 🏆 終極 Favicon 強制路由：只要瀏覽器要圖示，一律塞這張給它！
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    # 請確保你的蜜蜂圖片真的是放在 static 資料夾底下，且檔名叫 logo.jpg
+    return FileResponse("static/logo.jpg")
 
 
 # 🏆 靜態檔一律要求瀏覽器重新驗證。
