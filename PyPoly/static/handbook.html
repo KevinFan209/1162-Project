@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BeeRich - Python 學習手冊</title>
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/favicon.ico" type="image/jpeg">
+    <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&family=Fira+Code:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --pixel-border: #1e272e;
+            --bee-gold: #ffc048;
+            --bee-yellow: #ffdd59;
+            --bee-dark: #2f3542;
+            --pixel-green: #05c46b;
+            --pixel-blue: #0fbcf9;
+            --pixel-red: #ff3f34;
+            --pixel-purple: #a55eea;
+            --bg-grid: #eef2f7;
+            --card-bg: #ffffff;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-grid);
+            background-image: 
+                linear-gradient(rgba(210, 218, 226, 0.4) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(210, 218, 226, 0.4) 1px, transparent 1px);
+            background-size: 24px 24px;
+            color: var(--bee-dark);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 頂部導航列 */
+        header {
+            background: #ffffff;
+            border-bottom: 4px solid var(--pixel-border);
+            padding: 15px 35px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 4px 0 rgba(0, 0, 0, 0.05);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .bee-logo {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            border: 3px solid var(--pixel-border);
+            object-fit: contain;
+            background: var(--bee-yellow);
+        }
+
+        .header-title h1 {
+            font-family: 'Silkscreen', 'Zen Maru Gothic', sans-serif;
+            font-size: 1.8rem;
+            color: var(--bee-dark);
+            letter-spacing: -0.5px;
+        }
+
+        .header-title p {
+            font-size: 0.85rem;
+            color: #747d8c;
+            font-weight: 700;
+        }
+
+        .btn-pixel {
+            background: var(--bee-yellow);
+            border: 3px solid var(--pixel-border);
+            box-shadow: 3px 3px 0 var(--pixel-border);
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-weight: 900;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            color: var(--bee-dark);
+            font-size: 1rem;
+            transition: all 0.1s ease;
+        }
+
+        .btn-pixel:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 5px 5px 0 var(--pixel-border);
+            background: var(--bee-gold);
+        }
+
+        .btn-pixel:active {
+            transform: translate(2px, 2px);
+            box-shadow: 1px 1px 0 var(--pixel-border);
+        }
+
+        /* 頁面主體 */
+        main {
+            max-width: 1300px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 30px 25px 60px 25px;
+            flex: 1;
+        }
+
+        /* 搜尋與過濾區塊 */
+        .controls-card {
+            background: white;
+            border: 4px solid var(--pixel-border);
+            border-radius: 20px;
+            box-shadow: 6px 6px 0 var(--pixel-border);
+            padding: 22px 28px;
+            margin-bottom: 30px;
+        }
+
+        .search-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .search-box {
+            flex: 1;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 14px 20px 14px 48px;
+            border: 3px solid var(--pixel-border);
+            border-radius: 14px;
+            font-size: 1.05rem;
+            font-weight: 900;
+            color: var(--bee-dark);
+            background: #f8fafc;
+            outline: none;
+            transition: 0.2s;
+        }
+
+        .search-box input:focus {
+            background: #ffffff;
+            border-color: var(--pixel-blue);
+            box-shadow: 0 0 0 4px rgba(15, 188, 249, 0.15);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 1.2rem;
+            color: #747d8c;
+            pointer-events: none;
+        }
+
+        /* 分類過濾標籤 */
+        .filter-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .tab-btn {
+            background: #f1f2f6;
+            border: 3px solid var(--pixel-border);
+            padding: 8px 18px;
+            border-radius: 10px;
+            font-weight: 900;
+            font-size: 0.95rem;
+            cursor: pointer;
+            color: var(--bee-dark);
+            transition: all 0.15s;
+            box-shadow: 2px 2px 0 var(--pixel-border);
+        }
+
+        .tab-btn:hover {
+            transform: translateY(-2px);
+            background: #dfe4ea;
+        }
+
+        .tab-btn.active {
+            background: var(--bee-yellow);
+            box-shadow: 3px 3px 0 var(--pixel-border);
+            transform: translateY(-2px);
+        }
+
+        /* 卡片網格 */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+            gap: 25px;
+        }
+
+        /* 知識卡片 */
+        .handbook-card {
+            background: white;
+            border: 4px solid var(--pixel-border);
+            border-radius: 20px;
+            box-shadow: 6px 6px 0 var(--pixel-border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .handbook-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 8px 8px 0 var(--pixel-border);
+        }
+
+        .card-header {
+            padding: 16px 20px;
+            border-bottom: 3px solid var(--pixel-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #fafafa;
+        }
+
+        .card-category-badge {
+            font-size: 0.8rem;
+            font-weight: 900;
+            padding: 4px 10px;
+            border-radius: 8px;
+            border: 2px solid var(--pixel-border);
+            display: inline-block;
+        }
+
+        .cat-basic { background: #ffeaa7; }
+        .cat-cond { background: #74b9ff; }
+        .cat-loop { background: #55efc4; }
+        .cat-data { background: #fab1a0; }
+        .cat-func { background: #a29bfe; }
+
+        .card-level {
+            font-size: 0.8rem;
+            font-weight: 900;
+            color: #747d8c;
+        }
+
+        .card-body {
+            padding: 22px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            flex: 1;
+        }
+
+        .card-title {
+            font-size: 1.35rem;
+            font-weight: 900;
+            color: var(--bee-dark);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-desc {
+            font-size: 0.95rem;
+            color: #4b6584;
+            line-height: 1.6;
+            font-weight: 700;
+        }
+
+        /* 程式碼區塊 */
+        .code-block-wrap {
+            position: relative;
+            background: #1e272e;
+            border: 3px solid var(--pixel-border);
+            border-radius: 12px;
+            padding: 14px 16px;
+            overflow-x: auto;
+        }
+
+        .code-block {
+            font-family: 'Fira Code', Consolas, Monaco, monospace;
+            font-size: 0.92rem;
+            color: #f1f2f6;
+            line-height: 1.5;
+            white-space: pre;
+        }
+
+        .code-comment { color: #a4b0be; font-style: italic; }
+        .code-keyword { color: #ff7675; font-weight: bold; }
+        .code-func { color: #74b9ff; }
+        .code-str { color: #55efc4; }
+        .code-num { color: #feca57; }
+
+        .copy-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 900;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .copy-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        /* 初學者常犯錯誤/提示框 */
+        .tip-box {
+            background: #fff8e7;
+            border: 2px dashed #f39c12;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 0.88rem;
+            color: #b7791f;
+            font-weight: 800;
+            line-height: 1.5;
+            display: flex;
+            gap: 8px;
+            align-items: flex-start;
+        }
+
+        /* 空結果狀態 */
+        .empty-state {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 60px 20px;
+            background: white;
+            border: 4px solid var(--pixel-border);
+            border-radius: 20px;
+            box-shadow: 6px 6px 0 var(--pixel-border);
+        }
+        .empty-state h3 { font-size: 1.5rem; margin-bottom: 8px; }
+        .empty-state p { color: #747d8c; font-weight: 700; }
+
+        @media (max-width: 768px) {
+            header { padding: 12px 20px; }
+            .header-title h1 { font-size: 1.4rem; }
+            .cards-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="header-left">
+        <img src="static/logo.jpg" alt="Bee Logo" class="bee-logo" onerror="this.src='logo.jpg'">
+        <div class="header-title">
+            <h1>BeeRich 學習手冊</h1>
+            <p>PYTHON KNOWLEDGE BASE & CHEAT SHEET</p>
+        </div>
+    </div>
+    <a href="lobby.html" class="btn-pixel">
+        <span>🔙</span> 返回大廳
+    </a>
+</header>
+
+<main>
+    <div class="controls-card">
+        <div class="search-row">
+            <div class="search-box">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="searchInput" placeholder="搜尋語法、關鍵字（例如：for, if, print, 縮排, 串列）..." oninput="handleSearch()">
+            </div>
+        </div>
+
+        <div class="filter-tabs" id="filterTabs">
+            <button class="tab-btn active" data-cat="all" onclick="filterCategory('all', this)">🐝 全部知識庫 (<span id="count-all">0</span>)</button>
+            <button class="tab-btn" data-cat="basic" onclick="filterCategory('basic', this)">📌 基礎與輸入輸出</button>
+            <button class="tab-btn" data-cat="data" onclick="filterCategory('data', this)">📦 變數與型態</button>
+            <button class="tab-btn" data-cat="cond" onclick="filterCategory('cond', this)">⚖️ 條件判斷 (if/else)</button>
+            <button class="tab-btn" data-cat="loop" onclick="filterCategory('loop', this)">🔄 迴圈控制 (for/while)</button>
+            <button class="tab-btn" data-cat="list" onclick="filterCategory('list', this)">📑 串列與字典</button>
+            <button class="tab-btn" data-cat="func" onclick="filterCategory('func', this)">🧩 自訂函式 (def)</button>
+        </div>
+    </div>
+
+    <div class="cards-grid" id="cardsGrid">
+        </div>
+</main>
+
+<script>
+    // 🏆 內建完整 Python 知識庫資料
+    const handbookData = [
+        {
+            id: 1,
+            title: "print() 螢幕輸出",
+            category: "basic",
+            catName: "基礎語法",
+            catClass: "cat-basic",
+            level: "★☆☆ 啟蒙",
+            desc: "在終端機中印出文字或數字。若要輸出文字，前後必須用單引號或雙引號包住。",
+            code: `<span class="code-func">print</span>(<span class="code-str">"哈囉！歡迎來到碼上致富！"</span>)\n<span class="code-func">print</span>(<span class="code-num">100</span> + <span class="code-num">200</span>)  <span class="code-comment"># 印出 300</span>`,
+            rawCode: 'print("哈囉！歡迎來到碼上致富！")\nprint(100 + 200)',
+            tip: "字串一定要加引號，若漏加引號 Python 會誤以為那是變數名稱而跳出 NameError！"
+        },
+        {
+            id: 2,
+            title: "變數宣告與命名",
+            category: "data",
+            catName: "變數與型態",
+            catClass: "cat-data",
+            level: "★☆☆ 啟蒙",
+            desc: "變數就像貼有名字的收納盒，使用「等號 =」將右邊的資料放進左邊的盒子裡。",
+            code: `player_name = <span class="code-str">"蜜蜂工程師"</span>\nmoney = <span class="code-num">5000</span>\nis_alive = <span class="code-keyword">True</span>`,
+            rawCode: 'player_name = "蜜蜂工程師"\nmoney = 5000\nis_alive = True',
+            tip: "變數名稱不能以數字開頭，且英文字母大小寫有嚴格區分（如 money 與 Money 是不同的變數）。"
+        },
+        {
+            id: 3,
+            title: "常見的四大基本型態",
+            category: "data",
+            catName: "變數與型態",
+            catClass: "cat-data",
+            level: "★☆☆ 基礎",
+            desc: "Python 常見型態：整數 (int)、浮點數/小數 (float)、字串 (str)、布林值 (bool)。",
+            code: `coins = <span class="code-num">100</span>        <span class="code-comment"># int (整數)</span>\ntemp = <span class="code-num">26.5</span>         <span class="code-comment"># float (浮點數)</span>\nrole = <span class="code-str">"資本家"</span>      <span class="code-comment"># str (字串)</span>\ncan_buy = <span class="code-keyword">True</span>     <span class="code-comment"># bool (True 或 False)</span>`,
+            rawCode: 'coins = 100\ntemp = 26.5\nrole = "資本家"\ncan_buy = True',
+            tip: "不同型態不能直接相加！例如 \"100\" + 50 會引發 TypeError，必須先用 int() 轉換。"
+        },
+        {
+            id: 4,
+            title: "if / else 條件分支",
+            category: "cond",
+            catName: "條件判斷",
+            catClass: "cat-cond",
+            level: "★★☆ 基礎",
+            desc: "根據條件決定要走哪一條路。滿足條件時才會執行對應縮排底下的程式碼。",
+            code: `money = <span class="code-num">1500</span>\n<span class="code-keyword">if</span> money >= <span class="code-num">1000</span>:\n    <span class="code-func">print</span>(<span class="code-str">"可以收購這塊土地！"</span>)\n<span class="code-keyword">else</span>:\n    <span class="code-func">print</span>(<span class="code-str">"金幣不足，無法購買。"</span>)`,
+            rawCode: 'money = 1500\nif money >= 1000:\n    print("可以收購這塊土地！")\nelse:\n    print("金幣不足，無法購買。")',
+            tip: "條件式最後面務必記得加上冒號「:」，且內部的程式碼一定要統一縮排 4 個空格！"
+        },
+        {
+            id: 5,
+            title: "elif 多重判斷",
+            category: "cond",
+            catName: "條件判斷",
+            catClass: "cat-cond",
+            level: "★★☆ 進階",
+            desc: "當有多個條件需要逐一排查時使用。一旦某個條件滿足，後續的條件就會被直接略過。",
+            code: `score = <span class="code-num">85</span>\n<span class="code-keyword">if</span> score >= <span class="code-num">90</span>:\n    <span class="code-func">print</span>(<span class="code-str">"獲得金牌蜜蜂"</span>)\n<span class="code-keyword">elif</span> score >= <span class="code-num">80</span>:\n    <span class="code-func">print</span>(<span class="code-str">"獲得銀牌蜜蜂"</span>)\n<span class="code-keyword">else</span>:\n    <span class="code-func">print</span>(<span class="code-str">"繼續加油！"</span>)`,
+            rawCode: 'score = 85\nif score >= 90:\n    print("獲得金牌蜜蜂")\nelif score >= 80:\n    print("獲得銀牌蜜蜂")\nelse:\n    print("繼續加油！")',
+            tip: "比較「是否相等」要用雙等號「==」，單等號「=」是賦值變數，搞混會引發語法錯誤。"
+        },
+        {
+            id: 6,
+            title: "for 迴圈與 range()",
+            category: "loop",
+            catName: "迴圈控制",
+            catClass: "cat-loop",
+            level: "★★☆ 核心",
+            desc: "重複執行指定次數的動作。range(n) 會從 0 開始數到 n-1，總共執行 n 次。",
+            code: `<span class="code-comment"># 讓角色移動 3 步</span>\n<span class="code-keyword">for</span> step <span class="code-keyword">in</span> <span class="code-func">range</span>(<span class="code-num">3</span>):\n    <span class="code-func">print</span>(<span class="code-str">"向前進一步，目前步數："</span>, step)`,
+            rawCode: 'for step in range(3):\n    print("向前進一步，目前步數：", step)',
+            tip: "記住：range(3) 產生的數字是 0, 1, 2，不會包含 3！電腦世界大多是從 0 開始計數的。"
+        },
+        {
+            id: 7,
+            title: "while 條件迴圈",
+            category: "loop",
+            catName: "迴圈控制",
+            catClass: "cat-loop",
+            level: "★★☆ 核心",
+            desc: "只要後面的條件為 True，就會一直重複執行，直到條件變成 False 為止。",
+            code: `hp = <span class="code-num">3</span>\n<span class="code-keyword">while</span> hp > <span class="code-num">0</span>:\n    <span class="code-func">print</span>(<span class="code-str">"戰鬥中，剩餘血量："</span>, hp)\n    hp -= <span class="code-num">1</span>  <span class="code-comment"># 記得扣血，否則會變無窮迴圈！</span>\n<span class="code-func">print</span>(<span class="code-str">"角色倒下了！"</span>)`,
+            rawCode: 'hp = 3\nwhile hp > 0:\n    print("戰鬥中，剩餘血量：", hp)\n    hp -= 1\nprint("角色倒下了！")',
+            tip: "在 while 迴圈內一定要有能夠改變條件的指令（如扣血），否則會陷入「無窮迴圈（當機）」。"
+        },
+        {
+            id: 8,
+            title: "串列 (List) 基礎操作",
+            category: "list",
+            catName: "串列與字典",
+            catClass: "cat-data",
+            level: "★★☆ 實用",
+            desc: "串列用中括號 [ ] 包裹，可以存放多筆有序資料。使用索引值 index 來取得裡面的項目。",
+            code: `lands = [<span class="code-str">"日月潭"</span>, <span class="code-str">"清境農場"</span>, <span class="code-str">"合歡山"</span>]\n<span class="code-func">print</span>(lands[<span class="code-num">0</span>])   <span class="code-comment"># 印出第一筆："日月潭"</span>\nlands.<span class="code-func">append</span>(<span class="code-str">"溪頭"</span>) <span class="code-comment"># 在尾端加入新景點</span>\n<span class="code-func">print</span>(<span class="code-func">len</span>(lands))   <span class="code-comment"># 印出串列長度：4</span>`,
+            rawCode: 'lands = ["日月潭", "清境農場", "合歡山"]\nprint(lands[0])\nlands.append("溪頭")\nprint(len(lands))',
+            tip: "索引由 0 開始起算，第一個是 [0]、第二個是 [1]；取超出範圍的索引會導致 IndexError。"
+        },
+        {
+            id: 9,
+            title: "字典 (Dictionary) 鍵值配對",
+            category: "list",
+            catName: "串列與字典",
+            catClass: "cat-data",
+            level: "★★★ 進階",
+            desc: "用大括號 { } 表示，採用 Key: Value（鍵值對）儲存。就像字典查字一樣精準。",
+            code: `tile_info = {\n    <span class="code-str">"name"</span>: <span class="code-str">"日月潭"</span>,\n    <span class="code-str">"price"</span>: <span class="code-num">1200</span>,\n    <span class="code-str">"toll"</span>: <span class="code-num">300</span>\n}\n<span class="code-func">print</span>(tile_info[<span class="code-str">"name"</span>])  <span class="code-comment"># 印出："日月潭"</span>`,
+            rawCode: 'tile_info = {\n    "name": "日月潭",\n    "price": 1200,\n    "toll": 300\n}\nprint(tile_info["name"])',
+            tip: "鍵 (Key) 必須是唯一且不可變的（通常用字串）。若存取不存在的 Key 會拋出 KeyError。"
+        },
+        {
+            id: 10,
+            title: "def 自訂函式與 return",
+            category: "func",
+            catName: "自訂函式",
+            catClass: "cat-func",
+            level: "★★★ 進階",
+            desc: "將重複使用的程式碼包裝成積木，利用 def 定義，並透過 return 回傳計算後的結果。",
+            code: `<span class="code-keyword">def</span> <span class="code-func">calc_toll</span>(base_price, aqi):\n    <span class="code-comment"># 空氣好時加收 20% 過路費</span>\n    <span class="code-keyword">if</span> aqi < <span class="code-num">50</span>:\n        <span class="code-keyword">return</span> base_price * <span class="code-num">1.2</span>\n    <span class="code-keyword">return</span> base_price\n\nfinal_toll = <span class="code-func">calc_toll</span>(<span class="code-num">500</span>, <span class="code-num">35</span>)\n<span class="code-func">print</span>(<span class="code-str">"過路費："</span>, final_toll)`,
+            rawCode: 'def calc_toll(base_price, aqi):\n    if aqi < 50:\n        return base_price * 1.2\n    return base_price\n\nfinal_toll = calc_toll(500, 35)\nprint("過路費：", final_toll)',
+            tip: "函式定義完之後「必須呼叫它」才會執行！return 會結束函式的執行並交出結果。"
+        }
+    ];
+
+    let currentCategory = 'all';
+
+    // 渲染卡片
+    function renderCards(list) {
+        const grid = document.getElementById('cardsGrid');
+        if (list.length === 0) {
+            grid.innerHTML = `
+                <div class="empty-state">
+                    <h3>🔍 找不到符合的知識卡片</h3>
+                    <p>請嘗試使用其他關鍵字（例如：if, for, 串列, 變數）</p>
+                </div>
+            `;
+            return;
+        }
+
+        grid.innerHTML = list.map(item => `
+            <div class="handbook-card" data-category="${item.category}">
+                <div class="card-header">
+                    <span class="card-category-badge ${item.catClass}">${item.catName}</span>
+                    <span class="card-level">${item.level}</span>
+                </div>
+                <div class="card-body">
+                    <div class="card-title">${item.title}</div>
+                    <div class="card-desc">${item.desc}</div>
+                    
+                    <div class="code-block-wrap">
+                        <button class="copy-btn" onclick="copyCode(this, \`${item.rawCode.replace(/`/g, '\\`')}\`)">複製</button>
+                        <div class="code-block">${item.code}</div>
+                    </div>
+
+                    <div class="tip-box">
+                        <span>💡</span>
+                        <span>${item.tip}</span>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // 分類篩選
+    function filterCategory(cat, btn) {
+        currentCategory = cat;
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+        applyFilters();
+    }
+
+    // 搜尋輸入處理
+    function handleSearch() {
+        applyFilters();
+    }
+
+    // 綜合過濾
+    function applyFilters() {
+        const query = document.getElementById('searchInput').value.trim().toLowerCase();
+        
+        const filtered = handbookData.filter(item => {
+            const matchesCat = (currentCategory === 'all') || (item.category === currentCategory);
+            const matchesSearch = !query || 
+                item.title.toLowerCase().includes(query) || 
+                item.desc.toLowerCase().includes(query) || 
+                item.rawCode.toLowerCase().includes(query) ||
+                item.tip.toLowerCase().includes(query);
+            return matchesCat && matchesSearch;
+        });
+
+        renderCards(filtered);
+    }
+
+    // 一鍵複製程式碼
+    function copyCode(btn, text) {
+        navigator.clipboard.writeText(text).then(() => {
+            const oldText = btn.innerText;
+            btn.innerText = "已複製！";
+            btn.style.background = "var(--pixel-green)";
+            btn.style.color = "#fff";
+            setTimeout(() => {
+                btn.innerText = oldText;
+                btn.style.background = "";
+                btn.style.color = "";
+            }, 1500);
+        });
+    }
+
+    // 初始化頁面
+    window.onload = () => {
+        document.getElementById('count-all').innerText = handbookData.length;
+        renderCards(handbookData);
+    };
+</script>
+
+</body>
+</html>
