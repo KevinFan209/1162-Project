@@ -164,3 +164,19 @@ class GameAnswerLog(Base):
     is_correct = Column(Boolean, default=False)       # 是否答對
     answer_sec = Column(Float, default=0)             # 該題作答用時 (秒)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class HandbookCard(Base):
+    __tablename__ = "handbook_cards"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(100), nullable=False)          # 例如: 什麼是變數？貼標籤的置物盒
+    category = Column(String(50), nullable=False)       # 英文代碼: intro, data, cond, loop, list, func, bug
+    cat_name = Column(String(50), nullable=False)       # 顯示標籤: 零基礎概念 / 變數型態...
+    cat_class = Column(String(50), default="cat-basic") # CSS 顏色樣式
+    level = Column(String(50), default="★☆☆ 啟蒙")      # 難易度星級
+    order_index = Column(Integer, default=0)            # 排序權重 (越小越前面)
+    description = Column(Text, nullable=False)          # 白話解說
+    code_example = Column(Text, default="")             # 程式碼範例
+    tip = Column(Text, default="")                      # 避坑提示/小提醒
+    created_at = Column(DateTime, default=datetime.utcnow)

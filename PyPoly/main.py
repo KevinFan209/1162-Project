@@ -43,6 +43,7 @@ from dotenv import load_dotenv
 from fastapi import Request
 from openai import AsyncOpenAI
 from fastapi.responses import FileResponse
+import seed_handbook
 
 # 🏆 讀取 PyPoly/.env（機敏設定：SENDER_EMAIL / SENDER_PASSWORD / SECRET_KEY 等）
 load_dotenv()
@@ -2166,3 +2167,57 @@ def get_user_answer_logs(room: str, user: str, db: Session = Depends(database.ge
         "is_correct": l.is_correct,
         "category": l.category
     } for l in logs]
+
+# Pydantic 驗證格式
+class HandbookCreate(BaseModel):
+    title: str
+    category: str
+    cat_name: str
+    cat_class: Optional[str] = "cat-basic"
+    level: Optional[str] = "★☆☆ 啟蒙"
+    order_index: Optional[int] = 0
+    description: str
+    code_example: Optional[str] = ""
+    tip: Optional[str] = ""
+
+# 📖 1. 前台獲取所有學習手冊卡片 (依 order_index 排序)
+@app.get("/handbook/list")
+def get_handbook_cards(db: Session = Depends(database.get_db)):
+    cards = db.query(models.HandbookCard).order_by(models.HandbookCard.order_index.asc()).all()
+    
+    # 🏆 如果資料庫是空的，從獨立的種子檔案自動初始化寫入
+    if not cards:
+        seed_handbook.seed_handbook_data(db)
+        cards = db.query(models.HandbookCard).order_by(models.HandbookCard.order_index.asc()).all()
+        
+    return cards
+
+# 📖 2. 後台管理員新增卡片
+@app.post("/admin/handbook/add")
+def add_handbook_card(card: HandbookCreate, db: Session = Depends(database.get_db)):
+    new_card = models.HandbookCard(**card.dict())
+    db.add(new_card)
+    db.commit()
+    db.refresh(new_card)
+    return {"status": "success", "card_id": new_card.id}
+
+# 📖 3. 後台管理員編輯卡片
+@app.put("/admin/handbook/{card_id}")
+def update_handbook_card(card_id: int, card: HandbookCreate, db: Session = Depends(database.get_db)):
+    target = db.query(models.HandbookCard).filter(models.HandbookCard.id == card_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="找不到此知識卡片")
+    for key, value in card.dict().items():
+        setattr(target, key, value)
+    db.commit()
+    return {"status": "success", "msg": "教材已更新"}
+
+# 📖 4. 後台管理員刪除卡片
+@app.delete("/admin/handbook/{card_id}")
+def delete_handbook_card(card_id: int, db: Session = Depends(database.get_db)):
+    target = db.query(models.HandbookCard).filter(models.HandbookCard.id == card_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="找不到此知識卡片")
+    db.delete(target)
+    db.commit()
+    return {"status": "success", "msg": "教材已刪除"}
