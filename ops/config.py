@@ -70,9 +70,18 @@ TUNNEL_URL = f"https://{NGROK_DOMAIN}"
 LOG_DIR = OPS_DIR / "logs"
 LOG_DIR.mkdir(exist_ok=True)
 
-# ── llama.cpp（/ask 問答用）──
-LLAMA_BASE_URL = os.getenv("LLAMA_BASE_URL", "http://192.168.137.35:8080").rstrip("/")
-# 留空則自動偵測目前已載入的模型（模型別名很長，寫死容易過時）
+# ── /ask 問答用的 LLM 後端 ──
+# 🏆 這裡原本接的是裸的 llama.cpp 伺服器，後來換成 Open WebUI
+# （http://192.168.0.109:3000/ 回的 HTML 裡有 Open WebUI 的授權聲明可以確認）。
+# Open WebUI 需要帶 API 金鑰才能用程式呼叫，裸 llama.cpp 不需要——
+# 這就是下面多一個 LLAMA_API_KEY 的原因。
+LLAMA_BASE_URL = os.getenv("LLAMA_BASE_URL", "http://192.168.0.109:3000").rstrip("/")
+# Open WebUI：帳號設定 → 帳號 → API 金鑰產生。裸 llama.cpp 不需要這個，留空即可。
+LLAMA_API_KEY = os.getenv("LLAMA_API_KEY", "").strip()
+# 留空則自動偵測目前已載入的模型（模型別名很長，寫死容易過時）。
+# ⚠️ 換成 Open WebUI 之後強烈建議手動指定：自動偵測是讀 llama.cpp 專屬的
+# status.value=="loaded" 欄位，Open WebUI 的 /v1/models 大概沒有這個欄位，
+# 自動偵測很可能挑不到或挑錯，手動指定可以跳過這個風險。
 LLAMA_MODEL = os.getenv("LLAMA_MODEL", "").strip()
 
 

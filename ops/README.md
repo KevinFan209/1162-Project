@@ -235,7 +235,8 @@ ops/
 │  ├─ branch_manager.py       各分支的 git worktree（含分支名白名單）
 │  ├─ server_manager.py       uvicorn 子行程（固定指令，cwd 依分支決定）
 │  ├─ tunnel_manager.py       ngrok 子行程（固定網域，不需解析網址）
-│  ├─ llm_client.py           llama.cpp 唯讀呼叫
+│  ├─ llm_client.py           LLM 後端（Open WebUI）唯讀呼叫
+│  ├─ project_context.py      /ask 的脈絡：程式碼地圖＋依問題挑相關檔案/git log
 │  ├─ github_issues.py        GitHub Issues API 呼叫（/issue 系列的資料層）
 │  └─ channel_guard.py        指令的頻道限制（check_channel / restrict_to）
 ├─ scripts/dev-tunnel.ps1     不透過 bot 的手動啟動方式
@@ -245,7 +246,14 @@ ops/
 
 ### `/ask` 的問答功能
 
-接內網的 llama.cpp（`ops/.env` 的 `LLAMA_BASE_URL`），跑 gemma-4-26B。
+接內網的 **Open WebUI**（`ops/.env` 的 `LLAMA_BASE_URL`，目前是
+`http://192.168.0.109:3000`）。⚠️ 這不是裸的 llama.cpp 伺服器，Open WebUI
+需要帶 API 金鑰才能用程式呼叫——到 Open WebUI 帳號設定 → 帳號 → API 金鑰
+產生一個，填進 `.env` 的 `LLAMA_API_KEY`（這是機密，不要提交進版控）。
+`LLAMA_MODEL` 也強烈建議手動填：自動偵測那段邏輯是為裸 llama.cpp 寫的
+（讀 `status.value=="loaded"` 這個 llama.cpp 專屬欄位），接到 Open WebUI
+後很可能偵測不到或偵測錯。
+
 適合問「結算的答對率在哪裡算的」「這個錯誤訊息是什麼意思」這類問題。
 
 **它不能做任何事，只能回答。** `cogs/ask_cog.py` 刻意不 import
@@ -255,6 +263,30 @@ ops/
 **請不要在 ask_cog 裡加上「讓 AI 幫你執行指令」的功能。** Discord 頻道人人可
 打字，若讓 LLM 決定執行什麼，那個頻道就等同一個公開的遠端 shell。
 
+#### 餵給模型的脈絡：地圖＋依問題挑相關檔案
+
+`services/project_context.py` 平常只給一份「程式碼地圖」（檔案清單、
+REST 路由、Socket.IO 事件、資料表欄位、函式名，加 changeLog 尾段），
+**不是完整原始碼**——實測量過 token 數，整個 `PyPoly/` 約 247,000
+token，用 340 tok/s 的 prefill 速度單次要 5～12 分鐘，超過 Discord
+followup 15 分鐘的額度，而且長脈絡會讓問題被淹沒、回答品質下降。
+
+在地圖之外，`build(question)` 會用問題的關鍵字（中英文都處理）跟每個
+檔案的原始碼做字串比對計分，分數夠高（`_MIN_SCORE`，避免通用詞誤判）
+的少數幾個檔案（`_MAX_RELEVANT_FILES`，預設 3 個）才附上**完整內容**，
+其他檔案仍然只靠地圖。問題裡出現「最近」「為什麼」之類字眼時，還會
+用唯讀的 `git log` 附上相關檔案的近期 commit 訊息（不含完整 diff）。
+
+這整套挑檔案／讀內容／查 git log 都在 bot 自己的 Python 程式碼裡決定，
+**LLM 本身仍然沒有任何工具可用**，跟上面「它不能做任何事」的設計前提
+一致——真正讀檔案、跑 git 的是我們的程式碼，模型只是被動收到決定好
+要給它的文字。
+
+⚠️ `_MAX_RELEVANT_CHARS`（附加內容的總字數上限）是用字元數估的保守
+代理值，不是精確 token 數（這個專案的檔案混雜中文/程式碼，沒有本地
+tokenizer 可用）。實際要設多少，要看這個 LLM 真正配置的 context
+window 大小，請登入 Open WebUI 後台或問管理那台機器的人確認後調整。
+
 幾個實務注意事項：
 
 - 這是**推理型模型**，思考過程會吃掉大量 token，所以 `max_tokens` 設為 2048。
@@ -263,5 +295,6 @@ ops/
 - 單題可能要 30 秒以上，指令會先 defer 再回覆。
 - LLM 輸出一律以 `AllowedMentions.none()` 送出，避免模型輸出 `@everyone`
   時真的通知全體成員。
-- 模型 id 會自動偵測目前已載入的那個；要固定的話在 `.env` 設 `LLAMA_MODEL`。
-- llama.cpp 在**內網**，所以 bot 必須跑在連得到那台機器的網路環境下。
+- Open WebUI 的網路搜尋功能是它自己後台的設定（或模型/工作區層級的
+  開關），不是我們這邊的請求格式能單方面控制的，這裡不處理。
+- Open WebUI 在**內網**，所以 bot 必須跑在連得到那台機器的網路環境下。

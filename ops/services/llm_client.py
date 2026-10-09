@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
-"""llama.cpp（OpenAI 相容介面）唯讀客戶端。
+"""LLM 後端（OpenAI 相容介面）唯讀客戶端。
+
+🏆 原本接的是裸的 llama.cpp 伺服器，後來換成 Open WebUI——Open WebUI
+   需要帶 Authorization: Bearer <金鑰>（見 _headers()），裸 llama.cpp
+   不需要。config.LLAMA_API_KEY 留空時行為跟換後端之前完全一樣。
 
 ⚠️ 設計約束（階段三的核心原則）：
     本模組**只做文字進、文字出**。請求裡不含 tools / functions 欄位，
@@ -60,6 +64,15 @@ SYSTEM_PROMPT = """你是 PyPoly 專案的技術問答助理，服務對象是�
 _model_cache: str | None = None
 
 
+def _headers() -> dict[str, str]:
+    """Open WebUI 需要 Bearer 金鑰才能用程式呼叫；裸 llama.cpp 沒設金鑰時
+    這裡就是空字典，行為跟換後端之前完全一樣，不會因為沒填而壞掉。
+    """
+    if config.LLAMA_API_KEY:
+        return {"Authorization": f"Bearer {config.LLAMA_API_KEY}"}
+    return {}
+
+
 async def _resolve_model(client: httpx.AsyncClient) -> str:
     """取得目前已載入的模型 id。設定檔有指定就用它，否則自動偵測並快取。"""
     global _model_cache
@@ -68,7 +81,7 @@ async def _resolve_model(client: httpx.AsyncClient) -> str:
     if _model_cache:
         return _model_cache
 
-    r = await client.get(f"{config.LLAMA_BASE_URL}/v1/models")
+    r = await client.get(f"{config.LLAMA_BASE_URL}/v1/models", headers=_headers())
     r.raise_for_status()
     entries = r.json().get("data", [])
     loaded = [m["id"] for m in entries
@@ -80,7 +93,8 @@ async def _resolve_model(client: httpx.AsyncClient) -> str:
 async def health() -> bool:
     try:
         async with httpx.AsyncClient(timeout=6.0) as client:
-            return (await client.get(f"{config.LLAMA_BASE_URL}/health")).status_code == 200
+            r = await client.get(f"{config.LLAMA_BASE_URL}/health", headers=_headers())
+            return r.status_code == 200
     except Exception:
         return False
 
@@ -94,7 +108,7 @@ async def ask(question: str, timeout: float = 180.0) -> tuple[bool, str]:
     # 讓每次請求的前綴保持一致以命中 llama.cpp 的 prompt prefix 快取。
     # 地圖產生失敗不該讓 /ask 整個掛掉，退回只用系統提示。
     try:
-        system = SYSTEM_PROMPT + "\n\n" + project_context.build()
+        system = SYSTEM_PROMPT + "\n\n" + project_context.build(question)
     except Exception:
         system = SYSTEM_PROMPT
 
@@ -113,14 +127,14 @@ async def ask(question: str, timeout: float = 180.0) -> tuple[bool, str]:
         async with httpx.AsyncClient(timeout=timeout) as client:
             payload["model"] = await _resolve_model(client)
             r = await client.post(
-                f"{config.LLAMA_BASE_URL}/v1/chat/completions", json=payload)
+                f"{config.LLAMA_BASE_URL}/v1/chat/completions", json=payload, headers=_headers())
             if r.status_code != 200:
-                return False, f"llama.cpp 回應 HTTP {r.status_code}：{r.text[:300]}"
+                return False, f"LLM 後端回應 HTTP {r.status_code}：{r.text[:300]}"
             data = r.json()
     except httpx.TimeoutException:
-        return False, f"llama.cpp 回應逾時（{timeout:.0f} 秒），可能問題太複雜或模型正在載入。"
+        return False, f"LLM 後端回應逾時（{timeout:.0f} 秒），可能問題太複雜或模型正在載入。"
     except Exception as e:
-        return False, (f"連不上 llama.cpp（{config.LLAMA_BASE_URL}）：{type(e).__name__}\n"
+        return False, (f"連不上 LLM 後端（{config.LLAMA_BASE_URL}）：{type(e).__name__}\n"
                        "請確認那台機器與服務都還開著。")
 
     choice = (data.get("choices") or [{}])[0]

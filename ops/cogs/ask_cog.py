@@ -61,7 +61,7 @@ class AskCog(commands.Cog):
 
         if not ok:
             e = discord.Embed(title="❌ 問答失敗", description=result, color=RED)
-            e.set_footer(text=f"llama.cpp: {config.LLAMA_BASE_URL}")
+            e.set_footer(text=f"LLM 後端: {config.LLAMA_BASE_URL}")
             await interaction.followup.send(embed=e, allowed_mentions=_NO_MENTIONS)
             return
 

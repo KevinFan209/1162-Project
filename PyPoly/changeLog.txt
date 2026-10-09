@@ -2951,3 +2951,74 @@ PyPoly 變更紀錄 (changeLog)
   ⚠️ 尚未做：麻煩重新整理這頁確認像素風正確顯示，7 條規則文字讀起來
   通順。
 ========================================================================
+
+[2026-10-09] #74 Discord bot：分支抓不到的自動重試 + /ask 換接 Open WebUI + 依問題附相關檔案內容與 git log
+
+  背景：新分支 hsuan_handbook 一度被 bot 回報「找不到分支」，一開始
+  懷疑是不是分支建立方式有問題，查證後確認分支本身完全正常（乾淨
+  從 main 分岔，git branch -r 也看得到），根因是
+  ops/services/branch_manager.py 的 list_branches() 只讀本機現有的
+  remote-tracking refs，從來不會自己 git fetch——新分支一 push，
+  bot 所在的 main worktree 本機 git 資料庫沒人手動 fetch 過就不會
+  知道它存在，跟分支怎麼建立的完全無關。
+
+  修法：prepare()（/start、/restart 實際執行時呼叫的那個函式）裡，
+  resolve_branch() 第一次失敗時自動 git fetch origin 一次再重試一次，
+  還是找不到才真正回報錯誤。刻意不改 list_branches()／自動完成本身
+  （那個在使用者打字時每個按鍵都會呼叫，加網路 fetch 會明顯變慢，
+  而且只是輔助建議，稍微過期可以接受）。
+
+  同一時間 /ask 的 LLM 後端也換了：ops/.env 的 LLAMA_BASE_URL 從舊的
+  llama.cpp 伺服器換成 http://192.168.0.109:3000——實測這個網址回的
+  HTML 帶有 Open WebUI 的授權聲明，確認不是裸的 llama.cpp，是包了一層
+  介面的 Open WebUI，需要帶 API 金鑰才能用程式呼叫（沒帶會回
+  401 Not authenticated）。llm_client.py 的 health／_resolve_model／ask
+  三個函式都加上 Authorization: Bearer <LLAMA_API_KEY> 標頭，
+  config.py 新增這個設定值，留空時行為跟換後端之前完全一樣（向下
+  相容，不影響還在用裸 llama.cpp 的情境）。_resolve_model() 的模型
+  自動偵測邏輯是讀 llama.cpp 專屬的 status.value=="loaded" 欄位寫的，
+  接到 Open WebUI 後很可能偵測不到或偵測錯，README／.env.example 都
+  加了提醒，建議直接手動指定 LLAMA_MODEL 跳過這個風險。
+
+  另外重新設計了 /ask 餵給模型的脈絡（services/project_context.py）。
+  原本的「只給程式碼地圖，不給完整原始碼」這個設計本身沒有變
+  （docstring 裡量過的 token 數：整個 PyPoly/ 約 247,000 token，用
+  340 tok/s 的 prefill 速度單次要 5~12 分鐘，超過 Discord followup
+  15 分鐘額度，長脈絡還會讓問題被淹沒——這個限制換了 LLM 後端也不會
+  變，瓶頸是 context window 跟 token 數，不是哪一家伺服器），但在地圖
+  之外新增：依這次問題的關鍵字（中英文都處理，中文用重疊 2 字詞
+  比對）跟每個檔案的原始碼做字串計分，分數夠高（_MIN_SCORE=3，避免
+  「天氣」這種通用詞單獨命中就誤判）的少數幾個檔案（_MAX_RELEVANT_FILES
+  =3）才附上完整內容，受 _MAX_RELEVANT_CHARS 總字數上限控制；問題裡
+  出現「最近」「為什麼」之類字眼時，額外用唯讀的 git log 附上相關
+  檔案最近 15 筆 commit 訊息（不含完整 diff）。這整套判斷都在 bot
+  自己的 Python 程式碼裡決定，LLM 本身依然沒有任何工具可用，不違反
+  llm_client.py 開頭「LLM 永遠不能讀寫專案檔案」的階段三核心設計——
+  真正讀檔案、跑 git 的是我們的程式碼。
+
+  驗證：三組測試都是直接載入真實模組執行，不是重寫一份邏輯。
+  (1) 分支重試：模擬 list_branches() 第一次查不到、fetch 後第二次
+  查得到，確認 prepare() 真的會重試且只重試一次；也驗證 fetch 後仍
+  找不到時乾淨回報錯誤而不是拋例外。
+  (2) llm_client 的 Authorization：用 httpx.MockTransport 驗證有/沒
+  設定 LLAMA_API_KEY 時，三個函式送出的請求標頭正確/維持原樣。
+  (3) project_context 的相關性比對：直接對真實的 PyPoly/ 檔案跑，
+  問「過路費在哪裡算」正確挑到 main.py 並附上完整內容（含
+  handle_buy_land 這個函式）；問跟程式碼無關的話（「今天天氣真好」）
+  完全不附加任何內容，行為跟舊版地圖一致；問題有「最近」時才附
+  git log，且確認附的是 commit 訊息不是完整 diff；字數上限調小時
+  確認會正確截斷或改用地圖摘要，不會硬塞整個檔案。
+
+  ⚠️ 尚未做（需要你確認，連不到你的內網沒辦法自己試）：
+  (1) Open WebUI 的 API 金鑰、實際可用的 model id、以及
+  /api/chat/completions 或 /v1/chat/completions 哪個路徑通，填進
+  ops/.env 的 LLAMA_API_KEY／LLAMA_MODEL／LLAMA_BASE_URL。
+  (2) 這個模型實際配置的 context window 大小，用來決定
+  project_context.py 的 _MAX_RELEVANT_CHARS 要設多少才合理，目前的
+  20000 字元只是保守的起始值。
+  (3) 這幾個改動都在 ops/ 這個 Discord bot 自己的程式碼裡，bot 固定
+  只從 main worktree 的 ops/ 執行（跟 /start <分支> 切換的是 PyPoly/
+  遊戲程式完全是兩件事），要實際在 Discord 上測到這幾個修法，得先把
+  這個分支合併回 main、或是手動從這個分支的 ops/ 目錄另外啟動一個
+  bot 行程來測，不能用平常 /start 這個分支的方式測到。
+========================================================================

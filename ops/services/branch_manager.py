@@ -245,7 +245,16 @@ async def prepare(branch_raw: str | None) -> tuple[bool, str, Path | None, list[
 
     branch, err = resolve_branch(branch_raw)
     if not branch:
-        return False, "", None, [err]
+        # 🏆 list_branches() 只讀本機現有的 remote-tracking refs，從來不會
+        # 自己 git fetch——分支剛 push 上去、本機還沒更新過的話，第一次
+        # 一定找不到。這裡只在真的失敗時才 fetch 一次再重試，不放進
+        # list_branches()／自動完成本身，避免使用者每打一個字都觸發網路
+        # 請求。fetch 失敗（例如離線）就直接用原本的錯誤訊息，不額外出錯。
+        ok, _ = await _git_async(["fetch", "origin"])
+        if ok:
+            branch, err = resolve_branch(branch_raw)
+        if not branch:
+            return False, "", None, [err]
 
     ok, path, msg = await ensure_worktree(branch)
     if not ok:
