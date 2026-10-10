@@ -811,23 +811,6 @@ const partColors = {
     head: '#f5c18a', arm: '#5cbaee', body: '#4a90d9', legs: '#2c4a8c', feet: '#2c1f14'
 };
 
-(function applyStoredColors() {
-    const raw = localStorage.getItem('pypoly_char_colors');
-    if (!raw) return;
-    try {
-        const saved = JSON.parse(raw);
-        Object.keys(saved).forEach(k => { if (k in partColors) partColors[k] = saved[k]; });
-        Object.entries(partColors).forEach(([g, hex]) => {
-            const inp    = document.getElementById('color-'   + g);
-            const swatch = document.getElementById('swatch-' + g);
-            const hexEl  = document.getElementById('hex-'    + g);
-            if (inp)    inp.value               = hex;
-            if (swatch) swatch.style.background = hex;
-            if (hexEl)  hexEl.textContent       = hex;
-        });
-    } catch(e) {}
-})();
-
 const PRESETS = {
     default: { head:'#f5c18a', arm:'#5cbaee', body:'#4a90d9', legs:'#2c4a8c', feet:'#2c1f14' },
     cool:    { head:'#c8e6f5', arm:'#4a8cbe', body:'#2c6e9e', legs:'#1a3a5c', feet:'#0f2035' },
@@ -935,7 +918,7 @@ function onColorInput(group, hex) {
     document.getElementById('swatch-' + group).style.background = hex;
     document.getElementById('hex-'    + group).textContent       = hex;
     updateShaderColors();
-    if (localStorage.getItem('pypoly_char_features')) composeFaceTexture();
+    if (hasFeatureFace) composeFaceTexture();
 }
 function applyPreset(name) {
     const p = PRESETS[name]; if (!p) return;
@@ -947,7 +930,7 @@ function applyPreset(name) {
         document.getElementById('hex-'    + g).textContent       = hex;
     });
     updateShaderColors();
-    if (localStorage.getItem('pypoly_char_features')) composeFaceTexture();
+    if (hasFeatureFace) composeFaceTexture();
 }
 
 async function saveCharacterToServer() {
@@ -967,32 +950,14 @@ async function saveCharacterToServer() {
 }
 
 function saveColors() {
-    localStorage.setItem('pypoly_char_colors', JSON.stringify(partColors));
     saveCharacterToServer();
     saveCharacterPreviewImage();
     showModal('儲存成功', '外觀顏色已儲存！按下確定返回大廳。');
     document.querySelector('#modal button').onclick = () => window.location.href = '../../static/lobby.html';
 }
 function resetColors() {
-    localStorage.removeItem('pypoly_char_colors');
     applyPreset('default');
     showModal('已重置', '已還原角色預設顏色。');
-}
-function loadSavedColors() {
-    const raw = localStorage.getItem('pypoly_char_colors');
-    if (!raw) { updateShaderColors(); return; }
-    try {
-        const saved = JSON.parse(raw).colors || JSON.parse(raw);
-        Object.entries(saved).forEach(([g, hex]) => {
-            if (!(g in partColors)) return;
-            partColors[g] = hex;
-            const inp = document.getElementById('color-' + g);
-            if (inp) inp.value = hex;
-            document.getElementById('swatch-' + g).style.background = hex;
-            document.getElementById('hex-'    + g).textContent       = hex;
-        });
-        updateShaderColors();
-    } catch(e) { updateShaderColors(); }
 }
 
 // =====================================================
@@ -1044,9 +1009,7 @@ loader.load('models/minecraft_-_steve.glb', (gltf) => {
     controls.maxDistance = dist * 4;
     controls.update();
 
-    loadSavedColors();
-    loadSavedFaceOrFeatures();
-    restoreCharacterFromServerIfEmpty();
+    restoreCharacterFromServer();
 
 }, undefined, () => {
     showModal('模型載入失敗', '找不到角色模型，請確認 models/minecraft_-_steve.glb 存在。');
@@ -1056,6 +1019,10 @@ loader.load('models/minecraft_-_steve.glb', (gltf) => {
 //  Face Features System (方案 A — Canvas 繪製)
 // =====================================================
 const faceFeatures = { eyebrow: 'standard', eye: 'round', nose: 'none', mouth: 'smile' };
+// 是否正在使用「五官套裝」臉（相對於相機拍的臉／完全沒設定臉）——
+// 取代原本讀 localStorage pypoly_char_features 存在與否來判斷的做法，
+// 因為 colors／features 已經不再寫入 localStorage。
+let hasFeatureFace = false;
 
 const FEATURE_OPTIONS = {
     eyebrow: [
@@ -1244,11 +1211,13 @@ function selectFeature(type, id) {
     document.querySelectorAll(`.feat-opt[data-type="${type}"]`).forEach(btn => {
         btn.classList.toggle('selected', btn.dataset.id === id);
     });
+    hasFeatureFace = true;
     composeFaceTexture();
 }
 
 function applyExpressionPreset(preset) {
     Object.assign(faceFeatures, preset);
+    hasFeatureFace = true;
     buildFeatureRows();
     composeFaceTexture();
 }
@@ -1263,8 +1232,8 @@ function updateFeatureSelectionUI() {
 
 function saveFaceFeatures() {
     const faceCanvas = composeFaceTexture();
-    localStorage.setItem('pypoly_char_features', JSON.stringify(faceFeatures));
     localStorage.setItem('pypoly_char_face', faceCanvas.toDataURL('image/png'));
+    hasFeatureFace = true;
     saveCharacterToServer();
     saveCharacterPreviewImage();
     showModal('儲存成功', '臉部五官已儲存！按下確定返回大廳。');
@@ -1272,7 +1241,7 @@ function saveFaceFeatures() {
 }
 
 function clearFaceFeatures() {
-    localStorage.removeItem('pypoly_char_features');
+    hasFeatureFace = false;
     localStorage.removeItem('pypoly_char_face');
     if (shaderMat) {
         const prevTex = shaderMat.uniforms.faceTex.value;
@@ -1292,91 +1261,76 @@ function clearFaceFeatures() {
     showModal('已清除', '臉部五官已清除。');
 }
 
-function loadSavedFaceOrFeatures() {
-    const featRaw = localStorage.getItem('pypoly_char_features');
-    if (featRaw) {
-        try {
-            Object.assign(faceFeatures, JSON.parse(featRaw));
-            updateFeatureSelectionUI();
-            composeFaceTexture();
-            return;
-        } catch(e) {}
-    }
-    const dataUrl = localStorage.getItem('pypoly_char_face');
-    if (!dataUrl || !shaderMat) return;
-    const img = new Image();
-    img.onload = () => {
-        const fc = document.createElement('canvas');
-        fc.width = 512; fc.height = 512;
-        fc.getContext('2d').drawImage(img, 0, 0, 512, 512);
-        const prevTex = shaderMat.uniforms.faceTex.value;
-        if (prevTex) prevTex.dispose();
-        const tex = new THREE.CanvasTexture(fc);
-        tex.needsUpdate = true;
-        shaderMat.uniforms.faceTex.value = tex;
-        shaderMat.uniforms.hasFace.value = 1.0;
-        shaderMat.needsUpdate = true;
-        document.getElementById('clearFaceBtn').disabled = false;
-        setBadge('captured', '已載入儲存的人臉貼圖');
-    };
-    img.src = dataUrl;
-}
-
-// 🏆 這個帳號在這台裝置第一次用、或登出清過 localStorage 時，
-// pypoly_char_colors／pypoly_char_features 都會是空的，loadSavedColors()／
-// loadSavedFaceOrFeatures() 只能套用預設值——但後端其實早就有
-// PUT/GET /auth/character 把 colors／features 這份「配方」存進
-// users.character_data（main.py），只是本機快取是空的。這裡在兩者都
-// 套用完（可能套到的只是預設值）之後，如果本機原本就沒有任何快取，
-// 才去問伺服器有沒有資料，有的話套用並補回本機快取——不會覆蓋使用者
-// 剛剛在這台裝置上已經調好、還沒存檔的狀態。
-// ⚠️ 攝影機拍的臉部貼圖（pypoly_char_face）不在這份配方裡——後端
-// 刻意只存 colors／features，不存圖片，這個欄位目前無法跨裝置還原。
-async function restoreCharacterFromServerIfEmpty() {
-    const hasLocalColors = !!localStorage.getItem('pypoly_char_colors');
-    const hasLocalFeatures = !!localStorage.getItem('pypoly_char_features');
-    if (hasLocalColors || hasLocalFeatures) return;
-
+// 🏆 colors／features 這份「配方」一律從伺服器的 GET /auth/character 取得，
+// 不再快取進 localStorage——重新整理、換裝置、登出再登入都會重新抓一次，
+// 資料庫才是唯一事實來源（這個 API 本來就存在，main.py 早就有 PUT/GET
+// /auth/character 把配方存進 users.character_data，只是以前前端還是以
+// localStorage 為主要來源）。
+// ⚠️ 攝影機拍的臉部貼圖（pypoly_char_face）不在這份配方裡——後端刻意只存
+// colors／features，不存圖片，這個欄位目前仍然只能留在 localStorage、
+// 無法跨裝置還原，這是已知的範圍限制。
+async function restoreCharacterFromServer() {
     const token = localStorage.getItem('token');
-    if (!token) return;
-
-    try {
-        const res = await fetch(`${API_URL}/auth/character`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        const character = data.character;
-        if (!character) return;  // 伺服器也沒有，維持預設值，不用特別處理
-
-        if (character.colors) {
-            Object.entries(character.colors).forEach(([g, hex]) => {
-                if (!(g in partColors)) return;
-                partColors[g] = hex;
-                const inp = document.getElementById('color-' + g);
-                const swatch = document.getElementById('swatch-' + g);
-                const hexEl = document.getElementById('hex-' + g);
-                if (inp) inp.value = hex;
-                if (swatch) swatch.style.background = hex;
-                if (hexEl) hexEl.textContent = hex;
+    let character = null;
+    if (token) {
+        try {
+            const res = await fetch(`${API_URL}/auth/character`, {
+                headers: { 'Authorization': `Bearer ${token}` }
             });
-            updateShaderColors();
-            localStorage.setItem('pypoly_char_colors', JSON.stringify(partColors));
+            if (res.ok) {
+                const data = await res.json();
+                character = data.character;
+            }
+        } catch (err) {
+            console.warn('⚠️ 從伺服器讀取角色外觀失敗（維持預設值）', err);
         }
+    }
 
-        if (character.features) {
-            Object.assign(faceFeatures, character.features);
-            updateFeatureSelectionUI();
-            composeFaceTexture();
-            localStorage.setItem('pypoly_char_features', JSON.stringify(faceFeatures));
-        }
+    if (character && character.colors) {
+        Object.entries(character.colors).forEach(([g, hex]) => {
+            if (!(g in partColors)) return;
+            partColors[g] = hex;
+            const inp = document.getElementById('color-' + g);
+            const swatch = document.getElementById('swatch-' + g);
+            const hexEl = document.getElementById('hex-' + g);
+            if (inp) inp.value = hex;
+            if (swatch) swatch.style.background = hex;
+            if (hexEl) hexEl.textContent = hex;
+        });
+    }
+    updateShaderColors();
 
-        if (character.colors || character.features) {
-            saveCharacterPreviewImage();
-            console.log('🎨 已從伺服器還原角色外觀（這台裝置原本沒有本機快取）');
+    if (character && character.features) {
+        Object.assign(faceFeatures, character.features);
+        updateFeatureSelectionUI();
+        composeFaceTexture();
+        hasFeatureFace = true;
+    } else {
+        // 伺服器沒有五官配方：fallback 到本機相機臉部貼圖（圖片，不在
+        // 這次改動範圍內，繼續走 localStorage）。
+        const dataUrl = localStorage.getItem('pypoly_char_face');
+        if (dataUrl && shaderMat) {
+            const img = new Image();
+            img.onload = () => {
+                const fc = document.createElement('canvas');
+                fc.width = 512; fc.height = 512;
+                fc.getContext('2d').drawImage(img, 0, 0, 512, 512);
+                const prevTex = shaderMat.uniforms.faceTex.value;
+                if (prevTex) prevTex.dispose();
+                const tex = new THREE.CanvasTexture(fc);
+                tex.needsUpdate = true;
+                shaderMat.uniforms.faceTex.value = tex;
+                shaderMat.uniforms.hasFace.value = 1.0;
+                shaderMat.needsUpdate = true;
+                document.getElementById('clearFaceBtn').disabled = false;
+                setBadge('captured', '已載入儲存的人臉貼圖');
+            };
+            img.src = dataUrl;
         }
-    } catch (err) {
-        console.warn('⚠️ 從伺服器還原角色外觀失敗（維持本機預設值）', err);
+    }
+
+    if (character) {
+        saveCharacterPreviewImage();
     }
 }
 
@@ -1490,7 +1444,7 @@ function applyFaceToModel() {
     shaderMat.uniforms.hasFace.value = 1.0;
     shaderMat.needsUpdate = true;
     localStorage.setItem('pypoly_char_face', faceCanvas.toDataURL('image/jpeg', 0.85));
-    localStorage.removeItem('pypoly_char_features');
+    hasFeatureFace = false;
     Object.assign(faceFeatures, { eyebrow:'standard', eye:'round', nose:'none', mouth:'smile' });
     updateFeatureSelectionUI();
     document.getElementById('clearFaceBtn').disabled = false;
@@ -1548,7 +1502,7 @@ function saveCharacterPreviewImage() {
         renderer.render(scene, threeCamera);
         const previewImage = renderer.domElement.toDataURL('image/png');
         localStorage.setItem('pypoly_char_preview', previewImage);
-        
+
         const currentName = localStorage.getItem('username') || 'default_user';
         localStorage.setItem(`pypoly_char_preview_${currentName}`, previewImage);
 
@@ -1556,13 +1510,9 @@ function saveCharacterPreviewImage() {
         renderer.setClearColor(oldClearColor, oldClearAlpha);
         if (gridObject) gridObject.visible = true;
 
-        const currentUser = localStorage.getItem('username') || 'default_user';
-        localStorage.setItem(`pypoly_char_created_${currentUser}`, "true"); 
-        localStorage.setItem(`pypoly_char_colors_${currentUser}`, JSON.stringify(partColors));
-        
         const faceData = localStorage.getItem('pypoly_char_face');
         if (faceData) {
-            localStorage.setItem(`pypoly_char_face_${currentUser}`, faceData);
+            localStorage.setItem(`pypoly_char_face_${currentName}`, faceData);
         }
     } catch (err) {
         console.error('儲存角色預覽圖失敗：', err);

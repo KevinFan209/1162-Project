@@ -3096,3 +3096,82 @@ PyPoly 變更紀錄 (changeLog)
   (3) 兩人連線對局，雙方畫面確認移動時虛擬人物正確分開站在格子
   兩側，建議多測幾輪、含中途重新整理頁面。
 ========================================================================
+
+[2026-10-11] #76 虛擬人物 colors／features 改成一律從資料庫讀取，不再依賴 localStorage
+
+  背景：換裝置登入同一帳號，沒有主動建立角色的那一方裝置雖然能正常
+  進對局，但實測發現它的 localStorage 其實沒有顏色/五官資料，只有
+  pypoly_char_created_${user} 這個「是否已建立」的旗標——代表
+  localStorage 才是「這台裝置看到的外觀」的實際來源，資料庫只是拿來
+  判斷「有沒有建立過」，沒被當成顯示用的來源。這次把這個模式反過來：
+  colors／features 這份「配方」一律以資料庫（PUT/GET /auth/character，
+  main.py 本來就有，不用改後端）為唯一事實來源，前端完全移除
+  pypoly_char_colors、pypoly_char_colors_${user}、pypoly_char_features、
+  pypoly_char_created_${user} 這四類 localStorage key 的讀寫。
+
+  範圍：相機拍的臉部貼圖（pypoly_char_face*）、3D 預覽截圖
+  （pypoly_char_preview*）這兩種 base64 圖片資料這次不動，繼續留在
+  localStorage——後端 _validate_character() 的 8KB 上限是刻意設計成
+  只存配方、擋掉圖片，要支援圖片持久化是另一個要新增欄位/評估儲存
+  空間的更大改動，已跟使用者確認這次先不做。
+
+  修改：
+  - character.html：拿掉 applyStoredColors() IIFE／loadSavedColors()／
+    loadSavedFaceOrFeatures()／restoreCharacterFromServerIfEmpty()，
+    合併成一支 restoreCharacterFromServer()，模型載入完成後無條件問
+    一次伺服器（不再是「本機沒資料才問」），伺服器沒有五官配方時才
+    fallback 到本機相機人臉貼圖。新增記憶體旗標 hasFeatureFace 取代
+    原本讀 pypoly_char_features 存在與否來判斷「要不要重繪五官臉」。
+  - lobby.html／profile.html：hasCreatedCharacter() 改成 async，直接
+    呼叫 GET /auth/character 問資料庫（character !== null），不再讀寫
+    pypoly_char_created_${user} 這個本機旗標；三個呼叫處（
+    checkAndCreateRoom／joinRoom／quickVerify）補 await。profile.html
+    移除原本「本機沒快取時順便問伺服器設旗標」的 side effect（旗標
+    已經不存在，不需要了）。
+  - game.html：新增 window.myCharacterRecipe（記憶體，只存自己的
+    colors/features），restoreCharacterFromServer() 改寫進這裡而不是
+    localStorage，並在它完成時如果 playerModels[myName] 已經建好，
+    補一次 updateModelAppearance() 即時刷新——因為 loadPlayerModels()
+    跟這支非同步還原流程誰先完成不保證，少這一步會讓自己的模型卡在
+    預設顏色。broadcastMyAppearance()／getPlayerLandColor() 改讀這個
+    記憶體物件；收到對手廣播的 colors 改存進 window.netPlayerColors
+    這個記憶體 map（不再寫 pypoly_char_colors_${user}）。
+    loadPlayerModels() 改成 async，對手顏色優先讀
+    window.netPlayerColors，沒有的話（例如晚進房間、還沒收到對方廣播）
+    直接呼叫 GET /auth/character?username=（這個 API 本來就支援查
+    任何人、不需要 token）當 fallback，不再顯示預設顏色。移除死掉的
+    getPlayerColors()（確認過沒有任何地方呼叫它）。
+  - results.html：renderWinnerAvatar() 改成 async，不管贏家是自己還是
+    對手，統一直接呼叫 GET /auth/character?username= 問資料庫要
+    colors（這頁是獨立頁面導航，game.html 存在記憶體裡的狀態不會留
+    著，不能沿用）。人臉貼圖維持現狀讀 localStorage（圖片，範圍外）。
+  - 刪除 static/pypoly_char.js：確認過全專案沒有任何 <script src>
+    引用它，是一套平行、過時的死程式碼（自己的 loadPlayerModels()／
+    char_data_sync 實作，從未被載入過），留著容易誤導之後的人。
+
+  驗證：
+  - 全專案 grep pypoly_char_colors／pypoly_char_features／
+    pypoly_char_created，確認只剩一處註解提到字串，沒有任何讀寫。
+  - 五個改動過的檔案（character/lobby/profile/game/results.html）都
+    用 Node vm.Script 做過 inline script 語法檢查，全部通過。
+  - 把伺服器實際開起來（curl 打得到 200），再用 requests 模擬「登入
+    帳號 → PUT 存一組 colors/features → 全新 session（不帶任何本機
+    狀態，等同換裝置）」，驗證兩種路徑都拿得回同一份資料：帶 token
+    查自己、完全不帶 token 只用 ?username= 查別人（lobby/game/results
+    這幾頁對別人角色的查詢方式）。4/4 通過。
+    ⚠️ 測試又用了共用測試帳號 112213007（上一輪 #75 已經提醒過這個
+    帳號是共用的），PUT 測試資料再次蓋掉它當時的配色——測完已經把它
+    還原成 character.html 的預設配色（跟 #75 還原的值一樣）。這次有
+    记住要還原，但還是要提醒：如果這個帳號是哪位組員在用，顏色/五官
+    會跟你自己調的不一樣，請重新調一次。
+
+  ⚠️ 尚未做（需要實際開瀏覽器測，3D 渲染沒辦法用無瀏覽器腳本代測）：
+  (1) 帳號 A 在瀏覽器 1 建立角色、調好顏色/五官，換一台瀏覽器（或清
+  空全部 localStorage 模擬換裝置）用同帳號登入，確認大廳/個人主頁不
+  會誤判成尚未建立角色，進 character.html 顏色/五官直接正確還原
+  （不用重新手動調），不開相機的情況下進對局角色顏色也正確。
+  (2) 兩人連線對局，確認雙方顏色都正確顯示在對方畫面上，含一方晚進
+  房間、另一方已經廣播過才加入的情境（驗證 GET fallback 有被用到）。
+  (3) 對局結束進 results.html，確認贏家（自己或對手）顏色正確顯示，
+  即使是另開一個全新瀏覽器分頁/視窗直接導到 results.html 測試。
+========================================================================

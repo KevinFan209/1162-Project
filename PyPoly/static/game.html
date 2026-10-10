@@ -1083,14 +1083,16 @@ socket.on('order_dice_aborted', (data) => {
         0);
 });
 	
-	window.netPlayerColors = {}; // 全域快照：存放連線收到的所有玩家外觀顏色
-    window.netPlayerFaces = {};  // 🏆 新增：存放連線收到的所有玩家人臉貼圖
+	window.netPlayerColors = {}; // 全域快照：存放連線收到的所有玩家外觀顏色（記憶體，非 localStorage）
+    window.netPlayerFaces = {};  // 存放連線收到的所有玩家人臉貼圖（圖片，仍走 localStorage，見下方說明）
+    window.myCharacterRecipe = { colors: null, features: null }; // 自己的 colors／features 配方，只存在記憶體
 
 // 🏆 4. 全域外觀發送器 (強化版)
-// 🏆 從資料庫還原角色外觀（換裝置或清快取後仍能顯示自己捏的角色）。
-//    資料庫只存「配方」（顏色 + 五官 ID），臉部貼圖在這裡用共用模組重新合成。
-//    合成後回寫 localStorage 快取，底下的 broadcastMyAppearance 完全不必改動。
-//    沒角色資料或請求失敗 → 直接沿用現有的 localStorage 行為。
+// 🏆 colors／features 一律從資料庫的 GET /auth/character 取得，只快取在
+//    記憶體（window.myCharacterRecipe），不再寫回 localStorage——重新整理
+//    這個頁面就會重新抓一次，資料庫才是唯一事實來源。
+//    臉部貼圖（圖片）仍是後端刻意不支援持久化的範圍外資料，繼續用
+//    buildFaceDataUrl() 重新合成後寫回 localStorage，維持現有行為。
 async function restoreCharacterFromServer() {
     const token = localStorage.getItem('token');
     const myName = localStorage.getItem('username');
@@ -1104,64 +1106,54 @@ async function restoreCharacterFromServer() {
 
         const data = await res.json();
         const char = data && data.character;
-        if (!char || !char.colors) { console.log('ℹ️ 伺服器尚無角色資料，沿用本機快取'); return; }
+        if (!char || !char.colors) { console.log('ℹ️ 伺服器尚無角色資料'); return; }
 
-        const colorsStr = JSON.stringify(char.colors);
-        localStorage.setItem('pypoly_char_colors', colorsStr);
-        localStorage.setItem(`pypoly_char_colors_${myName}`, colorsStr);
+        window.myCharacterRecipe = { colors: char.colors, features: char.features || {} };
 
+        let faceUrl = null;
         if (typeof buildFaceDataUrl === 'function') {
-            const faceUrl = buildFaceDataUrl(char.colors, char.features || {});
+            faceUrl = buildFaceDataUrl(char.colors, char.features || {});
             localStorage.setItem('pypoly_char_face', faceUrl);
             localStorage.setItem(`pypoly_char_face_${myName}`, faceUrl);
-            localStorage.setItem('pypoly_char_features', JSON.stringify(char.features || {}));
+        }
+
+        // loadPlayerModels() 可能已經先用預設顏色建好自己的模型（跟這支
+        // 非同步還原流程誰先完成不保證），這裡補一次即時更新，確保畫面
+        // 最後一定會是資料庫裡真正的顏色，不會卡在預設值。
+        if (typeof playerModels !== 'undefined' && playerModels[myName]) {
+            updateModelAppearance(playerModels[myName], char.colors, faceUrl);
         }
         console.log('🎨 已從伺服器還原角色外觀');
     } catch (err) {
-        console.warn('⚠️ 讀取角色失敗（沿用本機快取）', err);
+        console.warn('⚠️ 讀取角色失敗', err);
     }
 }
 
 function broadcastMyAppearance() {
     const myName = localStorage.getItem('username');
-    // 💡 嘗試讀取專屬顏色，如果沒有，就讀取通用的 (這通常發生在單機測試或舊資料)
-    let myLocalColors = localStorage.getItem(`pypoly_char_colors_${myName}`);
-    if (!myLocalColors) {
-        myLocalColors = localStorage.getItem('pypoly_char_colors');
-        // 如果通用有，順便幫忙寫入專屬，以防萬一
-        if (myLocalColors) localStorage.setItem(`pypoly_char_colors_${myName}`, myLocalColors);
-    }
-    
+    const myColors = window.myCharacterRecipe && window.myCharacterRecipe.colors;
+
     let myLocalFace = localStorage.getItem(`pypoly_char_face_${myName}`);
     if (!myLocalFace) {
         myLocalFace = localStorage.getItem('pypoly_char_face');
         if (myLocalFace) localStorage.setItem(`pypoly_char_face_${myName}`, myLocalFace);
     }
-    
+
     const gameSnapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot') || '{}');
     const safeRoomCode = gameSnapshot.code || localStorage.getItem('room_code') || window.roomCode;
 
 	console.log(`🔎 [前端偵錯] 正在發送廣播，當前房間代碼為: "${safeRoomCode}"`);
 
-    if (myLocalColors && safeRoomCode) {
-        let parsedColors = null;
-        try {
-            // 防呆：確保存的是字串化的 JSON
-            parsedColors = typeof myLocalColors === 'string' ? JSON.parse(myLocalColors) : myLocalColors;
-        } catch (e) {
-            console.error("解析顏色資料失敗:", e);
-            return;
-        }
-
+    if (myColors && safeRoomCode) {
         socket.emit('sync_user_appearance', {
             room: safeRoomCode,
             user: myName,
-            colors: parsedColors,
-            face: myLocalFace 
+            colors: myColors,
+            face: myLocalFace
         });
         console.log(`📡 [外觀廣播] 成功向房間發送個人外觀設定包 (玩家: ${myName})...`);
     } else {
-        console.warn("⚠️ 無法廣播外觀：缺少顏色資料或房間代碼", {colors: !!myLocalColors, room: !!safeRoomCode});
+        console.warn("⚠️ 無法廣播外觀：缺少顏色資料或房間代碼", {colors: !!myColors, room: !!safeRoomCode});
     }
 }
 
@@ -1179,9 +1171,10 @@ socket.on('user_appearance_broadcast', (data) => {
         try { safeColors = JSON.parse(safeColors); } catch(e) {}
     }
 
-    // 寫入 LocalStorage 進行記憶
+    // 存進記憶體快照（不寫 localStorage——這是對手的配方，資料庫才是
+    // 事實來源，這份只是這個頁面這次連線期間的即時快取）
     if (safeColors) {
-        localStorage.setItem(`pypoly_char_colors_${data.user}`, JSON.stringify(safeColors));
+        window.netPlayerColors[data.user] = safeColors;
     }
     if (data.face) {
         localStorage.setItem(`pypoly_char_face_${data.user}`, data.face);
@@ -2081,9 +2074,11 @@ function getPlayerLandColor(playerName) {
     const p2 = gameSnapshot.players[1];
 
     function getBodyColor(pName) {
-        const exact = localStorage.getItem(`pypoly_char_colors_${pName}`);
-        if(exact) { try { return JSON.parse(exact).body; } catch(e){} }
-        return null;
+        const myName = localStorage.getItem('username');
+        const colors = (pName === myName)
+            ? (window.myCharacterRecipe && window.myCharacterRecipe.colors)
+            : (window.netPlayerColors && window.netPlayerColors[pName]);
+        return colors ? colors.body : null;
     }
 
     let c1 = getBodyColor(p1) || "#4facfe";
@@ -3012,7 +3007,7 @@ window.onload = async function() {
 
     // 步驟 C：這時候 mapBlocks 絕對有資料了，可以安全地生成並放置玩家積木人
     if (typeof loadPlayerModels === "function") {
-        loadPlayerModels();
+        await loadPlayerModels();
     }
 	
 	Object.keys(window.landOwnership).forEach(tileIdx => {
@@ -3242,23 +3237,7 @@ function updateModelColors(model, colors, faceDataUrl) {
 	
 	
 	
-// 🏆 新增：從 localStorage 取得玩家顏色，若無則回傳預設值
-function getPlayerColors(username) {
-    const raw = localStorage.getItem('pypoly_char_colors');
-    const defaults = {
-        head: '#f5c18a', arm: '#5cbaee', body: '#4a90d9',
-        legs: '#2c4a8c', feet: '#2c1f14'
-    };
-
-    if (!raw) return defaults;
-    try {
-        return JSON.parse(raw);
-    } catch (e) {
-        return defaults;
-    }
-}
-	
-function loadPlayerModels() {
+async function loadPlayerModels() {
     const gameSnapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot'));
     if (!gameSnapshot || !gameSnapshot.players) {
         console.error("🚨 找不到遊戲快照，載入失敗");
@@ -3275,20 +3254,38 @@ function loadPlayerModels() {
         activeCam.layers.enable(1);
     }
 
-    players.forEach((playerName, index) => {
-        const exactColors = localStorage.getItem(`pypoly_char_colors_${playerName}`);
+    for (let index = 0; index < players.length; index++) {
+        const playerName = players[index];
         const exactFace = localStorage.getItem(`pypoly_char_face_${playerName}`);
-        
+
         let activeColors = { head: '#f5c18a', body: '#4a90d9', arm: '#5cbaee', legs: '#2c4a8c', feet: '#2c1f14' };
         let activeFace = null;
 
         // 🏆 嚴格資料隔離：防止對手未同步前誤抓到自己的造型
         if (playerName === myName) {
-            const myColors = exactColors || localStorage.getItem('pypoly_char_colors');
-            if (myColors) { try { activeColors = JSON.parse(myColors); } catch(e) {} }
+            const myColors = window.myCharacterRecipe && window.myCharacterRecipe.colors;
+            if (myColors) activeColors = myColors;
             activeFace = exactFace || localStorage.getItem('pypoly_char_face');
         } else {
-            if (exactColors) { try { activeColors = JSON.parse(exactColors); } catch(e) {} }
+            let oppColors = window.netPlayerColors && window.netPlayerColors[playerName];
+            if (!oppColors) {
+                // 對手還沒透過 Socket.IO 廣播傳來顏色（例如晚進房間）：
+                // 這個 API 本來就支援查任何人、不需要帶 token，直接問資料庫，
+                // 不要顯示預設顏色。
+                try {
+                    const res = await fetch(`${API_URL}/auth/character?username=${encodeURIComponent(playerName)}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.character && data.character.colors) {
+                            oppColors = data.character.colors;
+                            window.netPlayerColors[playerName] = oppColors;
+                        }
+                    }
+                } catch (err) {
+                    console.warn(`⚠️ 取得玩家 [${playerName}] 顏色失敗`, err);
+                }
+            }
+            if (oppColors) activeColors = oppColors;
             activeFace = exactFace; // 對手如果網路還沒傳來，先維持預設，不混用自己的
         }
 
@@ -3332,7 +3329,7 @@ function loadPlayerModels() {
         scene.add(model);
         playerModels[playerName] = model;
         console.log(`🤖 玩家 [${playerName}] 專屬自定義人物載入配置成功！`);
-    });
+    }
 }
 
 

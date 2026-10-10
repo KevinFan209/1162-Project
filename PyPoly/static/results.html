@@ -577,7 +577,13 @@
     }
 
     // 🏆 完美修正虛擬人物大小，確保全身入鏡
-    function renderWinnerAvatar(winnerName) {
+    // 🏆 這頁是獨立的頁面導航（從大廳/結算直接開，或 game.html 結束後跳轉），
+    // game.html 存在記憶體裡的 window.netPlayerColors／myCharacterRecipe
+    // 不會留著，所以不管贏家是自己還是對手，統一直接問資料庫要 colors
+    // （GET /auth/character?username= 本來就支援查任何人、不需要 token）。
+    // 人臉貼圖（圖片）維持現狀：只能靠 localStorage，換裝置抓不到是已知
+    // 的範圍限制，不是這次造成的新問題。
+    async function renderWinnerAvatar(winnerName) {
         const canvas = document.getElementById('winner-canvas');
         if (!canvas) return;
 
@@ -595,9 +601,16 @@
         dirLight.position.set(2, 4, 3);
         scene.add(dirLight);
 
-        const colorsStr = localStorage.getItem(`pypoly_char_colors_${winnerName}`) || localStorage.getItem('pypoly_char_colors');
         let colors = { head: '#f5c18a', arm: '#5cbaee', body: '#4a90d9', legs: '#2c4a8c', feet: '#2c1f14' };
-        if (colorsStr) try { colors = JSON.parse(colorsStr); } catch (e) {}
+        try {
+            const res = await fetch(`${API_URL}/auth/character?username=${encodeURIComponent(winnerName)}`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.character && data.character.colors) colors = data.character.colors;
+            }
+        } catch (err) {
+            console.warn('⚠️ 取得贏家角色顏色失敗（使用預設顏色）', err);
+        }
         const faceUrl = localStorage.getItem(`pypoly_char_face_${winnerName}`) || localStorage.getItem('pypoly_char_face');
 
         if (typeof createCustomBoxCharacter === 'function') {

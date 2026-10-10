@@ -532,10 +532,12 @@
         }
 
         // 🏆 修正 #35：跟 lobby.html 用同一套邏輯顯示真實預覽圖，不要
-        // 只放一個死的 👾 表情符號。本機沒有快取時，順便確認伺服器端
-        // 到底有沒有角色資料（避免大廳那邊的 hasCreatedCharacter() 誤判）；
-        // 真正要重新產生預覽圖要去 character.html 走一次，這裡不重刻
-        // 一份 3D 渲染邏輯。
+        // 只放一個死的 👾 表情符號。這裡顯示的是圖片快取（相機人臉貼圖／
+        // 3D 預覽截圖，本次範圍之外，仍是 client-local 資料）；真正的
+        // colors／features 配方是否存在一律由 lobby.html 的
+        // hasCreatedCharacter() 直接問資料庫判斷，這裡不重複判斷、也不
+        // 再寫入本機旗標。真正要重新產生預覽圖要去 character.html 走
+        // 一次，這裡不重刻一份 3D 渲染邏輯。
         const avatarBox = document.getElementById('profile-avatar-box');
         const myFace = localStorage.getItem(`pypoly_char_face_${username}`) || localStorage.getItem('pypoly_char_face');
         const savedCharImage = localStorage.getItem('pypoly_char_preview');
@@ -544,20 +546,6 @@
                 avatarBox.innerHTML = `<img src="${savedCharImage}" alt="我的角色" style="width: 100%; height: 100%; object-fit: contain;">`;
             } else if (myFace) {
                 avatarBox.innerHTML = `<img src="${myFace}" style="width:100%; height:100%; object-fit:cover; border:2px solid var(--bee-yellow);">`;
-            } else {
-                try {
-                    const charRes = await fetch(`${API_URL}/auth/character`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                    if (charRes.ok) {
-                        const charData = await charRes.json();
-                        if (charData.character) {
-                            localStorage.setItem(`pypoly_char_created_${username}`, "true");
-                        }
-                    }
-                } catch (err) {
-                    console.warn('⚠️ 確認伺服器端角色資料失敗', err);
-                }
             }
         }
 
