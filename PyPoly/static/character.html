@@ -719,6 +719,7 @@
                 <button class="btn btn-blue"  id="camToggleBtn" onclick="toggleCamera()">開啟相機</button>
                 <button class="btn btn-green" id="applyFaceBtn" onclick="applyFaceToModel()" disabled>套用人臉到角色臉部</button>
                 <button class="btn btn-red"   id="clearFaceBtn" onclick="clearFace()" disabled>清除人臉</button>
+                <button class="btn btn-green" onclick="saveCameraFace()" style="margin-top:12px">儲存到遊戲</button>
             </div>
 
         </div><!-- /right-panel -->
@@ -1045,6 +1046,7 @@ loader.load('models/minecraft_-_steve.glb', (gltf) => {
 
     loadSavedColors();
     loadSavedFaceOrFeatures();
+    restoreCharacterFromServerIfEmpty();
 
 }, undefined, () => {
     showModal('模型載入失敗', '找不到角色模型，請確認 models/minecraft_-_steve.glb 存在。');
@@ -1320,6 +1322,64 @@ function loadSavedFaceOrFeatures() {
     img.src = dataUrl;
 }
 
+// 🏆 這個帳號在這台裝置第一次用、或登出清過 localStorage 時，
+// pypoly_char_colors／pypoly_char_features 都會是空的，loadSavedColors()／
+// loadSavedFaceOrFeatures() 只能套用預設值——但後端其實早就有
+// PUT/GET /auth/character 把 colors／features 這份「配方」存進
+// users.character_data（main.py），只是本機快取是空的。這裡在兩者都
+// 套用完（可能套到的只是預設值）之後，如果本機原本就沒有任何快取，
+// 才去問伺服器有沒有資料，有的話套用並補回本機快取——不會覆蓋使用者
+// 剛剛在這台裝置上已經調好、還沒存檔的狀態。
+// ⚠️ 攝影機拍的臉部貼圖（pypoly_char_face）不在這份配方裡——後端
+// 刻意只存 colors／features，不存圖片，這個欄位目前無法跨裝置還原。
+async function restoreCharacterFromServerIfEmpty() {
+    const hasLocalColors = !!localStorage.getItem('pypoly_char_colors');
+    const hasLocalFeatures = !!localStorage.getItem('pypoly_char_features');
+    if (hasLocalColors || hasLocalFeatures) return;
+
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+        const res = await fetch(`${API_URL}/auth/character`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const character = data.character;
+        if (!character) return;  // 伺服器也沒有，維持預設值，不用特別處理
+
+        if (character.colors) {
+            Object.entries(character.colors).forEach(([g, hex]) => {
+                if (!(g in partColors)) return;
+                partColors[g] = hex;
+                const inp = document.getElementById('color-' + g);
+                const swatch = document.getElementById('swatch-' + g);
+                const hexEl = document.getElementById('hex-' + g);
+                if (inp) inp.value = hex;
+                if (swatch) swatch.style.background = hex;
+                if (hexEl) hexEl.textContent = hex;
+            });
+            updateShaderColors();
+            localStorage.setItem('pypoly_char_colors', JSON.stringify(partColors));
+        }
+
+        if (character.features) {
+            Object.assign(faceFeatures, character.features);
+            updateFeatureSelectionUI();
+            composeFaceTexture();
+            localStorage.setItem('pypoly_char_features', JSON.stringify(faceFeatures));
+        }
+
+        if (character.colors || character.features) {
+            saveCharacterPreviewImage();
+            console.log('🎨 已從伺服器還原角色外觀（這台裝置原本沒有本機快取）');
+        }
+    } catch (err) {
+        console.warn('⚠️ 從伺服器還原角色外觀失敗（維持本機預設值）', err);
+    }
+}
+
 buildFeatureRows();
 buildExpressionPresets();
 
@@ -1446,6 +1506,18 @@ function clearFace() {
     localStorage.removeItem('pypoly_char_face');
     document.getElementById('clearFaceBtn').disabled = true;
     setBadge('idle', '已清除人臉貼圖');
+}
+
+// 🏆 相機人臉貼圖卡原本缺「儲存到遊戲」按鈕，玩家拍完臉還要往上滑找
+// 另外兩張卡的按鈕才能離開這頁。applyFaceToModel() 已經把拍到的臉存進
+// pypoly_char_face 並即時貼到模型上了，這裡只需要補做跟另外兩張卡一樣
+// 的「同步到伺服器＋產生預覽圖＋導回大廳」收尾——不能直接呼叫
+// saveFaceFeatures()，那支是五官套裝那張卡用的，會連帶重置 faceFeatures。
+function saveCameraFace() {
+    saveCharacterToServer();
+    saveCharacterPreviewImage();
+    showModal('儲存成功', '相機人臉貼圖已儲存！按下確定返回大廳。');
+    document.querySelector('#modal button').onclick = () => window.location.href = '../../static/lobby.html';
 }
 
 function saveCharacterPreviewImage() {

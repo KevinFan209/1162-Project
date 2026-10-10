@@ -3022,3 +3022,77 @@ PyPoly 變更紀錄 (changeLog)
   這個分支合併回 main、或是手動從這個分支的 ops/ 目錄另外啟動一個
   bot 行程來測，不能用平常 /start 這個分支的方式測到。
 ========================================================================
+
+[2026-10-10] #75 虛擬人物相關 issue：#20/#27/#35 角色資料還原、#18 補儲存按鈕、#22 移動偏移改用穩定依據
+
+  背景：盤點 GitHub 上跟虛擬人物有關的 issue，逐一讀過程式碼找根因，
+  這次處理其中 3 組（#21 臉部表情沒對齊信心不足，先不處理；#24 觀戰者
+  收購畫面版位沒有具體描述要怎麼調，等回報的人補充再處理）。
+
+  #20（登出後虛擬人物不會保留）+ #27（虛擬人物僅存 localStorage，未
+  正確存進資料庫）+ #35（個人主頁的更換頭像無反應）：追完發現後端
+  main.py 早就有 PUT/GET /auth/character 把 colors／features 這份
+  「配方」存進 users.character_data，不是完全沒做持久化。問題是
+  lobby.html、profile.html 的角色顯示從來沒呼叫過這個 API，只讀
+  localStorage 的 pypoly_char_face_*／pypoly_char_preview——這就是
+  「登出或換裝置就不見」的直接原因，資料庫裡有資料，只是這兩頁沒去
+  讀。另外 profile.html 的「點擊更換頭像」那塊完全沒有 onclick，是
+  字面上的 bug，點了什麼都不會發生。
+
+  修法：
+  - character.html 新增 restoreCharacterFromServerIfEmpty()，在
+    loadSavedColors()／loadSavedFaceOrFeatures() 套用完本機快取之後
+    才呼叫——如果本機原本就沒有 pypoly_char_colors／
+    pypoly_char_features 任何一個，才去問伺服器，有資料就套用並呼叫
+    既有的 saveCharacterPreviewImage() 補回本機快取，不會覆蓋使用者
+    已經在調的狀態。
+  - lobby.html／profile.html：本機沒有預覽圖快取時，改呼叫
+    GET /auth/character 確認伺服器端有沒有角色資料，避免
+    hasCreatedCharacter() 誤判成「尚未建立角色」擋住建立對局；真正
+    要重新顯示預覽圖導去 character.html（上面那條會自動還原），不在
+    這兩頁各自重刻一份渲染邏輯。
+  - profile.html 的 .avatar-box 補上 onclick，並改成跟 lobby.html
+    一樣讀真實預覽圖，不再放死的 👾 表情符號。
+
+  ⚠️ 範圍限制：後端 _validate_character() 刻意只存 colors／features
+  配方，不存成品圖，8KB 上限就是為了擋掉圖片——攝影機拍的臉部貼圖
+  （pypoly_char_face）完全沒有送到伺服器過，這次修完之後色彩/五官
+  可以跨裝置還原，但攝影機拍的臉還是不能，這是後端目前刻意的設計
+  邊界，不是這次沒修完。
+
+  #18（相機建立虛擬人物缺少「儲存到遊戲」按鈕）：character.html 的
+  相機人臉貼圖卡只有「開啟相機」「套用人臉到角色臉部」「清除人臉」
+  三個按鈕，缺跟另外兩張卡一樣的「儲存到遊戲」。補上按鈕＋新函式
+  saveCameraFace()——不能直接重用 saveFaceFeatures()（那支是五官
+  套裝卡用的，會連帶重置 faceFeatures），新函式只做
+  saveCharacterToServer() + saveCharacterPreviewImage() + 導回大廳，
+  跟 applyFaceToModel() 已經做的「存進 pypoly_char_face＋即時貼到
+  模型」接起來。
+
+  #22（虛擬人物會亂跑到格子正中央）：movePlayerSequence()
+  （game.html）原本用 Object.keys(playerModels)[0]（物件屬性插入
+  順序）判斷誰該往左偏、誰該往右偏，這個順序取決於兩個玩家的模型
+  分別在什麼時機被建立，兩邊瀏覽器不保證一致，模型重建時也可能跟著
+  變。改用 pypoly_game_snapshot.players（伺服器同步下來的加入順序，
+  兩邊看到的保證是同一份資料）判斷，讀不到時才退回原本的寫法。
+
+  驗證：
+  - 對真的跑起來的伺服器（不是模擬）用 requests 測
+    PUT→GET /auth/character 的完整往返，確認 colors／features 存進去
+    之後讀得回來，也確認帶 username 查詢（換裝置/觀戰情境）一樣拿得
+    到同一份資料。⚠️ 測試過程中用了共用測試帳號 112213007，PUT 的
+    測試資料蓋掉了這個帳號原本的角色配色（created_at 顯示是
+    2026-08-22 建立的真實資料，不是空的），測完後已經把它還原成
+    character.html 的預設配色（並非原始值，因為沒有先備份原始值就
+    直接蓋掉，這是我這次測試的疏失）——如果這個帳號是哪位組員在用，
+    麻煩之後重新調一次顏色/五官，抱歉。
+  - 四個改動過的檔案都用 Node vm.Script 做過 inline script 語法檢查。
+
+  ⚠️ 尚未做（需要實際開瀏覽器測）：
+  (1) 用帳號在瀏覽器 1 建角色設顏色，換瀏覽器/清 localStorage 模擬
+  換裝置，確認 lobby/profile 不會誤判成尚未建立角色，進 character.html
+  後顏色/五官正確還原；登出再登入也測一次。
+  (2) 相機建立人臉貼圖後確認「儲存到遊戲」按鈕出現且能正常儲存。
+  (3) 兩人連線對局，雙方畫面確認移動時虛擬人物正確分開站在格子
+  兩側，建議多測幾輪、含中途重新整理頁面。
+========================================================================

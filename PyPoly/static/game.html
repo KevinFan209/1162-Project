@@ -6604,11 +6604,20 @@ async function movePlayerSequence(playerName, steps) {
 
     if (playerCurrentIndex[playerName] === undefined) playerCurrentIndex[playerName] = 0;
 
+    // 🏆 修正：原本用 Object.keys(playerModels)[0]（物件屬性插入順序）判斷
+    // 誰該往左偏、誰該往右偏，但插入順序取決於兩個玩家的模型分別在什麼
+    // 時機被建立，兩邊瀏覽器不保證一致，模型重建（重新整理、換外觀）時
+    // 也可能跟著變——一旦兩邊算出同一個方向，虛擬人物就會疊在格子正
+    // 中央。改用 pypoly_game_snapshot.players（伺服器同步下來的加入
+    // 順序，兩邊看到的保證是同一份資料），讀不到時才退回原本的寫法。
+    const snapshotPlayers = JSON.parse(localStorage.getItem('pypoly_game_snapshot') || 'null')?.players;
+    const firstPlayer = (snapshotPlayers && snapshotPlayers[0]) || Object.keys(playerModels)[0];
+
     for (let i = 1; i <= steps; i++) {
         playerCurrentIndex[playerName] = (playerCurrentIndex[playerName] + 1) % mapBlocks.length;
         const targetPos = mapBlocks[playerCurrentIndex[playerName]];
-        const offset = (playerName === Object.keys(playerModels)[0] ? -0.8 : 0.8);
-        
+        const offset = (playerName === firstPlayer ? -0.8 : 0.8);
+
         const finalTargetX = targetPos.x + offset;
         const finalTargetZ = targetPos.z;
 

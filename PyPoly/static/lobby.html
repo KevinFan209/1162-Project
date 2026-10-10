@@ -499,6 +499,29 @@
             }
         }
 
+        // 🏆 這台裝置本機沒有預覽圖快取時（換裝置、清過 localStorage、
+        // 或登出重新登入），不代表這個帳號真的沒有建立過角色——後端的
+        // /auth/character 早就有存 colors／features。這裡只確認「伺服器
+        // 端到底有沒有角色資料」，避免 hasCreatedCharacter() 誤判成
+        // 「尚未建立角色」擋住建立對局；真正要重新顯示預覽圖，要去
+        // character.html 走一次（那裡會自動從伺服器還原並重新產生快取），
+        // 不在這裡重刻一份渲染邏輯。
+        if (!savedCharImage && !myFace) {
+            try {
+                const charRes = await fetch(`${API_URL}/auth/character`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (charRes.ok) {
+                    const charData = await charRes.json();
+                    if (charData.character) {
+                        localStorage.setItem(`pypoly_char_created_${username}`, "true");
+                    }
+                }
+            } catch (err) {
+                console.warn('⚠️ 確認伺服器端角色資料失敗', err);
+            }
+        }
+
         try {
             const res = await fetch(`${API_URL}/auth/verify_and_refresh?username=${encodeURIComponent(username)}`, {
                 method: "POST",
