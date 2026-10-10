@@ -310,7 +310,7 @@
                 <p class="setting-label">背景音樂 (BGM)</p>
                 <p class="setting-desc">開啟後享受沉浸式的冒險樂曲。</p>
             </div>
-            <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+            <label class="switch"><input id="bgm-toggle" type="checkbox" checked><span class="slider"></span></label>
         </div>
 
         <div class="setting-item">
@@ -334,6 +334,19 @@
 </div>
 
 <script>
+    const BGM_SETTING_KEY = 'beerich_bgm_enabled';
+    const bgmToggle = document.getElementById('bgm-toggle');
+
+    bgmToggle.checked =
+        localStorage.getItem(BGM_SETTING_KEY) !== 'false';
+
+    bgmToggle.addEventListener('change', () => {
+        localStorage.setItem(
+            BGM_SETTING_KEY,
+            String(bgmToggle.checked)
+        );
+    });
+
     function toggleMenu() {
         document.getElementById('sideMenu').classList.toggle('open');
         document.getElementById('overlay').classList.toggle('open');

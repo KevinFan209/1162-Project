@@ -657,13 +657,24 @@
         <div class="top-status-item">👤 <span id="displayMyName">玩家</span></div>
         <div class="top-status-item lap-status" id="headerLapInfo">第 1 / 10 回合 ⏳</div>
         
+        <button
+            id="bgm-toggle-btn"
+            type="button"
+            onclick="toggleGameBgm()"
+            aria-label="關閉背景音樂"
+            title="關閉背景音樂"
+            style="pointer-events:auto; cursor:pointer; border:2px solid #222; border-radius:10px; background:white; padding:8px 12px; font-size:22px;"
+        >🔊</button>
+
         <button class="menu-btn" onclick="toggleMenu()" style="pointer-events: auto;">
-			<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
-        <line x1="3" y1="12" x2="21" y2="12"></line>
-        <line x1="3" y1="6" x2="21" y2="6"></line>
-        <line x1="3" y1="18" x2="21" y2="18"></line>
-			</svg>
-		</button>
+            <svg width="26" height="26" viewBox="0 0 24 24"
+                fill="none" stroke="black" stroke-width="3"
+                stroke-linecap="round">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+        </button>
     </div>
 </header>
 
@@ -922,14 +933,97 @@
             .catch(error => console.error('音效播放失敗：', key, error));
     }
     
+    const BGM_SETTING_KEY = 'beerich_bgm_enabled';
+
     const gameBgm = new Audio('/static/sounds/all_game.mp3');
     gameBgm.loop = true;
     gameBgm.volume = 0.08;
 
-    document.addEventListener('click', () => {
-        gameBgm.play().catch(error => console.warn('背景音樂播放失敗：', error));
-    }, { once: true });
-   
+    let bgmOnMap = true;
+    let bgmUnlocked = false;
+    let bgmPlayPending = false;
+
+    function shouldPlayBgm() {
+        return bgmOnMap &&
+            bgmUnlocked &&
+            !document.hidden &&
+            window.uiState !== 'FINISHED' &&
+            localStorage.getItem(BGM_SETTING_KEY) !== 'false';
+    }
+
+        function updateBgmButton() {
+        const button = document.getElementById('bgm-toggle-btn');
+        if (!button) return;
+
+        const enabled =
+            localStorage.getItem(BGM_SETTING_KEY) !== 'false';
+
+        button.textContent = enabled ? '🔊' : '🔇';
+
+        const label = enabled ? '關閉背景音樂' : '開啟背景音樂';
+        button.title = label;
+        button.setAttribute('aria-label', label);
+        button.setAttribute('aria-pressed', String(enabled));
+    }
+
+    function toggleGameBgm() {
+        const enabled =
+            localStorage.getItem(BGM_SETTING_KEY) !== 'false';
+
+        localStorage.setItem(BGM_SETTING_KEY, String(!enabled));
+        bgmUnlocked = true;
+        syncBgm();
+    }
+
+    function syncBgm() {
+        updateBgmButton();
+
+        if (!shouldPlayBgm()) {
+            gameBgm.pause();
+            return;
+        }
+
+        if (!gameBgm.paused || bgmPlayPending) return;
+
+        bgmPlayPending = true;
+        gameBgm.play()
+            .then(() => {
+                if (!shouldPlayBgm()) gameBgm.pause();
+            })
+            .catch(error => {
+                if (error.name !== 'AbortError') {
+                    console.warn('背景音樂播放失敗：', error);
+                }
+            })
+            .finally(() => {
+                bgmPlayPending = false;
+            });
+    }
+
+    function setMapBgmScene(onMap) {
+        bgmOnMap = onMap;
+        syncBgm();
+    }
+
+    function unlockBgm() {
+        bgmUnlocked = true;
+        syncBgm();
+    }
+
+    document.addEventListener('click', unlockBgm);
+    document.addEventListener('keydown', unlockBgm);
+    document.addEventListener('visibilitychange', syncBgm);
+
+    window.addEventListener('storage', event => {
+        if (event.key === BGM_SETTING_KEY || event.key === null) {
+            syncBgm();
+        }
+    });
+
+    window.addEventListener('pagehide', () => gameBgm.pause());
+    window.addEventListener('pageshow', syncBgm);
+
+    updateBgmButton();
 
 	// 2. 其次：初始化 Socket 連線 (現在它能抓到 API_URL 了)
 	// ⚠️ socket.io 的 polling 握手是 GET，走 ngrok 時會被免費方案的警告頁攔下
@@ -1290,6 +1384,7 @@ socket.on('adventure_phase_broadcast', async (data) => {
 });
 
 async function testAdventureView(countryName, scenario, skyboxUrl, questionObj) {
+    setMapBgmScene(false);
     const myName = localStorage.getItem('username');
     const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
@@ -2104,6 +2199,7 @@ function getPlayerLandColor(playerName) {
 
 // 🏆 修正二：統一管理棋盤、房屋與「全體虛擬人物」的顯示狀態
 function setBoardVisibility(isVisible, specificIdx = -1) {
+    setMapBgmScene(isVisible && specificIdx === -1 && !window.isSpectating);
     allTileMeshes.forEach((m, idx) => {
         const shouldShow = (specificIdx === -1) ? isVisible : (idx === specificIdx);
         m.visible = shouldShow;
@@ -2133,6 +2229,7 @@ function setBoardVisibility(isVisible, specificIdx = -1) {
 
 // 進入道具店視角
 async function startShopView() {
+    setMapBgmScene(false);
     console.log("🛒 進入道具店格");
     const myName = localStorage.getItem('username');
     const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
@@ -4234,10 +4331,18 @@ async function playTollAnimationCore(payerName, ownerName, tollAmount, usedItem,
                   spawnCombatText('left', "🛡️ 免疫", "#4facfe");
                   spawnCombatText('right', "💢 沒收到錢", "#94a3b8");
                   gsap.to(ownerModel.rotation, { z: 0.3, duration: 0.2, yoyo: true, repeat: 3 }); 
-              } else {
+                            } else {
+                  playSfx('steal');
+
                   spawnCombatText('left', `💸 -$${tollAmount}`, "#ff4757");
                   spawnCombatText('right', `🤑 +$${tollAmount}`, "#00cdac");
-                  gsap.to(ownerModel.position, { y: ownerModel.position.y + 0.8, duration: 0.3, yoyo: true, repeat: 1 }); 
+
+                  gsap.to(ownerModel.position, {
+                      y: ownerModel.position.y + 0.8,
+                      duration: 0.3,
+                      yoyo: true,
+                      repeat: 1
+                  });
               }
           })
           .to({}, { duration: 2.0 }); 
@@ -4776,6 +4881,7 @@ function getTurnOrder() {
 
 // 🏆 修正 1：開合跳視角同步打字機與階段拆分
 async function startJumpingJackView() {
+    setMapBgmScene(false);
     console.log("🤸 進入開合跳格：準備鍛鍊！");
     
     const myName = localStorage.getItem('username');
@@ -5322,6 +5428,7 @@ let birdData = { y: 240, pipes: [], coins: 0 };
 
 // 🏆 修正版：小鳥飛前置作業 (發送全網廣播，觀戰者將自動被拉入觀看情境)
 async function startBirdGameView() {
+    setMapBgmScene(false);
     console.log("🐦 進入獎勵遊戲：小鳥飛！");
     //playSfx('bird'); // 🏆 需求⑥：小鳥飛（輕快）音效
     scene.background = null; 
@@ -7311,6 +7418,7 @@ function transitionToMyTurn() {
 let currentSpecData = null;
 
 async function enterSpectatorMode() {
+    setMapBgmScene(false);
     window.isSpectating = true;
     document.getElementById('spectator-invite-ui').style.display = 'none';
     document.getElementById('back-to-god-btn').style.display = 'block';
@@ -7331,6 +7439,7 @@ window.lastAdvData = null;
 // 🏆 修正版：轉場中途隱藏棋盤 + 穩定情境顯示
 // 🏆 修正版：微調相機俯仰角與高度，讓虛擬人物在畫面中自然下移歸位
 async function enterSpectatorMode_Internal(data, isManual = false) {
+    setMapBgmScene(false);
     window.isSpectating = true;
     window.lastAdvData = data;
     
