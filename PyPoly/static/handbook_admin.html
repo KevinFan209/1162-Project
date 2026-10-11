@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BeeRich - 教材管理後台</title>
+    <!-- 引入與全站一致的精選像素與高質感字型 -->
     <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
     <link rel="icon" href="/favicon.ico" type="image/jpeg">
@@ -26,6 +27,7 @@
             --danger-red: #ff3f34;
         }
 
+        /* 🏆 100% 同步 admin.html 的底層重置與防溢出 */
         html, body {
             margin: 0 !important;
             padding: 0 !important;
@@ -107,6 +109,7 @@
             gap: 6px;
         }
 
+        /* Admin 主要佈局 (精準對齊寬高) */
         .admin-main {
             height: calc(100vh - 80px);
             display: flex;
@@ -120,11 +123,12 @@
             display: flex;
             gap: 25px;
             width: 95%;
-            max-width: 1280px;
+            max-width: 1280px; /* 🏆 嚴格對齊 admin.html 的 1280px */
             height: 100%;
             align-items: stretch;
         }
 
+        /* 側邊導覽欄 */
         .admin-nav {
             width: 280px;
             background: white;
@@ -186,6 +190,7 @@
             box-shadow: 0 0 0 #000;
         }
 
+        /* 右側主看板 */
         .admin-board {
             flex: 1;
             display: flex;
@@ -205,11 +210,34 @@
             align-items: center; 
         }
 
+        /* 🏆 補齊 question.html 的篩選器樣式 */
+        .filter-group { display: flex; gap: 12px; align-items: center; }
+        
+        .select-filter { 
+            padding: 9px 16px;
+            border: 3px solid var(--pixel-border);
+            border-radius: 0;
+            font-weight: 900;
+            font-size: 0.9rem;
+            background: #fffdf5;
+            color: var(--text-dark);
+            outline: none;
+            box-shadow: 2px 2px 0 #000;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%231e272e' stroke-width='3' stroke-linecap='square' stroke-linejoin='miter'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            background-size: 12px;
+            padding-right: 32px;
+        }
+        .select-filter:focus { background-color: #feffea; border-color: #000; }
+
         .search-input {
             padding: 10px 16px;
             border: 3px solid var(--pixel-border);
             background: #fffdf5;
-            width: 350px;
+            width: 250px;
             font-weight: 900;
             font-size: 0.95rem;
             color: var(--text-dark);
@@ -234,10 +262,12 @@
             transition: 0.06s ease;
             user-select: none;
             letter-spacing: 0.5px;
+            white-space: nowrap;
         }
         .btn-add:hover { filter: brightness(1.05); }
         .btn-add:active { transform: translateY(4px); box-shadow: 0 1px 0 #000; }
 
+        /* 使用者清單表格容器 */
         .user-list-container { 
             background: white;
             flex: 1;
@@ -247,15 +277,17 @@
             overflow-y: auto;
         }
 
+        /* 🏆 精準對齊的 Table 格線設定 */
         .table-header {
             display: grid;
-            grid-template-columns: 80px 140px 1fr 120px 160px;
+            grid-template-columns: 80px 140px 1fr 140px 160px; /* 微調欄位比例 */
             padding: 0 24px 12px;
             font-weight: 900;
             color: var(--text-dark);
-            font-size: 0.9rem;
+            font-size: 0.95rem;
             border-bottom: 3px solid var(--pixel-border);
             margin-bottom: 14px;
+            align-items: center;
         }
 
         .user-row {
@@ -264,7 +296,7 @@
             border: 3px solid var(--pixel-border);
             box-shadow: 4px 4px 0 #000;
             display: grid;
-            grid-template-columns: 80px 140px 1fr 120px 160px;
+            grid-template-columns: 80px 140px 1fr 140px 160px;
             align-items: center;
             margin-bottom: 12px;
             transition: all 0.08s ease;
@@ -287,9 +319,10 @@
             font-size: 1.2rem;
             font-weight: 900;
             color: var(--text-gray);
+            margin: 0 auto; /* 置中 */
         }
         
-        .user-id { font-weight: 900; font-size: 1.05rem; color: var(--text-dark); }
+        .user-id { font-weight: 900; font-size: 1.05rem; color: var(--text-dark); padding-right: 15px; }
         .user-email { color: var(--text-gray); font-weight: 900; font-size: 0.9rem; }
         
         .user-status {
@@ -301,6 +334,7 @@
             font-weight: 900;
             background: #fffdf2;
             color: var(--text-dark);
+            text-align: center;
         }
 
         .action-btns { display: flex; gap: 8px; justify-content: flex-end; }
@@ -334,7 +368,7 @@
             width: 100%; max-width: 720px; max-height: 88vh; overflow-y: auto;
             box-shadow: 0 20px 60px rgba(0,0,0,0.25);
         }
-        .modal-card h2 { font-weight: 900; font-size: 1.6rem; margin-bottom: 20px; color: var(--text-dark); }
+        .modal-card h2 { font-weight: 900; font-size: 1.6rem; margin-bottom: 20px; color: var(--text-dark); border-bottom: 3px solid var(--pixel-border); padding-bottom: 12px; }
         .form-row { display: flex; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
         .field { flex: 1; min-width: 150px; display: flex; flex-direction: column; gap: 6px; }
         .field label { font-weight: 900; font-size: 0.85rem; color: var(--text-gray); }
@@ -363,6 +397,7 @@
             header { padding: 0 20px; }
             .admin-container { flex-direction: column; height: auto; }
             .admin-nav { width: 100%; }
+            .filter-group { flex-wrap: wrap; }
         }
     </style>
 </head>
@@ -371,7 +406,7 @@
 <header>
     <div class="header-left"><h1 onclick="location.href='admin.html'">BeeRich</h1></div>
     <div class="header-right">
-        <div class="page-tag"><span>📖</span> 教材管理後台</div>
+        <div class="page-tag"><span>📖</span> 學習手冊管理</div>
     </div>
 </header>
 
@@ -381,7 +416,6 @@
         <aside class="admin-nav">
             <h2><span>📋</span> 後台選單</h2>
             <a href="admin.html" class="nav-link"><span>👥</span> 用戶權限管理</a>
-            <!-- 🏆 修正一：取消這裡不應該存在的 active -->
             <a href="question.html" class="nav-link"><span>❓</span> 考題庫編輯</a>
             <a href="handbook_admin.html" class="nav-link active"><span>📖</span> 學習手冊管理</a>
             <a href="camera.html" class="nav-link"><span>📷</span> 影像辨識偵錯</a>
@@ -392,16 +426,35 @@
         <!-- 右側主區域 -->
         <main class="admin-board">
             <div class="board-header">
-                <input type="text" id="searchInput" class="search-input" placeholder="🔍 搜尋教材標題..." oninput="filterTable()">
+                <div class="filter-group">
+                    <select class="select-filter" id="filterLevel" onchange="filterTable()">
+                        <option value="">所有難度</option>
+                        <option value="★☆☆">★☆☆ 入門</option>
+                        <option value="★★☆">★★☆ 核心</option>
+                        <option value="★★★">★★★ 進階</option>
+                    </select>
+                    <select class="select-filter" id="filterCategory" onchange="filterTable()">
+                        <option value="">所有分類</option>
+                        <option value="intro">intro (啟蒙)</option>
+                        <option value="basic">basic (輸入輸出)</option>
+                        <option value="data">data (變數型態)</option>
+                        <option value="cond">cond (條件判斷)</option>
+                        <option value="loop">loop (迴圈控制)</option>
+                        <option value="list">list (串列字典)</option>
+                        <option value="func">func (自訂函式)</option>
+                        <option value="bug">bug (常見錯誤)</option>
+                    </select>
+                    <input type="text" id="searchInput" class="search-input" placeholder="🔍 搜尋教材標題..." oninput="filterTable()">
+                </div>
                 <button class="btn-add" onclick="openModal()">+ 新增教材</button>
             </div>
 
             <div class="user-list-container">
                 <div class="table-header">
                     <span style="text-align:center;">排序</span>
-                    <span>分類</span>
-                    <span>標題</span>
-                    <span>難度</span>
+                    <span style="padding-left:10px;">系統分類</span>
+                    <span>卡片標題</span>
+                    <span>難度級別</span>
                     <span style="text-align: right;">操作項目</span>
                 </div>
                 <div id="tableBody">
@@ -473,7 +526,7 @@
         </div>
 
         <div class="form-row">
-            <div class="field">
+            <div class="field" style="min-width: 100%;">
                 <label>卡片標題</label>
                 <input type="text" id="title" placeholder="例如：什麼是變數？">
                 <div class="err"></div>
@@ -481,7 +534,7 @@
         </div>
 
         <div class="form-row">
-            <div class="field">
+            <div class="field" style="min-width: 100%;">
                 <label>白話原理解說</label>
                 <textarea id="description" placeholder="請用最簡單的話解釋給小朋友聽..."></textarea>
                 <div class="err"></div>
@@ -489,7 +542,7 @@
         </div>
 
         <div class="form-row">
-            <div class="field">
+            <div class="field" style="min-width: 100%;">
                 <label>程式碼範例 (選填)</label>
                 <textarea id="codeExample" class="mono" spellcheck="false" placeholder="print('Hello') 等程式碼..."></textarea>
                 <div class="err"></div>
@@ -497,7 +550,7 @@
         </div>
 
         <div class="form-row">
-            <div class="field">
+            <div class="field" style="min-width: 100%;">
                 <label>💡 避坑小提示 (選填)</label>
                 <textarea id="tip" placeholder="初學者常犯的錯誤或小技巧..."></textarea>
                 <div class="err"></div>
@@ -596,14 +649,14 @@
     function renderTable(list) {
         const tbody = document.getElementById('tableBody');
         if (list.length === 0) {
-            tbody.innerHTML = `<div style="padding:20px;text-align:center;font-weight:900;color:#747d8c;">目前沒有任何教材</div>`;
+            tbody.innerHTML = `<div style="padding:20px;text-align:center;font-weight:900;color:#747d8c;">目前沒有符合條件的教材</div>`;
             return;
         }
 
         tbody.innerHTML = list.map(c => `
             <div class="user-row">
                 <div class="user-avatar">${c.order_index}</div>
-                <div><span class="user-status">${escapeHtml(c.cat_name)}</span></div>
+                <div style="padding-left:10px;"><span class="user-status">${escapeHtml(c.cat_name)}</span></div>
                 <div class="user-id">${escapeHtml(c.title)}</div>
                 <div class="user-email">${escapeHtml(c.level)}</div>
                 <div class="action-btns">
@@ -614,9 +667,19 @@
         `).join('');
     }
 
+    // 🏆 新增的綜合篩選器邏輯
     function filterTable() {
         const q = document.getElementById('searchInput').value.toLowerCase();
-        const filtered = allCards.filter(c => c.title.toLowerCase().includes(q) || c.cat_name.toLowerCase().includes(q));
+        const levelFilter = document.getElementById('filterLevel').value;
+        const categoryFilter = document.getElementById('filterCategory').value;
+
+        const filtered = allCards.filter(c => {
+            const matchKeyword = c.title.toLowerCase().includes(q) || c.cat_name.toLowerCase().includes(q);
+            const matchLevel = levelFilter === "" || (c.level && c.level.includes(levelFilter));
+            const matchCategory = categoryFilter === "" || c.category === categoryFilter;
+            return matchKeyword && matchLevel && matchCategory;
+        });
+
         renderTable(filtered);
     }
 

@@ -384,12 +384,12 @@
 
         <div class="filter-tabs" id="filterTabs">
             <button class="tab-btn active" data-cat="all" onclick="filterCategory('all', this)">🐝 全部知識庫 (<span id="count-all">0</span>)</button>
-            <button class="tab-btn" data-cat="basic" onclick="filterCategory('basic', this)">📌 基礎與輸入輸出 (<span id="count-basic">0</span>)</button>
-            <button class="tab-btn" data-cat="data" onclick="filterCategory('data', this)">📦 變數與型態 (<span id="count-data">0</span>)</button>
-            <button class="tab-btn" data-cat="cond" onclick="filterCategory('cond', this)">⚖️ 條件判斷 (if/else) (<span id="count-cond">0</span>)</button>
-            <button class="tab-btn" data-cat="loop" onclick="filterCategory('loop', this)">🔄 迴圈控制 (for/while) (<span id="count-loop">0</span>)</button>
-            <button class="tab-btn" data-cat="list" onclick="filterCategory('list', this)">📑 串列與字典 (<span id="count-list">0</span>)</button>
-            <button class="tab-btn" data-cat="func" onclick="filterCategory('func', this)">🧩 自訂函式 (def) (<span id="count-func">0</span>)</button>
+            <button class="tab-btn" data-cat="basic" onclick="filterCategory('basic', this)">📌 基礎與輸入輸出</button>
+            <button class="tab-btn" data-cat="data" onclick="filterCategory('data', this)">📦 變數與型態</button>
+            <button class="tab-btn" data-cat="cond" onclick="filterCategory('cond', this)">⚖️ 條件判斷 (if/else)</button>
+            <button class="tab-btn" data-cat="loop" onclick="filterCategory('loop', this)">🔄 迴圈控制 (for/while)</button>
+            <button class="tab-btn" data-cat="list" onclick="filterCategory('list', this)">📑 串列與字典</button>
+            <button class="tab-btn" data-cat="func" onclick="filterCategory('func', this)">🧩 自訂函式 (def)</button>
         </div>
     </div>
 
@@ -404,87 +404,36 @@
     let currentCategory = 'all';
 
     // 🏆 頁面初始化：優先從 FastAPI 後端資料庫抓取教材
-    document.addEventListener('DOMContentLoaded', initializeHandbook);
-
-    async function initializeHandbook() {
+    window.onload = async () => {
         try {
-            const res = await fetch(`${API_URL}/handbook/list`, {
-                headers: { 'Accept': 'application/json' }
-            });
-
-            if (!res.ok) {
-                throw new Error(`教材 API 回應錯誤：HTTP ${res.status}`);
-            }
-
-            const data = await res.json();
-            if (Array.isArray(data) && data.length > 0) {
-                handbookData = data
-                    .filter(item => item && typeof item === 'object')
-                    .map(normalizeItem);
+            const res = await fetch(`${API_URL}/handbook/list`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data && data.length > 0) {
+                    handbookData = data;
+                }
             }
         } catch (err) {
-            console.warn("後端教材載入失敗，改用內建預設教材。", err);
+            console.warn("後端資料庫連線失敗，自動載入本機預設教材", err);
         }
 
-        if (!Array.isArray(handbookData) || handbookData.length === 0) {
-            handbookData = getFallbackData().map(normalizeItem);
+        // 如果資料庫還是空的或網路斷線，使用內建保底資料
+        if (!handbookData || handbookData.length === 0) {
+            handbookData = getFallbackData();
         }
 
         updateCategoryCounts();
-        applyFilters();
-    }
-
-    function normalizeItem(item) {
-        return {
-            ...item,
-            category: normalizeCategory(item.category),
-            title: safeString(item.title),
-            description: safeString(item.description),
-            code_example: safeString(item.code_example),
-            tip: safeString(item.tip),
-            cat_name: safeString(item.cat_name) || '入門',
-            cat_class: safeString(item.cat_class) || 'cat-basic',
-            level: safeString(item.level) || '★☆☆ 啟蒙'
-        };
-    }
-
-    function safeString(value) {
-        return value == null ? '' : String(value);
-    }
-
-    function normalizeCategory(category) {
-        const value = safeString(category).trim().toLowerCase();
-        // 內建教材的 intro 分類統一歸入「基礎與輸入輸出」。
-        if (value === 'intro' || value === 'basic' || value === 'basics') return 'basic';
-        if (value === 'list' || value === 'dict' || value === 'dictionary') return 'list';
-        if (value === 'function' || value === 'functions') return 'func';
-        return value;
-    }
+        renderCards(handbookData);
+    };
 
     // 計算各分類數量
     function updateCategoryCounts() {
-        const categories = ['basic', 'data', 'cond', 'loop', 'list', 'func'];
-        const countAll = document.getElementById('count-all');
-        if (countAll) countAll.textContent = handbookData.length;
-
-        categories.forEach(category => {
-            const countElement = document.getElementById(`count-${category}`);
-            if (countElement) {
-                countElement.textContent = handbookData.filter(
-                    item => normalizeCategory(item.category) === category
-                ).length;
-            }
-        });
+        document.getElementById('count-all').innerText = handbookData.length;
     }
 
     // 渲染卡片
-    let codeByButtonId = new Map();
-    let nextCodeButtonId = 0;
-
     function renderCards(list) {
         const grid = document.getElementById('cardsGrid');
-        codeByButtonId = new Map();
-        nextCodeButtonId = 0;
         if (list.length === 0) {
             grid.innerHTML = `
                 <div class="empty-state">
@@ -495,65 +444,45 @@
             return;
         }
 
-        grid.innerHTML = list.map(item => {
-            const category = escapeHtml(item.category);
-            const title = escapeHtml(item.title);
-            const description = escapeHtml(item.description);
-            const code = safeString(item.code_example);
-            const tip = escapeHtml(item.tip);
-            const cardId = code ? `copy-code-${nextCodeButtonId++}` : '';
-            if (code) codeByButtonId.set(cardId, code);
-
-            return `
-            <div class="handbook-card" data-category="${category}">
+        grid.innerHTML = list.map(item => `
+            <div class="handbook-card" data-category="${item.category}">
                 <div class="card-header">
-                    <span class="card-category-badge ${escapeHtml(item.cat_class || 'cat-basic')}">${escapeHtml(item.cat_name || '入門')}</span>
-                    <span class="card-level">${escapeHtml(item.level || '★☆☆ 啟蒙')}</span>
+                    <span class="card-category-badge ${item.cat_class || 'cat-basic'}">${item.cat_name || '入門'}</span>
+                    <span class="card-level">${item.level || '★☆☆ 啟蒙'}</span>
                 </div>
                 <div class="card-body">
-                    <div class="card-title">${title}</div>
-                    <div class="card-desc">${description}</div>
-                    ${code ? `
+                    <div class="card-title">${escapeHtml(item.title)}</div>
+                    <div class="card-desc">${escapeHtml(item.description)}</div>
+                    
+                    ${item.code_example ? `
                     <div class="code-block-wrap">
-                        <button class="copy-btn" data-code-id="${cardId}" onclick="copyCode(this)">複製</button>
-                        <div class="code-block">${formatPythonSyntax(code)}</div>
+                        <!-- 🏆 核心修正：改用 data-code 儲存原始程式碼，避免 onclick 被雙引號截斷 -->
+                        <button class="copy-btn" data-code="${escapeHtml(item.code_example)}" onclick="copyCode(this)">複製</button>
+                        <div class="code-block">${formatPythonSyntax(item.code_example)}</div>
                     </div>` : ''}
-                    ${tip ? `
+
+                    ${item.tip ? `
                     <div class="tip-box">
                         <span>💡</span>
-                        <span>${tip}</span>
+                        <span>${escapeHtml(item.tip)}</span>
                     </div>` : ''}
                 </div>
             </div>
-        `;
-        }).join('');
+        `).join('');
     }
 
-    // 語法高亮：先跳脫 HTML，再逐段處理，避免標籤被後續取代破壞。
+    // 🏆 語法高亮修正：因為字串已經過 escapeHtml 轉換，引號必須對應尋找 &quot; 與 &apos;
     function formatPythonSyntax(raw) {
-        const source = safeString(raw);
-        const tokenPattern = /(#[^\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\b(?:def|return|if|elif|else|for|while|in|and|or|not|is|True|False|None|break|continue|pass|class|import|from|as|try|except|finally|with|lambda|yield|raise|global|nonlocal|assert|del|async|await)\b|\b(?:print|len|range|int|str|float|bool|list|dict|set|tuple|input|sum|min|max|abs|round|enumerate|zip|open|type)\b|\b\d+(?:\.\d+)?\b)/g;
-        let result = '';
-        let lastIndex = 0;
-        let match;
-
-        while ((match = tokenPattern.exec(source)) !== null) {
-            result += escapeHtml(source.slice(lastIndex, match.index));
-            const token = match[0];
-            let className = '';
-
-            if (token.startsWith('#')) className = 'code-comment';
-            else if (token.startsWith('"') || token.startsWith("'")) className = 'code-str';
-            else if (/^\d/.test(token)) className = 'code-num';
-            else if (/^(print|len|range|int|str|float|bool|list|dict|set|tuple|input|sum|min|max|abs|round|enumerate|zip|open|type)$/.test(token)) className = 'code-func';
-            else className = 'code-keyword';
-
-            result += `<span class="${className}">${escapeHtml(token)}</span>`;
-            lastIndex = tokenPattern.lastIndex;
-        }
-
-        result += escapeHtml(source.slice(lastIndex));
-        return result;
+        let safeText = escapeHtml(raw);
+        
+        // 加入 (?<!&) 防止把 HTML Entity(&quot; 或 &apos;) 當成數字或註解錯誤匹配
+        safeText = safeText.replace(/(?<!&)(#.*$)/gm, '<span class="code-comment">$1</span>');
+        safeText = safeText.replace(/\b(print|len|range|int|str|float|bool)\b/g, '<span class="code-func">$1</span>');
+        safeText = safeText.replace(/\b(def|return|if|elif|else|for|while|in|and|or|not|True|False)\b/g, '<span class="code-keyword">$1</span>');
+        safeText = safeText.replace(/(&quot;.*?&quot;|&apos;.*?&apos;)/g, '<span class="code-str">$1</span>');
+        safeText = safeText.replace(/(?<![&#])\b(\d+)\b/g, '<span class="code-num">$1</span>');
+        
+        return safeText;
     }
 
     function filterCategory(cat, btn) {
@@ -570,71 +499,58 @@
     function applyFilters() {
         const query = document.getElementById('searchInput').value.trim().toLowerCase();
         const filtered = handbookData.filter(item => {
-            const matchesCat = (currentCategory === 'all') || (normalizeCategory(item.category) === currentCategory);
+            const matchesCat = (currentCategory === 'all') || (item.category === currentCategory);
             const matchesSearch = !query || 
-                safeString(item.title).toLowerCase().includes(query) ||
-                safeString(item.description).toLowerCase().includes(query) ||
-                safeString(item.code_example).toLowerCase().includes(query) ||
-                safeString(item.tip).toLowerCase().includes(query);
+                (item.title && item.title.toLowerCase().includes(query)) || 
+                (item.description && item.description.toLowerCase().includes(query)) || 
+                (item.code_example && item.code_example.toLowerCase().includes(query)) ||
+                (item.tip && item.tip.toLowerCase().includes(query));
             return matchesCat && matchesSearch;
         });
         renderCards(filtered);
     }
 
-    // 複製程式碼：只有確認複製成功後才顯示成功訊息。
-    async function copyCode(btn) {
-        const codeId = btn.getAttribute('data-code-id');
-        const text = codeByButtonId.get(codeId);
+    // 🏆 修正二：加入 HTTP 環境的剪貼簿備用方案 (Fallback)，解決區域網路報錯
+    function copyCode(btn) {
+        const text = btn.getAttribute('data-code');
+        
+        const showSuccess = () => {
+            const oldText = btn.innerText;
+            btn.innerText = "已複製！";
+            btn.style.background = "var(--pixel-green)";
+            btn.style.color = "#fff";
+            setTimeout(() => {
+                btn.innerText = oldText;
+                btn.style.background = "";
+                btn.style.color = "";
+            }, 1500);
+        };
 
-        if (typeof text !== 'string') {
-            showCopyStatus(btn, false, '找不到程式碼');
-            return;
-        }
-
-        try {
-            if (navigator.clipboard && window.isSecureContext) {
-                await navigator.clipboard.writeText(text);
-            } else {
-                legacyCopy(text);
-            }
-            showCopyStatus(btn, true, '已複製！');
-        } catch (err) {
-            console.error('複製失敗：', err);
-            showCopyStatus(btn, false, '複製失敗');
+        // 如果在 HTTPS 下且支援 Clipboard API
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(showSuccess).catch(err => {
+                fallbackCopy(text, showSuccess);
+            });
+        } else {
+            // 如果在 HTTP 區網下，啟動傳統 textarea 複製模式
+            fallbackCopy(text, showSuccess);
         }
     }
 
-    function legacyCopy(text) {
-        const textArea = document.createElement('textarea');
+    function fallbackCopy(text, callback) {
+        const textArea = document.createElement("textarea");
         textArea.value = text;
-        textArea.setAttribute('readonly', '');
-        textArea.style.position = 'fixed';
-        textArea.style.left = '-9999px';
-        textArea.style.top = '0';
+        textArea.style.position = "fixed"; 
+        textArea.style.left = "-999999px"; // 藏在畫面外
         document.body.appendChild(textArea);
-
+        textArea.select();
         try {
-            textArea.focus();
-            textArea.select();
-            const succeeded = document.execCommand('copy');
-            if (!succeeded) throw new Error('瀏覽器拒絕執行複製命令');
-        } finally {
-            textArea.remove();
+            document.execCommand('copy');
+            callback();
+        } catch (err) {
+            console.error('複製失敗', err);
         }
-    }
-
-    function showCopyStatus(btn, success, message) {
-        const oldText = btn.dataset.originalText || btn.textContent;
-        btn.dataset.originalText = oldText;
-        btn.textContent = message;
-        btn.style.background = success ? 'var(--pixel-green)' : 'var(--pixel-red)';
-        btn.style.color = '#fff';
-
-        window.setTimeout(() => {
-            btn.textContent = oldText;
-            btn.style.background = '';
-            btn.style.color = '';
-        }, 1800);
+        document.body.removeChild(textArea);
     }
 
     function escapeHtml(s) {
