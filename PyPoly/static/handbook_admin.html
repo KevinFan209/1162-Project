@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BeeRich - 教材管理後台</title>
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+    <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --pixel-border: #1e272e;
+            --bee-gold: #ffc048;
+            --bee-yellow: #ffdd59;
+            --bee-dark: #2f3542;
+            --pixel-green: #05c46b;
+            --pixel-blue: #0fbcf9;
+            --pixel-red: #ff3f34;
+            --bg-grid: #d2dae2;
+            --text-dark: #1e272e;
+            --text-gray: #747d8c;
+        }
+
+        html, body { margin: 0; padding: 0; width: 100%; height: 100vh; overflow: hidden; font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif; background-color: var(--bg-grid); background-image: linear-gradient(rgba(0, 0, 0, 0.05) 2px, transparent 2px), linear-gradient(90deg, rgba(0, 0, 0, 0.05) 2px, transparent 2px); background-size: 28px 28px; display: flex; flex-direction: column; }
+        
+        header { background: white; padding: 0 35px; display: flex; justify-content: space-between; align-items: center; height: 80px; border-bottom: 4px solid var(--pixel-border); flex-shrink: 0; }
+        .header-left h1 { font-family: 'VT323', monospace; font-size: 3.2rem; color: var(--bee-gold); text-shadow: 2px 2px 0 var(--pixel-border), -1.5px -1.5px 0 var(--pixel-border), 2px -1.5px 0 var(--pixel-border), -1.5px 2px 0 var(--pixel-border), 4px 4px 0 var(--bee-dark); cursor: pointer; margin: 0; }
+        .page-tag { background: #fffdf2; border: 3px solid var(--pixel-border); padding: 6px 16px; border-radius: 4px; font-weight: 900; font-size: 1rem; color: var(--text-dark); box-shadow: 3px 3px 0 #000; }
+
+        .admin-main { height: calc(100vh - 80px); display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .admin-container { display: flex; gap: 25px; width: 95%; max-width: 1400px; height: 100%; align-items: stretch; }
+
+        /* 側邊欄 */
+        .admin-nav { width: 280px; background: white; border: 4px solid var(--pixel-border); box-shadow: 6px 6px 0px #000; padding: 24px 18px; display: flex; flex-direction: column; gap: 12px; flex-shrink: 0; }
+        .admin-nav h2 { font-weight: 900; font-size: 1.35rem; margin-bottom: 10px; color: var(--text-dark); border-bottom: 3px solid var(--pixel-border); padding-bottom: 8px; }
+        .nav-link { width: 100%; padding: 13px 16px; border: 3px solid var(--pixel-border); font-size: 0.95rem; font-weight: 900; cursor: pointer; display: flex; align-items: center; gap: 10px; background: #f8fafc; color: var(--text-dark); text-decoration: none; box-shadow: 3px 3px 0 #000; transition: 0.1s; }
+        .nav-link:hover:not(.active) { background: #fffdf2; transform: translate(-1px, -1px); box-shadow: 4px 4px 0 #000; }
+        .nav-link.active { background: var(--bee-yellow); transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+
+        /* 右側主區域 */
+        .admin-board { flex: 1; display: flex; flex-direction: column; gap: 18px; overflow: hidden; height: 100%; }
+        .board-header { background: white; padding: 16px 24px; border: 4px solid var(--pixel-border); box-shadow: 6px 6px 0 #000; display: flex; justify-content: space-between; align-items: center; }
+        .search-input { padding: 10px 16px; border: 3px solid var(--pixel-border); background: #fffdf5; width: 300px; font-weight: 900; font-size: 0.95rem; outline: none; }
+        
+        .btn-create { background: var(--pixel-green); color: white; padding: 10px 20px; border: 3px solid var(--pixel-border); font-weight: 900; cursor: pointer; box-shadow: 3px 3px 0 #000; transition: 0.1s; }
+        .btn-create:active { transform: translate(3px, 3px); box-shadow: 0 0 0 #000; }
+
+        /* 表格區 */
+        .table-container { background: white; flex: 1; border: 4px solid var(--pixel-border); box-shadow: 6px 6px 0 #000; padding: 24px 28px; overflow-y: auto; }
+        .table-header { display: grid; grid-template-columns: 60px 120px 2fr 100px 150px; padding: 0 10px 12px; font-weight: 900; color: var(--text-dark); border-bottom: 3px solid var(--pixel-border); margin-bottom: 14px; }
+        .data-row { background: #f8fafc; padding: 14px 10px; border: 3px solid var(--pixel-border); box-shadow: 4px 4px 0 #000; display: grid; grid-template-columns: 60px 120px 2fr 100px 150px; align-items: center; margin-bottom: 12px; transition: 0.1s; }
+        .data-row:hover { background: #fffdf5; transform: translate(-2px, -2px); box-shadow: 6px 6px 0 #000; }
+
+        .tag-badge { display: inline-block; padding: 4px 8px; border: 2px solid var(--pixel-border); font-size: 0.8rem; font-weight: 900; border-radius: 6px; }
+        .col-title { font-weight: 900; color: var(--bee-dark); font-size: 1.1rem; }
+        .col-level { font-size: 0.85rem; color: var(--text-gray); font-weight: 800; }
+
+        .action-btns { display: flex; gap: 8px; }
+        .btn-icon { padding: 6px 12px; border: 2px solid var(--pixel-border); box-shadow: 2px 2px 0 #000; cursor: pointer; font-weight: 900; font-size: 0.85rem; }
+        .btn-edit { background: #dfe4ea; }
+        .btn-del { background: #fff5f5; color: var(--pixel-red); }
+
+        /* 編輯彈窗 */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.65); display: none; justify-content: center; align-items: center; z-index: 2000; }
+        .modal-content { background: white; padding: 30px; border: 4px solid var(--pixel-border); box-shadow: 8px 8px 0px #000; width: 600px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+        .modal-content h2 { font-weight: 900; font-size: 1.5rem; margin-bottom: 20px; border-bottom: 3px solid var(--pixel-border); padding-bottom: 10px; }
+        
+        .form-group { margin-bottom: 15px; text-align: left; }
+        .form-group label { display: block; font-weight: 900; margin-bottom: 5px; color: var(--bee-dark); }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px; border: 3px solid var(--pixel-border); font-weight: 800; font-size: 1rem; background: #f8fafc; outline: none; font-family: inherit; }
+        .form-group textarea { resize: vertical; min-height: 80px; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { background: #feffea; }
+
+        .modal-footer { display: flex; justify-content: flex-end; gap: 15px; margin-top: 25px; }
+        .btn-cancel { background: #dfe4ea; padding: 10px 20px; border: 3px solid var(--pixel-border); font-weight: 900; cursor: pointer; box-shadow: 3px 3px 0 #000; }
+        .btn-save { background: var(--bee-yellow); padding: 10px 30px; border: 3px solid var(--pixel-border); font-weight: 900; cursor: pointer; box-shadow: 3px 3px 0 #000; }
+
+        /* 卷軸美化 */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #dfe4ea; border-left: 2px solid var(--pixel-border); }
+        ::-webkit-scrollbar-thumb { background: var(--pixel-border); }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="header-left"><h1 onclick="location.href='admin.html'">BeeRich</h1></div>
+    <div class="header-right">
+        <div class="page-tag"><span>📖</span> 教材管理後台</div>
+    </div>
+</header>
+
+<div class="admin-main">
+    <div class="admin-container">
+        <!-- 左側選單 -->
+        <aside class="admin-nav">
+            <h2><span>📋</span> 後台選單</h2>
+            <a href="admin.html" class="nav-link"><span>👥</span> 用戶權限管理</a>
+            <a href="question.html" class="nav-link"><span>❓</span> 考題庫編輯</a>
+            <a href="handbook_admin.html" class="nav-link active"><span>📖</span> 學習手冊管理</a>
+            <a href="camera.html" class="nav-link"><span>📷</span> 影像辨識偵錯</a>
+            <a href="game_data.html" class="nav-link"><span>📈</span> 遊戲數據監控</a>
+            <a href="javascript:void(0);" class="nav-link" onclick="logout();" style="margin-top: auto; color: white; background: var(--pixel-red);"><span>🚪</span> 登出系統</a>
+        </aside>
+
+        <!-- 右側主區域 -->
+        <main class="admin-board">
+            <div class="board-header">
+                <input type="text" id="searchInput" class="search-input" placeholder="🔍 搜尋教材標題..." oninput="filterTable()">
+                <button class="btn-create" onclick="openModal()">➕ 新增教材</button>
+            </div>
+
+            <div class="table-container">
+                <div class="table-header">
+                    <span>排序</span>
+                    <span>分類</span>
+                    <span>標題</span>
+                    <span>難度</span>
+                    <span>操作項目</span>
+                </div>
+                <div id="tableBody">
+                    <div style="padding: 20px; font-weight: 900; color: #747d8c; text-align: center;">載入中...</div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- 新增/編輯彈窗 -->
+<div id="cardModal" class="modal-overlay">
+    <div class="modal-content">
+        <h2 id="modalTitle">新增學習卡片</h2>
+        <input type="hidden" id="cardId">
+        
+        <div style="display: flex; gap: 15px;">
+            <div class="form-group" style="flex: 1;">
+                <label>排序權重 (數字越小越前面)</label>
+                <input type="number" id="orderIndex" value="10">
+            </div>
+            <div class="form-group" style="flex: 1;">
+                <label>難度級別</label>
+                <select id="level">
+                    <option value="★☆☆ 啟蒙">★☆☆ 啟蒙</option>
+                    <option value="★☆☆ 必備">★☆☆ 必備</option>
+                    <option value="★★☆ 核心">★★☆ 核心</option>
+                    <option value="★★☆ 易錯">★★☆ 易錯</option>
+                    <option value="★★★ 進階">★★★ 進階</option>
+                    <option value="★★★ 必讀">★★★ 必讀</option>
+                </select>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 15px;">
+            <div class="form-group" style="flex: 1;">
+                <label>系統分類 (英文代碼)</label>
+                <select id="category">
+                    <option value="intro">intro (基礎啟蒙)</option>
+                    <option value="basic">basic (輸入輸出)</option>
+                    <option value="data">data (變數型態)</option>
+                    <option value="cond">cond (條件判斷)</option>
+                    <option value="loop">loop (迴圈控制)</option>
+                    <option value="list">list (串列字典)</option>
+                    <option value="func">func (自訂函式)</option>
+                    <option value="bug">bug (常見錯誤)</option>
+                </select>
+            </div>
+            <div class="form-group" style="flex: 1;">
+                <label>顯示標籤 (如: 資料型態)</label>
+                <input type="text" id="catName" placeholder="例如：迴圈控制">
+            </div>
+            <div class="form-group" style="flex: 1;">
+                <label>標籤顏色</label>
+                <select id="catClass">
+                    <option value="cat-basic">黃色 (基礎)</option>
+                    <option value="cat-cond">藍色 (判斷)</option>
+                    <option value="cat-loop">綠色 (迴圈)</option>
+                    <option value="cat-data">橘色 (資料)</option>
+                    <option value="cat-func">紫色 (進階)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>卡片標題</label>
+            <input type="text" id="title" placeholder="例如：什麼是變數？">
+        </div>
+
+        <div class="form-group">
+            <label>白話原理解說</label>
+            <textarea id="description" placeholder="請用最簡單的話解釋給小朋友聽..."></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>程式碼範例 (選填)</label>
+            <textarea id="codeExample" placeholder="print('Hello') 等程式碼..." style="font-family: monospace; background: #1e272e; color: #fff;"></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>💡 避坑小提示 (選填)</label>
+            <textarea id="tip" placeholder="初學者常犯的錯誤或小技巧..."></textarea>
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn-cancel" onclick="closeModal()">取消</button>
+            <button class="btn-save" onclick="saveCard()">💾 儲存教材</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_URL = location.origin;
+    let allCards = [];
+
+    window.onload = async () => {
+        // 權限檢查
+        const token = localStorage.getItem('token');
+        const role = localStorage.getItem('role');
+        if (!token || role !== 'admin') {
+            window.location.href = 'login.html';
+            return;
+        }
+        await fetchCards();
+    };
+
+    async function fetchCards() {
+        try {
+            const res = await fetch(`${API_URL}/handbook/list`);
+            if (res.ok) {
+                allCards = await res.json();
+                renderTable(allCards);
+            } else {
+                alert("載入失敗！請確認伺服器已啟動。");
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    function renderTable(list) {
+        const tbody = document.getElementById('tableBody');
+        if (list.length === 0) {
+            tbody.innerHTML = `<div style="padding:20px;text-align:center;font-weight:900;color:#747d8c;">目前沒有任何教材</div>`;
+            return;
+        }
+
+        tbody.innerHTML = list.map(c => `
+            <div class="data-row">
+                <div style="font-weight:900; color:var(--text-gray);">${c.order_index}</div>
+                <div><span class="tag-badge" style="background:#fffdf2;">${escapeHtml(c.cat_name)}</span></div>
+                <div class="col-title">${escapeHtml(c.title)}</div>
+                <div class="col-level">${escapeHtml(c.level)}</div>
+                <div class="action-btns">
+                    <button class="btn-icon btn-edit" onclick='openModal(${JSON.stringify(c).replace(/'/g, "&#39;")})'>編輯</button>
+                    <button class="btn-icon btn-del" onclick="deleteCard(${c.id}, '${escapeHtml(c.title)}')">刪除</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function filterTable() {
+        const q = document.getElementById('searchInput').value.toLowerCase();
+        const filtered = allCards.filter(c => c.title.toLowerCase().includes(q) || c.cat_name.toLowerCase().includes(q));
+        renderTable(filtered);
+    }
+
+    // Modal 控制
+    function openModal(card = null) {
+        document.getElementById('cardModal').style.display = 'flex';
+        if (card) {
+            document.getElementById('modalTitle').innerText = '編輯學習卡片';
+            document.getElementById('cardId').value = card.id;
+            document.getElementById('orderIndex').value = card.order_index;
+            document.getElementById('level').value = card.level;
+            document.getElementById('category').value = card.category;
+            document.getElementById('catName').value = card.cat_name;
+            document.getElementById('catClass').value = card.cat_class;
+            document.getElementById('title').value = card.title;
+            document.getElementById('description').value = card.description;
+            document.getElementById('codeExample').value = card.code_example || '';
+            document.getElementById('tip').value = card.tip || '';
+        } else {
+            document.getElementById('modalTitle').innerText = '➕ 新增學習卡片';
+            document.getElementById('cardId').value = '';
+            document.getElementById('title').value = '';
+            document.getElementById('description').value = '';
+            document.getElementById('codeExample').value = '';
+            document.getElementById('tip').value = '';
+        }
+    }
+
+    function closeModal() {
+        document.getElementById('cardModal').style.display = 'none';
+    }
+
+    // 儲存教材 (新增或更新)
+    async function saveCard() {
+        const id = document.getElementById('cardId').value;
+        const payload = {
+            order_index: parseInt(document.getElementById('orderIndex').value) || 0,
+            level: document.getElementById('level').value,
+            category: document.getElementById('category').value,
+            cat_name: document.getElementById('catName').value,
+            cat_class: document.getElementById('catClass').value,
+            title: document.getElementById('title').value.trim(),
+            description: document.getElementById('description').value.trim(),
+            code_example: document.getElementById('codeExample').value,
+            tip: document.getElementById('tip').value
+        };
+
+        if (!payload.title || !payload.description) {
+            alert("⚠️ 標題與原理解說為必填欄位！");
+            return;
+        }
+
+        const url = id ? `${API_URL}/admin/handbook/${id}` : `${API_URL}/admin/handbook/add`;
+        const method = id ? 'PUT' : 'POST';
+
+        try {
+            const res = await fetch(url, {
+                method: method,
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                closeModal();
+                fetchCards(); // 重新整理表格
+            } else {
+                alert("儲存失敗！");
+            }
+        } catch (err) {
+            console.error(err);
+            alert("連線錯誤！");
+        }
+    }
+
+    // 刪除教材
+    async function deleteCard(id, title) {
+        if (!confirm(`確定要刪除「${title}」嗎？這將無法復原。`)) return;
+
+        try {
+            const res = await fetch(`${API_URL}/admin/handbook/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            if (res.ok) fetchCards();
+            else alert("刪除失敗");
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    function escapeHtml(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    async function logout() {
+        const username = localStorage.getItem('username');
+        await fetch(`${API_URL}/auth/logout?username=${encodeURIComponent(username)}&confirm=true`, { method: 'POST' });
+        localStorage.clear();
+        window.location.href = 'login.html';
+    }
+</script>
+</body>
+</html>

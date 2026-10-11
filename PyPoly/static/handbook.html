@@ -6,6 +6,7 @@
     <title>BeeRich - Python 學習手冊</title>
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
     <link rel="icon" href="/favicon.ico" type="image/jpeg">
+    <!-- 🏆 確保這裡沒有引入 three.js 等 3D 引擎 -->
     <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&family=Fira+Code:wght@500;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -383,184 +384,178 @@
 
         <div class="filter-tabs" id="filterTabs">
             <button class="tab-btn active" data-cat="all" onclick="filterCategory('all', this)">🐝 全部知識庫 (<span id="count-all">0</span>)</button>
-            <button class="tab-btn" data-cat="basic" onclick="filterCategory('basic', this)">📌 基礎與輸入輸出</button>
-            <button class="tab-btn" data-cat="data" onclick="filterCategory('data', this)">📦 變數與型態</button>
-            <button class="tab-btn" data-cat="cond" onclick="filterCategory('cond', this)">⚖️ 條件判斷 (if/else)</button>
-            <button class="tab-btn" data-cat="loop" onclick="filterCategory('loop', this)">🔄 迴圈控制 (for/while)</button>
-            <button class="tab-btn" data-cat="list" onclick="filterCategory('list', this)">📑 串列與字典</button>
-            <button class="tab-btn" data-cat="func" onclick="filterCategory('func', this)">🧩 自訂函式 (def)</button>
+            <button class="tab-btn" data-cat="basic" onclick="filterCategory('basic', this)">📌 基礎與輸入輸出 (<span id="count-basic">0</span>)</button>
+            <button class="tab-btn" data-cat="data" onclick="filterCategory('data', this)">📦 變數與型態 (<span id="count-data">0</span>)</button>
+            <button class="tab-btn" data-cat="cond" onclick="filterCategory('cond', this)">⚖️ 條件判斷 (if/else) (<span id="count-cond">0</span>)</button>
+            <button class="tab-btn" data-cat="loop" onclick="filterCategory('loop', this)">🔄 迴圈控制 (for/while) (<span id="count-loop">0</span>)</button>
+            <button class="tab-btn" data-cat="list" onclick="filterCategory('list', this)">📑 串列與字典 (<span id="count-list">0</span>)</button>
+            <button class="tab-btn" data-cat="func" onclick="filterCategory('func', this)">🧩 自訂函式 (def) (<span id="count-func">0</span>)</button>
         </div>
     </div>
 
     <div class="cards-grid" id="cardsGrid">
-        </div>
+        <!-- 卡片將由 JS 渲染 -->
+    </div>
 </main>
 
 <script>
-    // 🏆 內建完整 Python 知識庫資料
-    const handbookData = [
-        {
-            id: 1,
-            title: "print() 螢幕輸出",
-            category: "basic",
-            catName: "基礎語法",
-            catClass: "cat-basic",
-            level: "★☆☆ 啟蒙",
-            desc: "在終端機中印出文字或數字。若要輸出文字，前後必須用單引號或雙引號包住。",
-            code: `<span class="code-func">print</span>(<span class="code-str">"哈囉！歡迎來到碼上致富！"</span>)\n<span class="code-func">print</span>(<span class="code-num">100</span> + <span class="code-num">200</span>)  <span class="code-comment"># 印出 300</span>`,
-            rawCode: 'print("哈囉！歡迎來到碼上致富！")\nprint(100 + 200)',
-            tip: "字串一定要加引號，若漏加引號 Python 會誤以為那是變數名稱而跳出 NameError！"
-        },
-        {
-            id: 2,
-            title: "變數宣告與命名",
-            category: "data",
-            catName: "變數與型態",
-            catClass: "cat-data",
-            level: "★☆☆ 啟蒙",
-            desc: "變數就像貼有名字的收納盒，使用「等號 =」將右邊的資料放進左邊的盒子裡。",
-            code: `player_name = <span class="code-str">"蜜蜂工程師"</span>\nmoney = <span class="code-num">5000</span>\nis_alive = <span class="code-keyword">True</span>`,
-            rawCode: 'player_name = "蜜蜂工程師"\nmoney = 5000\nis_alive = True',
-            tip: "變數名稱不能以數字開頭，且英文字母大小寫有嚴格區分（如 money 與 Money 是不同的變數）。"
-        },
-        {
-            id: 3,
-            title: "常見的四大基本型態",
-            category: "data",
-            catName: "變數與型態",
-            catClass: "cat-data",
-            level: "★☆☆ 基礎",
-            desc: "Python 常見型態：整數 (int)、浮點數/小數 (float)、字串 (str)、布林值 (bool)。",
-            code: `coins = <span class="code-num">100</span>        <span class="code-comment"># int (整數)</span>\ntemp = <span class="code-num">26.5</span>         <span class="code-comment"># float (浮點數)</span>\nrole = <span class="code-str">"資本家"</span>      <span class="code-comment"># str (字串)</span>\ncan_buy = <span class="code-keyword">True</span>     <span class="code-comment"># bool (True 或 False)</span>`,
-            rawCode: 'coins = 100\ntemp = 26.5\nrole = "資本家"\ncan_buy = True',
-            tip: "不同型態不能直接相加！例如 \"100\" + 50 會引發 TypeError，必須先用 int() 轉換。"
-        },
-        {
-            id: 4,
-            title: "if / else 條件分支",
-            category: "cond",
-            catName: "條件判斷",
-            catClass: "cat-cond",
-            level: "★★☆ 基礎",
-            desc: "根據條件決定要走哪一條路。滿足條件時才會執行對應縮排底下的程式碼。",
-            code: `money = <span class="code-num">1500</span>\n<span class="code-keyword">if</span> money >= <span class="code-num">1000</span>:\n    <span class="code-func">print</span>(<span class="code-str">"可以收購這塊土地！"</span>)\n<span class="code-keyword">else</span>:\n    <span class="code-func">print</span>(<span class="code-str">"金幣不足，無法購買。"</span>)`,
-            rawCode: 'money = 1500\nif money >= 1000:\n    print("可以收購這塊土地！")\nelse:\n    print("金幣不足，無法購買。")',
-            tip: "條件式最後面務必記得加上冒號「:」，且內部的程式碼一定要統一縮排 4 個空格！"
-        },
-        {
-            id: 5,
-            title: "elif 多重判斷",
-            category: "cond",
-            catName: "條件判斷",
-            catClass: "cat-cond",
-            level: "★★☆ 進階",
-            desc: "當有多個條件需要逐一排查時使用。一旦某個條件滿足，後續的條件就會被直接略過。",
-            code: `score = <span class="code-num">85</span>\n<span class="code-keyword">if</span> score >= <span class="code-num">90</span>:\n    <span class="code-func">print</span>(<span class="code-str">"獲得金牌蜜蜂"</span>)\n<span class="code-keyword">elif</span> score >= <span class="code-num">80</span>:\n    <span class="code-func">print</span>(<span class="code-str">"獲得銀牌蜜蜂"</span>)\n<span class="code-keyword">else</span>:\n    <span class="code-func">print</span>(<span class="code-str">"繼續加油！"</span>)`,
-            rawCode: 'score = 85\nif score >= 90:\n    print("獲得金牌蜜蜂")\nelif score >= 80:\n    print("獲得銀牌蜜蜂")\nelse:\n    print("繼續加油！")',
-            tip: "比較「是否相等」要用雙等號「==」，單等號「=」是賦值變數，搞混會引發語法錯誤。"
-        },
-        {
-            id: 6,
-            title: "for 迴圈與 range()",
-            category: "loop",
-            catName: "迴圈控制",
-            catClass: "cat-loop",
-            level: "★★☆ 核心",
-            desc: "重複執行指定次數的動作。range(n) 會從 0 開始數到 n-1，總共執行 n 次。",
-            code: `<span class="code-comment"># 讓角色移動 3 步</span>\n<span class="code-keyword">for</span> step <span class="code-keyword">in</span> <span class="code-func">range</span>(<span class="code-num">3</span>):\n    <span class="code-func">print</span>(<span class="code-str">"向前進一步，目前步數："</span>, step)`,
-            rawCode: 'for step in range(3):\n    print("向前進一步，目前步數：", step)',
-            tip: "記住：range(3) 產生的數字是 0, 1, 2，不會包含 3！電腦世界大多是從 0 開始計數的。"
-        },
-        {
-            id: 7,
-            title: "while 條件迴圈",
-            category: "loop",
-            catName: "迴圈控制",
-            catClass: "cat-loop",
-            level: "★★☆ 核心",
-            desc: "只要後面的條件為 True，就會一直重複執行，直到條件變成 False 為止。",
-            code: `hp = <span class="code-num">3</span>\n<span class="code-keyword">while</span> hp > <span class="code-num">0</span>:\n    <span class="code-func">print</span>(<span class="code-str">"戰鬥中，剩餘血量："</span>, hp)\n    hp -= <span class="code-num">1</span>  <span class="code-comment"># 記得扣血，否則會變無窮迴圈！</span>\n<span class="code-func">print</span>(<span class="code-str">"角色倒下了！"</span>)`,
-            rawCode: 'hp = 3\nwhile hp > 0:\n    print("戰鬥中，剩餘血量：", hp)\n    hp -= 1\nprint("角色倒下了！")',
-            tip: "在 while 迴圈內一定要有能夠改變條件的指令（如扣血），否則會陷入「無窮迴圈（當機）」。"
-        },
-        {
-            id: 8,
-            title: "串列 (List) 基礎操作",
-            category: "list",
-            catName: "串列與字典",
-            catClass: "cat-data",
-            level: "★★☆ 實用",
-            desc: "串列用中括號 [ ] 包裹，可以存放多筆有序資料。使用索引值 index 來取得裡面的項目。",
-            code: `lands = [<span class="code-str">"日月潭"</span>, <span class="code-str">"清境農場"</span>, <span class="code-str">"合歡山"</span>]\n<span class="code-func">print</span>(lands[<span class="code-num">0</span>])   <span class="code-comment"># 印出第一筆："日月潭"</span>\nlands.<span class="code-func">append</span>(<span class="code-str">"溪頭"</span>) <span class="code-comment"># 在尾端加入新景點</span>\n<span class="code-func">print</span>(<span class="code-func">len</span>(lands))   <span class="code-comment"># 印出串列長度：4</span>`,
-            rawCode: 'lands = ["日月潭", "清境農場", "合歡山"]\nprint(lands[0])\nlands.append("溪頭")\nprint(len(lands))',
-            tip: "索引由 0 開始起算，第一個是 [0]、第二個是 [1]；取超出範圍的索引會導致 IndexError。"
-        },
-        {
-            id: 9,
-            title: "字典 (Dictionary) 鍵值配對",
-            category: "list",
-            catName: "串列與字典",
-            catClass: "cat-data",
-            level: "★★★ 進階",
-            desc: "用大括號 { } 表示，採用 Key: Value（鍵值對）儲存。就像字典查字一樣精準。",
-            code: `tile_info = {\n    <span class="code-str">"name"</span>: <span class="code-str">"日月潭"</span>,\n    <span class="code-str">"price"</span>: <span class="code-num">1200</span>,\n    <span class="code-str">"toll"</span>: <span class="code-num">300</span>\n}\n<span class="code-func">print</span>(tile_info[<span class="code-str">"name"</span>])  <span class="code-comment"># 印出："日月潭"</span>`,
-            rawCode: 'tile_info = {\n    "name": "日月潭",\n    "price": 1200,\n    "toll": 300\n}\nprint(tile_info["name"])',
-            tip: "鍵 (Key) 必須是唯一且不可變的（通常用字串）。若存取不存在的 Key 會拋出 KeyError。"
-        },
-        {
-            id: 10,
-            title: "def 自訂函式與 return",
-            category: "func",
-            catName: "自訂函式",
-            catClass: "cat-func",
-            level: "★★★ 進階",
-            desc: "將重複使用的程式碼包裝成積木，利用 def 定義，並透過 return 回傳計算後的結果。",
-            code: `<span class="code-keyword">def</span> <span class="code-func">calc_toll</span>(base_price, aqi):\n    <span class="code-comment"># 空氣好時加收 20% 過路費</span>\n    <span class="code-keyword">if</span> aqi < <span class="code-num">50</span>:\n        <span class="code-keyword">return</span> base_price * <span class="code-num">1.2</span>\n    <span class="code-keyword">return</span> base_price\n\nfinal_toll = <span class="code-func">calc_toll</span>(<span class="code-num">500</span>, <span class="code-num">35</span>)\n<span class="code-func">print</span>(<span class="code-str">"過路費："</span>, final_toll)`,
-            rawCode: 'def calc_toll(base_price, aqi):\n    if aqi < 50:\n        return base_price * 1.2\n    return base_price\n\nfinal_toll = calc_toll(500, 35)\nprint("過路費：", final_toll)',
-            tip: "函式定義完之後「必須呼叫它」才會執行！return 會結束函式的執行並交出結果。"
-        }
-    ];
-
+    const API_URL = location.origin;
+    let handbookData = []; 
     let currentCategory = 'all';
 
+    // 🏆 頁面初始化：優先從 FastAPI 後端資料庫抓取教材
+    document.addEventListener('DOMContentLoaded', initializeHandbook);
+
+    async function initializeHandbook() {
+        try {
+            const res = await fetch(`${API_URL}/handbook/list`, {
+                headers: { 'Accept': 'application/json' }
+            });
+
+            if (!res.ok) {
+                throw new Error(`教材 API 回應錯誤：HTTP ${res.status}`);
+            }
+
+            const data = await res.json();
+            if (Array.isArray(data) && data.length > 0) {
+                handbookData = data
+                    .filter(item => item && typeof item === 'object')
+                    .map(normalizeItem);
+            }
+        } catch (err) {
+            console.warn("後端教材載入失敗，改用內建預設教材。", err);
+        }
+
+        if (!Array.isArray(handbookData) || handbookData.length === 0) {
+            handbookData = getFallbackData().map(normalizeItem);
+        }
+
+        updateCategoryCounts();
+        applyFilters();
+    }
+
+    function normalizeItem(item) {
+        return {
+            ...item,
+            category: normalizeCategory(item.category),
+            title: safeString(item.title),
+            description: safeString(item.description),
+            code_example: safeString(item.code_example),
+            tip: safeString(item.tip),
+            cat_name: safeString(item.cat_name) || '入門',
+            cat_class: safeString(item.cat_class) || 'cat-basic',
+            level: safeString(item.level) || '★☆☆ 啟蒙'
+        };
+    }
+
+    function safeString(value) {
+        return value == null ? '' : String(value);
+    }
+
+    function normalizeCategory(category) {
+        const value = safeString(category).trim().toLowerCase();
+        // 內建教材的 intro 分類統一歸入「基礎與輸入輸出」。
+        if (value === 'intro' || value === 'basic' || value === 'basics') return 'basic';
+        if (value === 'list' || value === 'dict' || value === 'dictionary') return 'list';
+        if (value === 'function' || value === 'functions') return 'func';
+        return value;
+    }
+
+    // 計算各分類數量
+    function updateCategoryCounts() {
+        const categories = ['basic', 'data', 'cond', 'loop', 'list', 'func'];
+        const countAll = document.getElementById('count-all');
+        if (countAll) countAll.textContent = handbookData.length;
+
+        categories.forEach(category => {
+            const countElement = document.getElementById(`count-${category}`);
+            if (countElement) {
+                countElement.textContent = handbookData.filter(
+                    item => normalizeCategory(item.category) === category
+                ).length;
+            }
+        });
+    }
+
     // 渲染卡片
+    let codeByButtonId = new Map();
+    let nextCodeButtonId = 0;
+
     function renderCards(list) {
         const grid = document.getElementById('cardsGrid');
+        codeByButtonId = new Map();
+        nextCodeButtonId = 0;
         if (list.length === 0) {
             grid.innerHTML = `
                 <div class="empty-state">
                     <h3>🔍 找不到符合的知識卡片</h3>
-                    <p>請嘗試使用其他關鍵字（例如：if, for, 串列, 變數）</p>
+                    <p>請嘗試使用其他關鍵字（例如：print, 變數, 引號, if, 縮排）</p>
                 </div>
             `;
             return;
         }
 
-        grid.innerHTML = list.map(item => `
-            <div class="handbook-card" data-category="${item.category}">
+        grid.innerHTML = list.map(item => {
+            const category = escapeHtml(item.category);
+            const title = escapeHtml(item.title);
+            const description = escapeHtml(item.description);
+            const code = safeString(item.code_example);
+            const tip = escapeHtml(item.tip);
+            const cardId = code ? `copy-code-${nextCodeButtonId++}` : '';
+            if (code) codeByButtonId.set(cardId, code);
+
+            return `
+            <div class="handbook-card" data-category="${category}">
                 <div class="card-header">
-                    <span class="card-category-badge ${item.catClass}">${item.catName}</span>
-                    <span class="card-level">${item.level}</span>
+                    <span class="card-category-badge ${escapeHtml(item.cat_class || 'cat-basic')}">${escapeHtml(item.cat_name || '入門')}</span>
+                    <span class="card-level">${escapeHtml(item.level || '★☆☆ 啟蒙')}</span>
                 </div>
                 <div class="card-body">
-                    <div class="card-title">${item.title}</div>
-                    <div class="card-desc">${item.desc}</div>
-                    
+                    <div class="card-title">${title}</div>
+                    <div class="card-desc">${description}</div>
+                    ${code ? `
                     <div class="code-block-wrap">
-                        <button class="copy-btn" onclick="copyCode(this, \`${item.rawCode.replace(/`/g, '\\`')}\`)">複製</button>
-                        <div class="code-block">${item.code}</div>
-                    </div>
-
+                        <button class="copy-btn" data-code-id="${cardId}" onclick="copyCode(this)">複製</button>
+                        <div class="code-block">${formatPythonSyntax(code)}</div>
+                    </div>` : ''}
+                    ${tip ? `
                     <div class="tip-box">
                         <span>💡</span>
-                        <span>${item.tip}</span>
-                    </div>
+                        <span>${tip}</span>
+                    </div>` : ''}
                 </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
     }
 
-    // 分類篩選
+    // 語法高亮：先跳脫 HTML，再逐段處理，避免標籤被後續取代破壞。
+    function formatPythonSyntax(raw) {
+        const source = safeString(raw);
+        const tokenPattern = /(#[^\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\b(?:def|return|if|elif|else|for|while|in|and|or|not|is|True|False|None|break|continue|pass|class|import|from|as|try|except|finally|with|lambda|yield|raise|global|nonlocal|assert|del|async|await)\b|\b(?:print|len|range|int|str|float|bool|list|dict|set|tuple|input|sum|min|max|abs|round|enumerate|zip|open|type)\b|\b\d+(?:\.\d+)?\b)/g;
+        let result = '';
+        let lastIndex = 0;
+        let match;
+
+        while ((match = tokenPattern.exec(source)) !== null) {
+            result += escapeHtml(source.slice(lastIndex, match.index));
+            const token = match[0];
+            let className = '';
+
+            if (token.startsWith('#')) className = 'code-comment';
+            else if (token.startsWith('"') || token.startsWith("'")) className = 'code-str';
+            else if (/^\d/.test(token)) className = 'code-num';
+            else if (/^(print|len|range|int|str|float|bool|list|dict|set|tuple|input|sum|min|max|abs|round|enumerate|zip|open|type)$/.test(token)) className = 'code-func';
+            else className = 'code-keyword';
+
+            result += `<span class="${className}">${escapeHtml(token)}</span>`;
+            lastIndex = tokenPattern.lastIndex;
+        }
+
+        result += escapeHtml(source.slice(lastIndex));
+        return result;
+    }
+
     function filterCategory(cat, btn) {
         currentCategory = cat;
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -568,48 +563,187 @@
         applyFilters();
     }
 
-    // 搜尋輸入處理
     function handleSearch() {
         applyFilters();
     }
 
-    // 綜合過濾
     function applyFilters() {
         const query = document.getElementById('searchInput').value.trim().toLowerCase();
-        
         const filtered = handbookData.filter(item => {
-            const matchesCat = (currentCategory === 'all') || (item.category === currentCategory);
+            const matchesCat = (currentCategory === 'all') || (normalizeCategory(item.category) === currentCategory);
             const matchesSearch = !query || 
-                item.title.toLowerCase().includes(query) || 
-                item.desc.toLowerCase().includes(query) || 
-                item.rawCode.toLowerCase().includes(query) ||
-                item.tip.toLowerCase().includes(query);
+                safeString(item.title).toLowerCase().includes(query) ||
+                safeString(item.description).toLowerCase().includes(query) ||
+                safeString(item.code_example).toLowerCase().includes(query) ||
+                safeString(item.tip).toLowerCase().includes(query);
             return matchesCat && matchesSearch;
         });
-
         renderCards(filtered);
     }
 
-    // 一鍵複製程式碼
-    function copyCode(btn, text) {
-        navigator.clipboard.writeText(text).then(() => {
-            const oldText = btn.innerText;
-            btn.innerText = "已複製！";
-            btn.style.background = "var(--pixel-green)";
-            btn.style.color = "#fff";
-            setTimeout(() => {
-                btn.innerText = oldText;
-                btn.style.background = "";
-                btn.style.color = "";
-            }, 1500);
-        });
+    // 複製程式碼：只有確認複製成功後才顯示成功訊息。
+    async function copyCode(btn) {
+        const codeId = btn.getAttribute('data-code-id');
+        const text = codeByButtonId.get(codeId);
+
+        if (typeof text !== 'string') {
+            showCopyStatus(btn, false, '找不到程式碼');
+            return;
+        }
+
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+            } else {
+                legacyCopy(text);
+            }
+            showCopyStatus(btn, true, '已複製！');
+        } catch (err) {
+            console.error('複製失敗：', err);
+            showCopyStatus(btn, false, '複製失敗');
+        }
     }
 
-    // 初始化頁面
-    window.onload = () => {
-        document.getElementById('count-all').innerText = handbookData.length;
-        renderCards(handbookData);
-    };
+    function legacyCopy(text) {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.setAttribute('readonly', '');
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        textArea.style.top = '0';
+        document.body.appendChild(textArea);
+
+        try {
+            textArea.focus();
+            textArea.select();
+            const succeeded = document.execCommand('copy');
+            if (!succeeded) throw new Error('瀏覽器拒絕執行複製命令');
+        } finally {
+            textArea.remove();
+        }
+    }
+
+    function showCopyStatus(btn, success, message) {
+        const oldText = btn.dataset.originalText || btn.textContent;
+        btn.dataset.originalText = oldText;
+        btn.textContent = message;
+        btn.style.background = success ? 'var(--pixel-green)' : 'var(--pixel-red)';
+        btn.style.color = '#fff';
+
+        window.setTimeout(() => {
+            btn.textContent = oldText;
+            btn.style.background = '';
+            btn.style.color = '';
+        }, 1800);
+    }
+
+    function escapeHtml(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]));
+    }
+
+    // 🏆 終極保底資料庫：當伺服器離線時自動啟用
+    function getFallbackData() {
+        return [
+            {
+                category: "intro", cat_name: "零基礎啟蒙", cat_class: "cat-basic", level: "★☆☆ 啟蒙",
+                title: "電腦是個死腦筋！什麼是程式？",
+                description: "電腦其實超級笨，它完全聽不懂人類說的中文或英文。寫程式，就是用電腦看得懂的「精確指令」，一步一步指揮它做事。只要指令漏了一個逗號、多了一個空格，電腦就會耍脾氣罷工（當機報錯）！",
+                code_example: "# 這是一行「註解」，寫給人看的，電腦會直接跳過\n# 電腦會由上到下，一行一行嚴格執行你的指令",
+                tip: "在 Python 裡面，只要在開頭加上井字號「#」，後面的文字就會變成註解，不會被電腦執行喔！"
+            },
+            {
+                category: "intro", cat_name: "零基礎啟蒙", cat_class: "cat-basic", level: "★☆☆ 啟蒙",
+                title: "print() — 讓電腦開口說話",
+                description: "如果你想叫電腦在螢幕上顯示文字或算出來的結果，就要使用 print() 這個神奇咒語。圓括號 ( ) 裡面放的就是你要電腦說出來的內容。",
+                code_example: "print(\"哈囉！我是未來的程式大師！\")\nprint(12345)",
+                tip: "千萬記得：print 的英文全部都是小寫！寫成 Print 或 PRINT，電腦會跟你說它不認識這個字！"
+            },
+            {
+                category: "data", cat_name: "資料型態", cat_class: "cat-data", level: "★☆☆ 必備",
+                title: "字串 (str) — 為什麼文字要穿衣服？",
+                description: "只要是人類講的話、名字、文字，在 Python 裡都叫做「字串 (String, 簡稱 str)」。文字出門一定要「穿衣服」，也就是用單引號 ' ' 或雙引號 \" \" 把文字緊緊包起來！如果不包，電腦會以為那是一個「變數名稱」或是「暗號指令」，發現找不到就會大聲報錯！",
+                code_example: "name = \"蜜蜂工程師\"    # 正確！有穿衣服的文字是字串\n# 錯誤示範：name = 蜜蜂工程師  -> 電腦會看不懂爆出 NameError",
+                tip: "單引號 ' ' 或雙引號 \" \" 都可以，但前後必須成雙成對，不能前面用單引號、後面卻用雙引號收尾！"
+            },
+            {
+                category: "data", cat_name: "資料型態", cat_class: "cat-data", level: "★☆☆ 必備",
+                title: "整數 (int) 與小數 (float) — 算術用的數字",
+                description: "用來算數學的數字「絕對不能穿衣服（不能加引號）」！整數（沒有小數點的數字，如 100, -5）在 Python 叫 int；帶有小數點的數字（如 3.14, 25.8）在 Python 叫浮點數 float。",
+                code_example: "coins = 5000       # int (整數)：買房、金幣都是整數\ntemp = 24.5        # float (浮點數)：氣溫、體溫常有小數點\nprint(coins + 100) # 印出 5100，電腦會自動幫你算好！",
+                tip: "天大陷阱！500 是數字 int；但 \"500\" 穿了引號就會變成文字 str！\"500\" + \"500\" 在電腦眼裡是字串相黏，結果會變成 \"500500\"，而不是 1000！"
+            },
+            {
+                category: "data", cat_name: "資料型態", cat_class: "cat-data", level: "★☆☆ 必備",
+                title: "變數 (Variable) — 貼上標籤的魔法收納盒",
+                description: "寫遊戲時，玩家的血量、金幣隨時都在改變。變數就像一個收納盒，我們給盒子貼個標籤（取個名字），然後用「單等號 =」將東西放進去。「單等號 =」不是數學的等於，它的意思是「將右邊的東西放進左邊的盒子裡」！",
+                code_example: "my_money = 3000          # 把 3000 放進叫 my_money 的盒子\nmy_money = my_money - 200 # 買東西花掉 200，盒子裡剩 2800\nprint(my_money)",
+                tip: "變數名字有規矩：只能用英文字母、數字和底線 _，而且開頭「絕對不能用數字」！"
+            },
+            {
+                category: "data", cat_name: "資料型態", cat_class: "cat-data", level: "★★☆ 核心",
+                title: "布林值 (bool) — 只有「對」與「錯」的開關",
+                description: "電腦世界裡最單純的型態叫布林值 (Boolean, 簡稱 bool)。它只有兩個值：True（是真的、對的）或是 False（是假的、錯的）。就像電燈開關一樣，不是開就是關，常用來記錄「玩家是否還活著」、「是否買得起土地」。",
+                code_example: "is_game_over = False    # 遊戲還沒結束\ncan_buy_land = True     # 有足夠的金幣，可以買房\nprint(10 > 5)           # 電腦會回答：True (因為 10 真的大於 5)",
+                tip: "True 和 False 的第一個字母「一定要大寫」！寫成 true 或 false 電腦是不認得的喔！"
+            },
+            {
+                category: "cond", cat_name: "條件判斷", cat_class: "cat-cond", level: "★★☆ 易錯",
+                title: "等號的大陷阱 — 賦值 (=) vs 真正等於 (==)",
+                description: "這是所有初學者最容易掉進去的陷阱！\n1. 單等號「=」：是「指派/放進去」。例如 hp = 100 是把 100 放進 hp。\n2. 雙等號「==」：才是數學上的「有沒有等於？」用來詢問電腦兩邊一不一樣！",
+                code_example: "dice = 6\n# 詢問電腦：骰子擲出來是 6 嗎？\nif dice == 6:\n    print(\"幸運大爆發！擲出最大點數 6！\")",
+                tip: "要檢查「不等於」時，Python 使用驚嘆號加等號「!=」。例如 if role != \"admin\":。"
+            },
+            {
+                category: "cond", cat_name: "條件判斷", cat_class: "cat-cond", level: "★★☆ 核心",
+                title: "縮排 (Indentation) — Python 最神聖的規矩",
+                description: "其他程式語言常用大括號 { } 來分群，但 Python 規定：必須使用「空 4 個空格（或按一下 Tab）」來縮排！縮排進去的程式碼，代表它是「屬於上一層管轄的小弟」。如果縮排亂七八糟，電腦會直接丟出 IndentationError 罷工！",
+                code_example: "coins = 1500\nif coins >= 1000:\n    # 底下這兩行空了 4 格，代表滿足條件才會執行\n    print(\"你的金幣足夠！\")\n    print(\"成功收購這座城堡！\")\nprint(\"不管有沒有買，這行都會執行\")",
+                tip: "冒號「:」是縮排的好朋友！在 if、else、for、while、def 後面一定要加冒號，加完冒號下一行就必須縮排！"
+            },
+            {
+                category: "cond", cat_name: "條件判斷", cat_class: "cat-cond", level: "★★☆ 核心",
+                title: "if / elif / else — 人生的命運十字路口",
+                description: "遊戲中踩到格子會發生什麼事？全靠條件判斷！\n• if（如果）：如果滿足這個條件就做這件事。\n• elif（或是如果）：如果上面不滿足，但滿足這個，就做這件事。\n• else（否則）：如果上面通通不滿足，就做最後這個保底動作。",
+                code_example: "step = 3\nif step == 1:\n    print(\"踩到機會格\")\nelif step == 2:\n    print(\"踩到命運格\")\nelse:\n    print(\"踩到空地，可以買房！\")",
+                tip: "電腦只要在上面遇到第一個成立的條件並執行完，後面的 elif 和 else 就會直接跳過不看了！"
+            },
+            {
+                category: "loop", cat_name: "迴圈控制", cat_class: "cat-loop", level: "★★☆ 核心",
+                title: "for 迴圈與 range() — 自動做苦工的機器人",
+                description: "如果你想印出 100 次「我愛寫程式」，難道要複製貼上 100 行 print 嗎？不用！用 for 迴圈就可以命令電腦重複執行指定次數。搭配 range(數字)，就能讓機器人乖乖做苦工。",
+                code_example: "# 讓角色前進 3 步\nfor i in range(3):\n    print(\"向前跳一步！現在是第\", i, \"步\")\n# 電腦會印出 0, 1, 2 (電腦的世界都是從 0 開始數的！)",
+                tip: "range(3) 產生的數字是 0, 1, 2，總共 3 次，但「絕對不會數到 3」！這點一定要記住！"
+            },
+            {
+                category: "loop", cat_name: "迴圈控制", cat_class: "cat-loop", level: "★★☆ 核心",
+                title: "while 迴圈 — 停不下來的跑步機",
+                description: "for 迴圈適合「知道要跑幾次」的狀況；而 while 迴圈是「只要條件還成立，就永不休止地跑下去」，直到條件破滅（變成 False）為止。",
+                code_example: "hp = 3\nwhile hp > 0:\n    print(\"正在激戰中！剩餘血量：\", hp)\n    hp = hp - 1   # 每次都要扣血！\nprint(\"血量歸零，玩家戰敗！\")",
+                tip: "極度危險！如果在 while 迴圈裡面忘記扣血（hp 一直維持大於 0），電腦就會陷入「無窮迴圈（當機卡死）」！"
+            },
+            {
+                category: "list", cat_name: "串列與字典", cat_class: "cat-data", level: "★★★ 進階",
+                title: "串列 (List) — 冒險背包的百寶袋",
+                description: "當我們有一大堆資料（例如買下的所有土地清單）想放在同一個變數裡，就要用串列！串列使用中括號 [ ]，裡面的東西用逗號隔開。想要拿出裡面的東西，只要在中括號填入編號（索引 Index）。",
+                code_example: "bag = [\"魔法藥水\", \"免稅卡\", \"強制收購券\"]\nprint(bag[0])        # 印出第 1 個道具：\"魔法藥水\"\nbag.append(\"遙控骰子\") # 在背包最後面塞入新道具！\nprint(len(bag))      # len() 可以量出背包裡現在有 4 個道具",
+                tip: "電腦的世界從 0 開始起算！第一個東西編號是 [0]，第二個是 [1]；如果你跟電腦要 bag[99]，它會抱怨 IndexError 找不到！"
+            },
+            {
+                category: "func", cat_name: "自訂函式", cat_class: "cat-func", level: "★★★ 進階",
+                title: "自訂函式 (def) — 自己發明魔法大招",
+                description: "如果有一段很長很複雜的計算（例如：過路費要根據天氣、AQI 和房子樓層來加成），每次用到都要重寫幾十行會累死。我們可以用 def 把這套公式打包成一個「魔法技能」，以後只要呼叫它的名字，它就會自動幫我們算好並用 return 交出答案！",
+                code_example: "def calc_toll(base_price, floors):\n    total = base_price * (1 + (floors - 1) * 0.5)\n    return total  # 將算好的過路費交還給呼叫的人\n\n# 呼叫大招：原價 1000、蓋到 3 樓\nprint(\"應收過路費：\", calc_toll(1000, 3))",
+                tip: "定義函式 (def) 就像是在筆記本上記下配方，它「並不會主動執行」，直到你在後面呼叫它的名字 calc_toll(...)，它才會動手算！"
+            },
+            {
+                category: "bug", cat_name: "除錯急救包", cat_class: "cat-cond", level: "★★★ 必讀",
+                title: "四大新手常見大魔王 Bug 大解密",
+                description: "寫程式遇到紅字報錯千萬不要慌！看看是哪一 firm 王在搗蛋：\n1. SyntaxError（語法錯誤）：漏了冒號 :、括號沒關緊、引號只有一半。\n2. NameError（名字錯誤）：單字拼錯了（如 prnt）、變數還沒宣告就偷用、文字忘記穿引號衣服。\n3. TypeError（型態錯誤）：把文字拿去跟數字相加（例如 \"100\" + 50）。\n4. IndentationError（縮排錯誤）：該空 4 格的地方沒空，或是空格用得參差不齊。",
+                code_example: "# 遇見 Bug 時的除錯三步驟：\n# 1. 沉著冷靜看最後一行的報錯名稱\n# 2. 找到它提示的錯誤行號 (Line X)\n# 3. 檢查是不是漏冒號、打錯字或空格不對！",
+                tip: "在我們的遊戲對局中，如果不小心寫錯程式碼，AI 虛擬導師也會根據這些錯誤型態，動態給你 50 字內的專屬提示喔！"
+            }
+        ];
+    }
 </script>
 
 </body>
