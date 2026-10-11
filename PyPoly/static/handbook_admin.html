@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BeeRich - 教材管理後台</title>
-    <!-- 引入與全站一致的精選像素與高質感字型 -->
     <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
     <link rel="icon" href="/favicon.ico" type="image/jpeg">
@@ -108,7 +107,6 @@
             gap: 6px;
         }
 
-        /* Admin 主要佈局 */
         .admin-main {
             height: calc(100vh - 80px);
             display: flex;
@@ -127,7 +125,6 @@
             align-items: stretch;
         }
 
-        /* 側邊導覽欄 */
         .admin-nav {
             width: 280px;
             background: white;
@@ -189,7 +186,6 @@
             box-shadow: 0 0 0 #000;
         }
 
-        /* 右側主看板 */
         .admin-board {
             flex: 1;
             display: flex;
@@ -242,7 +238,6 @@
         .btn-add:hover { filter: brightness(1.05); }
         .btn-add:active { transform: translateY(4px); box-shadow: 0 1px 0 #000; }
 
-        /* 使用者清單表格容器 */
         .user-list-container { 
             background: white;
             flex: 1;
@@ -328,7 +323,7 @@
         .btn-ban { background: #fff5f5; color: var(--pixel-red); }
         .btn-ban:hover { background: #ffe0e0; }
 
-        /* 🏆 與 question.html 一致的編輯彈窗樣式 */
+        /* 🏆 與 question.html 完全一致的編輯彈窗樣式 */
         .modal-mask {
             position: fixed; inset: 0; background: rgba(15, 23, 42, 0.55);
             display: none; justify-content: center; align-items: center; z-index: 500; padding: 20px;
@@ -352,15 +347,17 @@
         .field textarea.mono { font-family: 'Consolas', monospace; background: #0f172a; color: #7dd3fc; min-height: 110px; }
         .field.invalid input, .field.invalid select, .field.invalid textarea { border-color: var(--danger-red); background: #fff5f5; }
         .field .err { color: var(--danger-red); font-weight: 800; font-size: 0.78rem; min-height: 1em; }
-        .hint { color: var(--text-gray); font-weight: 700; font-size: 0.8rem; }
         .modal-err { color: var(--danger-red); font-weight: 800; margin-bottom: 12px; min-height: 1.2em; }
         .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; }
         .btn-cancel { padding: 12px 25px; background: #e2e8f0; color: var(--text-dark); border: none; border-radius: 12px; font-weight: 900; cursor: pointer; }
 
-        /* 滾動條樣式 */
+        /* 🏆 補齊 question.html 裡美化的捲軸設定 */
         .user-list-container::-webkit-scrollbar, .modal-card::-webkit-scrollbar { width: 8px; }
-        .user-list-container::-webkit-scrollbar-track, .modal-card::-webkit-scrollbar-track { background: #dfe4ea; border-left: 2px solid var(--pixel-border); }
-        .user-list-container::-webkit-scrollbar-thumb, .modal-card::-webkit-scrollbar-thumb { background: var(--pixel-border); }
+        .user-list-container::-webkit-scrollbar-track, .modal-card::-webkit-scrollbar-track { background: #dfe4ea; border-radius: 10px; }
+        .user-list-container::-webkit-scrollbar-thumb, .modal-card::-webkit-scrollbar-thumb { background: var(--text-gray); border-radius: 10px; border: 2px solid #dfe4ea; }
+        
+        /* 避免 Webkit 預設的下拉選單箭頭太醜 */
+        select { cursor: pointer; }
 
         @media (max-width: 900px) {
             header { padding: 0 20px; }
@@ -374,7 +371,7 @@
 <header>
     <div class="header-left"><h1 onclick="location.href='admin.html'">BeeRich</h1></div>
     <div class="header-right">
-        <div class="page-tag"><span>📖</span> 學習手冊管理</div>
+        <div class="page-tag"><span>📖</span> 教材管理後台</div>
     </div>
 </header>
 
@@ -384,6 +381,7 @@
         <aside class="admin-nav">
             <h2><span>📋</span> 後台選單</h2>
             <a href="admin.html" class="nav-link"><span>👥</span> 用戶權限管理</a>
+            <!-- 🏆 修正一：取消這裡不應該存在的 active -->
             <a href="question.html" class="nav-link"><span>❓</span> 考題庫編輯</a>
             <a href="handbook_admin.html" class="nav-link active"><span>📖</span> 學習手冊管理</a>
             <a href="camera.html" class="nav-link"><span>📷</span> 影像辨識偵錯</a>
@@ -414,7 +412,7 @@
     </div>
 </div>
 
-<!-- 🏆 與 question.html 完全一致的新增/編輯彈窗 -->
+<!-- 新增/編輯彈窗 -->
 <div class="modal-mask" id="cardModal">
     <div class="modal-card">
         <h2 id="modalTitle">新增學習卡片</h2>
@@ -493,7 +491,6 @@
         <div class="form-row">
             <div class="field">
                 <label>程式碼範例 (選填)</label>
-                <!-- 🏆 套用 question.html 的深色 mono 樣式 -->
                 <textarea id="codeExample" class="mono" spellcheck="false" placeholder="print('Hello') 等程式碼..."></textarea>
                 <div class="err"></div>
             </div>
@@ -509,7 +506,7 @@
 
         <div class="modal-actions">
             <button class="btn-cancel" onclick="closeModal()">取消</button>
-            <button class="btn-add" onclick="saveCard()">儲存教材</button>
+            <button class="btn-add" style="border-radius: 12px; box-shadow: none;" onclick="saveCard()">儲存教材</button>
         </div>
     </div>
 </div>
@@ -520,7 +517,6 @@
     let syncTimer = null; 
     let allCards = [];
 
-    // --- 同步 admin.html 的授權與心跳監控 ---
     window.addEventListener('storage', (e) => {
         if (e.key === 'token' && !e.newValue) window.location.href = 'login.html';
     });
@@ -535,7 +531,6 @@
             return;
         }
 
-        // 點擊半透明背景關閉彈窗
         document.getElementById('cardModal').addEventListener('click', (e) => {
             if (e.target.id === 'cardModal') closeModal();
         });
@@ -588,7 +583,6 @@
         }, 5000); 
     }
 
-    // --- 教材 CRUD 邏輯 ---
     async function fetchCards() {
         try {
             const res = await fetch(`${API_URL}/handbook/list`);
@@ -627,7 +621,6 @@
     }
 
     function openModal(card = null) {
-        // 🏆 使用 classList 控制彈窗顯示
         document.getElementById('cardModal').classList.add('open');
         document.getElementById('modalErr').textContent = '';
 
