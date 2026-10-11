@@ -27,7 +27,6 @@
             --danger-red: #ff3f34;
         }
 
-        /* 🏆 100% 同步 admin.html 的底層重置與防溢出 */
         html, body {
             margin: 0 !important;
             padding: 0 !important;
@@ -109,7 +108,6 @@
             gap: 6px;
         }
 
-        /* Admin 主要佈局 (精準對齊寬高) */
         .admin-main {
             height: calc(100vh - 80px);
             display: flex;
@@ -123,12 +121,11 @@
             display: flex;
             gap: 25px;
             width: 95%;
-            max-width: 1280px; /* 🏆 嚴格對齊 admin.html 的 1280px */
+            max-width: 1280px;
             height: 100%;
             align-items: stretch;
         }
 
-        /* 側邊導覽欄 */
         .admin-nav {
             width: 280px;
             background: white;
@@ -190,7 +187,6 @@
             box-shadow: 0 0 0 #000;
         }
 
-        /* 右側主看板 */
         .admin-board {
             flex: 1;
             display: flex;
@@ -210,7 +206,6 @@
             align-items: center; 
         }
 
-        /* 🏆 補齊 question.html 的篩選器樣式 */
         .filter-group { display: flex; gap: 12px; align-items: center; }
         
         .select-filter { 
@@ -267,7 +262,6 @@
         .btn-add:hover { filter: brightness(1.05); }
         .btn-add:active { transform: translateY(4px); box-shadow: 0 1px 0 #000; }
 
-        /* 使用者清單表格容器 */
         .user-list-container { 
             background: white;
             flex: 1;
@@ -322,7 +316,7 @@
             margin: 0 auto; /* 置中 */
         }
         
-        .user-id { font-weight: 900; font-size: 1.05rem; color: var(--text-dark); padding-right: 15px; }
+        .user-id { font-weight: 900; font-size: 1.05rem; color: var(--text-dark); padding-left: 10px; }
         .user-email { color: var(--text-gray); font-weight: 900; font-size: 0.9rem; }
         
         .user-status {
@@ -337,7 +331,7 @@
             text-align: center;
         }
 
-        .action-btns { display: flex; gap: 8px; justify-content: flex-end; }
+        .action-btns { display: flex; gap: 8px; justify-content: center; }
         .btn-icon {
             padding: 8px 14px;
             border: 2px solid var(--pixel-border);
@@ -357,7 +351,7 @@
         .btn-ban { background: #fff5f5; color: var(--pixel-red); }
         .btn-ban:hover { background: #ffe0e0; }
 
-        /* 🏆 與 question.html 完全一致的編輯彈窗樣式 */
+        /* 新增/編輯彈窗樣式 */
         .modal-mask {
             position: fixed; inset: 0; background: rgba(15, 23, 42, 0.55);
             display: none; justify-content: center; align-items: center; z-index: 500; padding: 20px;
@@ -385,12 +379,11 @@
         .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; }
         .btn-cancel { padding: 12px 25px; background: #e2e8f0; color: var(--text-dark); border: none; border-radius: 12px; font-weight: 900; cursor: pointer; }
 
-        /* 🏆 補齊 question.html 裡美化的捲軸設定 */
+        /* 滾動條樣式 */
         .user-list-container::-webkit-scrollbar, .modal-card::-webkit-scrollbar { width: 8px; }
         .user-list-container::-webkit-scrollbar-track, .modal-card::-webkit-scrollbar-track { background: #dfe4ea; border-radius: 10px; }
         .user-list-container::-webkit-scrollbar-thumb, .modal-card::-webkit-scrollbar-thumb { background: var(--text-gray); border-radius: 10px; border: 2px solid #dfe4ea; }
         
-        /* 避免 Webkit 預設的下拉選單箭頭太醜 */
         select { cursor: pointer; }
 
         @media (max-width: 900px) {
@@ -427,35 +420,41 @@
         <main class="admin-board">
             <div class="board-header">
                 <div class="filter-group">
+                    <!-- 🏆 修復 1：難度層級完整列出，與編輯表單完全對應 -->
                     <select class="select-filter" id="filterLevel" onchange="filterTable()">
                         <option value="">所有難度</option>
-                        <option value="★☆☆">★☆☆ 入門</option>
-                        <option value="★★☆">★★☆ 核心</option>
-                        <option value="★★★">★★★ 進階</option>
+                        <option value="★☆☆ 啟蒙">★☆☆ 啟蒙</option>
+                        <option value="★☆☆ 必備">★☆☆ 必備</option>
+                        <option value="★★☆ 核心">★★☆ 核心</option>
+                        <option value="★★☆ 易錯">★★☆ 易錯</option>
+                        <option value="★★★ 進階">★★★ 進階</option>
+                        <option value="★★★ 必讀">★★★ 必讀</option>
                     </select>
+                    <!-- 🏆 修復 2：分類名稱精準對應實際表格呈現的名稱 (cat_name) -->
                     <select class="select-filter" id="filterCategory" onchange="filterTable()">
                         <option value="">所有分類</option>
-                        <option value="intro">intro (啟蒙)</option>
-                        <option value="basic">basic (輸入輸出)</option>
-                        <option value="data">data (變數型態)</option>
-                        <option value="cond">cond (條件判斷)</option>
-                        <option value="loop">loop (迴圈控制)</option>
-                        <option value="list">list (串列字典)</option>
-                        <option value="func">func (自訂函式)</option>
-                        <option value="bug">bug (常見錯誤)</option>
+                        <option value="intro">基礎啟蒙</option>
+                        <option value="basic">輸入輸出</option>
+                        <option value="data">變數型態</option>
+                        <option value="cond">條件判斷</option>
+                        <option value="loop">迴圈控制</option>
+                        <option value="list">串列字典</option>
+                        <option value="func">自訂函式</option>
+                        <option value="bug">除錯急救包</option>
                     </select>
-                    <input type="text" id="searchInput" class="search-input" placeholder="🔍 搜尋教材標題..." oninput="filterTable()">
+                    <input type="text" id="searchInput" class="search-input" placeholder="🔍 搜尋標題或標籤..." oninput="filterTable()">
                 </div>
                 <button class="btn-add" onclick="openModal()">+ 新增教材</button>
             </div>
 
             <div class="user-list-container">
+                <!-- 🏆 修復 3：表頭與內容精準置中對齊 -->
                 <div class="table-header">
-                    <span style="text-align:center;">排序</span>
-                    <span style="padding-left:10px;">系統分類</span>
-                    <span>卡片標題</span>
-                    <span>難度級別</span>
-                    <span style="text-align: right;">操作項目</span>
+                    <span style="text-align: center;">排序</span>
+                    <span style="text-align: center;">分類標籤</span>
+                    <span style="padding-left: 10px;">教材標題</span>
+                    <span style="text-align: center;">難度級別</span>
+                    <span style="text-align: center;">操作項目</span>
                 </div>
                 <div id="tableBody">
                     <div style="padding: 20px; font-weight: 900; color: #747d8c; text-align: center;">載入中...</div>
@@ -503,12 +502,12 @@
                     <option value="loop">loop (迴圈控制)</option>
                     <option value="list">list (串列字典)</option>
                     <option value="func">func (自訂函式)</option>
-                    <option value="bug">bug (常見錯誤)</option>
+                    <option value="bug">bug (除錯急救包)</option>
                 </select>
                 <div class="err"></div>
             </div>
             <div class="field">
-                <label>顯示標籤 (如: 資料型態)</label>
+                <label>顯示標籤 (如: 變數型態)</label>
                 <input type="text" id="catName" placeholder="例如：迴圈控制">
                 <div class="err"></div>
             </div>
@@ -653,12 +652,13 @@
             return;
         }
 
+        // 🏆 修復 3：內容置中對齊，完美契合表頭位置
         tbody.innerHTML = list.map(c => `
             <div class="user-row">
                 <div class="user-avatar">${c.order_index}</div>
-                <div style="padding-left:10px;"><span class="user-status">${escapeHtml(c.cat_name)}</span></div>
+                <div style="text-align: center;"><span class="user-status">${escapeHtml(c.cat_name)}</span></div>
                 <div class="user-id">${escapeHtml(c.title)}</div>
-                <div class="user-email">${escapeHtml(c.level)}</div>
+                <div class="user-email" style="text-align: center;">${escapeHtml(c.level)}</div>
                 <div class="action-btns">
                     <button class="btn-icon btn-edit" onclick='openModal(${JSON.stringify(c).replace(/'/g, "&#39;")})'>編輯</button>
                     <button class="btn-icon btn-ban" onclick="deleteCard(${c.id}, '${escapeHtml(c.title)}')">刪除</button>
@@ -667,7 +667,6 @@
         `).join('');
     }
 
-    // 🏆 新增的綜合篩選器邏輯
     function filterTable() {
         const q = document.getElementById('searchInput').value.toLowerCase();
         const levelFilter = document.getElementById('filterLevel').value;
