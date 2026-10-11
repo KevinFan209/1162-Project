@@ -27,7 +27,6 @@
             --danger-red: #ff3f34;
         }
 
-        /* 🏆 100% 同步 admin.html 的底層重置與防溢出 */
         html, body {
             margin: 0 !important;
             padding: 0 !important;
@@ -109,7 +108,7 @@
             gap: 6px;
         }
 
-        /* Admin 主要佈局 (精準對齊寬高) */
+        /* Admin 主要佈局 */
         .admin-main {
             height: calc(100vh - 80px);
             display: flex;
@@ -123,7 +122,7 @@
             display: flex;
             gap: 25px;
             width: 95%;
-            max-width: 1280px; /* 🏆 嚴格對齊 admin.html 的 1280px */
+            max-width: 1280px;
             height: 100%;
             align-items: stretch;
         }
@@ -206,7 +205,7 @@
             border: 4px solid var(--pixel-border);
             box-shadow: 6px 6px 0 #000;
             display: flex;
-            justify-content: space-between; /* 排開搜尋與新增按鈕 */
+            justify-content: space-between;
             align-items: center; 
         }
 
@@ -226,18 +225,22 @@
             border-color: #000;
         }
 
-        .btn-create {
-            padding: 10px 20px;
-            background: var(--pixel-green);
-            color: white;
+        .btn-add { 
+            padding: 11px 22px;
+            background: var(--bee-yellow);
+            color: var(--text-dark);
             border: 3px solid var(--pixel-border);
+            border-radius: 0;
             font-weight: 900;
             font-size: 0.95rem;
             cursor: pointer;
-            box-shadow: 3px 3px 0 #000;
-            transition: 0.1s;
+            box-shadow: 0 5px 0 #000;
+            transition: 0.06s ease;
+            user-select: none;
+            letter-spacing: 0.5px;
         }
-        .btn-create:active { transform: translate(3px, 3px); box-shadow: 0 0 0 #000; }
+        .btn-add:hover { filter: brightness(1.05); }
+        .btn-add:active { transform: translateY(4px); box-shadow: 0 1px 0 #000; }
 
         /* 使用者清單表格容器 */
         .user-list-container { 
@@ -249,10 +252,9 @@
             overflow-y: auto;
         }
 
-        /* 🏆 精準對齊的 Table 格線設定 */
         .table-header {
             display: grid;
-            grid-template-columns: 80px 140px 1fr 120px 160px; /* 根據教材欄位微調比例 */
+            grid-template-columns: 80px 140px 1fr 120px 160px;
             padding: 0 24px 12px;
             font-weight: 900;
             color: var(--text-dark);
@@ -278,7 +280,6 @@
             box-shadow: 6px 6px 0 #000;
         }
         
-        /* 將 admin.html 的 user-avatar 用於顯示排序數字 */
         .user-avatar {
             width: 44px;
             height: 44px;
@@ -307,7 +308,6 @@
             color: var(--text-dark);
         }
 
-        /* 按鈕樣式 */
         .action-btns { display: flex; gap: 8px; justify-content: flex-end; }
         .btn-icon {
             padding: 8px 14px;
@@ -328,86 +328,39 @@
         .btn-ban { background: #fff5f5; color: var(--pixel-red); }
         .btn-ban:hover { background: #ffe0e0; }
 
-        /* 像素對話彈窗 (編輯教材專用) */
-        .modal-overlay {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.65);
-            display: none; justify-content: center; align-items: center;
-            z-index: 2000;
+        /* 🏆 與 question.html 一致的編輯彈窗樣式 */
+        .modal-mask {
+            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.55);
+            display: none; justify-content: center; align-items: center; z-index: 500; padding: 20px;
         }
-
-        .modal-content {
-            background: white;
-            padding: 32px 30px;
-            border: 4px solid var(--pixel-border);
-            box-shadow: 8px 8px 0px #000000;
-            width: 600px;
-            max-width: 95vw;
-            max-height: 90vh;
-            overflow-y: auto;
-            text-align: left;
-            animation: modalPop 0.15s ease-out;
+        .modal-mask.open { display: flex; }
+        .modal-card {
+            background: white; border-radius: 30px; padding: 30px 35px;
+            width: 100%; max-width: 720px; max-height: 88vh; overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.25);
         }
-
-        .modal-content h2 {
-            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
-            font-weight: 900;
-            font-size: 1.5rem;
-            margin-bottom: 20px;
-            color: var(--text-dark);
-            border-bottom: 3px solid var(--pixel-border);
-            padding-bottom: 12px;
+        .modal-card h2 { font-weight: 900; font-size: 1.6rem; margin-bottom: 20px; color: var(--text-dark); }
+        .form-row { display: flex; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+        .field { flex: 1; min-width: 150px; display: flex; flex-direction: column; gap: 6px; }
+        .field label { font-weight: 900; font-size: 0.85rem; color: var(--text-gray); }
+        .field input, .field select, .field textarea {
+            padding: 11px 14px; border-radius: 12px; border: 1.5px solid var(--border-light);
+            font-weight: 700; background: #f8fafc; font-family: inherit; font-size: 0.95rem; outline: none;
         }
-        
-        .form-group { margin-bottom: 15px; }
-        .form-group label { display: block; font-weight: 900; margin-bottom: 5px; color: var(--bee-dark); font-size: 0.95rem; }
-        .form-group input, .form-group select, .form-group textarea { 
-            width: 100%; 
-            padding: 10px; 
-            border: 3px solid var(--pixel-border); 
-            font-weight: 800; 
-            font-size: 1rem; 
-            background: #f8fafc; 
-            outline: none; 
-            font-family: inherit; 
-            box-shadow: inset 2px 2px 0 rgba(0,0,0,0.06);
-        }
-        .form-group textarea { resize: vertical; min-height: 80px; }
-        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { 
-            background: #feffea; 
-            border-color: #000; 
-        }
-
-        .modal-footer { display: flex; justify-content: flex-end; gap: 12px; margin-top: 25px; }
-
-        .btn-3d {
-            padding: 10px 24px;
-            border: 3px solid var(--pixel-border);
-            font-weight: 900;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: 0.06s ease;
-            color: var(--text-dark);
-            box-shadow: 3px 3px 0 #000;
-            user-select: none;
-        }
-        .btn-3d.cancel { background: #dfe4ea; }
-        .btn-3d.save { background: var(--bee-yellow); }
-        .btn-3d:active {
-            transform: translate(2px, 2px);
-            box-shadow: 1px 1px 0 #000;
-        }
-
-        @keyframes modalPop {
-            from { transform: scale(0.9); opacity: 0; }
-            to { transform: scale(1); opacity: 1; }
-        }
+        .field input:focus, .field select:focus, .field textarea:focus { border-color: #000; background: #fff; }
+        .field textarea { resize: vertical; min-height: 70px; }
+        .field textarea.mono { font-family: 'Consolas', monospace; background: #0f172a; color: #7dd3fc; min-height: 110px; }
+        .field.invalid input, .field.invalid select, .field.invalid textarea { border-color: var(--danger-red); background: #fff5f5; }
+        .field .err { color: var(--danger-red); font-weight: 800; font-size: 0.78rem; min-height: 1em; }
+        .hint { color: var(--text-gray); font-weight: 700; font-size: 0.8rem; }
+        .modal-err { color: var(--danger-red); font-weight: 800; margin-bottom: 12px; min-height: 1.2em; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; }
+        .btn-cancel { padding: 12px 25px; background: #e2e8f0; color: var(--text-dark); border: none; border-radius: 12px; font-weight: 900; cursor: pointer; }
 
         /* 滾動條樣式 */
-        .user-list-container::-webkit-scrollbar, .modal-content::-webkit-scrollbar { width: 8px; }
-        .user-list-container::-webkit-scrollbar-track, .modal-content::-webkit-scrollbar-track { background: #dfe4ea; border-left: 2px solid var(--pixel-border); }
-        .user-list-container::-webkit-scrollbar-thumb, .modal-content::-webkit-scrollbar-thumb { background: var(--pixel-border); }
+        .user-list-container::-webkit-scrollbar, .modal-card::-webkit-scrollbar { width: 8px; }
+        .user-list-container::-webkit-scrollbar-track, .modal-card::-webkit-scrollbar-track { background: #dfe4ea; border-left: 2px solid var(--pixel-border); }
+        .user-list-container::-webkit-scrollbar-thumb, .modal-card::-webkit-scrollbar-thumb { background: var(--pixel-border); }
 
         @media (max-width: 900px) {
             header { padding: 0 20px; }
@@ -442,7 +395,7 @@
         <main class="admin-board">
             <div class="board-header">
                 <input type="text" id="searchInput" class="search-input" placeholder="🔍 搜尋教材標題..." oninput="filterTable()">
-                <button class="btn-create" onclick="openModal()">➕ 新增教材</button>
+                <button class="btn-add" onclick="openModal()">+ 新增教材</button>
             </div>
 
             <div class="user-list-container">
@@ -461,18 +414,20 @@
     </div>
 </div>
 
-<!-- 新增/編輯彈窗 -->
-<div id="cardModal" class="modal-overlay">
-    <div class="modal-content">
+<!-- 🏆 與 question.html 完全一致的新增/編輯彈窗 -->
+<div class="modal-mask" id="cardModal">
+    <div class="modal-card">
         <h2 id="modalTitle">新增學習卡片</h2>
+        <div class="modal-err" id="modalErr"></div>
         <input type="hidden" id="cardId">
         
-        <div style="display: flex; gap: 15px;">
-            <div class="form-group" style="flex: 1;">
+        <div class="form-row">
+            <div class="field">
                 <label>排序權重 (數字越小越前)</label>
                 <input type="number" id="orderIndex" value="10">
+                <div class="err"></div>
             </div>
-            <div class="form-group" style="flex: 1;">
+            <div class="field">
                 <label>難度級別</label>
                 <select id="level">
                     <option value="★☆☆ 啟蒙">★☆☆ 啟蒙</option>
@@ -482,11 +437,12 @@
                     <option value="★★★ 進階">★★★ 進階</option>
                     <option value="★★★ 必讀">★★★ 必讀</option>
                 </select>
+                <div class="err"></div>
             </div>
         </div>
 
-        <div style="display: flex; gap: 15px;">
-            <div class="form-group" style="flex: 1;">
+        <div class="form-row">
+            <div class="field">
                 <label>系統分類</label>
                 <select id="category">
                     <option value="intro">intro (基礎啟蒙)</option>
@@ -498,12 +454,14 @@
                     <option value="func">func (自訂函式)</option>
                     <option value="bug">bug (常見錯誤)</option>
                 </select>
+                <div class="err"></div>
             </div>
-            <div class="form-group" style="flex: 1;">
+            <div class="field">
                 <label>顯示標籤 (如: 資料型態)</label>
                 <input type="text" id="catName" placeholder="例如：迴圈控制">
+                <div class="err"></div>
             </div>
-            <div class="form-group" style="flex: 1;">
+            <div class="field">
                 <label>標籤顏色</label>
                 <select id="catClass">
                     <option value="cat-basic">黃色 (基礎)</option>
@@ -512,32 +470,46 @@
                     <option value="cat-data">橘色 (資料)</option>
                     <option value="cat-func">紫色 (進階)</option>
                 </select>
+                <div class="err"></div>
             </div>
         </div>
 
-        <div class="form-group">
-            <label>卡片標題</label>
-            <input type="text" id="title" placeholder="例如：什麼是變數？">
+        <div class="form-row">
+            <div class="field">
+                <label>卡片標題</label>
+                <input type="text" id="title" placeholder="例如：什麼是變數？">
+                <div class="err"></div>
+            </div>
         </div>
 
-        <div class="form-group">
-            <label>白話原理解說</label>
-            <textarea id="description" placeholder="請用最簡單的話解釋給小朋友聽..."></textarea>
+        <div class="form-row">
+            <div class="field">
+                <label>白話原理解說</label>
+                <textarea id="description" placeholder="請用最簡單的話解釋給小朋友聽..."></textarea>
+                <div class="err"></div>
+            </div>
         </div>
 
-        <div class="form-group">
-            <label>程式碼範例 (選填)</label>
-            <textarea id="codeExample" placeholder="print('Hello') 等程式碼..." style="font-family: monospace; background: #1e272e; color: #fff;"></textarea>
+        <div class="form-row">
+            <div class="field">
+                <label>程式碼範例 (選填)</label>
+                <!-- 🏆 套用 question.html 的深色 mono 樣式 -->
+                <textarea id="codeExample" class="mono" spellcheck="false" placeholder="print('Hello') 等程式碼..."></textarea>
+                <div class="err"></div>
+            </div>
         </div>
 
-        <div class="form-group">
-            <label>💡 避坑小提示 (選填)</label>
-            <textarea id="tip" placeholder="初學者常犯的錯誤或小技巧..."></textarea>
+        <div class="form-row">
+            <div class="field">
+                <label>💡 避坑小提示 (選填)</label>
+                <textarea id="tip" placeholder="初學者常犯的錯誤或小技巧..."></textarea>
+                <div class="err"></div>
+            </div>
         </div>
 
-        <div class="modal-footer">
-            <button class="btn-3d cancel" onclick="closeModal()">取消</button>
-            <button class="btn-3d save" onclick="saveCard()">💾 儲存教材</button>
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="closeModal()">取消</button>
+            <button class="btn-add" onclick="saveCard()">儲存教材</button>
         </div>
     </div>
 </div>
@@ -548,7 +520,7 @@
     let syncTimer = null; 
     let allCards = [];
 
-    // --- 同步 admin_2.html 的授權與心跳監控 ---
+    // --- 同步 admin.html 的授權與心跳監控 ---
     window.addEventListener('storage', (e) => {
         if (e.key === 'token' && !e.newValue) window.location.href = 'login.html';
     });
@@ -562,6 +534,11 @@
             window.location.href = 'login.html';
             return;
         }
+
+        // 點擊半透明背景關閉彈窗
+        document.getElementById('cardModal').addEventListener('click', (e) => {
+            if (e.target.id === 'cardModal') closeModal();
+        });
 
         try {
             const verifyRes = await fetch(`${API_URL}/auth/verify_and_refresh?username=${encodeURIComponent(username)}`, {
@@ -629,7 +606,6 @@
             return;
         }
 
-        // 🏆 完全對齊 user-row 排版，使用 user-avatar 裝排序數字
         tbody.innerHTML = list.map(c => `
             <div class="user-row">
                 <div class="user-avatar">${c.order_index}</div>
@@ -651,7 +627,10 @@
     }
 
     function openModal(card = null) {
-        document.getElementById('cardModal').style.display = 'flex';
+        // 🏆 使用 classList 控制彈窗顯示
+        document.getElementById('cardModal').classList.add('open');
+        document.getElementById('modalErr').textContent = '';
+
         if (card) {
             document.getElementById('modalTitle').innerText = '編輯學習卡片';
             document.getElementById('cardId').value = card.id;
@@ -665,7 +644,7 @@
             document.getElementById('codeExample').value = card.code_example || '';
             document.getElementById('tip').value = card.tip || '';
         } else {
-            document.getElementById('modalTitle').innerText = '➕ 新增學習卡片';
+            document.getElementById('modalTitle').innerText = '新增學習卡片';
             document.getElementById('cardId').value = '';
             document.getElementById('title').value = '';
             document.getElementById('description').value = '';
@@ -674,10 +653,13 @@
         }
     }
 
-    function closeModal() { document.getElementById('cardModal').style.display = 'none'; }
+    function closeModal() { 
+        document.getElementById('cardModal').classList.remove('open'); 
+    }
 
     async function saveCard() {
         const id = document.getElementById('cardId').value;
+        const errBox = document.getElementById('modalErr');
         const payload = {
             order_index: parseInt(document.getElementById('orderIndex').value) || 0,
             level: document.getElementById('level').value,
@@ -690,8 +672,12 @@
             tip: document.getElementById('tip').value
         };
 
-        if (!payload.title || !payload.description) return alert("⚠️ 標題與原理解說為必填欄位！");
+        if (!payload.title || !payload.description) {
+            errBox.textContent = "⚠️ 標題與白話解說為必填欄位！";
+            return;
+        }
 
+        errBox.textContent = '';
         const url = id ? `${API_URL}/admin/handbook/${id}` : `${API_URL}/admin/handbook/add`;
         try {
             const res = await fetch(url, {
@@ -699,9 +685,15 @@
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
                 body: JSON.stringify(payload)
             });
-            if (res.ok) { closeModal(); fetchCards(); } 
-            else alert("儲存失敗！");
-        } catch (err) { alert("連線錯誤！"); }
+            if (res.ok) { 
+                closeModal(); 
+                fetchCards(); 
+            } else {
+                errBox.textContent = "儲存失敗，請稍後再試！";
+            }
+        } catch (err) { 
+            errBox.textContent = "伺服器連線錯誤！"; 
+        }
     }
 
     async function deleteCard(id, title) {
