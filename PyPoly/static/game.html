@@ -4552,7 +4552,9 @@ function resetChoiceUI() {
 function showAdventureTaskUI(questionObj) {
     const taskUI = document.getElementById('adventure-task-ui');
     document.getElementById('adv-question-text').innerText = `【挑戰題目】${questionObj.content}`;
-    document.getElementById('adv-options').innerHTML = questionObj.options.map(opt => `<div class="opt-pill">${opt}</div>`).join("");
+    document.getElementById('adv-options').innerHTML = questionObj.options.map((opt, idx) =>
+    `<div class="opt-pill">(${idx + 1}) ${opt}</div>`
+).join("");
     
     taskUI.style.display = 'block';
 
@@ -4569,7 +4571,7 @@ function showAdventureTaskUI_Spectator(questionObj) {
     document.getElementById('adv-question-text').innerText = `【觀戰模式】題目：${questionObj.content}`;
     
     // 觀戰者只看得到按鈕，看不到裡面寫什麼 [需求：看不到內容，只能看到按鈕]
-    document.getElementById('adv-options').innerHTML = [1, 2, 3].map(num => 
+    document.getElementById('adv-options').innerHTML = [1, 2, 3,4].map(num => 
         `<div class="opt-pill" id="spec-opt-${num}">選項 ${num}</div>`
     ).join("");
     
@@ -5428,7 +5430,7 @@ let birdData = { y: 240, pipes: [], coins: 0 };
 
 // 🏆 修正版：小鳥飛前置作業 (發送全網廣播，觀戰者將自動被拉入觀看情境)
 async function startBirdGameView() {
-    setMapBgmScene(false);
+    setMapBgmScene(true);
     console.log("🐦 進入獎勵遊戲：小鳥飛！");
     //playSfx('bird'); // 🏆 需求⑥：小鳥飛（輕快）音效
     scene.background = null; 
@@ -7725,7 +7727,7 @@ function updateSpectatorUI(data) {
         // 🏆 2. 延遲 2.5 秒 (與主角的準備時間完美同步)，再顯示真實選項
         setTimeout(() => {
             questionText.innerText = `【觀戰】題目：${data.payload?.question?.content || "回答問題中"}`;
-            optionsArea.innerHTML = [1, 2, 3].map(num => 
+            optionsArea.innerHTML = [1, 2, 3,4].map(num => 
                 `<div class="opt-pill" id="spec-opt-${num}">選項 ${num}</div>`
             ).join("");
             optionsArea.style.display = 'flex';
