@@ -3270,3 +3270,92 @@ PyPoly 變更紀錄 (changeLog)
   後按「儲存到遊戲」，回大廳/個人主頁確認左側縮圖顯示的是剛拍的臉，
   不是五官圖示臉。
 ========================================================================
+
+[2026-10-13] #79 五官預設改成「空」+ 補齊「無」選項；相機人臉貼圖改存伺服器檔案
+
+  背景：使用者提出兩個後續需求。(1) 五官系統裡「眉毛」「鼻子」已經有
+  「無」選項，「眼睛」「嘴巴」沒有；而且就算玩家從沒碰過五官分頁，
+  faceFeatures 的程式預設值本來就是一組「有五官」的樣子（眉標準/眼圓/
+  鼻無/嘴微笑），存檔時會原樣送進資料庫，看起來像是玩家自己選的，
+  不是真的空。(2) 相機拍的人臉貼圖目前只活在瀏覽器 localStorage（#76～
+  #78 都刻意把這塊留在範圍外），這次要真的存到伺服器磁碟，讓 lobby/
+  profile 的縮圖可以不靠本機快取、直接用伺服器上的真實照片。
+
+  第一部分 — 五官預設空 + 補「無」選項：
+  - character.html 新增共用常數 EMPTY_FACE_FEATURES = {eyebrow:'none',
+    eye:'none', nose:'none', mouth:'none'}，faceFeatures 初始值、
+    clearFaceFeatures()、applyFaceToModel()（相機模式）三處重置都改用
+    這個常數，不再各自寫死一份「有五官」的預設物件字面值。
+  - FEATURE_OPTIONS.eye／FEATURE_OPTIONS.mouth 各補一筆 {id:'none',
+    label:'無'}。character-face.js 的 drawFaceFeatures() 跟
+    drawFeatureThumbnail() 對每個分類都是 if/else-if 鏈、沒有
+    catch-all——'none' 本來就會 fallthrough、什麼都不畫，跟眉毛/鼻子
+    現有的「無」選項原理一樣，兩支畫圖函式完全不用改。
+  - composeFaceTexture() 原本無論內容是什麼都把 hasFace 設成 1.0，就算
+    四項全是 'none' 也一樣；改成先算
+    allNone = Object.values(faceFeatures).every(v => v === 'none')，
+    hasFace 設成 allNone ? 0.0 : 1.0，讓「全部是無」在 shader 層級也
+    真正等同「沒有臉」（原本只是視覺上幾乎一樣，臉部法向環境光仍有
+    0.95 跟 0.85 的微小差異）。
+  - saveCharacterToServer() 不用加任何判斷邏輯：現在預設值本身就是空
+    的，玩家沒碰過五官分頁送出去的就是全 'none'，語意已經正確。
+
+  第二部分 — 相機人臉貼圖改存伺服器檔案：
+  - 查過 models.py 確認 User 本來就有 email（unique, not null），
+    main.py 用 app.mount("/static", ...) 掛載整個 static/ 目錄，放檔案
+    進 static/char_face_camera/ 就會在 /static/char_face_camera/ 直接
+    可讀——但目前 static 檔案完全沒有權限檢查，如果檔名直接用信箱字串，
+    任何人知道/猜到同學信箱就能直接打開他的相機截圖，是真實隱私風險
+    （已跟使用者確認過，選擇用信箱的雜湊值當檔名，伺服器內部邏輯上
+    仍然「以信箱識別」，對外網址看不出真實信箱）。
+  - main.py 新增 3 個 API：
+    - POST /auth/camera_face（需登入）：解出使用者的 email，算
+      sha256(email) 前 24 字元當檔名 key，驗證 base64 解碼成功、大小
+      不超過 3MB、用 PIL Image.open().verify() 確認真的是圖片，通過才
+      寫進 static/char_face_camera/<key>.<ext>（先清掉舊副檔名的檔案，
+      避免孤兒檔案）。
+    - GET /auth/camera_face?username=（可省略）：沿用 /auth/character
+      已有的慣例——省略用 token 查自己，帶 username 不需要 token
+      （之後要給觀戰/對手畫面用也走這條，這次只有 lobby/profile 查
+      自己在用）。回傳 {exists, url}。
+    - DELETE /auth/camera_face（需登入）：刪除自己的檔案，
+      character.html 按「清除人臉」時呼叫，避免清除後 lobby 還顯示
+      舊照片。
+  - character.html：saveCameraFace() 補一段把相機截圖的 base64 POST
+    給 /auth/camera_face；clearFace() 補呼叫 DELETE（best-effort，
+    失敗不擋 UI）。
+  - static/js/character-preview.js：#78 加的 localFaceOverride（優先用
+    本機 pypoly_char_face_* 快取）改名成 overrideFaceUrl，語意從「優先
+    用本機快取」換成「優先用呼叫端傳進來的任何圖片網址」——伺服器
+    檔案才是真正跨裝置可靠的來源，本機快取只是同一台裝置的暫存。
+    另外補兩次延遲重截圖（150ms、600ms），因為現在的 faceUrl 可能是
+    伺服器網路圖片，載入比本機 data URL 解碼慢一些。
+  - lobby.html／profile.html：縮圖渲染前先呼叫 GET /auth/camera_face
+    查自己，有 exists:true 就把 url 傳給 renderCharacterPreview() 當
+    臉部貼圖來源，取代原本查本機快取的邏輯。
+
+  不在這次範圍：game.html／results.html 的對手頭像渲染（目前靠
+  Socket.IO 即時廣播，只在同一場對局內有效）這次不改，範圍只限
+  lobby/profile 的縮圖預覽框，跟使用者這次訊息指定的一致。
+
+  驗證：
+  - main.py 用 py_compile，character.html／lobby.html／profile.html／
+    character-preview.js 用 Node vm.Script 做過語法檢查，全部通過。
+  - 把伺服器實際開起來，用 requests 對 POST/GET/DELETE
+    /auth/camera_face 做完整往返測試（用 112213070）：上傳一張測試圖
+    → exists:true → 網址打得到且 Content-Type 是圖片 → 網址裡確認
+    沒有洩漏 @ 信箱字元 → 不帶 token 只用 username 查詢（lobby/profile
+    換裝置情境）也拿得到 → 超過 3MB 跟不是合法圖片都正確被擋 4xx →
+    DELETE 後確認檔案真的被刪除、exists 變回 false。12/12 通過，測完
+    目錄裡沒有殘留測試檔案。
+  - 用 requests 確認 PUT 全部 'none' 的 features 之後，GET 拿回來的
+    四項確實都是 'none'（測試前先讀出這個帳號原本的資料、測完立刻
+    還原，沒有造成資料異動）。
+
+  ⚠️ 尚未做（需要實際開瀏覽器測）：
+  (1) 開一個全新角色，確認模型臉部真的是空白膚色，不是預設微笑臉；
+  五官分頁眼睛/嘴巴能選到「無」且模型正確反映。
+  (2) 用 112213070 開相機拍臉存檔，換裝置登入同帳號，確認 lobby／
+  profile 縮圖直接顯示剛拍的那張臉。
+  (3) 按「清除人臉」後回大廳，確認縮圖不再顯示剛才那張相機照片。
+========================================================================

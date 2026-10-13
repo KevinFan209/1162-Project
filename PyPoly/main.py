@@ -36,6 +36,7 @@ from collections import Counter  # 🏆 需求⑨：統計最常出現語法
 import os
 import json   # 🏆 角色外觀的大小驗證用
 import base64
+import hashlib  # 🏆 相機人臉貼圖存檔的檔名用 email 雜湊，不直接曝露信箱
 from fastapi.staticfiles import StaticFiles
 from PIL import Image # 需安裝 pillow: pip install Pillow
 import io
@@ -67,6 +68,11 @@ sio_app = socketio.ASGIApp(sio, other_asgi_app=app)
 AVATAR_DIR = os.path.join("static", "avatars")
 os.makedirs(AVATAR_DIR, exist_ok=True)
 os.makedirs("models", exist_ok=True)
+
+# 🏆 相機拍的人臉貼圖存成實體檔案（跟 users.character_data 的配方分開，
+# 配方欄位 8KB 上限就是設計成不放圖片的）。
+CAMERA_FACE_DIR = os.path.join("static", "char_face_camera")
+os.makedirs(CAMERA_FACE_DIR, exist_ok=True)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/models", StaticFiles(directory="models"), name="models")
@@ -987,6 +993,123 @@ def get_character(username: str = None, authorization: str = Header(None),
     }
 
 
+# ==========================================================
+# 相機人臉貼圖（存成伺服器檔案，不進 character_data）
+#
+# 跟 colors/features 配方不同，這是真的圖片——8KB 的配方欄位設計上就
+# 不該塞圖片，所以另外存成 static/ 底下的實體檔案，透過既有的
+# app.mount("/static", ...) 直接對外可讀。
+#
+# ⚠️ 檔名刻意不直接用 email：static/ 掛載出去完全沒有權限檢查，網址是
+# 公開可猜的，如果檔名就是信箱字串，知道（或猜到）同學信箱的人就能
+# 直接打開他拍的照片，是真實的隱私風險。改用 email 的雜湊值當檔名的
+# key——伺服器內部邏輯上仍然「以 email 識別使用者」，只是對外網址看
+# 不出真實信箱。
+# ==========================================================
+
+CAMERA_FACE_MAX_BYTES = 3 * 1024 * 1024  # 3MB：相機截圖的 JPEG 通常遠小於這個量級，純防呆
+
+
+def _camera_face_key(email: str) -> str:
+    return hashlib.sha256(email.encode("utf-8")).hexdigest()[:24]
+
+
+def _find_camera_face_file(key: str):
+    for ext in (".jpg", ".jpeg", ".png"):
+        path = os.path.join(CAMERA_FACE_DIR, key + ext)
+        if os.path.isfile(path):
+            return path
+    return None
+
+
+class CameraFaceUpload(BaseModel):
+    image: str  # data:image/jpeg;base64,.... 或純 base64 字串
+
+
+@app.post("/auth/camera_face")
+def save_camera_face(payload: CameraFaceUpload, authorization: str = Header(None),
+                      db: Session = Depends(database.get_db)):
+    """把相機拍的人臉貼圖存成伺服器檔案（不是進 character_data）。"""
+    username = auth_utils.get_current_user(authorization)   # 無效 token 會拋 401
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="找不到使用者")
+
+    raw = payload.image
+    ext = ".jpg"
+    if raw.strip().startswith("data:") and "," in raw:
+        header, raw = raw.split(",", 1)
+        if "image/png" in header:
+            ext = ".png"
+
+    try:
+        img_bytes = base64.b64decode(raw)
+    except Exception:
+        raise HTTPException(status_code=400, detail="圖片資料解碼失敗")
+
+    if len(img_bytes) > CAMERA_FACE_MAX_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"圖片過大（{len(img_bytes)} bytes，上限 {CAMERA_FACE_MAX_BYTES}）")
+
+    try:
+        Image.open(io.BytesIO(img_bytes)).verify()
+    except Exception:
+        raise HTTPException(status_code=400, detail="不是合法的圖片檔案")
+
+    key = _camera_face_key(user.email)
+    # 先清掉舊檔（可能是不同副檔名），避免殘留孤兒檔案。
+    for old_ext in (".jpg", ".jpeg", ".png"):
+        old_path = os.path.join(CAMERA_FACE_DIR, key + old_ext)
+        if os.path.isfile(old_path):
+            os.remove(old_path)
+
+    file_path = os.path.join(CAMERA_FACE_DIR, key + ext)
+    with open(file_path, "wb") as f:
+        f.write(img_bytes)
+
+    print(f"📸 {username} 更新了相機人臉貼圖（伺服器檔案）")
+    return {"status": "success"}
+
+
+@app.get("/auth/camera_face")
+def get_camera_face(username: str = None, authorization: str = Header(None),
+                     db: Session = Depends(database.get_db)):
+    """查詢是否有伺服器端的相機人臉貼圖檔案。
+
+    跟 /auth/character 一樣的慣例：省略 username 用 token 查自己，帶
+    username 可查任何人（這次先只有 lobby/profile 查自己在用，之後要
+    給觀戰/對手畫面用也走這條）。
+    """
+    if not username:
+        username = auth_utils.get_current_user(authorization)   # 無效 token 會拋 401
+
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="找不到使用者")
+
+    file_path = _find_camera_face_file(_camera_face_key(user.email))
+    if not file_path:
+        return {"exists": False, "url": None}
+    return {"exists": True, "url": "/" + file_path.replace("\\", "/")}
+
+
+@app.delete("/auth/camera_face")
+def delete_camera_face(authorization: str = Header(None), db: Session = Depends(database.get_db)):
+    """刪除自己的相機人臉貼圖檔案（character.html 按「清除人臉」時呼叫）。"""
+    username = auth_utils.get_current_user(authorization)   # 無效 token 會拋 401
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="找不到使用者")
+
+    key = _camera_face_key(user.email)
+    removed = False
+    for ext in (".jpg", ".jpeg", ".png"):
+        path = os.path.join(CAMERA_FACE_DIR, key + ext)
+        if os.path.isfile(path):
+            os.remove(path)
+            removed = True
+    return {"status": "success", "removed": removed}
 
 
 class AvatarUpload(BaseModel):

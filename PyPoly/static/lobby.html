@@ -503,14 +503,25 @@
                 const charData = charRes.ok ? await charRes.json() : null;
                 const character = charData && charData.character;
                 if (character && character.colors) {
-                    // 相機拍的人臉貼圖不存資料庫，本機如果剛好有這個使用者
-                    // 的快取（這台裝置自己拍過），優先拿來用，不要讓
-                    // renderCharacterPreview 用 DB 的 features 重新合成出
-                    // 一張不是真實外觀的臉。
-                    const localFace = localStorage.getItem(`pypoly_char_face_${username}`) || localStorage.getItem('pypoly_char_face');
+                    // 相機拍的人臉貼圖不存資料庫的 colors/features，而是存成
+                    // 伺服器檔案（/auth/camera_face）——查有沒有這個使用者的
+                    // 照片，有的話優先用，不要讓 renderCharacterPreview 用 DB
+                    // 的 features 重新合成出一張不是真實外觀的臉。
+                    let cameraFaceUrl = null;
+                    try {
+                        const camRes = await fetch(`${API_URL}/auth/camera_face`, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        if (camRes.ok) {
+                            const camData = await camRes.json();
+                            if (camData.exists) cameraFaceUrl = camData.url;
+                        }
+                    } catch (err) {
+                        console.warn('⚠️ 查詢相機人臉貼圖失敗', err);
+                    }
                     renderCharacterPreview(character.colors, character.features, (dataUrl) => {
                         charBox.innerHTML = `<img src="${dataUrl}" alt="我的角色" style="width: 100%; height: 100%; object-fit: contain; transform: scale(1.15);">`;
-                    }, localFace);
+                    }, cameraFaceUrl);
                 } else {
                     // 伺服器還沒有角色資料（真的還沒建立過），退回本機可能
                     // 殘留的舊快取圖片顯示，沒有就維持空白。

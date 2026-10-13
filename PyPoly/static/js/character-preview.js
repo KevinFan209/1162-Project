@@ -14,16 +14,16 @@
 // 稍後會再補叫一次確保貼上了才是最終版本。呼叫端直接把兩次收到的值都
 // 設成 <img>.src 即可，第二次只是把第一次蓋過去，不需要特別分辨。
 //
-// localFaceOverride（選填）：相機拍的人臉貼圖從設計上就不會存進資料庫
-// （只存 colors/features 配方，8KB 上限刻意擋圖片），所以 DB 的
-// features 永遠只會是五官套裝 ID、無法反映「這個人其實是用相機拍的」。
-// 呼叫端如果在本機找到這個使用者的臉部貼圖快取（pypoly_char_face_*，
-// 由 character.html 存檔時寫入），應該傳進來優先使用，不要讓這裡重新
-// 用 DB 的 features 合成出一張不是真實外觀的臉。
+// overrideFaceUrl（選填）：相機拍的人臉貼圖從設計上就不會存進資料庫的
+// character_data（只存 colors/features 配方，8KB 上限刻意擋圖片），
+// 而是另外存成伺服器檔案（/auth/camera_face）。呼叫端查到伺服器有這個
+// 使用者的相機照片時，應該把那張照片的網址（或任何圖片 URL／data URL）
+// 傳進來優先使用，不要讓這裡重新用 DB 的 features 合成出一張不是真實
+// 外觀的臉。
 // =============================================================
-function renderCharacterPreview(colors, features, onFrame, localFaceOverride) {
+function renderCharacterPreview(colors, features, onFrame, overrideFaceUrl) {
     try {
-        const faceUrl = localFaceOverride
+        const faceUrl = overrideFaceUrl
             || ((features && typeof buildFaceDataUrl === 'function') ? buildFaceDataUrl(colors, features) : null);
 
         const width = 220, height = 280;
@@ -50,7 +50,13 @@ function renderCharacterPreview(colors, features, onFrame, localFaceOverride) {
         };
 
         capture();
-        if (faceUrl) setTimeout(capture, 150);
+        if (faceUrl) {
+            // faceUrl 現在也可能是伺服器上的真實圖片網址（相機照片），
+            // 不只是本機 data URL，網路圖片載入比 data URL 解碼慢一些，
+            // 補兩次重截，降低截到「還沒貼上材質」那張的機率。
+            setTimeout(capture, 150);
+            setTimeout(capture, 600);
+        }
     } catch (err) {
         console.warn('⚠️ 產生角色縮圖失敗', err);
     }

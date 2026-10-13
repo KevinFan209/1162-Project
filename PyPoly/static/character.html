@@ -1018,7 +1018,11 @@ loader.load('models/minecraft_-_steve.glb', (gltf) => {
 // =====================================================
 //  Face Features System (方案 A — Canvas 繪製)
 // =====================================================
-const faceFeatures = { eyebrow: 'standard', eye: 'round', nose: 'none', mouth: 'smile' };
+// 🏆 五官的「空」狀態——玩家沒碰過五官分頁（例如只調顏色、或用相機
+// 拍臉）時就是這組，不要預設套一組「看起來像有選過」的標準表情，
+// 存進資料庫才會是真的空，不是誤存成玩家自己選的樣子。
+const EMPTY_FACE_FEATURES = { eyebrow: 'none', eye: 'none', nose: 'none', mouth: 'none' };
+const faceFeatures = Object.assign({}, EMPTY_FACE_FEATURES);
 // 是否正在使用「五官套裝」臉（相對於相機拍的臉／完全沒設定臉）——
 // 取代原本讀 localStorage pypoly_char_features 存在與否來判斷的做法，
 // 因為 colors／features 已經不再寫入 localStorage。
@@ -1034,6 +1038,7 @@ const FEATURE_OPTIONS = {
         { id:'sad',      label:'悲傷' },
     ],
     eye: [
+        { id:'none',   label:'無' },
         { id:'round',  label:'圓眼' },
         { id:'big',    label:'大眼' },
         { id:'half',   label:'半閉' },
@@ -1047,6 +1052,7 @@ const FEATURE_OPTIONS = {
         { id:'cat',    label:'貓鼻' },
     ],
     mouth: [
+        { id:'none',     label:'無' },
         { id:'neutral',  label:'無表情' },
         { id:'smile',    label:'微笑' },
         { id:'grin',     label:'大笑' },
@@ -1148,6 +1154,10 @@ function drawFeatureThumbnail(type, id) {
 
 function composeFaceTexture() {
     const faceCanvas = buildFaceCanvas(partColors, faceFeatures);
+    // 四項都是「無」時，語意上就是「沒有臉」，hasFace 要真的設成 0，
+    // 不要只是畫面看起來差不多（shader 裡 hasFace=1 時臉部法向的環境
+    // 光是 0.95，跟 hasFace=0 的 0.85 有微小差異，要讓狀態真的一致）。
+    const allNone = Object.values(faceFeatures).every(v => v === 'none');
 
     const prev = document.getElementById('face-feat-preview');
     if (prev) {
@@ -1162,7 +1172,7 @@ function composeFaceTexture() {
         const tex = new THREE.CanvasTexture(faceCanvas);
         tex.needsUpdate = true;
         shaderMat.uniforms.faceTex.value = tex;
-        shaderMat.uniforms.hasFace.value = 1.0;
+        shaderMat.uniforms.hasFace.value = allNone ? 0.0 : 1.0;
         shaderMat.needsUpdate = true;
     }
     return faceCanvas;
@@ -1256,7 +1266,7 @@ function clearFaceFeatures() {
         ctx.fillStyle = partColors.head || '#f5c18a';
         ctx.fillRect(0, 0, 512, 512);
     }
-    Object.assign(faceFeatures, { eyebrow:'standard', eye:'round', nose:'none', mouth:'smile' });
+    Object.assign(faceFeatures, EMPTY_FACE_FEATURES);
     updateFeatureSelectionUI();
     showModal('已清除', '臉部五官已清除。');
 }
@@ -1445,7 +1455,7 @@ function applyFaceToModel() {
     shaderMat.needsUpdate = true;
     localStorage.setItem('pypoly_char_face', faceCanvas.toDataURL('image/jpeg', 0.85));
     hasFeatureFace = false;
-    Object.assign(faceFeatures, { eyebrow:'standard', eye:'round', nose:'none', mouth:'smile' });
+    Object.assign(faceFeatures, EMPTY_FACE_FEATURES);
     updateFeatureSelectionUI();
     document.getElementById('clearFaceBtn').disabled = false;
     setBadge('captured', '人臉已貼至角色臉部');
@@ -1460,6 +1470,16 @@ function clearFace() {
     localStorage.removeItem('pypoly_char_face');
     document.getElementById('clearFaceBtn').disabled = true;
     setBadge('idle', '已清除人臉貼圖');
+
+    // 伺服器上如果之前存過相機人臉貼圖檔案，一併刪掉，不然 lobby/profile
+    // 還是會顯示那張舊照片。best-effort，失敗也不擋 UI。
+    const token = localStorage.getItem('token');
+    if (token) {
+        fetch(`${API_URL}/auth/camera_face`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        }).catch(err => console.warn('⚠️ 刪除伺服器端相機人臉貼圖失敗', err));
+    }
 }
 
 // 🏆 相機人臉貼圖卡原本缺「儲存到遊戲」按鈕，玩家拍完臉還要往上滑找
@@ -1467,9 +1487,28 @@ function clearFace() {
 // pypoly_char_face 並即時貼到模型上了，這裡只需要補做跟另外兩張卡一樣
 // 的「同步到伺服器＋產生預覽圖＋導回大廳」收尾——不能直接呼叫
 // saveFaceFeatures()，那支是五官套裝那張卡用的，會連帶重置 faceFeatures。
-function saveCameraFace() {
+//
+// 相機拍的照片額外上傳一份到伺服器檔案（/auth/camera_face），不是只
+// 留在這台裝置的 localStorage——這樣換裝置登入也能看到同一張照片。
+async function saveCameraFace() {
     saveCharacterToServer();
     mirrorFaceToUserKey();
+
+    const token = localStorage.getItem('token');
+    const faceDataUrl = localStorage.getItem('pypoly_char_face');
+    if (token && faceDataUrl) {
+        try {
+            const res = await fetch(`${API_URL}/auth/camera_face`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ image: faceDataUrl })
+            });
+            if (!res.ok) console.warn('⚠️ 相機人臉貼圖上傳伺服器失敗：HTTP', res.status);
+        } catch (err) {
+            console.warn('⚠️ 相機人臉貼圖上傳伺服器失敗', err);
+        }
+    }
+
     showModal('儲存成功', '相機人臉貼圖已儲存！按下確定返回大廳。');
     document.querySelector('#modal button').onclick = () => window.location.href = '../../static/lobby.html';
 }
