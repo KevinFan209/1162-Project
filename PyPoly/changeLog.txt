@@ -3392,3 +3392,56 @@ PyPoly 變更紀錄 (changeLog)
   正常套用+儲存流程，確認 lobby 縮圖能看到剛拍的臉、char_face_camera
   目錄有新檔案。
 ========================================================================
+
+[2026-10-13] #81 重進 character.html 時沒有還原相機人臉貼圖（#79 五官空預設值連帶造成的新 bug）
+
+  背景：使用者回報「重新進入 character.html，相機卡那一欄沒有顯示之前
+  拍過的人臉，3D 模型上也沒有套用，但存檔還是能正常回到大廳」。追下去
+  發現根因跟 #79 有關：restoreCharacterFromServer() 原本用
+  `character.features` 存在與否判斷「這個人是不是用五官套裝」，只有
+  features 是 null 時才會 fallback 去找相機照片。但 #79 把五官預設值
+  從「一組有五官的樣子」改成 EMPTY_FACE_FEATURES（全部 'none'）之後，
+  只要存過檔（不管是調顏色、存五官、還是存相機照片，三者都會呼叫
+  saveCharacterToServer() 把目前的 faceFeatures 送出去），
+  character.features 就永遠是一個物件、不會是 null——相機使用者的
+  features 也會是這組全 'none' 的物件，等於這個 fallback 分支從 #79
+  之後就再也進不去了，相機照片永遠不會被還原。
+
+  另外使用者也指出：就算這個判斷邏輯對了，相機卡片本身（video/相機
+  預覽框那一欄）原本也沒有任何機制可以顯示「已經存過的照片」——之前
+  只有把照片套到 3D 模型上，相機卡片的框永遠只有「開啟後自動偵測
+  人臉」的 placeholder 或即時畫面兩種狀態，沒有第三種「顯示已存檔
+  照片」的狀態。
+
+  修法：
+  - 判斷條件改成 `Object.values(character.features).some(v => v !== 'none')`
+    ——要「至少一項不是 none」才算是真的用五官套裝，不能再只看
+    features 存在與否。沒有任何有意義的五官，才進入 fallback：先問
+    伺服器 GET /auth/camera_face（#79 新增的 API），有就用伺服器的
+    照片；沒有才退回本機 pypoly_char_face（舊資料或離線情境）。
+  - 相機卡片新增一個 `<img id="camSavedFacePreview">`，疊在
+    video/placeholder 上面（`.saved-face-preview`，跟 video 一樣
+    `transform: scaleX(-1)` 維持鏡像一致）。新函式
+    `showSavedFacePreview()`/`hideSavedFacePreview()` 控制顯示；
+    開相機（startCamera()）時隱藏（讓即時畫面接手），清除人臉
+    （clearFace()）時也隱藏。
+  - 把原本寫在 restoreCharacterFromServer() 裡面那段套用臉部材質的
+    程式碼抽成 applySavedFaceTexture(url)，不管 url 是本機 data URL
+    還是伺服器網址都能處理：套到 shaderMat、更新 badge／clearFaceBtn、
+    呼叫 showSavedFacePreview()，並把結果快取回 localStorage
+    的 pypoly_char_face（不管原始來源是本機還是伺服器，統一快取，
+    維持跟 mirrorFaceToUserKey() 等既有邏輯一致）。
+
+  驗證：
+  - character.html 用 Node vm.Script 語法檢查通過。
+  - 伺服器實際開機，character.html 正常載入（curl 200）。
+  - 用 112213070（目前這個帳號的 features 剛好就是全 'none'，正好是
+    這次要修的情境）驗證資料層：上傳一張測試照片 → GET
+    /auth/camera_face 回 exists:true 且網址打得到圖片 → 刪除清理，
+    確認不影響帳號原本的顏色/五官資料。
+
+  ⚠️ 尚未做（需要實際開瀏覽器測）：用之前拍過照片存檔的帳號重新整理
+  或重新登入進 character.html，確認相機卡片直接顯示那張照片（不用
+  重新開相機）、3D 模型臉部也正確套用；開相機後確認照片預覽會被即時
+  畫面取代；按「清除人臉」後確認照片預覽跟著消失。
+========================================================================

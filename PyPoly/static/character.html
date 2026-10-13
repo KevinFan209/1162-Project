@@ -432,6 +432,7 @@
         }
 
         .cam-preview video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: none; }
+        .saved-face-preview { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: none; }
         .face-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; transform: scaleX(-1); }
         .cam-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #dfe4ea; }
         .cam-placeholder svg { opacity: 0.6; }
@@ -714,6 +715,7 @@
                         </svg>
                         <p>開啟後自動偵測人臉</p>
                     </div>
+                    <img id="camSavedFacePreview" class="saved-face-preview" alt="已儲存的人臉貼圖">
                 </div>
                 <span class="badge idle" id="statusBadge">等待開啟相機</span>
                 <button class="btn btn-blue"  id="camToggleBtn" onclick="toggleCamera()">開啟相機</button>
@@ -1271,14 +1273,54 @@ function clearFaceFeatures() {
     showModal('已清除', '臉部五官已清除。');
 }
 
+// 顯示/隱藏相機卡片裡的「已儲存人臉貼圖」靜態預覽（跟即時相機畫面
+// 共用同一個框，開相機時要讓出來給 <video>）。
+function showSavedFacePreview(url) {
+    const img = document.getElementById('camSavedFacePreview');
+    const placeholder = document.getElementById('camPlaceholder');
+    if (!img || !url) return;
+    img.src = url;
+    img.style.display = 'block';
+    if (placeholder) placeholder.style.display = 'none';
+}
+function hideSavedFacePreview() {
+    const img = document.getElementById('camSavedFacePreview');
+    if (!img) return;
+    img.style.display = 'none';
+    img.removeAttribute('src');
+}
+
+// 把一張臉部貼圖（本機 data URL 或伺服器網址都可以）套到 3D 模型上，
+// 並同步更新相機卡片的狀態（按鈕/badge/靜態預覽圖）。
+function applySavedFaceTexture(url) {
+    if (!url || !shaderMat) return;
+    const img = new Image();
+    img.onload = () => {
+        const fc = document.createElement('canvas');
+        fc.width = 512; fc.height = 512;
+        fc.getContext('2d').drawImage(img, 0, 0, 512, 512);
+        const prevTex = shaderMat.uniforms.faceTex.value;
+        if (prevTex) prevTex.dispose();
+        const tex = new THREE.CanvasTexture(fc);
+        tex.needsUpdate = true;
+        shaderMat.uniforms.faceTex.value = tex;
+        shaderMat.uniforms.hasFace.value = 1.0;
+        shaderMat.needsUpdate = true;
+        document.getElementById('clearFaceBtn').disabled = false;
+        setBadge('captured', '已載入儲存的人臉貼圖');
+        showSavedFacePreview(url);
+        // 快取回本機，維持跟其他地方（mirrorFaceToUserKey 等）一致的
+        // 讀取來源，不管這張臉原本是從本機還是伺服器拿到的。
+        localStorage.setItem('pypoly_char_face', url);
+    };
+    img.src = url;
+}
+
 // 🏆 colors／features 這份「配方」一律從伺服器的 GET /auth/character 取得，
 // 不再快取進 localStorage——重新整理、換裝置、登出再登入都會重新抓一次，
 // 資料庫才是唯一事實來源（這個 API 本來就存在，main.py 早就有 PUT/GET
 // /auth/character 把配方存進 users.character_data，只是以前前端還是以
 // localStorage 為主要來源）。
-// ⚠️ 攝影機拍的臉部貼圖（pypoly_char_face）不在這份配方裡——後端刻意只存
-// colors／features，不存圖片，這個欄位目前仍然只能留在 localStorage、
-// 無法跨裝置還原，這是已知的範圍限制。
 async function restoreCharacterFromServer() {
     const token = localStorage.getItem('token');
     let character = null;
@@ -1310,33 +1352,36 @@ async function restoreCharacterFromServer() {
     }
     updateShaderColors();
 
-    if (character && character.features) {
+    // 🏆 自從五官預設值改成全「無」之後（參見 EMPTY_FACE_FEATURES），
+    // 只要存過檔，character.features 永遠是一個物件、不會是 null——
+    // 不能再用「features 存在與否」判斷這個人是不是用五官套裝，要看
+    // 裡面是不是真的有任何一項不是 'none'。沒有任何有意義的五官，才
+    // 代表這個人可能是用相機（優先查伺服器），或是真的什麼都沒設定過。
+    const hasMeaningfulFeatures = character && character.features
+        && Object.values(character.features).some(v => v !== 'none');
+
+    if (hasMeaningfulFeatures) {
         Object.assign(faceFeatures, character.features);
         updateFeatureSelectionUI();
         composeFaceTexture();
         hasFeatureFace = true;
     } else {
-        // 伺服器沒有五官配方：fallback 到本機相機臉部貼圖（圖片，不在
-        // 這次改動範圍內，繼續走 localStorage）。
-        const dataUrl = localStorage.getItem('pypoly_char_face');
-        if (dataUrl && shaderMat) {
-            const img = new Image();
-            img.onload = () => {
-                const fc = document.createElement('canvas');
-                fc.width = 512; fc.height = 512;
-                fc.getContext('2d').drawImage(img, 0, 0, 512, 512);
-                const prevTex = shaderMat.uniforms.faceTex.value;
-                if (prevTex) prevTex.dispose();
-                const tex = new THREE.CanvasTexture(fc);
-                tex.needsUpdate = true;
-                shaderMat.uniforms.faceTex.value = tex;
-                shaderMat.uniforms.hasFace.value = 1.0;
-                shaderMat.needsUpdate = true;
-                document.getElementById('clearFaceBtn').disabled = false;
-                setBadge('captured', '已載入儲存的人臉貼圖');
-            };
-            img.src = dataUrl;
+        let cameraFaceUrl = null;
+        if (token) {
+            try {
+                const camRes = await fetch(`${API_URL}/auth/camera_face`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (camRes.ok) {
+                    const camData = await camRes.json();
+                    if (camData.exists) cameraFaceUrl = camData.url;
+                }
+            } catch (err) {
+                console.warn('⚠️ 查詢伺服器相機人臉貼圖失敗', err);
+            }
         }
+        // 伺服器沒有相機照片才退回本機快取（例如還沒重新上傳過的舊資料）。
+        applySavedFaceTexture(cameraFaceUrl || localStorage.getItem('pypoly_char_face'));
     }
 
     if (character) {
@@ -1414,6 +1459,7 @@ async function startCamera() {
         videoEl.srcObject = stream; videoEl.style.display = 'block';
         await videoEl.play();
         document.getElementById('camPlaceholder').style.display = 'none';
+        hideSavedFacePreview();
         document.getElementById('camToggleBtn').textContent = '關閉相機';
         setBadge('live', '相機運作中，請對準臉部');
         initFaceDetector();
@@ -1470,6 +1516,7 @@ function clearFace() {
     localStorage.removeItem('pypoly_char_face');
     document.getElementById('clearFaceBtn').disabled = true;
     setBadge('idle', '已清除人臉貼圖');
+    hideSavedFacePreview();
 
     // 伺服器上如果之前存過相機人臉貼圖檔案，一併刪掉，不然 lobby/profile
     // 還是會顯示那張舊照片。best-effort，失敗也不擋 UI。
