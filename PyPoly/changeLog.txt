@@ -3237,3 +3237,36 @@ PyPoly 變更紀錄 (changeLog)
   角色縮圖都能直接顯示正確的顏色/五官，不需要先在裝置 B 打開一次
   character.html。
 ========================================================================
+
+[2026-10-13] #78 補修 #77：相機拍的臉部貼圖在 lobby/profile 縮圖會被 DB 的預設五官蓋掉
+
+  背景：#77 把 lobby/profile 的角色縮圖改成每次用資料庫的 colors/
+  features 即時合成之後，使用者實測「相機辨識人臉並儲存」，發現 lobby
+  左側縮圖沒有顯示相機拍的臉。查了發現根因：相機人臉貼圖本來就刻意
+  不存資料庫（只存配方，8KB 上限擋圖片）；character.html 的
+  applyFaceToModel()（相機流程）存檔前會把 faceFeatures 重置成預設值
+  （眉標準/眼圓/鼻無/嘴微笑）才送 PUT，所以資料庫的 features 永遠是
+  這組預設值，不是「這個人其實是用相機拍的」。renderCharacterPreview()
+  只要看到 features 存在就會照這組預設值重新合成出一張「五官圖示臉」，
+  蓋掉了使用者實際拍的照片——這是 #77 把截圖邏輯從 character.html（
+  直接截當下畫面，相機貼圖本來就已經貼上了）搬到 lobby.html（只用
+  DB 資料重新合成）時漏掉的情境。
+
+  修法：static/js/character-preview.js 的 renderCharacterPreview() 新增
+  第 4 個參數 localFaceOverride——如果呼叫端在本機找到這個使用者的臉部
+  貼圖快取（pypoly_char_face_*，character.html 存檔時都會鏡射過來，
+  不管是相機拍的還是五官套裝合成的），優先直接拿來用，不要重新用 DB
+  的 features 合成。lobby.html／profile.html 呼叫前補讀這個本機快取
+  傳進去。這台裝置本來就是拍照/存檔的那台，本機快取一定有；換到別的
+  裝置本機沒有快取，才會退回用 DB 的 features 合成（跟 #77 的行為
+  一致，相機照片本來就不能跨裝置，這是已知範圍限制，不是這次要修的）。
+
+  驗證：
+  - character-preview.js／lobby.html／profile.html 都用 Node vm.Script
+    做過語法檢查，全部通過。
+  - 把伺服器實際開起來，確認三個檔案都能正常載入（curl 200）。
+
+  ⚠️ 尚未做（需要實際開瀏覽器測）：在 character.html 開相機、辨識人臉
+  後按「儲存到遊戲」，回大廳/個人主頁確認左側縮圖顯示的是剛拍的臉，
+  不是五官圖示臉。
+========================================================================

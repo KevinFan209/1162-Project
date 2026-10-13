@@ -549,9 +549,14 @@
                 const charData = charRes.ok ? await charRes.json() : null;
                 const character = charData && charData.character;
                 if (character && character.colors) {
+                    // 相機拍的人臉貼圖不存資料庫，本機如果剛好有這個使用者
+                    // 的快取（這台裝置自己拍過），優先拿來用，不要讓
+                    // renderCharacterPreview 用 DB 的 features 重新合成出
+                    // 一張不是真實外觀的臉。
+                    const localFace = localStorage.getItem(`pypoly_char_face_${username}`) || localStorage.getItem('pypoly_char_face');
                     renderCharacterPreview(character.colors, character.features, (dataUrl) => {
                         avatarBox.innerHTML = `<img src="${dataUrl}" alt="我的角色" style="width: 100%; height: 100%; object-fit: contain;">`;
-                    });
+                    }, localFace);
                 } else {
                     const myFace = localStorage.getItem(`pypoly_char_face_${username}`) || localStorage.getItem('pypoly_char_face');
                     const savedCharImage = localStorage.getItem('pypoly_char_preview');
