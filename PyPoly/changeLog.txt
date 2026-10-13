@@ -3556,3 +3556,57 @@ PyPoly 變更紀錄 (changeLog)
   頁面，確認重整後仍跟另一方一致（驗證伺服器快取而不是本機快取在
   保證一致性）。
 ========================================================================
+
+[2026-10-13] #84 game.html 對局中沒顯示相機拍的臉（跟 #81 一樣的 bug，補到自己跟對手兩邊）
+
+  背景：使用者回報「對局中沒有正常顯示在創建角色時使用相機拍攝的
+  人臉」。這是跟 character.html 的 #81 完全同一類的 bug，只是發生在
+  game.html 自己另一份 restoreCharacterFromServer() 複製品裡，之前
+  #81 只修了 character.html，game.html 這份一直沒跟著改。之前的
+  #79/#81 計畫也明確把 game.html／results.html 的頭像渲染排在範圍
+  外，這次使用者確認要接上去修。
+
+  根因（跟 #81 一樣）：自從五官預設值改成全 'none'
+  （EMPTY_FACE_FEATURES）之後，只要存過檔 character.features 就永遠
+  是物件、不會是 null。game.html 的 restoreCharacterFromServer()
+  原本無條件呼叫 `buildFaceDataUrl(char.colors, char.features || {})`
+  合成臉——相機使用者的 features 也會是這組全 'none' 的物件，於是
+  永遠合成出一張空白臉，蓋掉本來該顯示的相機照片。
+
+  修法：
+  - `restoreCharacterFromServer()`（自己的外觀，socket 連線時觸發）：
+    改成先判斷 `Object.values(char.features).some(v => v !== 'none')`，
+    有意義的五官才用 buildFaceDataUrl 合成；沒有才去問
+    `GET /auth/camera_face`（#79 新增的 API，帶 token 查自己），有照片
+    才用那個網址。結果一樣寫回 pypoly_char_face／pypoly_char_face_${myName}，
+    下游的 broadcastMyAppearance()／loadPlayerModels() 完全不用改，
+    自動吃到正確的臉（相機照片的網址也能直接當 createCustomBoxCharacter
+    的 faceDataUrl 參數用，player-model.js 內部只是 new Image().src=...，
+    一般 URL 跟 base64 data URL 都適用）。
+  - `loadPlayerModels()` 對手分支：原本晚進房間、還沒收到對手
+    Socket.IO 外觀廣播時，已經有查 `GET /auth/character?username=`
+    補顏色的 fallback，但完全沒管臉；這次補上同一套邏輯——用同一次
+    呼叫順便拿 features，判斷有沒有意義；沒有意義或沒有 features，
+    才再查一次 `GET /auth/camera_face?username=`（不需要 token，跟
+    `/auth/character` 一樣的公開查詢慣例）。這樣對手晚進房間、或者
+    這場對局完全沒收到即時廣播，也能看到對方真正的相機照片，不是只
+    靠 Socket.IO 單一管道。
+
+  不在這次範圍：results.html 的贏家頭像渲染（renderWinnerAvatar()）
+  目前還是只查 colors，沒有查 features／camera_face——跟這次修的是
+  同一類問題，但使用者這次明確只確認要修 game.html，先不動
+  results.html，之後如果也想修可以用同一套邏輯。
+
+  驗證：
+  - static/game.html 用 Node vm.Script 語法檢查通過。
+  - 伺服器實際開機，game.html 正常載入（curl 200）。
+  - 這次沒有新增後端 API，依賴的 /auth/character、/auth/camera_face
+    行為已經在 #79／#81 用真實資料驗證過（empty features + 有相機
+    照片的帳號，兩個 API 都回傳正確資料），這裡純粹是前端邏輯接線，
+    改動模式跟已驗證過的 #81 完全一致。
+
+  ⚠️ 尚未做（需要兩台裝置實際連線測，Socket.IO 多人同步沒辦法無瀏覽器
+  代測）：用之前拍過相機照片存檔的帳號連線對局，確認自己的虛擬人物
+  正確顯示相機照片；另一位玩家晚一點加入房間，確認也能看到對方的
+  相機照片（不只是靠即時廣播，驗證 fallback 查詢真的有被用到）。
+========================================================================

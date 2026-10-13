@@ -1099,8 +1099,15 @@ socket.on('order_dice_aborted', (data) => {
 // 🏆 colors／features 一律從資料庫的 GET /auth/character 取得，只快取在
 //    記憶體（window.myCharacterRecipe），不再寫回 localStorage——重新整理
 //    這個頁面就會重新抓一次，資料庫才是唯一事實來源。
-//    臉部貼圖（圖片）仍是後端刻意不支援持久化的範圍外資料，繼續用
-//    buildFaceDataUrl() 重新合成後寫回 localStorage，維持現有行為。
+//
+// ⚠️ 修正一個跟 character.html #81 一樣的 bug：自從五官預設值改成全
+// 'none'（EMPTY_FACE_FEATURES）之後，只要存過檔 character.features
+// 就永遠是物件、不會是 null——不能再用「features 存在與否」判斷這個人
+// 是不是用五官套裝。原本這裡無條件呼叫 buildFaceDataUrl(colors,
+// features) 合成臉，相機使用者的 features 也會是這組全 'none' 的
+// 物件，結果永遠合成出一張空白臉、蓋掉相機照片。改成先判斷
+// features 裡是不是真的有任何一項不是 'none'，不是的話才去問伺服器
+// 有沒有相機照片（/auth/camera_face，#79 新增的 API）。
 async function restoreCharacterFromServer() {
     const token = localStorage.getItem('token');
     const myName = localStorage.getItem('username');
@@ -1118,16 +1125,34 @@ async function restoreCharacterFromServer() {
 
         window.myCharacterRecipe = { colors: char.colors, features: char.features || {} };
 
+        const hasMeaningfulFeatures = char.features
+            && Object.values(char.features).some(v => v !== 'none');
+
         let faceUrl = null;
-        if (typeof buildFaceDataUrl === 'function') {
-            faceUrl = buildFaceDataUrl(char.colors, char.features || {});
+        if (hasMeaningfulFeatures && typeof buildFaceDataUrl === 'function') {
+            faceUrl = buildFaceDataUrl(char.colors, char.features);
+        } else {
+            try {
+                const camRes = await fetch(`${API_URL}/auth/camera_face`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (camRes.ok) {
+                    const camData = await camRes.json();
+                    if (camData.exists) faceUrl = camData.url;
+                }
+            } catch (err) {
+                console.warn('⚠️ 查詢伺服器相機人臉貼圖失敗', err);
+            }
+        }
+
+        if (faceUrl) {
             localStorage.setItem('pypoly_char_face', faceUrl);
             localStorage.setItem(`pypoly_char_face_${myName}`, faceUrl);
         }
 
         // loadPlayerModels() 可能已經先用預設顏色建好自己的模型（跟這支
         // 非同步還原流程誰先完成不保證），這裡補一次即時更新，確保畫面
-        // 最後一定會是資料庫裡真正的顏色，不會卡在預設值。
+        // 最後一定會是資料庫裡真正的顏色/臉，不會卡在預設值。
         if (typeof playerModels !== 'undefined' && playerModels[myName]) {
             updateModelAppearance(playerModels[myName], char.colors, faceUrl);
         }
@@ -3276,25 +3301,49 @@ async function loadPlayerModels() {
             activeFace = exactFace || localStorage.getItem('pypoly_char_face');
         } else {
             let oppColors = window.netPlayerColors && window.netPlayerColors[playerName];
-            if (!oppColors) {
-                // 對手還沒透過 Socket.IO 廣播傳來顏色（例如晚進房間）：
+            activeFace = exactFace; // 對手如果網路已經傳來，優先用，不混用自己的
+
+            if (!oppColors || !activeFace) {
+                // 對手還沒透過 Socket.IO 廣播傳來顏色/臉（例如晚進房間）：
                 // 這個 API 本來就支援查任何人、不需要帶 token，直接問資料庫，
-                // 不要顯示預設顏色。
+                // 不要顯示預設顏色。features 的判斷跟 restoreCharacterFromServer()
+                // 一樣：要真的有一項不是 'none' 才算有意義，不然可能是相機
+                // 使用者，要去問 /auth/camera_face 才拿得到真正的臉。
                 try {
                     const res = await fetch(`${API_URL}/auth/character?username=${encodeURIComponent(playerName)}`);
                     if (res.ok) {
                         const data = await res.json();
-                        if (data.character && data.character.colors) {
-                            oppColors = data.character.colors;
+                        const oppChar = data.character;
+                        if (!oppColors && oppChar && oppChar.colors) {
+                            oppColors = oppChar.colors;
                             window.netPlayerColors[playerName] = oppColors;
+                        }
+                        if (!activeFace && oppChar) {
+                            const oppHasMeaningfulFeatures = oppChar.features
+                                && Object.values(oppChar.features).some(v => v !== 'none');
+                            if (oppHasMeaningfulFeatures && typeof buildFaceDataUrl === 'function') {
+                                activeFace = buildFaceDataUrl(oppColors || activeColors, oppChar.features);
+                            }
                         }
                     }
                 } catch (err) {
-                    console.warn(`⚠️ 取得玩家 [${playerName}] 顏色失敗`, err);
+                    console.warn(`⚠️ 取得玩家 [${playerName}] 外觀資料失敗`, err);
                 }
             }
+
             if (oppColors) activeColors = oppColors;
-            activeFace = exactFace; // 對手如果網路還沒傳來，先維持預設，不混用自己的
+
+            if (!activeFace) {
+                try {
+                    const camRes = await fetch(`${API_URL}/auth/camera_face?username=${encodeURIComponent(playerName)}`);
+                    if (camRes.ok) {
+                        const camData = await camRes.json();
+                        if (camData.exists) activeFace = camData.url;
+                    }
+                } catch (err) {
+                    console.warn(`⚠️ 取得玩家 [${playerName}] 相機人臉貼圖失敗`, err);
+                }
+            }
         }
 
         // 建立 3D 物件
