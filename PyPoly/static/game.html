@@ -988,6 +988,9 @@ async function fetchMapConfig(mode, difficulty) {
     const isHost = (activeRoom.hostId === myName);
     
     // 🏆 修正 1：嘗試從緩存讀取已同步的地圖
+    // ⚠️ 現在後端對同一個房號已經會回傳一致的快取結果（見 main.py 的
+    // room_map_cache），這裡的本機快取只是省一次網路請求，不是唯一的
+    // 同步保障了——真正保證兩邊地圖一致的是後端那層快取，不是這裡。
     const storedMapKey = `pypoly_synced_map_${roomCode}`;
     const storedMap = localStorage.getItem(storedMapKey);
 
@@ -1007,8 +1010,13 @@ async function fetchMapConfig(mode, difficulty) {
         // 🏆 測試模式：房間資料帶 testMode 時，向後端要一張含 BLANK 空白格的地圖，
         //    讓一局能快速跑完以驗證結算頁。由後端決定，雙方才會拿到同一張地圖。
         const testFlag = activeRoom.testMode ? '&test=1' : '';
+        // 🏆 帶上房號：後端現在會把同一個房間第一次生成的地圖快取起來，
+        // 之後不管誰、什麼時候呼叫，同一間房都會拿到完全一樣的地圖
+        // （形狀、題目、國家內容都一致）。沒帶房號的話後端等於每次都
+        // 重新 random，兩個裝置各自呼叫就會各自抽到不同結果——這正是
+        // 兩邊地圖形狀不同步的根因，不是前端渲染出問題。
         const response = await fetch(
-            `${API_URL}/game/map_config?mode=${mode}&difficulty=${difficulty}${testFlag}`);
+            `${API_URL}/game/map_config?mode=${mode}&difficulty=${difficulty}&room=${encodeURIComponent(roomCode)}${testFlag}`);
         gameMap = await response.json();
         window.mapBlocks = gameMap.blocks || gameMap;
         // 🏆 地圖到齊，要整個重蓋棋盤才會真的套用真實座標（理由同上）

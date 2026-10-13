@@ -101,12 +101,22 @@ active_rooms = {}
 
 land_ownership = {}
 
+# 🏆 同一個房間的地圖只生成一次、存在這裡——/game/map_config 本身有
+# 題目／國家／棋盤形狀三處不同的隨機性，兩個裝置各自獨立呼叫一次就
+# 各自抽到不同結果（即使遊戲邏輯沒壞，兩邊看到的棋盤形狀/格子內容卻
+# 會不一樣）。第一次呼叫生成並存進這裡，之後不管是同一個人重新整理、
+# 還是房間裡的另一位玩家呼叫，都直接回傳同一份，保證全房看到的地圖
+# 完全一致。
+room_map_cache = {}
+
 # 🏆 刪房時一併清掉該房的擲骰暫存（dice_order_results / room_dice_data 於檔案下方定義，
-#    此函式在請求時才執行，屆時兩個全域字典已存在）。同時清 code 與其大寫版以防鍵不一致。
+#    此函式在請求時才執行，屆時兩個全域字典已存在）跟地圖快取。同時清
+#    code 與其大寫版以防鍵不一致。
 def _clear_room_dice_state(code: str):
     for key in {code, code.upper()}:
         dice_order_results.pop(key, None)
         room_dice_data.pop(key, None)
+        room_map_cache.pop(key, None)
 
 
 # ==========================================================
@@ -1576,6 +1586,7 @@ async def handle_move_finished(sid, data):
 async def get_map_config(
     mode: str,
     difficulty: str,
+    room: str,
     test: bool = False,
     qtype: str = None,
     db: Session = Depends(database.get_db),
@@ -1584,8 +1595,18 @@ async def get_map_config(
 
     test=1 為測試模式：把大部分冒險格換成 BLANK（踩到直接換人），
     只留少數幾格保留答題流程，讓一局能快速跑完以驗證結算頁。
-    地圖由後端產生，雙方才保證拿到同一張；前端各自切換會導致兩人地圖不一致。
+
+    🏆 room 是必帶參數，用來查/存 room_map_cache：同一個房間只在第一次
+    呼叫時真的生成（題目、國家、棋盤形狀都各自有隨機性），之後不管是
+    誰、什麼時候呼叫，都直接回傳同一份快取結果——這樣才能保證房間裡
+    每個人拿到的地圖完全一致。地圖由後端產生這件事本身不會自動保證
+    一致，一致性是靠這層快取保證的；之前沒有這層快取，純粹由後端產生
+    不代表兩人會拿到同一張（每次呼叫都各自重新 random 一次）。
     """
+    room_key = room.strip().upper()
+    if room_key in room_map_cache:
+        return room_map_cache[room_key]
+
     try:
         # 修正中文模式轉為資料庫 Key
         db_mode = "basic" if "基礎" in mode else "advanced"
@@ -1704,6 +1725,7 @@ async def get_map_config(
             full_map[i]["y"] = y
             full_map[i]["z"] = z
 
+        room_map_cache[room_key] = full_map
         return full_map
 
     except Exception as e:
