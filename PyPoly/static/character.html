@@ -476,6 +476,19 @@
             box-shadow: 0 4px 0 #000;
         }
 
+        /* 統一的「儲存到遊戲」按鈕，固定在角色預覽框右下角，取代原本三張
+           卡各自一顆的設計——不管目前是調顏色、五官套裝還是相機模式，
+           都用這一顆存。 */
+        .save-fab {
+            position: absolute;
+            right: 20px;
+            bottom: 20px;
+            width: auto;
+            margin-top: 0;
+            padding: 14px 30px;
+            z-index: 5;
+        }
+
         .btn-red {
             background: #dfe4ea;
             color: var(--pixel-red);
@@ -613,6 +626,7 @@
                 <div class="panel-sub">拖曳旋轉・滾輪縮放</div>
             </div>
             <canvas id="model-canvas"></canvas>
+            <button class="btn btn-green save-fab" onclick="saveCharacter()">💾 儲存到遊戲</button>
         </div>
 
         <!-- 右：操作面板 -->
@@ -669,7 +683,6 @@
                     <button class="preset-btn" onclick="applyPreset('ocean')"><div class="preset-dots"><div class="preset-dot" style="background:#a8d8f0"></div><div class="preset-dot" style="background:#2897d6"></div><div class="preset-dot" style="background:#0077b6"></div><div class="preset-dot" style="background:#005588"></div><div class="preset-dot" style="background:#002244"></div></div>海洋</button>
                     <button class="preset-btn" onclick="applyPreset('purple')"><div class="preset-dots"><div class="preset-dot" style="background:#e8b4f0"></div><div class="preset-dot" style="background:#aa66ee"></div><div class="preset-dot" style="background:#8844cc"></div><div class="preset-dot" style="background:#5522aa"></div><div class="preset-dot" style="background:#2a1066"></div></div>神秘</button>
                 </div>
-                <button class="btn btn-green" onclick="saveColors()">儲存到遊戲</button>
                 <button class="btn btn-red"   onclick="resetColors()">還原預設顏色</button>
             </div>
 
@@ -698,7 +711,6 @@
                 <div class="section-label"><span>🎭</span> 表情套裝</div>
                 <div class="expr-grid" id="expr-grid"></div>
 
-                <button class="btn btn-green" onclick="saveFaceFeatures()" style="margin-top:12px">儲存到遊戲</button>
                 <button class="btn btn-red"   onclick="clearFaceFeatures()">清除五官</button>
             </div>
 
@@ -721,7 +733,6 @@
                 <button class="btn btn-blue"  id="camToggleBtn" onclick="toggleCamera()">開啟相機</button>
                 <button class="btn btn-green" id="applyFaceBtn" onclick="applyFaceToModel()" disabled>套用人臉到角色臉部</button>
                 <button class="btn btn-red"   id="clearFaceBtn" onclick="clearFace()" disabled>清除人臉</button>
-                <button class="btn btn-green" onclick="saveCameraFace()" style="margin-top:12px">儲存到遊戲</button>
             </div>
 
         </div><!-- /right-panel -->
@@ -951,12 +962,6 @@ async function saveCharacterToServer() {
     }
 }
 
-function saveColors() {
-    saveCharacterToServer();
-    mirrorFaceToUserKey();
-    showModal('儲存成功', '外觀顏色已儲存！按下確定返回大廳。');
-    document.querySelector('#modal button').onclick = () => window.location.href = '../../static/lobby.html';
-}
 function resetColors() {
     applyPreset('default');
     showModal('已重置', '已還原角色預設顏色。');
@@ -1242,16 +1247,6 @@ function updateFeatureSelectionUI() {
     });
 }
 
-function saveFaceFeatures() {
-    const faceCanvas = composeFaceTexture();
-    localStorage.setItem('pypoly_char_face', faceCanvas.toDataURL('image/png'));
-    hasFeatureFace = true;
-    saveCharacterToServer();
-    mirrorFaceToUserKey();
-    showModal('儲存成功', '臉部五官已儲存！按下確定返回大廳。');
-    document.querySelector('#modal button').onclick = () => window.location.href = '../../static/lobby.html';
-}
-
 function clearFaceFeatures() {
     hasFeatureFace = false;
     localStorage.removeItem('pypoly_char_face');
@@ -1529,47 +1524,60 @@ function clearFace() {
     }
 }
 
-// 🏆 相機人臉貼圖卡原本缺「儲存到遊戲」按鈕，玩家拍完臉還要往上滑找
-// 另外兩張卡的按鈕才能離開這頁。applyFaceToModel() 已經把拍到的臉存進
-// pypoly_char_face 並即時貼到模型上了，這裡只需要補做跟另外兩張卡一樣
-// 的「同步到伺服器＋產生預覽圖＋導回大廳」收尾——不能直接呼叫
-// saveFaceFeatures()，那支是五官套裝那張卡用的，會連帶重置 faceFeatures。
+// 🏆 統一的「儲存到遊戲」按鈕（放在角色預覽框右下角），取代原本三張
+// 卡各自一顆、邏輯重複又互相不知道對方存了什麼的設計。不管玩家目前
+// 是在調顏色、用五官套裝、還是用相機拍臉，都是按這一顆存。
 //
-// 相機拍的照片額外上傳一份到伺服器檔案（/auth/camera_face），不是只
-// 留在這台裝置的 localStorage——這樣換裝置登入也能看到同一張照片。
-//
-// 🏆 防呆：如果玩家只是看著相機即時偵測畫面、沒按過「套用人臉到角色
-// 臉部」就直接按這顆，pypoly_char_face 會是空的，之前的版本會直接
-// 跳過上傳、卻還是顯示「儲存成功」，造成誤導。這裡先擋下來，明確告訴
-// 玩家要先套用；上傳真的失敗時也要讓玩家看到，不能只在 console 警告。
-async function saveCameraFace() {
-    const faceDataUrl = localStorage.getItem('pypoly_char_face');
-    if (!faceDataUrl) {
-        showModal('尚未套用人臉', '請先按「套用人臉到角色臉部」，確認臉部貼圖已經貼上後再儲存。');
-        return;
+// 判斷目前是哪種「臉」靠 hasFeatureFace（五官套裝互動時會設成 true，
+// applyFaceToModel() 相機模式則會設成 false）：
+// - 五官套裝模式：重新合成一次目前的五官組合存回 pypoly_char_face
+//   （給 game.html 等其他地方當圖片 fallback 用），並順手清掉伺服器上
+//   可能殘留的舊相機照片（不會再被用到，留著只是孤兒檔案）。
+// - 相機模式：把 pypoly_char_face（相機截圖）上傳到伺服器
+//   /auth/camera_face，這樣換裝置登入也能看到同一張照片。
+// - 兩者都沒有（從沒碰過臉部功能、只調了顏色）：兩段都不做，不去動
+//   伺服器上可能存在的舊資料，避免誤刪。
+async function saveCharacter() {
+    if (hasFeatureFace) {
+        const faceCanvas = composeFaceTexture();
+        localStorage.setItem('pypoly_char_face', faceCanvas.toDataURL('image/png'));
     }
 
     saveCharacterToServer();
     mirrorFaceToUserKey();
 
     const token = localStorage.getItem('token');
-    let uploadOk = false;
-    if (token) {
-        try {
-            const res = await fetch(`${API_URL}/auth/camera_face`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ image: faceDataUrl })
-            });
-            uploadOk = res.ok;
-            if (!res.ok) console.warn('⚠️ 相機人臉貼圖上傳伺服器失敗：HTTP', res.status);
-        } catch (err) {
-            console.warn('⚠️ 相機人臉貼圖上傳伺服器失敗', err);
+    let cameraUploadOk = true;
+
+    if (hasFeatureFace) {
+        if (token) {
+            fetch(`${API_URL}/auth/camera_face`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            }).catch(err => console.warn('⚠️ 清理舊相機人臉貼圖失敗', err));
+        }
+    } else {
+        const faceDataUrl = localStorage.getItem('pypoly_char_face');
+        if (faceDataUrl) {
+            cameraUploadOk = false;
+            if (token) {
+                try {
+                    const res = await fetch(`${API_URL}/auth/camera_face`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                        body: JSON.stringify({ image: faceDataUrl })
+                    });
+                    cameraUploadOk = res.ok;
+                    if (!res.ok) console.warn('⚠️ 相機人臉貼圖上傳伺服器失敗：HTTP', res.status);
+                } catch (err) {
+                    console.warn('⚠️ 相機人臉貼圖上傳伺服器失敗', err);
+                }
+            }
         }
     }
 
-    if (uploadOk) {
-        showModal('儲存成功', '相機人臉貼圖已儲存！按下確定返回大廳。');
+    if (cameraUploadOk) {
+        showModal('儲存成功', '角色外觀已儲存！按下確定返回大廳。');
     } else {
         showModal('部分儲存失敗', '顏色/五官已儲存，但相機人臉貼圖上傳伺服器失敗（可能是網路問題）。這台裝置還是會記住這張臉，但換裝置可能看不到，請檢查網路後再儲存一次。');
     }
