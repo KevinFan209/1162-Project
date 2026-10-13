@@ -951,7 +951,7 @@ async function saveCharacterToServer() {
 
 function saveColors() {
     saveCharacterToServer();
-    saveCharacterPreviewImage();
+    mirrorFaceToUserKey();
     showModal('儲存成功', '外觀顏色已儲存！按下確定返回大廳。');
     document.querySelector('#modal button').onclick = () => window.location.href = '../../static/lobby.html';
 }
@@ -1235,7 +1235,7 @@ function saveFaceFeatures() {
     localStorage.setItem('pypoly_char_face', faceCanvas.toDataURL('image/png'));
     hasFeatureFace = true;
     saveCharacterToServer();
-    saveCharacterPreviewImage();
+    mirrorFaceToUserKey();
     showModal('儲存成功', '臉部五官已儲存！按下確定返回大廳。');
     document.querySelector('#modal button').onclick = () => window.location.href = '../../static/lobby.html';
 }
@@ -1330,7 +1330,7 @@ async function restoreCharacterFromServer() {
     }
 
     if (character) {
-        saveCharacterPreviewImage();
+        mirrorFaceToUserKey();
     }
 }
 
@@ -1469,53 +1469,23 @@ function clearFace() {
 // saveFaceFeatures()，那支是五官套裝那張卡用的，會連帶重置 faceFeatures。
 function saveCameraFace() {
     saveCharacterToServer();
-    saveCharacterPreviewImage();
+    mirrorFaceToUserKey();
     showModal('儲存成功', '相機人臉貼圖已儲存！按下確定返回大廳。');
     document.querySelector('#modal button').onclick = () => window.location.href = '../../static/lobby.html';
 }
 
-function saveCharacterPreviewImage() {
-    try {
-        if (!renderer || !scene || !threeCamera) return;
-
-        const originalBackground = scene.background;
-        const oldClearColor = new THREE.Color();
-        renderer.getClearColor(oldClearColor);
-        const oldClearAlpha = renderer.getClearAlpha();
-
-        scene.background = null;
-        renderer.setClearColor(0x000000, 0); 
-
-        let gridObject = null;
-        scene.traverse((child) => {
-            if (child instanceof THREE.GridHelper) {
-                gridObject = child;
-                child.visible = false; 
-            }
-        });
-
-        controls.target.set(0, 1.5, 0);       
-        threeCamera.position.set(0, 1.5, 3.8); 
-        threeCamera.updateProjectionMatrix(); 
-        controls.update();
-
-        renderer.render(scene, threeCamera);
-        const previewImage = renderer.domElement.toDataURL('image/png');
-        localStorage.setItem('pypoly_char_preview', previewImage);
-
-        const currentName = localStorage.getItem('username') || 'default_user';
-        localStorage.setItem(`pypoly_char_preview_${currentName}`, previewImage);
-
-        scene.background = originalBackground;
-        renderer.setClearColor(oldClearColor, oldClearAlpha);
-        if (gridObject) gridObject.visible = true;
-
-        const faceData = localStorage.getItem('pypoly_char_face');
-        if (faceData) {
-            localStorage.setItem(`pypoly_char_face_${currentName}`, faceData);
-        }
-    } catch (err) {
-        console.error('儲存角色預覽圖失敗：', err);
+// 🏆 character.html 的職責現在只是建立/編輯角色並把配方存進資料庫
+// （saveCharacterToServer()）——縮圖改由 lobby.html／profile.html 在
+// 載入時直接拿資料庫的 colors/features 即時渲染（static/js/
+// character-preview.js），不再需要這裡截圖快取 pypoly_char_preview，
+// 所以把截圖那段整個拿掉。這支函式現在只剩一件事：把相機/五官合成的
+// 臉部貼圖（圖片，資料庫不存，只能留在本機）鏡射成 per-user key，
+// 供同一台裝置上其他頁面（game.html、結算畫面等）讀取。
+function mirrorFaceToUserKey() {
+    const currentName = localStorage.getItem('username') || 'default_user';
+    const faceData = localStorage.getItem('pypoly_char_face');
+    if (faceData) {
+        localStorage.setItem(`pypoly_char_face_${currentName}`, faceData);
     }
 }
 

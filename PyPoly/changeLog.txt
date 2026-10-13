@@ -3175,3 +3175,65 @@ PyPoly 變更紀錄 (changeLog)
   (3) 對局結束進 results.html，確認贏家（自己或對手）顏色正確顯示，
   即使是另開一個全新瀏覽器分頁/視窗直接導到 results.html 測試。
 ========================================================================
+
+[2026-10-13] #77 lobby/profile 左側角色縮圖改成每次載入頁面即時從資料庫渲染
+
+  背景：#76 把 colors/features 改成一律從資料庫讀取之後，使用者實測
+  「用 112213070 建立角色、登出換另一台裝置登入」，發現大廳左側的
+  Q 版角色縮圖還是沒有顯示。查了才發現 lobby.html 那個縮圖框
+  （lobby-char-box）其實完全沒有改到——它從頭到尾只讀
+  pypoly_char_preview／pypoly_char_face_* 這兩個圖片快取，從來沒有
+  問過資料庫。這兩個快取是 character.html 的 saveCharacterPreviewImage()
+  在「這台裝置」實際編輯/建立角色時才會寫入的 base64 截圖，新裝置
+  從沒跑過 character.html，自然兩個 key 都是空的，框就什麼都不顯示。
+
+  使用者要求：character.html 的職責收斂成只負責建立/編輯角色並存進
+  資料庫；lobby/profile 左側的預覽框改成每次載入頁面時直接拿資料庫的
+  colors/features 即時渲染出縮圖，不要再依賴 character.html 產生的
+  截圖快取。
+
+  修改：
+  - 新增 static/js/character-preview.js：renderCharacterPreview(colors,
+    features, onFrame) 離屏渲染縮圖的共用函式。重用既有的
+    player-model.js 的 createCustomBoxCharacter()（跟遊戲裡、結算畫面
+    同一套方塊角色模型，不是 character.html 編輯頁用的 GLB Steve 模型
+    ——避免在 lobby/profile 多載入一個幾 MB 的 GLB 檔案跟整套自訂
+    shader 材質邏輯，只為了畫一張縮圖；代價是縮圖風格跟 character.html
+    編輯畫面不是同一個模型，跟遊戲內/結算畫面的風格反而更一致）跟
+    character-face.js 的 buildFaceDataUrl()。faceDataUrl 的材質圖是
+    非同步載入，onFrame 可能被呼叫兩次：第一次立刻給一張保底，有五官
+    配方的話 150ms 後再補一次確保貼圖真的貼上。
+  - lobby.html／profile.html：各自補 3 個 <script> 引用
+    （three.min.js／player-model.js／character-face.js／
+    character-preview.js），window.onload 裡原本直接讀 localStorage
+    圖片的那段改成先呼叫 GET /auth/character（帶 token 查自己），有
+    colors 就呼叫 renderCharacterPreview() 即時產生縮圖；資料庫真的
+    沒有角色資料（還沒建立過）才退回舊的本機快取圖片當保底，沒有就
+    維持空白——跟 hasCreatedCharacter() 的判斷邏輯一致。
+  - character.html：saveCharacterPreviewImage() 整支改名、改寫成
+    mirrorFaceToUserKey()，拿掉截圖/寫入 pypoly_char_preview 那段
+    （改由 lobby/profile 自己即時渲染，不需要這裡快取），只保留把
+    pypoly_char_face 鏡射成 pypoly_char_face_${user} 的部分（相機人臉
+    貼圖仍是本機圖片資料，game.html 等其他頁面還是靠這個 per-user key
+    讀取，沒有這段會壞掉）。4 個呼叫處同步改名。
+
+  驗證：
+  - 全專案 grep pypoly_char_preview，確認只剩 lobby.html／profile.html
+    的保底讀取，character.html 不再寫入。
+  - character.html／lobby.html／profile.html 都用 Node vm.Script 做過
+    inline script 語法檢查，全部通過。
+  - 把伺服器實際開起來，確認 character.html／lobby.html／profile.html／
+    新增的 static/js/character-preview.js 都能正常載入（curl 200）。
+  - 用 112213070（純讀取，沒有覆蓋）確認資料庫裡確實有這個帳號的
+    colors/features（created_at 2026-08-21，是使用者自己建立的真實
+    資料），而且帶 token 查自己、不帶 token 只用 username 查（lobby/
+    profile 換裝置時的查詢方式）兩條路徑都讀得到同一份資料，驗證了
+    這次回報的 bug 純粹是前端從沒去問資料庫，不是後端或 #76 的
+    colors/features 存取邏輯有問題。
+
+  ⚠️ 尚未做（需要實際開瀏覽器測，3D 渲染沒辦法用無瀏覽器腳本代測）：
+  用 112213070 登入裝置 A 建立/調整角色，登出後在裝置 B（或清空
+  localStorage 模擬換裝置）用同帳號登入，確認大廳、個人主頁左側的
+  角色縮圖都能直接顯示正確的顏色/五官，不需要先在裝置 B 打開一次
+  character.html。
+========================================================================

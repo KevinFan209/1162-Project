@@ -442,6 +442,10 @@
 </div>
 
 <script src="js/ngrok-fetch.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="js/player-model.js"></script>
+<script src="js/character-face.js"></script>
+<script src="js/character-preview.js"></script>
 <script>
     const API_URL = location.origin;
     let syncTimer = null; 
@@ -487,15 +491,34 @@
             return;
         }
         
+        // 🏆 左側角色縮圖改成每次載入頁面時直接問資料庫要 colors/features，
+        // 現場渲染出縮圖——不再依賴 character.html 寫入的 pypoly_char_preview
+        // 快取，換裝置、清過 localStorage 也能正確顯示。
         const charBox = document.getElementById('lobby-char-box');
-        const myFace = localStorage.getItem(`pypoly_char_face_${username}`) || localStorage.getItem('pypoly_char_face');
-        const savedCharImage = localStorage.getItem('pypoly_char_preview');
-        
         if (charBox) {
-            if (savedCharImage) {
-                charBox.innerHTML = `<img src="${savedCharImage}" alt="我的角色" style="width: 100%; height: 100%; object-fit: contain; transform: scale(1.15);">`;
-            } else if (myFace) {
-                charBox.innerHTML = `<img src="${myFace}" style="width:100%; height:100%; object-fit:cover; border:2px solid var(--bee-yellow);">`;
+            try {
+                const charRes = await fetch(`${API_URL}/auth/character`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const charData = charRes.ok ? await charRes.json() : null;
+                const character = charData && charData.character;
+                if (character && character.colors) {
+                    renderCharacterPreview(character.colors, character.features, (dataUrl) => {
+                        charBox.innerHTML = `<img src="${dataUrl}" alt="我的角色" style="width: 100%; height: 100%; object-fit: contain; transform: scale(1.15);">`;
+                    });
+                } else {
+                    // 伺服器還沒有角色資料（真的還沒建立過），退回本機可能
+                    // 殘留的舊快取圖片顯示，沒有就維持空白。
+                    const myFace = localStorage.getItem(`pypoly_char_face_${username}`) || localStorage.getItem('pypoly_char_face');
+                    const savedCharImage = localStorage.getItem('pypoly_char_preview');
+                    if (savedCharImage) {
+                        charBox.innerHTML = `<img src="${savedCharImage}" alt="我的角色" style="width: 100%; height: 100%; object-fit: contain; transform: scale(1.15);">`;
+                    } else if (myFace) {
+                        charBox.innerHTML = `<img src="${myFace}" style="width:100%; height:100%; object-fit:cover; border:2px solid var(--bee-yellow);">`;
+                    }
+                }
+            } catch (err) {
+                console.warn('⚠️ 讀取角色資料失敗，無法顯示角色縮圖', err);
             }
         }
 
