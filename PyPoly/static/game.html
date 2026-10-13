@@ -987,24 +987,16 @@ async function fetchMapConfig(mode, difficulty) {
     const myName = localStorage.getItem('username');
     const isHost = (activeRoom.hostId === myName);
     
-    // 🏆 修正 1：嘗試從緩存讀取已同步的地圖
-    // ⚠️ 現在後端對同一個房號已經會回傳一致的快取結果（見 main.py 的
-    // room_map_cache），這裡的本機快取只是省一次網路請求，不是唯一的
-    // 同步保障了——真正保證兩邊地圖一致的是後端那層快取，不是這裡。
+    // ⚠️ 這裡原本會先檢查 localStorage 是否已經有這個房號同步過的地圖、
+    // 有就直接用、不打網路——拿掉了。後端現在對同一個房號已經保證
+    // 回傳一致的快取結果（見 main.py 的 room_map_cache），本機快取不
+    // 再是同步保障的一部分，留著反而是風險：如果這個房號之前（例如
+    // 上一局測試）在這台裝置留下過地圖，會直接用那份舊資料，完全不會
+    // 再問伺服器一次，造成玩家一進房間虛擬人物就站在舊地圖的起點，
+    // 等房主的 SYNC_MAP 廣播到了才會「跳」到正確位置——這正是實測
+    // 回報過的現象。拿掉這段短路之後，每次都真的問一次伺服器，保證
+    // 拿到的就是這個房間當下真正的地圖。
     const storedMapKey = `pypoly_synced_map_${roomCode}`;
-    const storedMap = localStorage.getItem(storedMapKey);
-
-    if (storedMap) {
-        gameMap = JSON.parse(storedMap);
-        window.mapBlocks = gameMap.blocks || gameMap;
-        // 🏆 地圖到齊，要整個重蓋棋盤才會真的套用真實座標：
-        //    create3DBoard() 在 init3D() 執行時 gameMap 可能還是空的，
-        //    那時只用退回形狀蓋一次；單純呼叫 applyBoardAppearance()
-        //    只換貼圖，不會搬動格子位置，所以這裡要呼叫 create3DBoard()。
-        if (typeof create3DBoard === "function") create3DBoard();
-        console.log("✅ 從本地緩存讀取已同步之地圖");
-        return;
-    }
 
     try {
         // 🏆 測試模式：房間資料帶 testMode 時，向後端要一張含 BLANK 空白格的地圖，
@@ -2741,6 +2733,13 @@ socket.on('dice_event_sync', (data) => {
             //    可能已經用自己獨立抓到的地圖蓋過一次棋盤，收到房主這份
             //    才是兩邊真正該顯示的同一份，一定要重蓋而不是只換貼圖。
             if (typeof create3DBoard === "function") create3DBoard();
+            // 🏆 棋盤重蓋之後，create3DBoard() 只會更新「棋盤本身」的格子
+            // 位置（寫進 mapBlocks），不會動到已經放好的虛擬人物——這份
+            // SYNC_MAP 一定是在對局剛開始、大家還站在起點時才會發生
+            // （只會在 fetchMapConfig() 剛結束時廣播一次），所以直接把
+            // 已經建好的模型重新貼回新地圖的起點，不會錯誤搬動已經走到
+            // 別的格子的玩家。
+            repositionPlayerModelsToStart();
             const roomCode = JSON.parse(localStorage.getItem('pypoly_active_room'))?.code || localStorage.getItem('room_code');
             localStorage.setItem(`pypoly_synced_map_${roomCode}`, JSON.stringify(gameMap));
         }
@@ -3095,6 +3094,28 @@ function create3DBoard() {
     const r = buildBoard(scene, gameMap);
     r.tiles.forEach(t => allTileMeshes.push(t));
     mapBlocks = r.positions;
+}
+
+// 🏆 SYNC_MAP 修正棋盤形狀之後，把已經建好的虛擬人物重新貼回新地圖的
+// 起點——邏輯跟 loadPlayerModels() 第一次擺放時完全一樣（起點 + 下一格
+// 算前進方向跟車道偏移），差別只是這裡重用模型已經記住的 laneOffset，
+// 不用重新判斷是第幾位玩家。只在剛收到 SYNC_MAP 時呼叫，這個時間點
+// 大家理論上都還站在起點，不會錯誤搬動已經走到別的格子的玩家。
+function repositionPlayerModelsToStart() {
+    if (typeof playerModels === 'undefined' || !mapBlocks || mapBlocks.length < 2) return;
+    const startPos = mapBlocks[0];
+    const nextPos = mapBlocks[1];
+    const dirForward = new THREE.Vector3().subVectors(nextPos, startPos).normalize();
+    const dirRight = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dirForward).normalize();
+
+    Object.values(playerModels).forEach(model => {
+        const laneOffset = model.userData.laneOffset || 0;
+        const finalStartPos = startPos.clone().addScaledVector(dirRight, laneOffset);
+        model.position.set(finalStartPos.x, finalStartPos.y + 0.5, finalStartPos.z);
+        const finalNextPos = nextPos.clone().addScaledVector(dirRight, laneOffset);
+        model.lookAt(finalNextPos.x, model.position.y, finalNextPos.z);
+    });
+    console.log("🧍 已將虛擬人物重新貼回同步後的地圖起點");
 }
 
 function applyBoardAppearance() {
