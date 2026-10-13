@@ -1490,26 +1490,42 @@ function clearFace() {
 //
 // 相機拍的照片額外上傳一份到伺服器檔案（/auth/camera_face），不是只
 // 留在這台裝置的 localStorage——這樣換裝置登入也能看到同一張照片。
+//
+// 🏆 防呆：如果玩家只是看著相機即時偵測畫面、沒按過「套用人臉到角色
+// 臉部」就直接按這顆，pypoly_char_face 會是空的，之前的版本會直接
+// 跳過上傳、卻還是顯示「儲存成功」，造成誤導。這裡先擋下來，明確告訴
+// 玩家要先套用；上傳真的失敗時也要讓玩家看到，不能只在 console 警告。
 async function saveCameraFace() {
+    const faceDataUrl = localStorage.getItem('pypoly_char_face');
+    if (!faceDataUrl) {
+        showModal('尚未套用人臉', '請先按「套用人臉到角色臉部」，確認臉部貼圖已經貼上後再儲存。');
+        return;
+    }
+
     saveCharacterToServer();
     mirrorFaceToUserKey();
 
     const token = localStorage.getItem('token');
-    const faceDataUrl = localStorage.getItem('pypoly_char_face');
-    if (token && faceDataUrl) {
+    let uploadOk = false;
+    if (token) {
         try {
             const res = await fetch(`${API_URL}/auth/camera_face`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ image: faceDataUrl })
             });
+            uploadOk = res.ok;
             if (!res.ok) console.warn('⚠️ 相機人臉貼圖上傳伺服器失敗：HTTP', res.status);
         } catch (err) {
             console.warn('⚠️ 相機人臉貼圖上傳伺服器失敗', err);
         }
     }
 
-    showModal('儲存成功', '相機人臉貼圖已儲存！按下確定返回大廳。');
+    if (uploadOk) {
+        showModal('儲存成功', '相機人臉貼圖已儲存！按下確定返回大廳。');
+    } else {
+        showModal('部分儲存失敗', '顏色/五官已儲存，但相機人臉貼圖上傳伺服器失敗（可能是網路問題）。這台裝置還是會記住這張臉，但換裝置可能看不到，請檢查網路後再儲存一次。');
+    }
     document.querySelector('#modal button').onclick = () => window.location.href = '../../static/lobby.html';
 }
 
