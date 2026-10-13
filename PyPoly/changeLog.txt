@@ -3668,3 +3668,91 @@ PyPoly 變更紀錄 (changeLog)
   跟房主一致的最終形狀，不會先閃一次錯的再跳成對的；虛擬人物從頭到
   尾都站在正確的起點，不會出現位置跳動。
 ========================================================================
+
+[2026-10-14] #86 修復 urgent 標籤剩餘 6 個 issue：#8/#9/#11/#36/#37（#33 先觀察不直接修）
+
+  背景：GitHub 上標 urgent 的 11 個 issue，#5/#7/#32 已確認是舊 commit
+  `46d1eb3` 修好、已關閉；#10 純粹是部署環境變數沒填；#29（信箱驗證）
+  是新功能這次不排。這次處理剩下確認根因的 6 個，用背景 agent 深入讀過
+  實際程式碼，不是看標題猜；#11、#37 各有一個設計/範圍問題先跟使用者
+  確認過方向。
+
+  #36（後台編輯按鈕沒反應）：
+  - 根因：admin.html:565 的「編輯」按鈕完全沒有 onclick，對照旁邊
+    「封鎖」按鈕明顯漏掉。後端已有通用的 PUT /admin/users/{user}/role。
+  - 修法：按鈕補 onclick="openEditRoleModal(...)"，新增
+    openEditRoleModal() 複用既有 #statusModal，換成角色下拉選單
+    （一般玩家/封鎖），確認後呼叫既有的 executeRoleChange()，後端
+    不用改。
+
+  #9（小鳥飛畫面突然跳出擋住畫面）：
+  - 根因：adventure_phase_broadcast 的 autoSyncPhases 分支
+    （FLAPPY_BIRD_START 等）無條件強制拉進觀戰，完全沒檢查接收端
+    自己當下在不在 PURCHASE_DECISION/SHOP_BROWSING/SHOP_CONFIRMING
+    這些忙碌狀態；已經在觀戰中收到廣播時鏡頭是瞬間硬切
+    （camera.position.copy），沒有過渡動畫。
+  - 修法：補忙碌狀態檢查，忙碌中用跟敘述排隊一樣的輪詢等結束才真正
+    進入；enterSpectatorMode_Internal 的鏡頭移動統一改用 gsap 補間，
+    已經在觀戰時給短一點的 0.6s（原本是 1.5s 或瞬間硬切兩種）。
+
+  #8（小鳥飛小遊戲鏡頭延遲幾乎沒辦法玩）：
+  - 確認 MediaPipe 重入鎖部分（#67）已經涵蓋這個小遊戲，不是漏掉。
+    但找到一個獨立根因：gameLoop() 完全沒有 delta-time，重力/位置/
+    管道速度都是假設固定 60fps 的每幀常數，主執行緒被 MediaPipe 推論
+    拖慢時物理會跟著變慢卡頓。
+  - 修法：新增 fbLastFrameTs，gameLoop() 開頭用 performance.now() 算
+    dt（夾在 3 以內防止背景分頁切回來時暴衝），三個常數都乘上 dt；
+    拍動衝量是離散的瞬間設定值，不乘 dt。
+
+  #11（玩家離線後卡在提示畫面、雙方狀態不一致）：
+  - 確認心跳跟斷線通知現在都是活的（舊「心跳從未被呼叫」的記憶已過時），
+    但兩個具體症狀確認還在：disconnect() 完全沒把斷線玩家從
+    active_rooms[room]['players'] 移除（殭屍殘留最多留到 60 分鐘閒置
+    回收）；前端收到通知後 showGameNotice(msg, 0) 永遠不會自動消失，
+    也沒有任何按鈕可以離開。
+  - 修法（採用者確認的方向：不自動強制雙方退回大廳，讓玩家自己決定）：
+    main.py 的 disconnect() 補上跟既有 /rooms/leave 一致的移除+房間
+    清空邏輯；game.html 的 opponent_disconnected 處理補一顆「返回大廳」
+    按鈕，新函式 leaveDisconnectedRoomAndGoLobby() 呼叫既有的
+    /rooms/leave（不用新增後端）後導回 lobby.html。
+
+  #33（遊戲有時候突然卡住）：沒有明確根因，只有合理推論（決定先後手
+  以外的同步點都沒有 timeout/強制推進）。先讓 #11 的修法跑一段時間
+  觀察，不在這次直接做全面的 timeout 機制——那是牽動多個 socket
+  handler 的架構性改動，不建議在沒有實測重現的情況下貿然大改。
+
+  #37（後台遊戲數據要接真實情況，範圍已跟使用者確認）：
+  - 確認 static/game_data.html 整頁 4 張統計卡、趨勢圖、LIVE 對局列表
+    100% 是寫死的假資料，全檔案沒有打過任何統計 API。
+  - 這次只接有現成資料來源的部分：main.py 新增 GET /admin/game_stats
+    （沿用 require_admin），回傳 User.is_online 計算的在線人數、
+    active_rooms 裡 status=='gaming' 的進行中對局數與 LIVE 列表、
+    GameAnswerLog 算的今日正確率。
+  - 「伺服器延遲」「24 小時趨勢圖」沒有任何現成資料來源（量測/時間
+    序列快照都是新的追蹤基礎設施），這次改成明確的「尚未支援」文字，
+    不再顯示假數字，也不在這次新增追蹤機制。
+  - game_data.html 新增 loadGameStats()，window.onload 載入一次，
+    用跟心跳同樣的 5 秒間隔定期刷新；LIVE 列表的 3 筆靜態假資料改成
+    JS 動態渲染容器。
+
+  驗證：
+  - main.py 用 py_compile，admin.html／game.html／game_data.html 用
+    Node vm.Script 語法檢查，全部通過。
+  - 把伺服器實際開起來，用 requests 驗證 GET /admin/game_stats（帶
+    admin token 成功、不帶 token 被 401 擋下、回傳格式/型別正確）。
+  - 用兩個 socketio.Client 模擬兩個玩家進同一間測試房，驗證斷線
+    清理：一人斷線後房間還在、players 正確少一個；雙方都斷線後房間
+    被自動刪除（GET /rooms/verify 回 404）。5/5 通過，測試房自動清空
+    不留殘留。
+  - #8 的 delta-time 算式另外用一個小 Node 腳本驗證邊界值：正常 60fps
+    dt≈1、掉到 30fps dt≈2、分頁背景很久（5000ms 間隔）正確被夾在 3。
+
+  ⚠️ 尚未做（需要實際開瀏覽器/兩台裝置測）：
+  (1) 後台點「編輯」確認能跳出角色選單並正確改權限。
+  (2) 兩人對局，一人在買地決策/商店瀏覽中，確認另一人觸發小鳥飛不會
+  立刻搶畫面；已在觀戰中收到廣播時鏡頭有平滑過渡。
+  (3) 實際玩小鳥飛小遊戲，感受卡頓是否改善。
+  (4) 兩人對局中一人關分頁模擬斷線，確認另一人看到帶按鈕的提示、按下
+  後正確回到大廳。
+  (5) 後台遊戲數據頁確認 4 張卡片跟 LIVE 列表顯示當下真實情況。
+========================================================================

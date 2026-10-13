@@ -380,19 +380,19 @@
             <div class="monitor-stats">
                 <div class="stat-card">
                     <div class="stat-label">當前在線人數</div>
-                    <div class="stat-val">124<span>+12%</span></div>
+                    <div class="stat-val" id="stat-online">--<span>人</span></div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">正在進行對局</div>
-                    <div class="stat-val">32<span>場</span></div>
+                    <div class="stat-val" id="stat-ongoing">--<span>場</span></div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">今日考題正確率</div>
-                    <div class="stat-val">76.5<span>%</span></div>
+                    <div class="stat-val" id="stat-accuracy">--<span>%</span></div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">伺服器延遲</div>
-                    <div class="stat-val">18<span>ms</span></div>
+                    <div class="stat-val" style="font-size: 1.1rem; color: #94a3b8;">尚未支援</div>
                 </div>
             </div>
 
@@ -400,44 +400,15 @@
                 <div class="section-title">全服即時活動監控</div>
 
                 <div class="chart-placeholder">
-                    [ 📈 近 24 小時在線人數趨勢圖表預留區 ]
+                    [ 📈 此圖表功能尚未開發（需要新增資料追蹤機制） ]
                 </div>
 
                 <div class="match-list-title">
                     <span>🔴</span> 進行中對局 (LIVE)
                 </div>
 
-                <div class="match-item">
-                    <div class="match-info">
-                        <h4>柏睿的基礎教室</h4>
-                        <p>P1: Sandy | P2: AI Bot | 難度：Easy</p>
-                    </div>
-                    <div class="match-progress">
-                        <span class="prog-tag">進度：圈數 3/5</span>
-                        <span class="time-tag">已進行：12:45</span>
-                    </div>
-                </div>
-
-                <div class="match-item">
-                    <div class="match-info">
-                        <h4>Python 進階大作戰</h4>
-                        <p>P1: User_882 | P2: User_014 | 難度：Hard</p>
-                    </div>
-                    <div class="match-progress">
-                        <span class="prog-tag">進度：圈數 1/3</span>
-                        <span class="time-tag">已進行：05:20</span>
-                    </div>
-                </div>
-
-                <div class="match-item">
-                    <div class="match-info">
-                        <h4>新手練習房 #04</h4>
-                        <p>P1: Momo | P2: AI Bot | 難度：Easy</p>
-                    </div>
-                    <div class="match-progress">
-                        <span class="prog-tag success">即將結束</span>
-                        <span class="time-tag">已進行：18:10</span>
-                    </div>
+                <div id="live-match-list">
+                    <div class="match-item"><div class="match-info"><p>載入中...</p></div></div>
                 </div>
             </div>
         </main>
@@ -472,6 +443,10 @@
                 console.log("管理者相機頁面：驗證成功並續期");
                 // 啟動心跳監控
                 startSyncLoop(username, token);
+                // 🏆 修復 #37：載入真實遊戲數據，取代原本寫死的假資料
+                loadGameStats();
+                if (window.statsTimer) clearInterval(window.statsTimer);
+                window.statsTimer = setInterval(loadGameStats, 5000);
             } else {
                 localStorage.clear();
                 window.location.href = "login.html";
@@ -480,6 +455,42 @@
             console.error("連線異常:", err);
         }
     };
+
+    // 🏆 修復 #37：原本整頁統計卡/LIVE 對局列表都是寫死的假資料，這裡
+    // 改成真的打 /admin/game_stats 查資料庫+記憶體裡的 active_rooms。
+    async function loadGameStats() {
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/admin/game_stats`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+
+            document.getElementById('stat-online').innerHTML = `${data.online_count}<span>人</span>`;
+            document.getElementById('stat-ongoing').innerHTML = `${data.ongoing_matches}<span>場</span>`;
+            document.getElementById('stat-accuracy').innerHTML = `${data.today_accuracy}<span>%</span>`;
+
+            const listEl = document.getElementById('live-match-list');
+            if (!data.live_rooms || data.live_rooms.length === 0) {
+                listEl.innerHTML = `<div class="match-item"><div class="match-info"><p>目前沒有進行中的對局</p></div></div>`;
+                return;
+            }
+            listEl.innerHTML = data.live_rooms.map(room => `
+                <div class="match-item">
+                    <div class="match-info">
+                        <h4>${room.name}</h4>
+                        <p>${room.players.join(' | ')} | 難度：${room.difficulty || '--'}</p>
+                    </div>
+                    <div class="match-progress">
+                        <span class="prog-tag">房號：${room.code}</span>
+                    </div>
+                </div>
+            `).join('');
+        } catch (err) {
+            console.warn('⚠️ 讀取遊戲數據失敗', err);
+        }
+    }
 
     // --- 2. 核心監控循環：維持管理員在線狀態 ---
     function startSyncLoop(username, token) {
@@ -511,6 +522,7 @@
     // --- 3. 手動登出：繞過跳轉攔截 ---
     async function logout() {
         if (syncTimer) clearInterval(syncTimer);
+        if (window.statsTimer) clearInterval(window.statsTimer);
         const username = localStorage.getItem('username');
         if (username) {
             // 🏆 帶上 confirm=true 確保後端執行正式登出

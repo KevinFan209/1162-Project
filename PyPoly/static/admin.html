@@ -562,7 +562,7 @@
                     <div class="user-email">${user.email || '無信箱資料'}</div>
                     <div><span class="user-status ${statusClass}">${statusText}</span></div>
                     <div class="action-btns">
-                        <button class="btn-icon btn-edit">編輯</button>
+                        <button class="btn-icon btn-edit" onclick="openEditRoleModal('${user.username}', '${user.role}')">編輯</button>
                         <button class="btn-icon btn-ban" ${user.username === localStorage.getItem('username') ? 'disabled' : ''} 
                                 onclick="openBanConfirm('${user.username}', '${user.role}')">
                             ${user.role === 'banned' ? '解封' : '封鎖'}
@@ -598,6 +598,45 @@
 
         document.getElementById('confirmActionBtn').onclick = async () => {
             await executeRoleChange(targetUser, newRole, actionText);
+            closeModal();
+        };
+
+        modal.style.display = 'flex';
+    }
+
+    // 🏆 修復 #36：編輯按鈕原本完全沒有 onclick。後端除了 role 之外沒有
+    // 其他可編輯欄位（username/email/密碼都不該讓後台隨意改），所以
+    // 「編輯」定義成手動調整角色權限，跟封鎖/解封本質上是同一支 API，
+    // 只是給一個更直接的下拉選單，不限於 player↔banned 兩種。
+    function openEditRoleModal(targetUser, currentRole) {
+        const modal = document.getElementById('statusModal');
+        const titleEl = document.getElementById('modalTitle');
+        const msgEl = document.getElementById('modalMsg');
+        const footerEl = document.getElementById('modalFooter');
+
+        const roles = [
+            { value: 'player', label: '一般玩家' },
+            { value: 'banned', label: '封鎖' },
+        ];
+
+        titleEl.innerText = `✏️ 編輯使用者「${targetUser}」`;
+        titleEl.style.color = "var(--pixel-blue)";
+        msgEl.innerHTML = `
+            <label style="display:block; margin-bottom:8px; font-weight:700;">權限角色</label>
+            <select id="editRoleSelect" style="width:100%; padding:8px; font-size:1rem;">
+                ${roles.map(r => `<option value="${r.value}" ${r.value === currentRole ? 'selected' : ''}>${r.label}</option>`).join('')}
+            </select>
+        `;
+
+        footerEl.innerHTML = `
+            <button class="btn-3d" id="confirmEditBtn" style="background: var(--pixel-blue); color: white; margin-right: 10px;">儲存</button>
+            <button class="btn-3d" style="background: #dfe4ea; color: var(--text-dark);" onclick="closeModal()">取消</button>
+        `;
+
+        document.getElementById('confirmEditBtn').onclick = async () => {
+            const newRole = document.getElementById('editRoleSelect').value;
+            if (newRole === currentRole) { closeModal(); return; }
+            await executeRoleChange(targetUser, newRole, "更新權限");
             closeModal();
         };
 

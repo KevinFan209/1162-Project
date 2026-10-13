@@ -514,9 +514,45 @@ def update_user_role(target_username: str, data: dict, db: Session = Depends(dat
     # 🏆 核心邏輯：如果是封鎖，強制變 0 讓他在 5 秒內被踢出
     if new_role == "banned":
         user.is_online = 0
-        
+
     db.commit()
     return {"message": "success"}
+
+
+# 🏆 修復 #37：後台遊戲數據頁原本整頁都是寫死的假資料。這裡只接有
+# 現成資料來源的部分——在線人數/進行中對局/今日正確率/LIVE 對局列表。
+# 「伺服器延遲」「24 小時趨勢圖」沒有任何現成資料來源（量測/時間序列
+# 快照都是新的追蹤基礎設施，不是接線），前端改成明確的「尚未支援」
+# 提示，不在這支 API 回傳假資料。
+@app.get("/admin/game_stats")
+def get_game_stats(db: Session = Depends(database.get_db), admin: models.User = Depends(require_admin)):
+    online_count = db.query(models.User).filter(models.User.is_online == 1).count()
+
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_answers = db.query(models.GameAnswerLog).filter(
+        models.GameAnswerLog.created_at >= today_start).all()
+    total = len(today_answers)
+    correct = sum(1 for a in today_answers if a.is_correct)
+    today_accuracy = round(correct / total * 100, 1) if total else 0.0
+
+    # active_rooms 是記憶體裡最即時的來源，不用額外查資料庫
+    live_rooms = [
+        {
+            "code": code,
+            "name": r.get("name", code),
+            "players": r.get("players", []),
+            "mode": r.get("mode", ""),
+            "difficulty": r.get("difficulty", ""),
+        }
+        for code, r in active_rooms.items() if r.get("status") == "gaming"
+    ]
+
+    return {
+        "online_count": online_count,
+        "ongoing_matches": len(live_rooms),
+        "today_accuracy": today_accuracy,
+        "live_rooms": live_rooms,
+    }
 
 # ==========================================================
 # 🏆 題庫後台 CRUD（給 question.html 用）
@@ -1455,7 +1491,23 @@ async def disconnect(sid):
         await sio.emit('order_dice_aborted',
                        {"reason": "opponent_left", "user": user}, room=room)
 
-    # 2. 通知同房其他人，讓前端能顯示提示而不是無限等待
+    # 2. 🏆 修復 #11：把斷線的玩家從 active_rooms[room]['players'] 移除，
+    #    邏輯跟 /rooms/leave 一致——原本這裡完全沒做，斷線玩家的名字會
+    #    殘留在房間名單裡，最多留到 60 分鐘閒置回收才會消失，期間另一位
+    #    玩家重新整理後會看到不一致的房間狀態。
+    if room and room in active_rooms:
+        r = active_rooms[room]
+        if 'players' in r and user in r['players']:
+            r['players'].remove(user)
+            if not r['players']:
+                del active_rooms[room]
+                _clear_room_dice_state(room)
+                sync_room_log(room, "abandoned")
+                print(f"🧹 房間 {room} 已空，自動清理完成（斷線觸發）")
+            else:
+                touch_room(r)
+
+    # 3. 通知同房其他人，讓前端能顯示提示而不是無限等待
     await sio.emit('opponent_disconnected', {"user": user, "room": room}, room=room)
 
 
