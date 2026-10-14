@@ -1,46 +1,51 @@
 /* ---------------------------------- */
-/* 📱 平板與手機版型適配 (螢幕小於 900px) */
+/* 📱 手機與平板響應式設定 (螢幕小於 900px) */
 /* ---------------------------------- */
 @media (max-width: 900px) {
-    /* 1. 將原本左右分欄的版型改為上下堆疊 */
-    .stats-main, .lobby-container {
-        grid-template-columns: 1fr !important;
+    /* 1. 將大廳主佈局改為單欄上下堆疊 */
+    .lobby-main {
         height: auto !important;
-        overflow: auto !important;
+        overflow-y: auto !important;
+        padding: 10px !important;
+    }
+
+    .lobby-container {
+        flex-direction: column !important;
+        width: 100% !important;
+        height: auto !important;
+        gap: 15px !important;
+    }
+
+    /* 2. 手機版隱藏左側個人大頭貼區，或改為橫向顯示，避免佔用空間 */
+    .sidebar {
+        width: 100% !important;
+        height: auto !important;
+    }
+
+    /* 3. 調整右側房間與快速加入列的寬度與對齊 */
+    .quick-join-bar {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 10px !important;
         padding: 15px !important;
     }
 
-    /* 2. 縮小標題與過大的字體，避免在手機版面換行太醜 */
+    .quick-input {
+        width: 100% !important;
+    }
+
+    /* 4. 縮小標題與容器內距，避免超出手機螢幕 */
     h1 {
-        font-size: 2.8rem !important;
+        font-size: 2.5rem !important;
     }
 
-    /* 3. 調整卡片的內距與邊框陰影，讓畫面呼吸空間更多 */
-    .card, .summary-card, .chart-section {
-        padding: 16px !important;
-        box-shadow: 4px 4px 0px #000 !important;
+    .board-header, .room-scroll {
+        padding: 15px !important;
     }
 
-    /* 4. 如果有側邊欄（Side Menu），確保手機上預設收合 */
-    .side-menu {
-        width: 280px !important;
-        right: -280px !important;
-    }
-}
-
-/* ---------------------------------- */
-/* 📱 小手機版型適配 (螢幕小於 600px) */
-/* ---------------------------------- */
-@media (max-width: 600px) {
-    /* 將頂部三大指標卡片從三欄改為單欄或兩欄 */
-    .summary-grid {
-        grid-template-columns: 1fr !important;
-        gap: 10px;
-    }
-
-    /* 按鈕與輸入框拉滿版，方便手指點擊 */
-    .btn-submit, .google-btn {
-        padding: 12px !important;
-        font-size: 1rem !important;
+    .room-item {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 10px !important;
     }
 }
