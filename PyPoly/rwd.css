@@ -1,11 +1,13 @@
-/* ---------------------------------- */
-/* 📱 手機與平板響應式設定 (螢幕小於 900px) */
-/* ---------------------------------- */
-@media (max-width: 900px) {
-    /* 1. 將大廳主佈局改為單欄上下堆疊 */
+/* 手機直向與小螢幕裝置 (小於 768px) */
+@media (max-width: 768px) {
+    body {
+        overflow: auto !important;
+        height: auto !important;
+    }
+    
     .lobby-main {
         height: auto !important;
-        overflow-y: auto !important;
+        overflow: visible !important;
         padding: 10px !important;
     }
 
@@ -16,36 +18,24 @@
         gap: 15px !important;
     }
 
-    /* 2. 手機版隱藏左側個人大頭貼區，或改為橫向顯示，避免佔用空間 */
     .sidebar {
+        width: 100% !important;
+        height: auto !important;
+        margin-bottom: 10px;
+    }
+
+    .main-board {
         width: 100% !important;
         height: auto !important;
     }
 
-    /* 3. 調整右側房間與快速加入列的寬度與對齊 */
     .quick-join-bar {
         flex-direction: column !important;
         align-items: stretch !important;
         gap: 10px !important;
-        padding: 15px !important;
     }
 
     .quick-input {
         width: 100% !important;
-    }
-
-    /* 4. 縮小標題與容器內距，避免超出手機螢幕 */
-    h1 {
-        font-size: 2.5rem !important;
-    }
-
-    .board-header, .room-scroll {
-        padding: 15px !important;
-    }
-
-    .room-item {
-        flex-direction: column !important;
-        align-items: flex-start !important;
-        gap: 10px !important;
     }
 }
