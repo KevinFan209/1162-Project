@@ -3756,3 +3756,92 @@ PyPoly 變更紀錄 (changeLog)
   後正確回到大廳。
   (5) 後台遊戲數據頁確認 4 張卡片跟 LIVE 列表顯示當下真實情況。
 ========================================================================
+[2026-10-14] #87 復原 static/preview/ 並新增 7 個對局事件預覽頁
+
+  背景：static/preview/ 其實從沒被刪過——.gitignore 本來就排除這個
+  資料夾（個人開發工具，不進版控），之前在 Fan-map 分支建立的檔案
+  只存在那個 worktree 裡，換到 Fan-fix-issue-v2 自然看不到。這次先
+  從 Fan-map worktree 復原原本的 4 個檔案（game_board.html／
+  game_player.html／game_minimap.html／game_board_shapes.html +
+  README.md），再依照 README 既有政策（預覽要用的邏輯如果還留在來源
+  html 裡又讀全域變數，必須先抽成 static/js/ 共用模組、改成接參數，
+  不能直接複製）新增 8 個對局事件的預覽頁，7 個新共用模組：
+
+  Phase 1 收購/加蓋決策面板 → game_decision.html
+  - 新增 static/js/decision-ui.js：fillDecisionUI(data,
+    activePlayerName, landData, showNotice)，比原函式多兩個參數
+    （landData 由呼叫端自己查好傳入、showNotice 取代原本直接呼叫
+    的全域 showGameNotice，預設 no-op），內部邏輯原樣搬移。
+  - game.html 3 處呼叫點改傳新簽章。
+
+  Phase 2 過路費／監獄／道具偷竊動畫 → game_events.html
+  - 新增 static/js/spectator-animations.js：playTollAnimationCore／
+    playJailAnimationCore／playStealAnimationCore 統一改成接一個
+    ctx 物件（scene／camera／playerModels／allTileMeshes／mapBlocks／
+    playerCurrentIndex／landOwnership／panoSphere／myName／
+    isSpectating／getPlayerLandColor／setBoardVisibility／showNotice／
+    playSfx），createJailCage／createShovel／spawnCombatText 一併搬
+    移。game.html 新增 buildSpectatorAnimCtx() 每次呼叫前重新組裝
+    （isSpectating 等欄位會隨時間變化，不能快取），6 處呼叫點更新。
+
+  Phase 3 道具商店 → game_shop.html
+  - 新增 static/js/shop-ui.js：SHOP_ITEMS 常數、renderShopCards()、
+    createShopAvatarStage()、renderPlayerModelInShopStage()，取代
+    game.html 原本的 5 個全域變數（shopAvatarRenderer/Scene/Camera/
+    Model/AnimationId）改成單一 let shopAvatarStage。
+
+  Phase 4 小鳥飛小遊戲 → game_flappybird.html
+  - 新增 static/js/flappy-bird.js：createInitialFlappyBirdPipe／
+    flapFlappyBird／drawFlappyBirdScene（純繪製，不改狀態，觀戰端
+    安全）／stepAndDrawFlappyBird（WAITING 狀態的 bob 位移 + 呼叫
+    drawFlappyBirdScene + PLAYING 狀態物理，回傳 {collided,
+    pipesScoredCount} 讓呼叫端自己決定 game-over/得分/socket 廣播）。
+  - 順手發現並修掉一個既存重複：觀戰端 FLAPPY_SYNC 訊號處理原本
+    自己有一份約 45 行重複的畫鳥/畫水管程式碼，改成呼叫同一份
+    drawFlappyBirdScene()。
+
+  Phase 5 擲骰子（對局中移動骰） → game_dice.html【範圍縮小】
+  - 只抽出確定是純函式、本來就多處呼叫的 drawDiceFace(ctx, img, x,
+    y, isRollingEffect) 到 static/js/dice-roll.js。
+  - 原計畫想連手勢偵測/骰子order畫面一起抽，實際讀程式碼後發現
+    startRecognitionProcess() 牽動大量全域狀態（currentLandmarks／
+    isOrderDecided／myDicePoint／cameraInstance），風險/收益不成
+    比例，改為範圍縮小：預覽頁用「模擬擲出 N 點」按鈕取代真實攝影機
+    手勢偵測。
+  - 附帶發現（這次不修，已標在模組檔頭註解）：renderOrderFrame() 整
+    個檔案都沒有任何地方呼叫，是死碼。
+
+  Phase 6 冒險答題 → game_quiz.html【範圍縮小】
+  - 新增 static/js/quiz-ui.js：renderBasicQuizQuestion()（基礎手勢
+    題的題目/選項填入，含原本 2500ms 延遲才設定 questionShownAt 的
+    時序）、renderCodeQuizQuestion()（進階程式碼題的 DOM 填入）。
+  - 附帶發現（這次不修，已標在模組檔頭註解）：
+    startAdventureRecognition() 整個檔案被定義兩次（約 1572 行跟
+    1817 行），後面那份覆蓋前面，實際生效的是 1817 那份——這次抽取
+    來源以生效的那份為準，重複宣告本身建議之後另外清理。
+  - 「答對/答錯」判定本身連後端（手勢辨識 WS／/game/verify_code），
+    預覽頁的進階題用假批改（隨機成功/失敗）取代，基礎題用「模擬
+    選對/選錯」按鈕。
+
+  Phase 7 開合跳處罰小遊戲 → game_punish.html【範圍縮小】
+  - 只抽出不連 socket 的 play3DJumpAnimation(model) 到
+    static/js/punish-minigame.js；真正「算跳了幾次」連
+    /ws/vision/jumping 給後端姿勢辨識算，payToSkipJumping() 牽涉
+    金錢/回合推進，兩者都留在 game.html，預覽頁改用按鈕模擬。
+
+  收尾：static/preview/README.md 補上這次新增的 7 個預覽頁跟 7 個
+  共用模組的索引表格。
+
+  驗證：
+  - 所有新模組／game.html 改動處用 Node vm.Script 做語法檢查，通過。
+  - 把伺服器實際開起來，用 curl 確認 game.html 跟全部 11 個預覽頁
+    （4 復原 + 7 新增）都回 HTTP 200。
+
+  ⚠️ 尚未做（3D 渲染/實際手感沒辦法無瀏覽器代測）：
+  (1) 實際玩一輪對局，確認收購決策、過路費、監獄、偷竊、商店、
+  小鳥飛、骰子、答題、處罰這 9 個被抽過模組的事件，行為跟抽取前
+  完全一致（抽模組最大風險是漏傳某個隱藏的全域依賴）。
+  (2) 11 個預覽頁逐一開啟確認畫面/互動符合預期。
+  (3)（建議之後清理，非這次範圍）startAdventureRecognition() 重複
+  宣告、renderOrderFrame() 死碼，兩者都只是發現並標註，沒有動它們。
+========================================================================

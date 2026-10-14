@@ -15,6 +15,13 @@
     <script src="js/board-props.js"></script>
     <script src="js/board-build.js"></script>
     <script src="js/minimap.js"></script>
+    <script src="js/decision-ui.js"></script>
+    <script src="js/spectator-animations.js"></script>
+    <script src="js/shop-ui.js"></script>
+    <script src="js/flappy-bird.js"></script>
+    <script src="js/dice-roll.js"></script>
+    <script src="js/quiz-ui.js"></script>
+    <script src="js/punish-minigame.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
@@ -1456,7 +1463,7 @@ async function submitQuizAnswer(chosen) {
                     panoSphere.position.copy(camera.position);
                 }
 
-                fillDecisionUI(analysisData, myName);
+                fillDecisionUI(analysisData, myName, window.landOwnership[playerCurrentIndex[myName]], showGameNotice);
 
                 const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
                 const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
@@ -1691,7 +1698,7 @@ async function handleCodeSuccess() {
                 panoSphere.position.copy(camera.position);
             }
 
-            fillDecisionUI(analysisData, myName);
+            fillDecisionUI(analysisData, myName, window.landOwnership[playerCurrentIndex[myName]], showGameNotice);
 
             // 定位收購面板的螢幕
             const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
@@ -1840,23 +1847,17 @@ function startAdventureRecognition(questionObj) {
 
         if (advancedUI) {
             advancedUI.style.display = 'block';
-            
-            document.getElementById('adv-code-question').innerText = questionObj.content;
-            document.getElementById('adv-code-editor').value = ""; 
-            
-            const feedbackEl = document.getElementById('adv-code-feedback');
-            if(feedbackEl) {
-                feedbackEl.innerText = "💡 請在下方編譯器輸入程式碼，並點擊執行驗證";
-                feedbackEl.style.color = "#00cdac";
-            }
-            
+
             window.currentCodeAttempts = 3;
-            const attemptsEl = document.getElementById('adv-code-attempts');
-            if(attemptsEl) attemptsEl.innerText = window.currentCodeAttempts;
-            
-            const submitBtn = document.getElementById('adv-code-submit-btn');
-            if(submitBtn) { submitBtn.disabled = false; submitBtn.style.opacity = "1"; }
-            
+            // 🏆 題目填入畫面已抽至 static/js/quiz-ui.js 的 renderCodeQuizQuestion()
+            renderCodeQuizQuestion({
+                questionEl: document.getElementById('adv-code-question'),
+                editorEl: document.getElementById('adv-code-editor'),
+                feedbackEl: document.getElementById('adv-code-feedback'),
+                attemptsEl: document.getElementById('adv-code-attempts'),
+                submitBtnEl: document.getElementById('adv-code-submit-btn'),
+            }, questionObj, window.currentCodeAttempts);
+
             window.currentAdventureQuestion = questionObj;
             window.uiState = "CODING"; 
             window.questionShownAt = Date.now();
@@ -1882,18 +1883,13 @@ function startAdventureRecognition(questionObj) {
 
         if (basicUI && questionText && optionsArea) {
             basicUI.style.display = 'block';
-            questionText.innerHTML = "✋ 準備辨識，請用手勢比出答案";
-            questionText.style.display = "block";
-            optionsArea.style.display = 'none'; 
-
-            setTimeout(() => {
-                questionText.innerHTML = `【挑戰題目】${questionObj.content}`;
-                window.questionShownAt = Date.now(); 
-                optionsArea.innerHTML = questionObj.options.map((opt, idx) => 
-                    `<div class="opt-pill">(${idx + 1}) ${opt}</div>`
-                ).join("");
-                optionsArea.style.display = 'flex';
-            }, 2500);
+            // 🏆 題目填入畫面（含先顯示「準備辨識」再延遲揭示題目）已抽至
+            // static/js/quiz-ui.js 的 renderBasicQuizQuestion()，回傳的
+            // Promise 在題目真的揭示的那一刻 resolve，questionShownAt
+            // 要記的就是那個時間點，跟原本行為一致。
+            renderBasicQuizQuestion(questionText, optionsArea, questionObj, 2500).then(() => {
+                window.questionShownAt = Date.now();
+            });
 
             window.lockedDiceVal = parseInt(questionObj.answer); 
             window.uiState = "GESTURE";
@@ -2033,7 +2029,7 @@ async function triggerTask() {
             });
 
             // 2. 玩家自己播放 3D 鐵籠動畫
-            await playJailAnimationCore(myName, currentIndex);
+            await playJailAnimationCore(buildSpectatorAnimCtx(), myName, currentIndex);
 
             // 3. 動畫播完後，觸發換人回合 (這會自動讓大家回到上帝視角)
             const nextP = getNextPlayerName();
@@ -2071,12 +2067,8 @@ async function triggerTask() {
 }
 	
 	// ================== 道具系統資料與邏輯 ==================
-const SHOP_ITEMS = {
-    1: { id: "item_discount", name: "買房子折扣40%", price: 200, icon: "🏠", desc: "收購土地時可打6折" },
-    2: { id: "item_plus3", name: "骰到步數+3", price: 150, icon: "🎲", desc: "移動時步數額外加 3 點" },
-    3: { id: "item_notoll", name: "免收取過路費", price: 100, icon: "🛡️", desc: "踩到他人土地時免付過路費" },
-    4: { id: "item_steal", name: "向對方收取300金幣", price: 100, icon: "⚔️", desc: "立即發動，敲打對手奪取金幣" }
-};
+// 🏆 SHOP_ITEMS 已抽至 static/js/shop-ui.js
+// （預覽頁 static/preview/game_shop.html 也用同一份）
 
 // 取得玩家背包
 function getPlayerInventory(playerName) {
@@ -2183,6 +2175,23 @@ function setBoardVisibility(isVisible, specificIdx = -1) {
     }
 }
 
+// 🏆 組出 static/js/spectator-animations.js（過路費/監獄/偷竊動畫）
+// 需要的 ctx——每次呼叫都重新組，不要快取，因為 window.isSpectating
+// 等欄位在對局過程中會變動。
+function buildSpectatorAnimCtx() {
+    return {
+        scene, camera, playerModels, allTileMeshes, mapBlocks,
+        playerCurrentIndex, landOwnership: window.landOwnership,
+        panoSphere,
+        myName: localStorage.getItem('username'),
+        isSpectating: window.isSpectating,
+        getPlayerLandColor,
+        setBoardVisibility,
+        showNotice: showCustomNotice,
+        playSfx,
+    };
+}
+
 // 進入道具店視角
 async function startShopView() {
     console.log("🛒 進入道具店格");
@@ -2225,19 +2234,9 @@ async function startShopView() {
 }
 
 function openShopUI() {
-    const container = document.getElementById('shop-items-container');
-    container.innerHTML = Object.keys(SHOP_ITEMS).map(key => {
-        const item = SHOP_ITEMS[key];
-        return `
-            <div class="shop-item-card" id="shop-card-${key}">
-                <div class="shop-item-id">${key}</div>
-                <div class="shop-item-icon">${item.icon}</div>
-                <div class="shop-item-name">${item.name}</div>
-                <div class="shop-item-desc">${item.desc}</div>
-                <div class="shop-item-price">$${item.price}</div>
-            </div>
-        `;
-    }).join("");
+    // 🏆 卡片渲染抽到 static/js/shop-ui.js 的 renderShopCards()，
+    // openShopUI() 本身牽涉的 socket/鏡頭/uiState 這些對局狀態留在這裡。
+    renderShopCards(document.getElementById('shop-items-container'), SHOP_ITEMS);
 
     document.getElementById('shop-ui').style.display = 'block';
     
@@ -2378,80 +2377,22 @@ function showShopConfirmUI(itemNum) {
 }
 
 
-function initShopAvatarStage() {
-    const canvas = document.getElementById('shop-avatar-canvas');
-    if (!canvas) return;
+// 🏆 createShopAvatarStage()／renderPlayerModelInShopStage() 已抽至
+// static/js/shop-ui.js（預覽頁 static/preview/game_shop.html 也用
+// 同一份）。這裡只保留「要渲染哪個玩家、什麼時候顯示」這段對局邏輯。
+let shopAvatarStage = null;
 
-    shopAvatarRenderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
-    shopAvatarRenderer.setSize(280, 320);
-    shopAvatarRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-
-    shopAvatarScene = new THREE.Scene();
-    
-    // 🏆 調整相機位置，將相機往後拉遠(z=4.5)，讓全身能入鏡
-    shopAvatarCamera = new THREE.PerspectiveCamera(40, 280 / 320, 0.1, 100);
-    shopAvatarCamera.position.set(0, 1.3, 4.5); 
-    shopAvatarCamera.lookAt(0, 1.1, 0); // 相機看著人物身體中心點
-
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
-    shopAvatarScene.add(ambientLight);
-    
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
-    dirLight.position.set(2, 4, 3);
-    shopAvatarScene.add(dirLight);
-}
-
-// 🏆 修正一：道具店 3D 渲染 (強制作為可見、拉高模型高度，解決不重進就白屏的 Bug)
 function renderPlayerModelInShop(playerName) {
     console.log(`[SHOP DEBUG] 準備透過 3D 共用材質渲染玩家 ${playerName} 的道具店替身...`);
-    
+
     const shopUI = document.getElementById('shop-ui');
     const shopViewport = document.getElementById('shop-spectator-avatar-viewport');
-    if (shopUI) shopUI.style.display = 'block'; 
+    if (shopUI) shopUI.style.display = 'block';
     if (shopViewport) shopViewport.style.display = 'block';
 
     requestAnimationFrame(() => {
-        if (!shopAvatarScene) initShopAvatarStage();
-        shopAvatarRenderer.setSize(280, 320);
-
-        if (shopAnimationId) {
-            cancelAnimationFrame(shopAnimationId);
-            shopAnimationId = null;
-        }
-        if (shopAvatarModel) shopAvatarScene.remove(shopAvatarModel);
-
-        const sourceModel = playerModels[playerName];
-        if (sourceModel) {
-            shopAvatarModel = sourceModel.clone();
-            
-            // 🏆 關鍵修正：必須強制將複製出來的模型設為可見！
-            // 防止因為主地圖呼叫了 setBoardVisibility(false) 導致複製出隱形人
-            shopAvatarModel.visible = true;
-            shopAvatarModel.traverse((child) => {
-                child.visible = true; // 強制所有骨架與網格皆可見
-                if (child.isMesh) {
-                    const srcChild = sourceModel.getObjectByName(child.name);
-                    if (srcChild) child.material = srcChild.material; 
-                }
-            });
-
-            // 🏆 調整位置：原本是 -0.6，往上移改成 -0.15，讓虛擬人物站高一點
-            shopAvatarModel.position.set(0, -0.15, 0); 
-            shopAvatarModel.scale.set(0.75, 0.75, 0.75); 
-            shopAvatarModel.rotation.set(0, 0, 0); // 正面朝前
-            
-            shopAvatarScene.add(shopAvatarModel);
-        } else {
-            console.error(`[SHOP DEBUG] 找不到玩家 ${playerName} 的地圖 3D 模型！`);
-        }
-
-        function animateShopAvatar() {
-            shopAnimationId = requestAnimationFrame(animateShopAvatar);
-            if (shopAvatarRenderer && shopAvatarScene && shopAvatarCamera) {
-                shopAvatarRenderer.render(shopAvatarScene, shopAvatarCamera);
-            }
-        }
-        animateShopAvatar();
+        if (!shopAvatarStage) shopAvatarStage = createShopAvatarStage(document.getElementById('shop-avatar-canvas'));
+        renderPlayerModelInShopStage(shopAvatarStage, playerModels[playerName]);
     });
 }
 
@@ -2791,7 +2732,7 @@ socket.on('dice_event_sync', (data) => {
         else if (data.type === "FLAPPY_SYNC") {
             if (!window.isSpectating) return; // 只有觀戰者需要畫
             const pt = data.point;
-            
+
             const sb = document.getElementById('fb-status-bar');
             if (sb) {
                 sb.innerText = pt.statusText;
@@ -2801,55 +2742,13 @@ socket.on('dice_event_sync', (data) => {
             const fbCanvas = document.getElementById('fb-canvas');
             if (!fbCanvas) return;
             const fbCtx = fbCanvas.getContext('2d');
-            fbCtx.clearRect(0, 0, fbCanvas.width, fbCanvas.height);
 
-            // 1. 神同步水管
-            pt.pipes.forEach(p => {
-                fbCtx.fillStyle = 'rgba(0, 205, 172, 0.9)';
-                fbCtx.lineWidth = 3;
-                fbCtx.strokeStyle = '#005b4c';
-                fbCtx.fillRect(p.x, 0, 45, p.top);
-                fbCtx.strokeRect(p.x, 0, 45, p.top);
-                fbCtx.fillRect(p.x, p.top + p.gap, 45, fbCanvas.height - p.top - p.gap);
-                fbCtx.strokeRect(p.x, p.top + p.gap, 45, fbCanvas.height - p.top - p.gap);
-            });
-
-            // 2. 神同步小鳥動態
-            let birdX = fbCanvas.width * 0.25;
-            fbCtx.save();
-            fbCtx.translate(birdX, pt.birdY); 
-            
-            if (pt.state === 'PLAYING') {
-                let rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (pt.birdV * 0.08)));
-                fbCtx.rotate(rotation);
-            }
-
-            fbCtx.fillStyle = '#ffde59';
-            fbCtx.strokeStyle = '#d97706'; 
-            fbCtx.lineWidth = 2.5;
-            fbCtx.beginPath(); fbCtx.arc(0, 0, 15, 0, Math.PI * 2); fbCtx.fill(); fbCtx.stroke();
-            
-            fbCtx.fillStyle = '#ffb3b3';
-            fbCtx.beginPath(); fbCtx.arc(6, 4, 3.5, 0, Math.PI*2); fbCtx.fill();
-
-            fbCtx.fillStyle = '#ffffff'; 
-            fbCtx.beginPath(); fbCtx.arc(6, -4, 6, 0, Math.PI*2); fbCtx.fill(); fbCtx.stroke();
-            fbCtx.fillStyle = '#0f172a'; 
-            fbCtx.beginPath(); fbCtx.arc(8, -4, 2.5, 0, Math.PI*2); fbCtx.fill(); 
-            
-            fbCtx.fillStyle = '#f97316'; 
-            fbCtx.strokeStyle = '#c2410c';
-            fbCtx.lineWidth = 1.5;
-            fbCtx.beginPath(); fbCtx.moveTo(11, 2); fbCtx.lineTo(24, 5); fbCtx.lineTo(11, 9); fbCtx.closePath(); fbCtx.fill(); fbCtx.stroke();
-            
-            let wingY = (pt.state === 'PLAYING' && pt.birdV < 0) ? 3 : -2; 
-            if (pt.state === 'WAITING') wingY = Math.sin(Date.now() / 150) * 3;
-            fbCtx.fillStyle = '#ffffff'; 
-            fbCtx.strokeStyle = '#d97706';
-            fbCtx.lineWidth = 2;
-            fbCtx.beginPath(); fbCtx.ellipse(-5, wingY, 8, 5, 0, 0, Math.PI*2); fbCtx.fill(); fbCtx.stroke();
-
-            fbCtx.restore(); 
+            // 🏆 畫面繪製改呼叫 static/js/flappy-bird.js 的
+            // drawFlappyBirdScene()——原本這裡自己重寫一份跟 gameLoop()
+            // 幾乎一樣的繪製邏輯，是「沒抽成共用模組」的實例，這次順手
+            // 修掉。觀戰者直接用廣播收到的座標畫，不跑物理，所以傳的
+            // bird 是臨時物件，不是本地狀態。
+            drawFlappyBirdScene(fbCtx, fbCanvas, pt.state, { y: pt.birdY, v: pt.birdV }, pt.pipes);
         }
         // 🏆 接收跳躍廣播，觸發 3D 人物揮手動畫
         else if (data.type === "FLAPPY_FLAP") {
@@ -2948,8 +2847,8 @@ let showResultTime = 0; // 記錄骰子停止的時間點
 
 let isMoving = false;
 
-// 🏆 觀戰者專屬 3D 舞台變數
-let shopAvatarRenderer, shopAvatarScene, shopAvatarCamera, shopAvatarModel, shopAnimationId;
+// 🏆 觀戰者專屬 3D 舞台變數：shopAvatarStage 宣告在
+// renderPlayerModelInShop() 旁邊（搬去 static/js/shop-ui.js 之後）
 
 
 window.noticeHideTimer = null;
@@ -3941,7 +3840,7 @@ async function executeStealAnimation(attackerName) {
         payload: { victim: victimName } 
     });
 
-    await playStealAnimationCore(attackerName, victimName);
+    await playStealAnimationCore(buildSpectatorAnimCtx(), attackerName, victimName);
 
     // 2. 動畫結束後，扣除金錢並廣播
     updateMoneyUI(victimName, -300);
@@ -3968,236 +3867,11 @@ async function executeStealAnimation(attackerName) {
     }, 2000);
 }
 
-async function playStealAnimationCore(attackerName, victimName) {
-    const attackerModel = playerModels[attackerName];
-    const victimModel = playerModels[victimName];
-    if(!attackerModel || !victimModel) return;
+// 🏆 playStealAnimationCore()／spawnCombatText() 已抽至 static/js/spectator-animations.js
+// （預覽頁 static/preview/game_events.html 也用同一份）
 
-    // 確保背景明亮，絕不黑屏
-    scene.background = new THREE.Color(0xf1f5f9); 
-    if (panoSphere) { panoSphere.visible = false; panoSphere.material.opacity = 0; }
-    allTileMeshes.forEach(m => m.visible = true);
-
-    // 紀錄原本位置以便動畫後歸位
-    const origAttackerPos = attackerModel.position.clone();
-    const origAttackerRot = attackerModel.rotation.clone();
-    const origVictimPos = victimModel.position.clone();
-    const origVictimRot = victimModel.rotation.clone();
-
-    // 抓取一個中央格子
-    const centerIdx = playerCurrentIndex[attackerName] || 0;
-    const centerPos = mapBlocks[centerIdx].clone();
-
-    // 一左一右排好
-    attackerModel.position.set(centerPos.x - 1.5, centerPos.y, centerPos.z);
-    victimModel.position.set(centerPos.x + 1.5, centerPos.y, centerPos.z);
-    
-    // 預設先看著正前方的相機鏡頭 (+Z方向)
-    attackerModel.lookAt(attackerModel.position.x, attackerModel.position.y, attackerModel.position.z + 10);
-    victimModel.lookAt(victimModel.position.x, victimModel.position.y, victimModel.position.z + 10);
-
-    attackerModel.visible = true;
-    victimModel.visible = true;
-	
-	const attackerHead = attackerModel.getObjectByName("head");
-    const victimHead = victimModel.getObjectByName("head");
-    if (attackerHead) attackerHead.visible = true;
-    if (victimHead) victimHead.visible = true;
-
-    // 🏆 修正運鏡：相機拉高數值往上 (y+4.5)，往後退 (z+9)，向下俯視兩人
-    if (attackerName === localStorage.getItem('username') || window.isSpectating) {
-        camera.layers.enable(0);
-        camera.layers.enable(1); 
-        camera.position.set(centerPos.x, centerPos.y + 5.0, centerPos.z + 9);
-        camera.lookAt(centerPos.x, centerPos.y + 1.2, centerPos.z);
-    }
-
-    // 裝備鐵鍬
-    const shovel = createShovel();
-    attackerModel.add(shovel); 
-    shovel.position.set(0.6, 1.2, 0.6);
-    shovel.rotation.x = Math.PI / 2;
-
-    await new Promise(res => {
-        const tl = gsap.timeline({ onComplete: res });
-        
-        // 🏆 修正角度：轉 60 度 (Math.PI / 3) 即可，這樣既能看著對方，又能露出側臉給相機看
-        tl.to(attackerModel.rotation, { y: Math.PI / 3, duration: 0.5, ease: "back.out(1.5)" })
-          .to(victimModel.rotation, { y: -Math.PI / 3, duration: 0.3 }, "-=0.2")
-          .to({}, { duration: 0.2 }); 
-        
-        // 連敲三下噴錢
-        for(let i = 0; i < 6; i++) {
-            tl.to(attackerModel.rotation, { x: -0.6, duration: 0.25, ease: "power2.inOut" }) 
-              .to(attackerModel.rotation, { x: 0.7, duration: 0.12, ease: "none" }) 
-              .add(() => {
-                  playSfx('steal');
-
-                  gsap.to(victimModel.position, { x: victimModel.position.x + (i%2===0?0.15:-0.15), duration: 0.05, yoyo: true, repeat: 3 });
-                  // 🏆 呼叫專屬 2D 跳字特效 (紅色)
-                  spawnCombatText('right', "🪙 -$50", "#ff4757"); 
-              })
-              .to(attackerModel.rotation, { x: 0, duration: 0.2 }); 
-        }
-        
-        // 結尾大字 (綠色)
-        tl.add(() => {
-            spawnCombatText('left', "💰 總共 +$300", "#00cdac");
-        });
-        tl.to({}, { duration: 1.5 });
-    });
-
-    attackerModel.remove(shovel);
-    
-    // 歸位
-    attackerModel.position.copy(origAttackerPos);
-    attackerModel.rotation.copy(origAttackerRot);
-    victimModel.position.copy(origVictimPos);
-    victimModel.rotation.copy(origVictimRot);
-}
-
-// 🏆 新增：專為偷竊戰鬥設計的跳字特效 (乾淨、清晰、不破圖)
-function spawnCombatText(side, text, color) {
-    const el = document.createElement('div');
-    el.innerHTML = text;
-    
-    // 加入一點隨機偏移，讓連續敲擊時文字不會完全重疊，有「連擊」的快感
-    const offsetX = (Math.random() - 0.5) * 40;
-    const offsetY = (Math.random() - 0.5) * 40;
-
-    el.style.cssText = `
-        position: fixed;
-        top: calc(50% + ${offsetY}px);
-        left: calc(${side === 'left' ? '30%' : '70%'} + ${offsetX}px);
-        transform: translate(-50%, -50%) scale(0.5);
-        background: ${color};
-        color: white;
-        padding: 10px 25px;
-        border-radius: 50px;
-        border: 4px solid white;
-        font-size: 2.2rem;
-        font-weight: 900;
-        z-index: 100000;
-        opacity: 0;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-        pointer-events: none;
-    `;
-    document.body.appendChild(el);
-
-    // 彈出動畫
-    gsap.to(el, { opacity: 1, scale: 1.2, duration: 0.2, ease: "back.out(2)" });
-    // 往上飄並淡出
-    gsap.to(el, { top: "35%", opacity: 0, duration: 0.8, delay: 0.6, ease: "power1.in", onComplete: () => el.remove() });
-}
-
-// 🏆 修正版：支援「強制收購」與「地主加蓋升級」
-function fillDecisionUI(data, activePlayerName) {
-    window.isDiscountApplied = false;
-    window.discountedPrice = 0;
-    window.currentBuyoutTarget = null; 
-    window.currentBuyoutPrice = 0;     
-    window.isUpgrading = false; // 🏆 新增升級狀態
-    window.upgradePrice = 0;
-    window.newToll = 0;
-
-    if (!data) return;
-
-    const currentIdx = playerCurrentIndex[activePlayerName];
-    const landData = window.landOwnership[currentIdx];
-
-    const nameEl = document.getElementById('adv-ui-name');
-    if (nameEl) nameEl.innerText = (landData && landData.name) ? landData.name : (data.name || "未知土地");
-    
-    const basePrice = landData ? (landData.originalPrice || data.base_price) : data.base_price;
-    const currentToll = landData ? (landData.toll || data.toll) : data.toll;
-
-    const baseEl = document.getElementById('adv-ui-base');
-    if (baseEl) {
-        if (landData && landData.owner !== activePlayerName) {
-            baseEl.innerHTML = `$${basePrice}<br><span style="font-size: 0.75rem; color: #94a3b8; font-weight: 700;">(原地主購入價)</span>`;
-        } else {
-            baseEl.innerText = `$${basePrice}`;
-        }
-    }
-    
-    // ⛅ 即時天氣狀況（替換原人流計數）
-    const weatherEl = document.getElementById('adv-ui-weather-desc');
-    if (weatherEl) {
-        if (data.has_temp_event) {
-            weatherEl.innerText = `${data.weather || '晴'} (${data.temp_station}站)`;
-        } else {
-            weatherEl.innerText = '晴朗';
-        }
-    }
-    
-    // 🌡️ 即時氣溫與加成（替換原觀光加成）
-    const tempEl = document.getElementById('adv-ui-temp-desc');
-    if (tempEl) {
-    if (data.has_temp_event) {
-        tempEl.innerText = `${data.temp}°C (×${data.temp_multiplier})`;
-    } else {
-        tempEl.innerText = '適中 (×1.0)';
-    }
-}
-
-    const aqiTag = document.getElementById('adv-ui-aqi-notice');
-    const totalEl = document.getElementById('adv-ui-total');
-    const tollEl = document.getElementById('adv-ui-toll');
-
-    // 🏆 情境 A：自己是地主 -> 加蓋升級模式
-    if (landData && landData.owner === activePlayerName) {
-        if (aqiTag) {
-            aqiTag.innerText = `👑 您的領地 (可加蓋)`;
-            aqiTag.style.background = "#00cdac";
-            aqiTag.style.color = "white";
-            aqiTag.style.display = "block";
-        }
-        
-        window.upgradePrice = Math.floor(basePrice * 0.5);
-        window.newToll = Math.floor(currentToll * 2);
-        window.isUpgrading = true;
-
-        if (totalEl) totalEl.innerHTML = `<span style="font-size: 1.5rem; color: #94a3b8; margin-right:10px;">加蓋費用</span> <span style="color:#00cdac;">$${window.upgradePrice}</span>`;
-        if (tollEl) tollEl.innerHTML = `<span style="text-decoration: line-through; color: #94a3b8; font-size: 0.9rem;">$${currentToll}</span> <span style="color: #f08c00;">$${window.newToll}</span>`;
-
-        setTimeout(() => showGameNotice(`🏠 歡迎回來！加蓋一層樓只需 $${window.upgradePrice}，過路費將提升！`, 3500), 800);
-    } 
-    // 情境 B：別人是地主 -> 強制收購模式
-    else if (landData && landData.owner !== activePlayerName) {
-        if (aqiTag) {
-            aqiTag.innerText = `👑 原地主：${landData.owner}`;
-            aqiTag.style.background = "#ff4757";
-            aqiTag.style.color = "white";
-            aqiTag.style.display = "block";
-        }
-
-        const buyoutPrice = Math.floor(basePrice * 1.5);
-        if (totalEl) totalEl.innerHTML = `<span style="font-size: 2rem; text-decoration: line-through; color: #94a3b8; margin-right:10px;">$${basePrice}</span> <span style="color:#ff4757;">$${buyoutPrice}</span>`;
-        if (tollEl) tollEl.innerText = `$${currentToll}`;
-
-        window.currentBuyoutTarget = landData.owner;
-        window.currentBuyoutPrice = buyoutPrice;
-
-        setTimeout(() => showGameNotice(`👑 此地主為 ${landData.owner}！強制收購需加價 50%！`, 3500), 800);
-    } 
-    // 情境 C：空地 -> 一般收購（頂部只顯示 AQI 特殊事件）
-    else {
-        if (aqiTag) {
-            if (data.has_env_event) {
-                const em = data.env_multiplier;
-                aqiTag.innerText = `🍃 ${data.env_station}站 AQI ${data.aqi}（${data.env_status}，×${em}）`;
-                aqiTag.style.background = (em >= 1.0) ? "#00cdac" : "#ff7675";
-                aqiTag.style.color = "white";
-                aqiTag.style.padding = "6px 12px";
-                aqiTag.style.display = "block";
-            } else {
-                aqiTag.style.display = "none"; // 無 AQI 事件時隱藏頂部標籤
-            }
-        }
-        if (totalEl) totalEl.innerText = `$${data.total_price || 0}`;
-        if (tollEl) tollEl.innerText = `$${data.toll || 0}`;
-    }
-}
+// 🏆 fillDecisionUI() 已抽至 static/js/decision-ui.js
+// （預覽頁 static/preview/game_decision.html 也用同一份）
 
 
 // 🏆 修正 3：從 localStorage 恢復土地所有權記憶，防止重新整理後資料遺失！
@@ -4264,7 +3938,7 @@ async function handleTollPhase(myName, landName, questionObj) {
         payload: { owner: ownerName, amount: tollAmount, usedItem: false, landName: landName }
     });
 
-    await playTollAnimationCore(myName, ownerName, tollAmount, false, currentIdx);
+    await playTollAnimationCore(buildSpectatorAnimCtx(), myName, ownerName, tollAmount, false, currentIdx);
 
     updateMoneyUI(myName, -tollAmount);
     updateMoneyUI(ownerName, tollAmount);
@@ -4273,106 +3947,8 @@ async function handleTollPhase(myName, landName, questionObj) {
     startAdventureRecognition(questionObj);
 }
 
-// 🏆 修正：完美運鏡、只留一格、動畫結束人物消失
-async function playTollAnimationCore(payerName, ownerName, tollAmount, usedItem, tileIdx) {
-	const payerModel = playerModels[payerName];
-    const ownerModel = playerModels[ownerName];
-    if(!payerModel || !ownerModel) return;
-
-    // 🏆 修正三：在動畫開始前，強制刷新這格土地與房子的顏色，保證 100% 同步
-    const landData = window.landOwnership[tileIdx];
-    if (landData) {
-        const ownerColor = getPlayerLandColor(landData.owner);
-        if (allTileMeshes[tileIdx]) allTileMeshes[tileIdx].material.color.set(ownerColor);
-        const house = scene.getObjectByName("house_" + tileIdx);
-        if (house) {
-            house.children.forEach(c => {
-                if (c.geometry && c.geometry.type === 'ConeGeometry') {
-                    c.material.color.set(ownerColor);
-                    c.material.needsUpdate = true;
-                }
-            });
-        }
-    }
-
-    payerModel.visible = true;
-    ownerModel.visible = true;
-
-    // 強制顯示雙方的頭部 (解決無頭騎士問題)
-    const payerHead = payerModel.getObjectByName("head");
-    const ownerHead = ownerModel.getObjectByName("head");
-    if(payerHead) payerHead.visible = true;
-    if(ownerHead) ownerHead.visible = true;
-
-    const existingHouse = scene.getObjectByName("house_" + tileIdx);
-    if(existingHouse) existingHouse.visible = true;
-
-    // 1. 保持環景圖，移除純色背景
-    scene.background = null; 
-    if (panoSphere) { panoSphere.visible = true; panoSphere.material.opacity = 1; }
-    
-    // 🏆 修正三-A：移除舊的 allTileMeshes.forEach，改用 setBoardVisibility 確保其他房子被隱藏
-    setBoardVisibility(false, tileIdx);
-
-    // 🏆 修正三-B：在畫面下方顯示過路費收取提示
-    showCustomNotice("💸 支付/收取過路費中...", "bottom", 2500);
-
-    const origPayerPos = payerModel.position.clone();
-    const origPayerRot = payerModel.rotation.clone();
-    const origOwnerPos = ownerModel.position.clone();
-    const origOwnerRot = ownerModel.rotation.clone();
-
-    const centerPos = mapBlocks[tileIdx].clone();
-    payerModel.position.set(centerPos.x - 1.2, centerPos.y, centerPos.z);
-    ownerModel.position.set(centerPos.x + 1.2, centerPos.y, centerPos.z);
-    
-    // 3. 讓人物斜面對鏡頭 (看著前方的相機)
-    payerModel.lookAt(ownerModel.position.x, ownerModel.position.y, ownerModel.position.z + 5);
-    ownerModel.lookAt(payerModel.position.x, payerModel.position.y, payerModel.position.z + 5);
-
-    payerModel.visible = true;
-    ownerModel.visible = true;
-
-    if (payerName === localStorage.getItem('username') || window.isSpectating) {
-        camera.layers.enable(0); camera.layers.enable(1); 
-        camera.position.set(centerPos.x, centerPos.y + 5.0, centerPos.z + 9);
-        camera.lookAt(centerPos.x, centerPos.y + 1, centerPos.z);
-    }
-
-    await new Promise(res => {
-        const tl = gsap.timeline({ onComplete: res });
-        tl.to(payerModel.rotation, { x: 0.3, duration: 0.3, yoyo: true, repeat: 1 })
-          .add(() => {
-              if (usedItem) {
-                  spawnCombatText('left', "🛡️ 免疫", "#4facfe");
-                  spawnCombatText('right', "💢 沒收到錢", "#94a3b8");
-                  gsap.to(ownerModel.rotation, { z: 0.3, duration: 0.2, yoyo: true, repeat: 3 }); 
-              } else {
-                  spawnCombatText('left', `💸 -$${tollAmount}`, "#ff4757");
-                  spawnCombatText('right', `🤑 +$${tollAmount}`, "#00cdac");
-                  gsap.to(ownerModel.position, { y: ownerModel.position.y + 0.8, duration: 0.3, yoyo: true, repeat: 1 }); 
-              }
-          })
-          .to({}, { duration: 2.0 }); 
-    });
-	
-	// 🏆 動畫播完後，隱藏人物、格子與【房子】
-	payerModel.visible = false;
-    ownerModel.visible = false;
-    setBoardVisibility(false);
-    if (allTileMeshes[tileIdx]) allTileMeshes[tileIdx].visible = false;
-    if (existingHouse) existingHouse.visible = false; // 解決觀戰者殘留問題
-
-    // 恢復主角原本的無頭設定 (避免回到第一人稱時穿模)
-    if(payerName === localStorage.getItem('username') && !window.isSpectating) {
-        if(payerHead) payerHead.visible = false;
-    }
-
-    // 恢復人物原本的方向
-    payerModel.position.copy(origPayerPos); payerModel.rotation.copy(origPayerRot);
-    ownerModel.position.copy(origOwnerPos); ownerModel.rotation.copy(origOwnerRot);
-	
-}
+// 🏆 playTollAnimationCore() 已抽至 static/js/spectator-animations.js
+// （預覽頁 static/preview/game_events.html 也用同一份）
 
 socket.on('land_bought_sync', async (data) => {
     const myName = localStorage.getItem('username');
@@ -4981,25 +4557,8 @@ socket.on('update_pose_count_broadcast', (data) => {
 });
 
 // 🏆 虛擬人物 3D 跳躍動畫函式
-function play3DJumpAnimation(model) {
-    const origY = model.position.y;
-    // 身體往上跳
-    gsap.to(model.position, {
-        y: origY + 1.2,
-        duration: 0.25,
-        yoyo: true,
-        repeat: 1,
-        ease: "power1.out"
-    });
-
-    // 雙手揮動 (簡單的開合跳手臂動作)
-    const leftArm = model.getObjectByName("leftArm");
-    const rightArm = model.getObjectByName("rightArm");
-    if (leftArm && rightArm) {
-        gsap.to(leftArm.rotation, { z: Math.PI / 1.5, duration: 0.25, yoyo: true, repeat: 1 });
-        gsap.to(rightArm.rotation, { z: -Math.PI / 1.5, duration: 0.25, yoyo: true, repeat: 1 });
-    }
-}
+// 🏆 play3DJumpAnimation() 已抽至 static/js/punish-minigame.js
+// （預覽頁 static/preview/game_punish.html 也用同一份）
 
 // game.html 修正版
 let isProcessingDecision = false; // 🏆 新增：全域防重複鎖定
@@ -5268,175 +4827,8 @@ async function initPoseAndStartVision() {
 	activeCamera.start();
 }
 
-// 🛠️ 輔助函式：建立監獄鐵籠 (高度降低版，完美露出臉部且不撞頂)
-function createJailCage() {
-    const group = new THREE.Group();
-    const ironMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.9, roughness: 0.4 });
-
-    const baseGeo = new THREE.BoxGeometry(4.8, 0.4, 4.8);
-    const base = new THREE.Mesh(baseGeo, ironMat);
-    base.position.y = 0.2;
-    group.add(base);
-
-    // 🏆 降低頂部高度 (由 6.0 降至 4.5)，避免擋住上方 UI 或超出畫面
-    const top = new THREE.Mesh(baseGeo, ironMat);
-    top.position.y = 4.5; 
-    group.add(top);
-
-    // 🏆 配合降低的高度，把柱子縮短 (5.6 -> 4.3)，並調低位置 (3.2 -> 2.35)
-    const barGeo = new THREE.CylinderGeometry(0.18, 0.18, 4.3, 8);
-    
-    // 一樣保持正前方留空，不擋住虛擬人物的表情
-    const positions = [
-        [-2.2, -2.2], [-2.2, 0], [-2.2, 2.2],
-        [ 2.2, -2.2], [ 2.2, 0], [ 2.2, 2.2],
-        [ 0,   -2.2] 
-    ];
-    positions.forEach(pos => {
-        const bar = new THREE.Mesh(barGeo, ironMat);
-        bar.position.set(pos[0], 2.35, pos[1]);
-        group.add(bar);
-    });
-
-    return group;
-}
-
-// 🎬 核心動畫：播放監獄鐵籠從天而降
-async function playJailAnimationCore(playerName, tileIdx) {
-    const model = playerModels[playerName];
-    if (!model) return;
-    playSfx('jail'); // 🏆 需求⑥：監獄鐵籠砸下音效
-
-    // 1. 場景清理：顯示亮色背景，隱藏除了此格以外的物件
-    scene.background = new THREE.Color(0xf1f5f9); 
-    if (panoSphere) { panoSphere.visible = false; panoSphere.material.opacity = 0; }
-    setBoardVisibility(false, tileIdx);
-
-    model.visible = true;
-    const head = model.getObjectByName("head");
-    if (head) head.visible = true;
-
-    const existingHouse = scene.getObjectByName("house_" + tileIdx);
-    if(existingHouse) existingHouse.visible = true;
-
-    // 2. 紀錄原位，並讓人物走到格子「正中央」面對鏡頭受刑
-    const origPos = model.position.clone();
-    const origRot = model.rotation.clone();
-    const centerPos = mapBlocks[tileIdx].clone();
-	
-	const targetTile = allTileMeshes[tileIdx];
-    if (targetTile) {
-        // 🏆 動畫開始時，將監獄格子微微放大即可 (從 1.6 改為 1.3)
-        gsap.to(targetTile.scale, { x: 1.3, z: 1.3, duration: 0.5, ease: "back.out(1.5)" });
-    }
-    
-    model.position.set(centerPos.x, centerPos.y, centerPos.z);
-    model.lookAt(centerPos.x, centerPos.y, centerPos.z + 10);
-
-    // 3. 專屬運鏡：🏆 超近距離低視角，讓鐵籠看起來更高大！
-    // 3. 專屬運鏡：🏆 超近距離低視角，讓鐵籠看起來更高大！
-    let origCamPos = camera.position.clone();
-    let origCamQuat = camera.quaternion.clone(); // 🏆 修正二(A)：改為記錄相機原本的「旋轉角度」，因為主遊戲中沒有 controls！
-
-    if (playerName === localStorage.getItem('username') || window.isSpectating) {
-        camera.layers.enable(0); camera.layers.enable(1);
-        camera.position.set(centerPos.x, centerPos.y + 2.5, centerPos.z + 8.5); 
-        
-        camera.lookAt(centerPos.x, centerPos.y + 2.0, centerPos.z); // 直接使用相機的 lookAt 即可鎖定視角
-        origCamPos = camera.position.clone(); // 記下震動前的基準點
-    }
-
-    // 4. 生成鐵籠並放置於高空 (y+15)
-    const cage = createJailCage();
-    cage.position.set(centerPos.x, centerPos.y + 15, centerPos.z);
-    scene.add(cage);
-
-    const tearsGroup = new THREE.Group();
-    const tearGeo = new THREE.SphereGeometry(0.06, 6, 6);
-    const tearMat = new THREE.MeshBasicMaterial({ color: 0x4facfe, transparent: true, opacity: 0.8 });
-    for(let i=0; i<12; i++) {
-        const t = new THREE.Mesh(tearGeo, tearMat);
-        t.position.set((Math.random()-0.5)*0.6, 0, 0.45); // 分佈在臉頰前
-        tearsGroup.add(t);
-    }
-    tearsGroup.visible = false; // 砸下來才開始哭
-    if (head) head.add(tearsGroup);
-
-    showCustomNotice("⛓️ 慘遭逮捕！下回合禁賽", "bottom", 4500);
-
-    // 5. 震撼動畫開始 (🏆 放慢速度版)
-    await new Promise(res => {
-        const tl = gsap.timeline({ onComplete: res });
-        
-        // 放慢重力落下 (duration 0.35 -> 0.7)
-        tl.to(cage.position, { y: centerPos.y, duration: 0.7, ease: "power4.in" })
-          .add(() => {
-              // 鏡頭大地震
-              if (playerName === localStorage.getItem('username') || window.isSpectating) {
-                  const shakeObj = { val: 0 };
-                  gsap.to(shakeObj, {
-                      val: 1, duration: 0.4,
-                      onUpdate: () => {
-                          camera.position.y = origCamPos.y + (Math.random() - 0.5) * 1.5;
-                          camera.position.x = origCamPos.x + (Math.random() - 0.5) * 1.5;
-                      },
-                      onComplete: () => { camera.position.copy(origCamPos); }
-                  });
-              }
-              
-              // 放慢壓扁特效 (duration 0.05 -> 0.15)
-              gsap.to(model.scale, { y: 0.4, x: 2.4, z: 2.4, duration: 0.15, yoyo: true, repeat: 1 });
-              // 驚嚇旋轉放慢 (duration 1.0 -> 1.5)
-              gsap.to(model.rotation, { y: Math.PI * 6, duration: 1.5, ease: "power2.out", delay: 0.15 });
-
-              // 🏆 啟動狂噴眼淚特效
-              tearsGroup.visible = true;
-              tearsGroup.children.forEach(t => {
-                  gsap.to(t.position, {
-                      y: -1.0 - Math.random(), // 往下掉
-                      duration: 0.4 + Math.random()*0.3,
-                      repeat: -1,
-                      ease: "power1.in"
-                  });
-                  gsap.to(t.material, {
-                      opacity: 0,
-                      duration: 0.4 + Math.random()*0.3,
-                      repeat: -1,
-                      ease: "power1.in"
-                  });
-              });
-          })
-          // 放慢鐵籠微彈 (duration 0.08 -> 0.2)
-          .to(cage.position, { y: centerPos.y + 0.5, duration: 0.2, ease: "power1.out" })
-          .to(cage.position, { y: centerPos.y, duration: 0.15, ease: "power1.in" })
-          // 拉長圍觀時間 (duration 3.5 -> 4.5)
-          .to({}, { duration: 4.5 }); 
-    });
-	
-	// 6. 動畫播完後清理模型與狀態
-    if (head) head.remove(tearsGroup); 
-    scene.remove(cage);
-    model.position.copy(origPos);
-    model.rotation.copy(origRot);
-    model.scale.set(1.5, 1.5, 1.5); 
-    model.visible = false;
-    setBoardVisibility(false);
-    if(existingHouse) existingHouse.visible = false;
-	
-	if (targetTile) {
-        // 🏆 動畫結束後，將監獄格子縮回原狀
-        gsap.to(targetTile.scale, { x: 1, z: 1, duration: 0.5 });
-    }
-
-    // 🏆 關鍵修正：動畫結束後，將觀戰者與玩家的相機注視點恢復原狀，防止畫面卡住
-    if (playerName === localStorage.getItem('username') || window.isSpectating) {
-        camera.quaternion.copy(origCamQuat); 
-    }
-
-    if(playerName === localStorage.getItem('username') && !window.isSpectating) {
-        if(head) head.visible = false;
-    }
-}
+// 🏆 createJailCage()／playJailAnimationCore() 已抽至 static/js/spectator-animations.js
+// （預覽頁 static/preview/game_events.html 也用同一份）
 
 let birdData = { y: 240, pipes: [], coins: 0 };
 
@@ -5651,8 +5043,12 @@ async function startFlappyBirdMiniGame() {
         outCanvas.height = 480;
     }
 
-    fbPipes = [{ x: fbCanvas.width * 0.7, top: fbCanvas.height * 0.3, gap: 160, passed: false }];
+    fbPipes = [createInitialFlappyBirdPipe(fbCanvas)];
 	
+    // 🏆 畫面繪製＋物理已抽至 static/js/flappy-bird.js 的
+    // stepAndDrawFlappyBird()（預覽頁 static/preview/game_flappybird.html
+    // 也用同一份）。這裡只留對局限定的部分：回合計分、碰撞後的勝負
+    // 判定、廣播給觀戰者。
     function gameLoop() {
         if (window.uiState !== 'FLAPPY_BIRD') return;
 
@@ -5663,91 +5059,22 @@ async function startFlappyBirdMiniGame() {
         const dt = fbLastFrameTs ? Math.min((fbNowTs - fbLastFrameTs) / (1000 / 60), 3) : 1;
         fbLastFrameTs = fbNowTs;
 
-        fbCtx.clearRect(0, 0, fbCanvas.width, fbCanvas.height);
-
-        fbPipes.forEach(p => {
-            fbCtx.fillStyle = 'rgba(0, 205, 172, 0.9)';
-            fbCtx.lineWidth = 3;
-            fbCtx.strokeStyle = '#005b4c';
-            fbCtx.fillRect(p.x, 0, 45, p.top);
-            fbCtx.strokeRect(p.x, 0, 45, p.top);
-            fbCtx.fillRect(p.x, p.top + p.gap, 45, fbCanvas.height - p.top - p.gap);
-            fbCtx.strokeRect(p.x, p.top + p.gap, 45, fbCanvas.height - p.top - p.gap);
-        });
-
-        let birdX = fbCanvas.width * 0.25;
-        if (fbState === 'WAITING') fbBird.y = fbCanvas.height / 2 + Math.sin(Date.now() / 200) * 10;
-        
-        fbCtx.save();
-        fbCtx.translate(birdX, fbBird.y); 
-        
-        if (fbState === 'PLAYING') {
-            let rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (fbBird.v * 0.08)));
-            fbCtx.rotate(rotation);
-        }
-
-        fbCtx.fillStyle = '#ffde59';
-        fbCtx.strokeStyle = '#d97706'; 
-        fbCtx.lineWidth = 2.5;
-        fbCtx.beginPath(); fbCtx.arc(0, 0, 15, 0, Math.PI * 2); fbCtx.fill(); fbCtx.stroke();
-        
-        fbCtx.fillStyle = '#ffb3b3';
-        fbCtx.beginPath(); fbCtx.arc(6, 4, 3.5, 0, Math.PI*2); fbCtx.fill();
-
-        fbCtx.fillStyle = '#ffffff'; 
-        fbCtx.beginPath(); fbCtx.arc(6, -4, 6, 0, Math.PI*2); fbCtx.fill(); fbCtx.stroke();
-        fbCtx.fillStyle = '#0f172a'; 
-        fbCtx.beginPath(); fbCtx.arc(8, -4, 2.5, 0, Math.PI*2); fbCtx.fill(); 
-        
-        fbCtx.fillStyle = '#f97316'; 
-        fbCtx.strokeStyle = '#c2410c';
-        fbCtx.lineWidth = 1.5;
-        fbCtx.beginPath(); fbCtx.moveTo(11, 2); fbCtx.lineTo(24, 5); fbCtx.lineTo(11, 9); fbCtx.closePath(); fbCtx.fill(); fbCtx.stroke();
-        
-        let wingY = (fbState === 'PLAYING' && fbBird.v < 0) ? 3 : -2; 
-        if (fbState === 'WAITING') wingY = Math.sin(Date.now() / 150) * 3;
-        fbCtx.fillStyle = '#ffffff'; 
-        fbCtx.strokeStyle = '#d97706';
-        fbCtx.lineWidth = 2;
-        fbCtx.beginPath(); fbCtx.ellipse(-5, wingY, 8, 5, 0, 0, Math.PI*2); fbCtx.fill(); fbCtx.stroke();
-
-        fbCtx.restore(); 
+        const { collided, pipesScoredCount } = stepAndDrawFlappyBird(fbCtx, fbCanvas, fbState, fbBird, fbPipes, dt);
 
         if (fbState === 'PLAYING') {
-            fbBird.v += 0.5 * dt;
-            if (fbBird.v > 10) fbBird.v = 10;
-            fbBird.y += fbBird.v * dt;
-
-            if (fbPipes[fbPipes.length - 1].x < fbCanvas.width - 200) {
-                let gap = 160; 
-                let topHeight = Math.random() * (fbCanvas.height - gap - 50) + 25;
-                fbPipes.push({ x: fbCanvas.width, top: topHeight, gap: gap, passed: false });
-            }
-
-            for (let i = fbPipes.length - 1; i >= 0; i--) {
-                let p = fbPipes[i];
-                p.x -= 3.5 * dt;
-
-                if ((birdX + 16 > p.x && birdX - 16 < p.x + 45) && (fbBird.y - 14 < p.top || fbBird.y + 14 > p.top + p.gap)) {
-                    triggerGameOver();
+            if (pipesScoredCount > 0) {
+                fbScore += pipesScoredCount;
+                document.getElementById('fb-status-bar').innerText = `經過 ${fbScore} 水管，累積 ${fbScore * 100} 金幣 💰`;
+                if (fbScore >= 15) {
+                    triggerGameWin();
+                    return;
                 }
-
-                if (!p.passed && p.x + 45 < birdX) {
-                    p.passed = true;
-                    fbScore++;
-                    document.getElementById('fb-status-bar').innerText = `經過 ${fbScore} 水管，累積 ${fbScore * 100} 金幣 💰`;
-                    
-                    if (fbScore >= 15) {
-                        triggerGameWin();
-                        return; 
-                    }
-                }
-                if (p.x < -50) fbPipes.splice(i, 1);
             }
-            
-            if (fbBird.y > fbCanvas.height || fbBird.y < 0) triggerGameOver();
+            if (collided) {
+                triggerGameOver();
+            }
         }
-        
+
         // 🏆 修正二：每隔 33 毫秒 (約 30 FPS)，將畫面座標與 UI 狀態廣播給觀戰者！
         if (!window.lastFlappySync || Date.now() - window.lastFlappySync > 33) {
             window.lastFlappySync = Date.now();
@@ -5834,10 +5161,10 @@ async function startFlappyBirdMiniGame() {
                                 } else if (window.fbStartFlapCount >= 2) {
                                     fbState = 'PLAYING';
                                     document.getElementById('fb-status-bar').innerText = `經過 0 水管，累積 0 金幣 💰`;
-                                    fbBird.v = -8.0; 
+                                    flapFlappyBird(fbBird);
                                 }
                             } else if (fbState === 'PLAYING') {
-                                fbBird.v = -8.0; 
+                                flapFlappyBird(fbBird);
                             }
                         }
                     }
@@ -6121,17 +5448,8 @@ async function startRecognitionProcess() {
     }
 }
 	
-	function drawDiceFace(ctx, img, x, y, isRollingEffect) {
-		if (!img || !img.complete) return;
-		const size = 120; // 調整骰子大小
-		ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
-		
-		if (isRollingEffect) {
-			ctx.strokeStyle = "#ffde59";
-			ctx.lineWidth = 4;
-			ctx.strokeRect(x - size / 2 - 5, y - size / 2 - 5, size + 10, size + 10);
-		}
-	}
+	// 🏆 drawDiceFace() 已抽至 static/js/dice-roll.js
+	// （預覽頁 static/preview/game_dice.html 也用同一份）
 
 	function renderOrderFrame() {
 		if (isOrderDecided && !isRolling) {
@@ -6955,22 +6273,8 @@ function spawnStepBubble(parentModel, text) {
     }
 }
 	
-// 🛠️ 輔助函式：建立簡易鐵鍬
-function createShovel() {
-    const group = new THREE.Group();
-    // 鍬柄 (長木棍)
-    const handleGeo = new THREE.CylinderGeometry(0.05, 0.05, 1.2, 8);
-    const handleMat = new THREE.MeshStandardMaterial({ color: 0x8b4513 });
-    const handle = new THREE.Mesh(handleGeo, handleMat);
-    group.add(handle);
-    // 鍬頭 (鐵製部分)
-    const headGeo = new THREE.BoxGeometry(0.3, 0.4, 0.05);
-    const headMat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, metalness: 0.8 });
-    const head = new THREE.Mesh(headGeo, headMat);
-    head.position.y = -0.6;
-    group.add(head);
-    return group;
-}
+// 🏆 createShovel() 已抽至 static/js/spectator-animations.js
+// （預覽頁 static/preview/game_events.html 也用同一份）
 
 // 🛠️ 輔助函式：建立簡易房屋
 function createHouse(color) {
@@ -7642,7 +6946,10 @@ function exitSpectatorMode() {
     const shopViewport = document.getElementById('shop-spectator-avatar-viewport');
     if (shopViewport) {
         shopViewport.style.display = 'none';
-        if (shopAnimationId) { cancelAnimationFrame(shopAnimationId); shopAnimationId = null; }
+        if (shopAvatarStage && shopAvatarStage.animationId) {
+            cancelAnimationFrame(shopAvatarStage.animationId);
+            shopAvatarStage.animationId = null;
+        }
     }
 	
     // 🏆 修正三-B：使用 setBoardVisibility 確保格子跟「房子」都出現
@@ -7806,7 +7113,7 @@ function updateSpectatorUI(data) {
         decisionUI.style.display = 'flex';
         
         if (data.payload) {
-            fillDecisionUI(data.payload, data.user);
+            fillDecisionUI(data.payload, data.user, window.landOwnership[playerCurrentIndex[data.user]], showGameNotice);
         }
 
         if (virtualScreen) virtualScreen.visible = false;
@@ -7908,7 +7215,7 @@ function updateSpectatorUI(data) {
         if (panoSphere) { panoSphere.visible = false; panoSphere.material.opacity = 0; }
         
         // 觸發同步看動畫，結束後自動回到上帝視角
-        playStealAnimationCore(data.user, data.payload.victim).then(() => {
+        playStealAnimationCore(buildSpectatorAnimCtx(), data.user, data.payload.victim).then(() => {
             if (window.isSpectating) {
                 autoSmoothExitToGodView();
             }
@@ -7921,7 +7228,7 @@ function updateSpectatorUI(data) {
         if (panoSphere) { panoSphere.visible = false; panoSphere.material.opacity = 0; }
         
         // 觀戰者同步播放過路費動畫
-        playTollAnimationCore(data.user, data.payload.owner, data.payload.amount, data.payload.usedItem, playerCurrentIndex[data.user] || 0)
+        playTollAnimationCore(buildSpectatorAnimCtx(), data.user, data.payload.owner, data.payload.amount, data.payload.usedItem, playerCurrentIndex[data.user] || 0)
         .then(() => {
             // 動畫播完後不需要回到上帝視角，因為他還要繼續看對方答題！
             // 相機會留在該格子，等待下一個階段 (QUIZ) 傳來
@@ -7933,7 +7240,7 @@ function updateSpectatorUI(data) {
         if (panoSphere) { panoSphere.visible = false; panoSphere.material.opacity = 0; }
         
         // 🏆 觀戰者同步播放監獄落下動畫
-        playJailAnimationCore(data.user, data.payload.tileIdx)
+        playJailAnimationCore(buildSpectatorAnimCtx(), data.user, data.payload.tileIdx)
         .then(() => {
             // 動畫播完後，如果是觀戰者，自動平滑飛回上帝視角
             if (window.isSpectating) {
