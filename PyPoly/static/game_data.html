@@ -415,6 +415,7 @@
     </div>
 </div>
 
+<script src="js/admin-stats-ui.js"></script>
 <script>
     const API_URL = location.origin;
     let syncTimer = null;
@@ -456,8 +457,8 @@
         }
     };
 
-    // 🏆 修復 #37：原本整頁統計卡/LIVE 對局列表都是寫死的假資料，這裡
-    // 改成真的打 /admin/game_stats 查資料庫+記憶體裡的 active_rooms。
+    // 🏆 renderGameStats() 已抽至 static/js/admin-stats-ui.js
+    // （預覽頁 static/preview/game_data_stats.html 也用同一份）
     async function loadGameStats() {
         const token = localStorage.getItem('token');
         try {
@@ -466,27 +467,12 @@
             });
             if (!res.ok) return;
             const data = await res.json();
-
-            document.getElementById('stat-online').innerHTML = `${data.online_count}<span>人</span>`;
-            document.getElementById('stat-ongoing').innerHTML = `${data.ongoing_matches}<span>場</span>`;
-            document.getElementById('stat-accuracy').innerHTML = `${data.today_accuracy}<span>%</span>`;
-
-            const listEl = document.getElementById('live-match-list');
-            if (!data.live_rooms || data.live_rooms.length === 0) {
-                listEl.innerHTML = `<div class="match-item"><div class="match-info"><p>目前沒有進行中的對局</p></div></div>`;
-                return;
-            }
-            listEl.innerHTML = data.live_rooms.map(room => `
-                <div class="match-item">
-                    <div class="match-info">
-                        <h4>${room.name}</h4>
-                        <p>${room.players.join(' | ')} | 難度：${room.difficulty || '--'}</p>
-                    </div>
-                    <div class="match-progress">
-                        <span class="prog-tag">房號：${room.code}</span>
-                    </div>
-                </div>
-            `).join('');
+            renderGameStats({
+                onlineEl: document.getElementById('stat-online'),
+                ongoingEl: document.getElementById('stat-ongoing'),
+                accuracyEl: document.getElementById('stat-accuracy'),
+                liveListEl: document.getElementById('live-match-list'),
+            }, data);
         } catch (err) {
             console.warn('⚠️ 讀取遊戲數據失敗', err);
         }

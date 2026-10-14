@@ -3845,3 +3845,83 @@ PyPoly 變更紀錄 (changeLog)
   (3)（建議之後清理，非這次範圍）startAdventureRecognition() 重複
   宣告、renderOrderFrame() 死碼，兩者都只是發現並標註，沒有動它們。
 ========================================================================
+[2026-10-14] #88 新增 4 個預覽頁，快速複測 urgent 標籤修復（#36/#37/#9/#11）
+
+  背景：#87 做的是對局事件的視覺預覽頁，這次目的不同——要能不開一局、
+  不用兩台裝置、不用登入管理員，就快速驗證 #86 修的 urgent 標籤 issue
+  目前的修復行為對不對。#33 只是觀察沒有實際修法，沒有東西可以做成
+  預覽頁；#8 不需要新模組（修法早在 #87 就已經在 flappy-bird.js 裡），
+  只在既有 game_flappybird.html 加了卡頓模擬按鈕。
+
+  Phase A（#36 後台編輯使用者角色） → static/preview/admin_edit_role.html
+  - 新增 static/js/admin-role-modal.js：fillEditRoleModal(titleEl, msgEl,
+    footerEl, targetUser, currentRole, roles, onConfirm)，從 admin.html
+    的 openEditRoleModal() 抽出純填值邏輯，onConfirm(newRole) 取代原本
+    寫死呼叫 executeRoleChange() 的部分。
+  - admin.html 的 openEditRoleModal() 改成薄包裝呼叫這個模組；
+    executeRoleChange()／後端 PUT /admin/users/{user}/role 不動。
+  - 預覽頁：假 3 人名單，「編輯」按鈕跳出下拉選單，儲存只顯示模擬結果
+    不打真的 API，不需要 admin 帳號登入。
+
+  Phase B（#37 後台遊戲數據頁） → static/preview/game_data_stats.html
+  - 新增 static/js/admin-stats-ui.js：renderGameStats(els, data)，從
+    game_data.html 的 loadGameStats() 抽出 DOM 填值部分（fetch 留在
+    原處）。「伺服器延遲」卡/趨勢圖本來就是純靜態文字，不在處理範圍。
+  - 預覽頁：4 顆按鈕餵不同假 JSON（無資料/多人多場/正確率 0/邊界值），
+    不連真的 GET /admin/game_stats。
+
+  Phase C（#9 觀戰忙碌排隊＋鏡頭過渡） → static/preview/game_spectator_busy.html
+  - 新增 static/js/spectator-camera.js：isUiStateBusy(uiState,
+    busyStates)、computeSpectatorCameraTarget(phase, data,
+    playerModels)。
+  - 範圍縮小：enterSpectatorMode_Internal() 還包含敘述打字機效果、
+    處罰可見性強制、背景球載入，這些跟 #9 修的 bug 無關，這次只抽出
+    真正被改動到的忙碌判斷跟鏡頭目標計算兩段純函式，不搬整個函式；
+    gsap.to(camera.position, ...) 補間呼叫本身（有副作用）留在
+    game.html 原處。
+  - game.html 的 adventure_phase_broadcast 忙碌判斷改呼叫
+    isUiStateBusy()；enterSpectatorMode_Internal() 算鏡頭目標的部分
+    改呼叫 computeSpectatorCameraTarget()。
+  - 預覽頁：可切換 uiState（正常/買地決策中/商店瀏覽中/商店確認中）
+    跟是否已在觀戰，送出假廣播比較忙碌排隊行為跟 1.5s（isManual）/
+    0.6s（已在觀戰）補間速度差異。
+
+  Phase D（#8 小鳥飛 delta-time 穩定性） → 擴充既有 game_flappybird.html
+  - 不用新抽模組，#8 的修法早在 #87 就已經在 static/js/flappy-bird.js
+    的 stepAndDrawFlappyBird() 裡。只在預覽頁加「模擬下一幀卡頓」按鈕
+    （用 setTimeout 真的延後下一次 requestAnimationFrame，讓既有的
+    Math.min(dt, 3) 夾值邏輯吃到真實變大的時間差）跟即時 dt 數值顯示，
+    這是測試用控制，不是遊戲邏輯，不違反抽取政策。
+
+  Phase E（#11 對手斷線通知＋返回大廳按鈕） → static/preview/game_disconnect.html
+  - 新增 static/js/game-notice.js：showGameNoticeInto(contentEl, msg,
+    duration)（原樣搬移 showGameNotice()，含既存但這次不修的
+    noticeHideTimer 競態小 bug，只在檔頭註解標註）、
+    buildDisconnectNoticeHtml(username)（組斷線通知 HTML，含「返回
+    大廳」按鈕的 pointer-events:auto 關鍵樣式）。
+  - game.html 的 showGameNotice() 改成薄包裝；opponent_disconnected
+    handler 改呼叫 buildDisconnectNoticeHtml()。
+    leaveDisconnectedRoomAndGoLobby()／後端 disconnect()／
+    /rooms/leave 不動。
+  - 預覽頁：模擬對手斷線/決定先後手離線兩種通知，自己的
+    leaveDisconnectedRoomAndGoLobby() 只顯示模擬提示，不真的連後端/
+    跳轉，方便重複測試。
+
+  static/preview/README.md 補上這 4 個新預覽頁跟 4 個新模組的索引，
+  以及 game_flappybird.html 新增的卡頓模擬功能說明。
+
+  驗證：
+  - 所有新模組／game.html／admin.html／game_data.html 改動處用 Node
+    vm.Script 做語法檢查，全部通過。
+  - 把伺服器實際開起來，用 curl 確認 game.html／admin.html／
+    game_data.html 跟這次新增/擴充的 5 個預覽頁都回 HTTP 200。
+
+  ⚠️ 尚未做（需要實際登入/兩人對局才能代測）：
+  (1) admin.html 實際點「編輯」，確認下拉選單跟儲存流程跟抽取前行為
+  一致。
+  (2) game_data.html 用真實 admin 帳號開一次，確認畫面跟抽模組前一樣。
+  (3) 實際兩人對局製造「一人在買地/商店中、另一人觸發小鳥飛」情境，
+  確認忙碌輪詢跟鏡頭補間速度跟抽模組前一致。
+  (4) 實際玩小鳥飛，確認新增的卡頓模擬按鈕不影響正常遊玩手感。
+  (5) 兩人對局一人斷線，確認通知/按鈕行為跟抽模組前一致。
+========================================================================

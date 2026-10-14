@@ -17,6 +17,8 @@
     <script src="js/minimap.js"></script>
     <script src="js/decision-ui.js"></script>
     <script src="js/spectator-animations.js"></script>
+    <script src="js/spectator-camera.js"></script>
+    <script src="js/game-notice.js"></script>
     <script src="js/shop-ui.js"></script>
     <script src="js/flappy-bird.js"></script>
     <script src="js/dice-roll.js"></script>
@@ -1074,11 +1076,8 @@ socket.on('opponent_disconnected', (data) => {
     // 🏆 修復 #11：原本只顯示文字、duration=0 永遠不會自動消失，玩家
     // 只能自己注意到側邊欄連結手動離開。補一顆按鈕讓玩家自己決定何時
     // 離開（不自動強制雙方退回大廳，避免誤判短暫斷線重連的情況）。
-    showGameNotice(
-        `🔌 ${data.user} 已離線<br>`
-        + `<span style="font-size:1.2rem;">對局無法繼續</span><br>`
-        + `<button onclick="leaveDisconnectedRoomAndGoLobby()" style="margin-top:20px; pointer-events:auto; padding:10px 28px; font-size:1rem; font-weight:900; border:3px solid #1e272e; background:#ffde59; cursor:pointer;">返回大廳</button>`,
-        0);
+    // buildDisconnectNoticeHtml() 已抽至 static/js/game-notice.js。
+    showGameNotice(buildDisconnectNoticeHtml(data.user), 0);
 });
 
 // 🏆 修復 #11：對局中對手斷線時，留下的玩家按這顆按鈕才離開——呼叫
@@ -1307,19 +1306,19 @@ socket.on('adventure_phase_broadcast', async (data) => {
     // 🏆 修正二：將小鳥飛 (FLAPPY_BIRD_START) 加入自動強制拉入名單，防止重新整理後卡在上帝視角
     const autoSyncPhases = ['PUNISH', 'PUNISH_SKIP', 'JAIL_ANIM', 'FLAPPY_BIRD_START'];
     if (autoSyncPhases.includes(data.phase)) {
-        // 🏆 修復 #9：原本這裡無條件強制拉進觀戰，完全沒檢查接收端自己
-        // 當下在做什麼——如果正在買地決策/商店瀏覽/確認中，畫面會被
-        // 突然搶走。沿用跟 PURCHASE_DECISION 等既有「忙碌中」狀態同一份
-        // 清單，忙碌中就用跟敘述排隊一樣的輪詢等它結束才真正進入。
-        const busyStates = ["PURCHASE_DECISION", "SHOP_BROWSING", "SHOP_CONFIRMING"];
+        // 🏆 修復 #9：isUiStateBusy() 已抽至 static/js/spectator-camera.js
+        // （預覽頁 static/preview/game_spectator_busy.html 也用同一份）。
+        // 原本這裡無條件強制拉進觀戰，完全沒檢查接收端自己當下在做什麼
+        // ——如果正在買地決策/商店瀏覽/確認中，畫面會被突然搶走。忙碌中
+        // 就用跟敘述排隊一樣的輪詢等它結束才真正進入。
         const enterNow = async () => {
             if (godUI) godUI.style.display = 'none';
             const needsFlyIn = !window.isSpectating;
             await enterSpectatorMode_Internal(data, needsFlyIn);
         };
-        if (busyStates.includes(window.uiState)) {
+        if (isUiStateBusy(window.uiState)) {
             const waitBusy = setInterval(() => {
-                if (!busyStates.includes(window.uiState)) {
+                if (!isUiStateBusy(window.uiState)) {
                     clearInterval(waitBusy);
                     enterNow();
                 }
@@ -6864,27 +6863,11 @@ async function enterSpectatorMode_Internal(data, isManual = false) {
         }
     }
 
-    let targetLook = new THREE.Vector3(0, 1.5, -10);
-    let targetCamPos = new THREE.Vector3(0, 1.5, 0);
+    // 🏆 computeSpectatorCameraTarget() 已抽至 static/js/spectator-camera.js
+    // （預覽頁 static/preview/game_spectator_busy.html 也用同一份）
+    const { targetCamPos, targetLook, skipCameraMove } =
+        computeSpectatorCameraTarget(data.phase, data, playerModels);
 
-    if (data.phase === 'PUNISH' || data.phase === 'PUNISH_SKIP') {
-        const targetModel = playerModels[data.user];
-        if (targetModel) {
-            // (模型與頭部顯隱已經交由 enforcePunishVisibility 統一處理)
-            const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(targetModel.quaternion); 
-            
-            targetCamPos = targetModel.position.clone()
-                .add(new THREE.Vector3(0, 2.5, 0)) 
-                .addScaledVector(forward, 4.9);
-                
-            targetLook = targetModel.position.clone()
-                .add(new THREE.Vector3(0, 2.1, 0)); 
-        }
-    }
-
-    // 🏆 關鍵修正：如果是播放全螢幕動畫的階段，讓專屬動畫函式自己接管相機，不要在這裡亂移鏡頭！
-    const skipCameraMove = ['JAIL_ANIM', 'ITEM_STEAL_ANIM', 'TOLL_ANIM'].includes(data.phase);
-    
     if (!skipCameraMove) {
         // 🏆 修復 #9：已經在觀戰中收到廣播（isManual=false）原本是
         // camera.position.copy(...) 瞬間硬切、零過渡——這正是「畫面
@@ -7428,50 +7411,10 @@ function updateMoneyUI(playerName, amount) {
 }
 
 
+// 🏆 showGameNoticeInto() 已抽至 static/js/game-notice.js
+// （預覽頁 static/preview/game_disconnect.html 也用同一份）
 function showGameNotice(msg, duration = 3000) {
-    const content = document.getElementById('flow-content');
-    if (!content) return;
-	
-	if (window.noticeHideTimer) clearTimeout(window.noticeHideTimer);
-    
-    // 🏆 先隱藏內容以利重置動畫
-    content.style.opacity = "0";
-    console.log("📢 準備顯示訊息:", msg);
-    
-	setTimeout(() => {
-        content.innerHTML = `
-            <div style="display: flex; justify-content: center; align-items: center; width: 100vw; height: 100vh; pointer-events: none; position: fixed; top: 0; left: 0; background: rgba(240, 249, 255, 0.3); backdrop-filter: blur(8px);">
-                <div style="
-                    background: rgba(255, 255, 255, 0.9); 
-                    padding: 40px 80px; 
-                    border-radius: 40px; 
-                    border: 2px solid #ffffff;
-                    box-shadow: 0 15px 40px rgba(0,0,0,0.06);
-                    animation: noticePopIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-                ">
-                    <h2 style="
-                        font-size: 3.2rem; 
-                        color: #1e293b; 
-                        font-weight: 900; 
-                        margin: 0;
-                        text-align: center;
-                        letter-spacing: -1px;
-                        display: block !important;
-                    ">
-                        ${msg}
-                    </h2>
-                </div>
-            </div>
-        `;
-        content.style.opacity = "1";
-    }, 100);
-
-    if (duration > 0) {
-        setTimeout(() => { 
-            content.style.opacity = "0"; 
-            setTimeout(() => { if(content.style.opacity === "0") content.innerHTML = ""; }, 800);
-        }, duration);
-    }
+    showGameNoticeInto(document.getElementById('flow-content'), msg, duration);
 }
 
 	function startSyncLoop(username, token) {

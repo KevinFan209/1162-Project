@@ -434,6 +434,7 @@
 </div>
 
 <script src="js/ngrok-fetch.js"></script>
+<script src="js/admin-role-modal.js"></script>
 <script>
     const API_URL = location.origin;
     let syncTimer = null; // 用於儲存心跳與列表刷新的計時器
@@ -608,38 +609,17 @@
     // 其他可編輯欄位（username/email/密碼都不該讓後台隨意改），所以
     // 「編輯」定義成手動調整角色權限，跟封鎖/解封本質上是同一支 API，
     // 只是給一個更直接的下拉選單，不限於 player↔banned 兩種。
+    // 🏆 fillEditRoleModal() 已抽至 static/js/admin-role-modal.js
+    // （預覽頁 static/preview/admin_edit_role.html 也用同一份）
     function openEditRoleModal(targetUser, currentRole) {
         const modal = document.getElementById('statusModal');
-        const titleEl = document.getElementById('modalTitle');
-        const msgEl = document.getElementById('modalMsg');
-        const footerEl = document.getElementById('modalFooter');
-
-        const roles = [
-            { value: 'player', label: '一般玩家' },
-            { value: 'banned', label: '封鎖' },
-        ];
-
-        titleEl.innerText = `✏️ 編輯使用者「${targetUser}」`;
-        titleEl.style.color = "var(--pixel-blue)";
-        msgEl.innerHTML = `
-            <label style="display:block; margin-bottom:8px; font-weight:700;">權限角色</label>
-            <select id="editRoleSelect" style="width:100%; padding:8px; font-size:1rem;">
-                ${roles.map(r => `<option value="${r.value}" ${r.value === currentRole ? 'selected' : ''}>${r.label}</option>`).join('')}
-            </select>
-        `;
-
-        footerEl.innerHTML = `
-            <button class="btn-3d" id="confirmEditBtn" style="background: var(--pixel-blue); color: white; margin-right: 10px;">儲存</button>
-            <button class="btn-3d" style="background: #dfe4ea; color: var(--text-dark);" onclick="closeModal()">取消</button>
-        `;
-
-        document.getElementById('confirmEditBtn').onclick = async () => {
-            const newRole = document.getElementById('editRoleSelect').value;
-            if (newRole === currentRole) { closeModal(); return; }
-            await executeRoleChange(targetUser, newRole, "更新權限");
-            closeModal();
-        };
-
+        fillEditRoleModal(
+            document.getElementById('modalTitle'),
+            document.getElementById('modalMsg'),
+            document.getElementById('modalFooter'),
+            targetUser, currentRole, null,
+            (newRole) => executeRoleChange(targetUser, newRole, "更新權限")
+        );
         modal.style.display = 'flex';
     }
 
