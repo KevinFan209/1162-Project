@@ -936,30 +936,14 @@
             renderDimensions(data.dimensions || [], gamesPlayedCount);
 
             let extractedList = [];
-            const aiCtx = data.ai_context || {};
-            const wrongArr = aiCtx.recent_wrong || data.recent_wrong || [];
-
-            wrongArr.forEach(q => {
-                const chosenReal = resolveOptionText(q, 'chosen', 'chosen_text');
-                const correctReal = resolveOptionText(q, 'correct', 'correct_text');
-
-                extractedList.push({
-                    topic: q.topic || 'Python 概念',
-                    question: q.question || 'Python 語法題',
-                    chosen: q.chosen,
-                    chosen_text: chosenReal,
-                    correct: q.correct,
-                    correct_text: correctReal,
-                    is_correct: false
-                });
-            });
-
+            
+            // 優先讀取後端回傳的完整題目資料
             if (Array.isArray(data.questions) && data.questions.length > 0) {
                 extractedList = data.questions.map(q => {
                     const isCorrect = q.is_correct !== undefined ? q.is_correct : (q.chosen === q.correct);
                     return {
-                        topic: q.topic || 'Python 概念',
-                        question: q.question || 'Python 語法題',
+                        topic: q.topic || q.category || 'Python 概念',
+                        question: q.question || q.question_text || 'Python 語法題',
                         chosen: q.chosen,
                         chosen_text: resolveOptionText(q, 'chosen', 'chosen_text'),
                         correct: q.correct,
@@ -967,20 +951,23 @@
                         is_correct: isCorrect
                     };
                 });
-            } else if (s.correct > 0 && extractedList.length === wrongArr.length) {
-                (data.dimensions || []).filter(d => d.correct > 0).forEach(d => {
-                    const tmpl = CORRECT_QUESTIONS_TEMPLATE[d.topic] || {
-                        topic: d.topic,
-                        question: `【${d.topic}】基礎觀念測驗`,
-                        chosen_text: "正解",
-                        correct_text: "正解"
-                    };
+            } else {
+                // 如果沒有 questions，才從 ai_context.recent_wrong 撈取錯題
+                const aiCtx = data.ai_context || {};
+                const wrongArr = aiCtx.recent_wrong || data.recent_wrong || [];
+
+                wrongArr.forEach(q => {
+                    const chosenReal = resolveOptionText(q, 'chosen', 'chosen_text');
+                    const correctReal = resolveOptionText(q, 'correct', 'correct_text');
+
                     extractedList.push({
-                        topic: tmpl.topic,
-                        question: tmpl.question,
-                        chosen_text: tmpl.chosen_text,
-                        correct_text: tmpl.correct_text,
-                        is_correct: true
+                        topic: q.topic || q.category || 'Python 概念',
+                        question: q.question || q.question_text || q.text || 'Python 語法題',
+                        chosen: q.chosen,
+                        chosen_text: chosenReal,
+                        correct: q.correct,
+                        correct_text: correctReal,
+                        is_correct: false
                     });
                 });
             }
