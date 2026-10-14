@@ -1011,7 +1011,8 @@
     }
 
     function isQuestionCorrect(q) {
-        return q.is_correct === true;
+        // 兼容後端的 1 / 0、true / false 以及選項文字比對
+        return q.is_correct === true || q.is_correct === 1 || q.is_correct === "1" || String(q.is_correct).toLowerCase() === "true";
     }
 
     function updateFilterCounts() {
