@@ -1011,8 +1011,15 @@
     }
 
     function isQuestionCorrect(q) {
-        // 兼容後端的 1 / 0、true / false 以及選項文字比對
-        return q.is_correct === true || q.is_correct === 1 || q.is_correct === "1" || String(q.is_correct).toLowerCase() === "true";
+        // 1. 檢查後端明確回傳的對錯狀態
+        if (q.is_correct === true || q.is_correct === 1 || q.is_correct === "1" || String(q.is_correct).toLowerCase() === "true") {
+            return true;
+        }
+        // 2. 如果沒有明確狀態，透過比對「當時選擇」與「正確答案」的文字是否一致來判定
+        if (q.chosen !== undefined && q.correct !== undefined && q.chosen !== null && q.correct !== null) {
+            return String(q.chosen).trim() === String(q.correct).trim();
+        }
+        return false;
     }
 
     function updateFilterCounts() {
