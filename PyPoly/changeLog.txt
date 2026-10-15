@@ -3925,3 +3925,72 @@ PyPoly 變更紀錄 (changeLog)
   (4) 實際玩小鳥飛，確認新增的卡頓模擬按鈕不影響正常遊玩手感。
   (5) 兩人對局一人斷線，確認通知/按鈕行為跟抽模組前一致。
 ========================================================================
+[2026-10-15] #89 修復 #40：learn.html 作答紀錄只顯示錯題、顯示寫死範本文字
+
+  背景：使用者懷疑根因在 _build_learn_stats，且猜測資料庫作答紀錄本身
+  可能有空值。用背景 agent 讀完 main.py／learn.html／models.py／寫入
+  路徑，並直接查詢正式資料庫 game_answer_logs，確認是三層疊加的問題：
+  154 筆紀錄裡有 61 筆（約 40%）question_id/category/question_text/
+  correct_answer 全部 NULL（橫跨對題錯題、橫跨 9/18~10/14 多個玩家，
+  不是測試沒玩完整局的偶發現象）；_build_learn_stats 本來就沒有「全部
+  逐題紀錄」這個欄位，只有給 AI 當脈絡、只挑錯題、上限 5 筆的
+  ai_context.recent_wrong；learn.html 把這個 AI 專用欄位誤用成「全部
+  作答紀錄」，答對的部分用寫死範本（CORRECT_QUESTIONS_TEMPLATE）硬塞。
+
+  根因（game.html 寫入端，兩個獨立 bug）：
+  1. 第 1418 行 `let currentAdventureQuestion = null;` 是頂層宣告，
+     JS 規格下會永久遮蔽 window.currentAdventureQuestion 這個同名
+     屬性——後面所有 window.currentAdventureQuestion = questionObj
+     的賦值完全沒用，裸讀永遠只看到這個從未被重新賦值過的 let 綁定
+     （已用 Node 實測驗證這個行為）。
+  2. startAdventureRecognition() 整個檔案被定義兩次（函式宣告會被
+     後面覆蓋，第一份其實是死碼），存活版本裡進階程式碼題分支有設
+     window.currentAdventureQuestion，但基礎手勢題分支完全沒設——
+     玩家答基礎題時這個變數是空殼，造成 logAnswerToServer() 送出
+     的 question_text/category/correct_answer 全部是 null。
+  附帶發現：handleCodeSuccess/handleCodeFail 把字面字串
+  "CODE_CORRECT"/"CODE_WRONG" 傳給語意是整數選項編號的 chosen_answer，
+  MariaDB 非嚴格模式下靜默轉型成 0（資料庫查詢證實有 2 筆）。
+
+  修法：
+  - game.html：刪掉死碼重複宣告（原 1572-1659 行）；刪掉會遮蔽
+    window 屬性的 let 宣告，所有讀寫統一用 window.currentAdventureQuestion；
+    補上基礎手勢題分支漏寫的賦值；handleCodeSuccess/handleCodeFail
+    改傳 null 取代字面字串（程式碼題本來就沒有「選了第幾個選項」這個
+    概念）。
+  - main.py：_build_learn_stats() 新增 answer_history 欄位，把該玩家
+    全部 GameAnswerLog（不限筆數、不限對錯）轉成逐題列表回傳；
+    ai_context.recent_wrong 維持原樣不動（它是給 AI 用的穩定契約）。
+    POST /game/answer_log 補一行防呆警告：category/question_text
+    都空時印警告 log，方便以後有新呼叫端漏傳欄位能第一時間發現。
+  - learn.html：loadStats() 改用 answer_history 當唯一資料來源，刪掉
+    死碼分支（data.questions，後端從未回傳過這個 key）、刪掉
+    CORRECT_QUESTIONS_TEMPLATE 寫死範本硬塞對題卡片的整段邏輯、刪掉
+    OPTION_FALLBACK_MAP 關鍵字猜測表（原本排在真資料前面查，會蓋掉
+    資料庫真內容）。新增程式碼題顯示分支（question 有內容但
+    chosen/correct 都是 null → 判定為 AI 批改的程式碼題，顯示對應
+    徽章，不印選項數字）；新增防禦性 fallback（question 本身是 null
+    時顯示「未記錄」，不再冒充假題目）。
+  - 一次性清理既有 61 筆壞資料（已跟使用者確認：直接刪除，無法回頭
+    還原內容，question_id 也是空的）：
+    DELETE FROM game_answer_logs WHERE question_text IS NULL;
+    執行後 154 筆剩 93 筆，壞資料歸零。
+
+  驗證：
+  - main.py 用 py_compile，game.html／learn.html 用 Node vm.Script
+    做語法檢查，全部通過。
+  - 清理腳本執行前後各查一次 COUNT(*)，確認從 61 變成 0。
+  - 把伺服器實際開起來，用 requests 模擬修好後 logAnswerToServer()
+    會送出的 payload：一筆基礎選擇題（有完整 category/question_text/
+    chosen/correct）+ 一筆程式碼題（question_text 有內容但
+    chosen/correct 是 null），兩筆都成功寫入；再打
+    GET /learn/stats?username=112213070 確認回應的 answer_history
+    裡這兩筆內容跟剛剛送出的完全一致，測試資料測完即清除不留殘留。
+
+  ⚠️ 尚未做（需要實際玩一局才能代測）：
+  (1) 實際玩一局（基礎題+進階題都要碰到），結束後開 learn.html，確認
+  「作答紀錄」顯示真正答過的題目內容，不會再出現「正解」或「【XX】
+  基礎觀念測驗」這種假文字。
+  (2)「只看對題」「只看錯題」兩個篩選分頁都能正確顯示，不會再只看到
+  錯題。
+========================================================================

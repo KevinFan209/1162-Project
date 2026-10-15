@@ -2041,6 +2041,13 @@ async def handle_update_pose_count(sid, data):
 # 1. 作答紀錄：每答一題寫入一筆明細 (game_answer_logs)
 @app.post("/game/answer_log")
 def log_answer(data: dict, db: Session = Depends(database.get_db)):
+    # 🏆 修復 #40：之前沒有任何防呆，呼叫端缺欄位就靜默存 NULL，累積到
+    # 資料庫裡變成一堆看不出題目內容的壞資料（根因在前端，已修，見
+    # game.html 的 #40 註解）。這裡補一行警告，往後如果又有新的呼叫端
+    # 漏傳欄位，能在伺服器 log 第一時間發現，不用等使用者自己發現。
+    if not data.get("category") and not data.get("question_text"):
+        print(f"⚠️ answer_log 缺少題目內容: room={data.get('room_code')} "
+              f"user={data.get('username')}")
     log = models.GameAnswerLog(
         room_code=data.get("room_code"),
         username=data.get("username"),
@@ -2282,6 +2289,20 @@ def _build_learn_stats(username: str, db: Session) -> dict:
         } for l in logs if not l.is_correct][:5],
     }
 
+    # 🏆 修復 #40：learn.html 原本把上面 ai_context.recent_wrong（只給
+    # AI 當脈絡、只挑錯題、上限 5 筆）誤用當成「全部作答紀錄」，答對的
+    # 部分只能用寫死範本硬塞。這裡補一個真正「這個人答過的全部題目」
+    # 的欄位，對/錯都在裡面、不設上限——recent_wrong 維持原樣不動，
+    # 它是給 AI 用的穩定契約。
+    answer_history = [{
+        "topic": l.category,
+        "question": l.question_text,
+        "chosen": l.chosen_answer,
+        "correct": l.correct_answer,
+        "is_correct": l.is_correct,
+        "created_at": l.created_at.isoformat() if l.created_at else None,
+    } for l in logs]
+
     return {
         "username": username,
         "games_played": len(records),
@@ -2289,6 +2310,7 @@ def _build_learn_stats(username: str, db: Session) -> dict:
         "dimensions": dimensions,
         "recent_games": recent_games,
         "ai_context": ai_context,
+        "answer_history": answer_history,
     }
 
 

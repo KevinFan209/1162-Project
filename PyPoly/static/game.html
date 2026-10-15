@@ -1415,7 +1415,13 @@ async function testAdventureView(countryName, scenario, skyboxUrl, questionObj) 
     });
 }
 
-let currentAdventureQuestion = null;
+// 🏆 修復 #40：這裡原本有 `let currentAdventureQuestion = null;`，是
+// 頂層宣告。JS 規格規定頂層 let/const 會進入獨立的全域宣告式環境記錄，
+// 永久遮蔽掉 window.currentAdventureQuestion 這個同名屬性——後面所有
+// `window.currentAdventureQuestion = questionObj` 的賦值因此完全沒用，
+// 裸讀 `currentAdventureQuestion` 永遠只會看到這個 let 綁定本身（從
+// 未被重新賦值過的 null）。改成統一用 window.currentAdventureQuestion
+// 讀寫，不要再宣告這個會造成遮蔽的同名 let 變數。
 
 // =========================================================
 // 🏆 送出答題結果
@@ -1434,7 +1440,7 @@ async function submitQuizAnswer(chosen) {
     const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
 
-    if (currentAdventureQuestion) markQuestionAsUsed(currentAdventureQuestion.content);
+    if (window.currentAdventureQuestion) markQuestionAsUsed(window.currentAdventureQuestion.content);
 
     if (chosen === correctAnswer) {
         socket.emit('sync_adventure_choice', { room: roomCode, choice: chosen });
@@ -1568,103 +1574,6 @@ async function submitCodeAnswer() {
     }
 }
 
-// --- 核心分流邏輯 ---
-function startAdventureRecognition(questionObj) {
-    const myName = localStorage.getItem('username');
-    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
-    const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
-
-    // 🏆 修正 1：終極精準判定，直接看後端撈出的題目類別，完全不依賴會遺失的 roomData
-    const qCategory = questionObj ? questionObj.category : 'basic';
-    const isAdvancedMode = (qCategory === 'advanced');
-
-    console.log("🎮 進入題目階段 - 判定為進階模式?", isAdvancedMode, "題目類別:", qCategory);
-
-    if (isAdvancedMode) {
-        // ==========================================
-        // 🟢 進階版流程 (程式碼編譯)
-        // ==========================================
-        socket.emit('sync_adventure_phase', { 
-            room: roomCode, 
-            user: myName, 
-            phase: 'QUIZ_CODE',
-            payload: { question: questionObj } 
-        });
-
-        // 確保基礎版相機介面關閉，並關閉視訊資源
-        const basicUI = document.getElementById('adventure-task-ui');
-        if (basicUI) basicUI.style.display = 'none';
-        stopAllVision(); 
-
-        const taskUI = document.getElementById('advanced-task-ui');
-        document.getElementById('adv-code-question').innerText = questionObj.content;
-        document.getElementById('adv-code-editor').value = ""; 
-        document.getElementById('adv-code-feedback').innerText = "💡 請在下方編譯器輸入程式碼，並點擊執行驗證";
-        document.getElementById('adv-code-feedback').style.color = "#00cdac";
-        
-        window.currentCodeAttempts = 3;
-        document.getElementById('adv-code-attempts').innerText = window.currentCodeAttempts;
-        
-        const submitBtn = document.getElementById('adv-code-submit-btn');
-        if(submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.style.opacity = "1";
-        }
-        
-        taskUI.style.display = 'block';
-        window.currentAdventureQuestion = questionObj;
-        window.uiState = "CODING"; 
-        window.questionShownAt = Date.now();
-
-        // 啟動 5 分鐘計時器
-        if (typeof startAdvCodeTimer === "function") startAdvCodeTimer(300);
-        showAdventureCharacter(); 
-
-    } else {
-        // ==========================================
-        // 🔵 基礎版流程 (手勢辨識)
-        // ==========================================
-        socket.emit('sync_adventure_phase', { 
-            room: roomCode, user: myName, phase: 'QUIZ', payload: { question: questionObj } 
-        });
-
-        const taskUI = document.getElementById('adventure-task-ui');
-        const questionText = document.getElementById('adv-question-text');
-        const optionsArea = document.getElementById('adv-options');
-
-        questionText.innerHTML = "✋ 請用手勢比出答案";
-        questionText.style.display = "block";
-        optionsArea.style.display = 'none'; 
-        taskUI.style.display = 'block';
-        window.currentAdventureQuestion = questionObj;
-
-        setTimeout(() => {
-            questionText.innerHTML = `【挑戰題目】${questionObj.content}`;
-            window.questionShownAt = Date.now(); 
-            optionsArea.innerHTML = questionObj.options.map((opt, idx) => 
-                `<div class="opt-pill">(${idx + 1}) ${opt}</div>`
-            ).join("");
-            optionsArea.style.display = 'flex';
-        }, 2500);
-
-        window.lockedDiceVal = parseInt(questionObj.answer); 
-        window.uiState = "GESTURE";
-        currentGameState.status = "READY";
-        
-        initCameraAndStartVision(); 
-        
-        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-        const screenPos = new THREE.Vector3().copy(camera.position).addScaledVector(forward, 2.8); 
-        virtualScreen.position.copy(screenPos);
-        virtualScreen.position.y -= 0.48;
-        virtualScreen.quaternion.copy(camera.quaternion);
-        virtualScreen.scale.set(1.0, 1.0, 1.0);
-        virtualScreen.visible = true;
-
-        showAdventureCharacter();
-    }
-}
-
 async function handleCodeSuccess() {
 
 	if (advCodeTimerInterval) { clearInterval(advCodeTimerInterval); advCodeTimerInterval = null; }
@@ -1674,8 +1583,13 @@ async function handleCodeSuccess() {
     const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
 
-    if (currentAdventureQuestion) markQuestionAsUsed(currentAdventureQuestion.content);
-    logAnswerToServer(true, "CODE_CORRECT"); 
+    if (window.currentAdventureQuestion) markQuestionAsUsed(window.currentAdventureQuestion.content);
+    // 🏆 修復 #40：chosen_answer 是整數欄位，語意是「選了第幾個選項」。
+    // 程式碼題沒有選項，原本塞字面字串 "CODE_CORRECT" 進去，MariaDB
+    // 非嚴格模式下會靜默轉型成 0（0 也不是有效選項編號），改傳 null
+    // 更誠實——learn.html 會用「question 有內容但 chosen/correct 都是
+    // null」判定這是一筆 AI 批改的程式碼題。
+    logAnswerToServer(true, null);
 
     setTimeout(async () => {
         try {
@@ -1730,7 +1644,8 @@ function handleCodeFail() {
     const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
 
-    logAnswerToServer(false, "CODE_WRONG");
+    // 🏆 修復 #40：同上，程式碼題沒有選項，改傳 null（見 handleCodeSuccess 的註解）。
+    logAnswerToServer(false, null);
     showGameNotice(`❌ 3次機會已用盡，挑戰失敗！`, 3500);
 
     socket.emit('broadcast_dice_event', {
@@ -1890,7 +1805,12 @@ function startAdventureRecognition(questionObj) {
                 window.questionShownAt = Date.now();
             });
 
-            window.lockedDiceVal = parseInt(questionObj.answer); 
+            // 🏆 修復 #40：這行原本沒有，導致基礎手勢題送出答案時
+            // logAnswerToServer() 讀到的 window.currentAdventureQuestion
+            // 是空的／殘留上一題進階題的舊物件，造成 game_answer_logs
+            // 的 question_text/category/correct_answer 全部存成 NULL。
+            window.currentAdventureQuestion = questionObj;
+            window.lockedDiceVal = parseInt(questionObj.answer);
             window.uiState = "GESTURE";
             if(typeof currentGameState !== 'undefined') currentGameState.status = "READY";
             
@@ -7369,7 +7289,7 @@ function logAnswerToServer(isCorrect, chosenVal) {
         const myName = localStorage.getItem('username');
         const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
         const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
-        const q = currentAdventureQuestion || {};
+        const q = window.currentAdventureQuestion || {};
         const answerSec = window.questionShownAt ? (Date.now() - window.questionShownAt) / 1000 : 0;
         fetch(`${API_URL}/game/answer_log`, {
             method: 'POST',
