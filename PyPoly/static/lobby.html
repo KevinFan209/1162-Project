@@ -657,6 +657,10 @@
         avatarContainer.innerHTML = `<img src="${myFace}" style="width:100%; height:100%; border-radius:50%; object-fit:cover; border:3px solid #ffde59;">`;
     }
 
+    // 🏆 修復 #38：連續失敗計數器，避免單次網路小抖動/ngrok 警告頁就
+    // 讓畫面瞬間跳出錯誤訊息又消失。
+    let roomListFailCount = 0;
+
     async function renderRooms() {
         const grid = document.getElementById('roomList');
         if (!grid) return;
@@ -710,20 +714,27 @@
             }
 
             if (grid.innerHTML !== newHtml) grid.innerHTML = newHtml;
+            roomListFailCount = 0;
         } catch (err) {
+            roomListFailCount++;
             console.error("刷新列表失敗", err);
-            grid.innerHTML =
-                `<div style="font-weight:900; font-size:1.4rem; color:var(--text-dark); margin-bottom:20px;">公開房間列表</div>
-                 <div style="color:#ef4444; padding:20px; font-weight:700; line-height:1.7;">
-                    ⚠️ 房間列表載入失敗<br>
-                    <span style="font-size:0.85rem; color:var(--text-gray); font-weight:600;">
-                        ${String(err && err.message || err).replace(/[&<>"']/g, c =>
-                            ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-                    </span><br>
-                    <span style="font-size:0.8rem; color:var(--text-gray); font-weight:600;">
-                        10 秒後會自動重試
-                    </span>
-                 </div>`;
+            // 🏆 修復 #38：單次失敗只記 log、保留畫面上原本的列表不動，
+            // 連續失敗 2 次（至少 20 秒都抓不到資料）才真的覆蓋顯示錯誤，
+            // 避免偶發的網路抖動讓畫面瞬間閃一下又恢復正常。
+            if (roomListFailCount >= 2) {
+                grid.innerHTML =
+                    `<div style="font-weight:900; font-size:1.4rem; color:var(--text-dark); margin-bottom:20px;">公開房間列表</div>
+                     <div style="color:#ef4444; padding:20px; font-weight:700; line-height:1.7;">
+                        ⚠️ 房間列表載入失敗<br>
+                        <span style="font-size:0.85rem; color:var(--text-gray); font-weight:600;">
+                            ${String(err && err.message || err).replace(/[&<>"']/g, c =>
+                                ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+                        </span><br>
+                        <span style="font-size:0.8rem; color:var(--text-gray); font-weight:600;">
+                            10 秒後會自動重試
+                        </span>
+                     </div>`;
+            }
         }
     }
     

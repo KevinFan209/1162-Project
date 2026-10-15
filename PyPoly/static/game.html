@@ -3654,8 +3654,10 @@ async function initCameraAndStartVision() {
                         submitQuizAnswer(data.dice_val);
                         return;
                     } else {
-                        if (data.dice_val !== window.lockedDiceVal) return; 
-                        if (window.isPlus3Active) showGameNotice(`🎲 辨識成功！即將前進 ${window.lockedDiceVal} 步！`, 2000);
+                        if (data.dice_val !== window.lockedDiceVal) return;
+                        // 🏆 修復 #19：不管有沒有 +3 道具都顯示「將前進 N 步」，
+                        // 空等時間從 1500ms 縮短到 800ms。
+                        showGameNotice(`🎲 辨識成功！即將前進 ${window.lockedDiceVal} 步！`, 1000);
                         window.uiState = "FINISHED";
                         if (visionSocket) { visionSocket.close(); visionSocket = null; }
                         setTimeout(() => {
@@ -3664,7 +3666,7 @@ async function initCameraAndStartVision() {
                             const myName = localStorage.getItem('username');
                             const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
                             if (roomData) socket.emit('player_move_sync_request', { room: roomData.code, user: myName, steps: window.lockedDiceVal });
-                        }, 1500);
+                        }, 800);
                     }
                 } else if (window.uiState === "SHOP_CONFIRMING") {
                     if (data.dice_val === "LIKE" || data.dice_val === "DISLIKE") {
@@ -5667,12 +5669,15 @@ socket.on('dice_game_status', (state) => {
 
     // 當後端回傳辨識成功 (SUCCESS)
     if (state.status === "SUCCESS") {
-        showCustomNotice(`手勢 ${state.dice_val} 辨識成功！`, "center", 2000);
-        
+        // 🏆 修復 #19：補上「將前進 N 步」提示，並把空等時間從 1500ms
+        // 縮短到 800ms（不整個拿掉是因為這段還兼顧關閉攝影機/視訊軌道
+        // 的清理工作，縮短而非移除比較保守）。
+        showCustomNotice(`🎲 辨識成功！即將前進 ${state.dice_val} 步！`, "center", 1000);
+
         setTimeout(() => {
             // 1. 關閉辨識螢幕
             if (virtualScreen) virtualScreen.visible = false;
-            
+
             // 2. 徹底關閉相機 (省電並滅燈)
             if (activeCamera) activeCamera.stop();
             if (video && video.srcObject) {
@@ -5682,8 +5687,8 @@ socket.on('dice_game_status', (state) => {
             // 3. 執行移動玩家棋子 (帶入骰出的點數)
             const myName = localStorage.getItem('username');
             movePlayerSequence(myName, state.dice_val);
-            
-        }, 1500);
+
+        }, 800);
     }
 });
 
@@ -5783,10 +5788,11 @@ function startMainTurn(isMyTurn, targetPlayerName = "對手") {
         screenPos.addScaledVector(forward, 4.5);
 
         virtualScreen.position.copy(screenPos);
-        virtualScreen.lookAt(camera.position); 
+        virtualScreen.scale.set(1, 1, 1); // 🏆 修復 #23：每次擲骰恢復原始大小，避免沿用上一階段（商店/答題/處罰）遺留的縮放值
+        virtualScreen.lookAt(camera.position);
         virtualScreen.visible = true;
 
-        initCameraAndStartVision(); 
+        initCameraAndStartVision();
     } else {
         // 🏆 修正點：使用 targetPlayerName 顯示「等待 玩家ID 擲骰中」
         showCustomNotice(`等待 ${targetPlayerName} 擲骰中... 🎲`, "center", 0);
