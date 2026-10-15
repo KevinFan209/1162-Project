@@ -1469,7 +1469,9 @@ async function submitQuizAnswer(chosen) {
     const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
 
-    if (currentAdventureQuestion) markQuestionAsUsed(currentAdventureQuestion.content);
+    if (window.currentAdventureQuestion) {
+    markQuestionAsUsed(window.currentAdventureQuestion.content);
+}
 
     if (chosen === correctAnswer) {
         socket.emit('sync_adventure_choice', { room: roomCode, choice: chosen });
@@ -6523,6 +6525,7 @@ function startMainTurn(isMyTurn, targetPlayerName = "對手") {
         screenPos.addScaledVector(forward, 4.5);
 
         virtualScreen.position.copy(screenPos);
+        virtualScreen.scale.set(1, 1, 1); // 每次擲骰恢復原始大小
         virtualScreen.lookAt(camera.position); 
         virtualScreen.visible = true;
 
@@ -8035,7 +8038,7 @@ function logAnswerToServer(isCorrect, chosenVal) {
         const myName = localStorage.getItem('username');
         const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
         const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
-        const q = currentAdventureQuestion || {};
+        const q = window.currentAdventureQuestion || {};
         const answerSec = window.questionShownAt ? (Date.now() - window.questionShownAt) / 1000 : 0;
         fetch(`${API_URL}/game/answer_log`, {
             method: 'POST',
