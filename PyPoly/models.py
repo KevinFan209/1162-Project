@@ -161,6 +161,11 @@ class GameAnswerLog(Base):
     question_text = Column(String(500))               # 題目內容 (快照，供答錯回顧)
     chosen_answer = Column(Integer)                   # 玩家所選 (1~4)
     correct_answer = Column(Integer)                  # 正確答案 (1~4)
+    # 🏆 修復 #40 後續：作答紀錄頁要顯示「選項實際內容」而不是「選項幾號」，
+    # 跟 question_text/category 一樣用快照（questions.opt1~4 會被 seed_data
+    # 清空重建，事後用 question_id 回頭查會對不上），存答題當下的選項文字。
+    chosen_text = Column(String(200))                 # 玩家所選的選項文字 (快照)
+    correct_text = Column(String(200))                # 正確答案的選項文字 (快照)
     is_correct = Column(Boolean, default=False)       # 是否答對
     answer_sec = Column(Float, default=0)             # 該題作答用時 (秒)
     created_at = Column(DateTime, default=datetime.utcnow)

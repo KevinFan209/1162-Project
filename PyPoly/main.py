@@ -2056,6 +2056,10 @@ def log_answer(data: dict, db: Session = Depends(database.get_db)):
         question_text=data.get("question_text"),
         chosen_answer=data.get("chosen_answer"),
         correct_answer=data.get("correct_answer"),
+        # 🏆 顯示端要的是選項實際內容，不是「選項幾號」，跟 question_text
+        # 一樣存答題當下的快照（questions.opt1~4 會被 seed_data 清空重建）。
+        chosen_text=data.get("chosen_text"),
+        correct_text=data.get("correct_text"),
         is_correct=bool(data.get("is_correct")),
         answer_sec=float(data.get("answer_sec") or 0),
     )
@@ -2299,6 +2303,8 @@ def _build_learn_stats(username: str, db: Session) -> dict:
         "question": l.question_text,
         "chosen": l.chosen_answer,
         "correct": l.correct_answer,
+        "chosen_text": l.chosen_text,
+        "correct_text": l.correct_text,
         "is_correct": l.is_correct,
         "created_at": l.created_at.isoformat() if l.created_at else None,
     } for l in logs]

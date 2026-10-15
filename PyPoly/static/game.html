@@ -7291,6 +7291,15 @@ function logAnswerToServer(isCorrect, chosenVal) {
         const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
         const q = window.currentAdventureQuestion || {};
         const answerSec = window.questionShownAt ? (Date.now() - window.questionShownAt) / 1000 : 0;
+        // 🏆 作答紀錄頁要顯示「選項實際內容」而不是「選項幾號」。選項文字
+        // 本來就在 q.options（第 idx 個選項顯示成第 idx+1 號，跟題目畫面
+        // 渲染時的編號規則一致），這裡存當下的文字快照，跟 question_text
+        // 一樣的理由——questions.opt1~4 會被 seed_data 清空重建，事後用
+        // question_id 回頭查會對不上。程式碼題沒有 options，兩者自然是 null。
+        const options = Array.isArray(q.options) ? q.options : null;
+        const correctIdx = parseInt(q.answer);
+        const chosenText = (options && chosenVal) ? options[chosenVal - 1] ?? null : null;
+        const correctText = (options && !isNaN(correctIdx)) ? options[correctIdx - 1] ?? null : null;
         fetch(`${API_URL}/game/answer_log`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -7302,6 +7311,8 @@ function logAnswerToServer(isCorrect, chosenVal) {
                 question_text: q.content || null,
                 chosen_answer: chosenVal,
                 correct_answer: parseInt(q.answer),
+                chosen_text: chosenText,
+                correct_text: correctText,
                 is_correct: !!isCorrect,
                 answer_sec: answerSec
             })

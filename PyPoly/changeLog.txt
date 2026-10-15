@@ -3994,3 +3994,40 @@ PyPoly 變更紀錄 (changeLog)
   (2)「只看對題」「只看錯題」兩個篩選分頁都能正確顯示，不會再只看到
   錯題。
 ========================================================================
+[2026-10-15] #90 補修 #89：作答紀錄的「當時選擇」/「正確答案」顯示選項實際內容
+
+  背景：#89 修完之後，使用者實測發現「當時選擇」/「正確答案」顯示的是
+  「選項 1」這種編號形式，不是選項的實際文字內容。根因：game_answer_logs
+  原本就只存 chosen_answer/correct_answer 兩個整數（1~4），從沒存過
+  選項文字本身；#89 移除的 OPTION_FALLBACK_MAP 猜測表雖然會蓋掉真資料
+  是對的決定，但拿掉之後沒有真正的選項文字可用，只能顯示編號。
+
+  跟 question_text/category 一樣的理由（questions.opt1~4 會被 seed_data
+  清空重建，事後用 question_id 回頭查會對不上），選項文字也必須在
+  答題當下存成快照，不能事後用 question_id 查回去。
+
+  修法：
+  - models.py：GameAnswerLog 新增 chosen_text／correct_text 兩個
+    nullable 欄位（VARCHAR(200)），已對正式資料庫執行
+    ALTER TABLE 新增這兩欄。
+  - game.html：logAnswerToServer() 新增從 window.currentAdventureQuestion
+    .options 陣列（跟題目畫面渲染用的是同一份，索引規則一致：第 idx 個
+    選項對應第 idx+1 號）取出 chosenText/correctText 一併送出；程式碼題
+    沒有 options，兩者自然是 null，不用額外判斷。
+  - main.py：POST /game/answer_log 存這兩個新欄位；_build_learn_stats()
+    的 answer_history 一併回傳。
+  - learn.html：formatChosenOrCorrect() 改成優先顯示 chosen_text/
+    correct_text 真內容，只有這個欄位上線前就寫入的舊紀錄（沒有文字
+    快照）才退回顯示「選項 N」，兩者都沒有才顯示「未記錄」。
+
+  驗證：
+  - main.py 用 py_compile，game.html／learn.html 用 Node vm.Script
+    做語法檢查，全部通過。
+  - 把伺服器實際開起來，用 requests 模擬送出帶 chosen_text/correct_text
+    的 payload，打 GET /learn/stats 確認回應裡的 answer_history 正確
+    帶出選項文字本身（例如「0, 1, 2」）而不是數字，測試資料測完即清除。
+
+  ⚠️ 尚未做（需要實際玩一局才能代測）：
+  實際玩一局基礎手勢題，結束後開 learn.html 確認「當時選擇」/「正確
+  答案」顯示的是選項文字本身。
+========================================================================

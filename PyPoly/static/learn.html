@@ -732,8 +732,13 @@
             && !!q.question;
     }
 
-    function formatChosenOrCorrect(val) {
-        return (val === null || val === undefined) ? "未記錄" : `選項 ${val}`;
+    // 🏆 使用者回報：這裡應該顯示選項的實際內容，不是「選項 N」。真內容
+    // 存在 textVal（game.html 寫入時存的選項文字快照），優先用它；只有
+    // 修這個欄位之前就寫入的舊紀錄才會沒有 textVal，退回顯示「選項 N」，
+    // 兩者都沒有才顯示「未記錄」。
+    function formatChosenOrCorrect(textVal, idxVal) {
+        if (textVal) return textVal;
+        return (idxVal === null || idxVal === undefined) ? "未記錄" : `選項 ${idxVal}`;
     }
 
     function toggleMenu() {
@@ -833,6 +838,8 @@
                 question: q.question || null,
                 chosen: q.chosen,
                 correct: q.correct,
+                chosen_text: q.chosen_text || null,
+                correct_text: q.correct_text || null,
                 is_correct: !!q.is_correct,
             }));
 
@@ -936,8 +943,8 @@
             const choicesInfo = isCodeType
                 ? `<div>這是一題 AI 批改的程式碼題，沒有選項可比對。</div>`
                 : `
-                    <div>當時選擇：<b style="color: ${isCorrect ? 'var(--pixel-green)' : 'var(--wrong-dark)'};">${escapeHtml(formatChosenOrCorrect(q.chosen))}</b></div>
-                    <div>正確答案：<b style="color: var(--pixel-green);">${escapeHtml(formatChosenOrCorrect(q.correct))}</b></div>
+                    <div>當時選擇：<b style="color: ${isCorrect ? 'var(--pixel-green)' : 'var(--wrong-dark)'};">${escapeHtml(formatChosenOrCorrect(q.chosen_text, q.chosen))}</b></div>
+                    <div>正確答案：<b style="color: var(--pixel-green);">${escapeHtml(formatChosenOrCorrect(q.correct_text, q.correct))}</b></div>
                 `;
 
             return `
@@ -987,7 +994,7 @@
         const isCorrect = isQuestionCorrect(q);
         const questionPrompt = isCodeTypeAnswer(q)
             ? `老師，請幫我分析這道程式碼題：「${q.question}」。這題是 AI 批改的（結果：${isCorrect ? '通過' : '未通過'}），解題思路是什麼？`
-            : `老師，請幫我分析題目：「${q.question}」。我當時選了【${formatChosenOrCorrect(q.chosen)}】，正確答案是【${formatChosenOrCorrect(q.correct)}】（結果：${isCorrect ? '答對' : '答錯'}），解題思路是什麼？`;
+            : `老師，請幫我分析題目：「${q.question}」。我當時選了【${formatChosenOrCorrect(q.chosen_text, q.chosen)}】，正確答案是【${formatChosenOrCorrect(q.correct_text, q.correct)}】（結果：${isCorrect ? '答對' : '答錯'}），解題思路是什麼？`;
         
         appendMessage('user', questionPrompt);
         chatWithTutor(questionPrompt);
