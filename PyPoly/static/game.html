@@ -1152,30 +1152,51 @@ socket.on('connect', () => {
     });
 });
 
-// 🏆 對手斷線：先前沒有這個監聽器，對手關掉分頁時這端會無限等待、
-//    完全不知道發生什麼事。現在至少明確告知，讓人知道該重開而不是乾等。
-socket.on('opponent_disconnected', (data) => {
+// 對手離線後清除本局狀態，直接返回大廳
+function returnToLobbyOnDisconnect(data) {
     const myName = localStorage.getItem('username');
     if (!data || data.user === myName) return;
-    console.warn(`🔌 對手 ${data.user} 已斷線`);
-    showGameNotice(
-        `🔌 ${data.user} 已離線<br>`
-        + `<span style="font-size:1.2rem;">對局無法繼續，請雙方回大廳重新開始</span>`,
-        0);
-});
 
-// 🏆 決定先後手階段對手斷線：後端會清掉他的點數並發這個事件。
-//    沒有它的話，剩下的人會永遠等不到 dice_order_final（湊不滿 2 人）——
-//    這是先前最容易遇到的死鎖。
-socket.on('order_dice_aborted', (data) => {
-    const myName = localStorage.getItem('username');
-    if (!data || data.user === myName) return;
-    console.warn(`🎲 決定順序中斷：${data.user} 離線`);
-    showGameNotice(
-        `🎲 ${data.user} 在決定先後手時離線<br>`
-        + `<span style="font-size:1.2rem;">請回大廳重新開始對局</span>`,
-        0);
-});
+    // 兩個斷線事件可能先後收到，只處理一次
+    if (window.isReturningToLobby) return;
+    window.isReturningToLobby = true;
+
+    console.warn(`🔌 玩家 ${data.user} 已離線，返回大廳`);
+
+    const gameKeys = [
+        'pypoly_active_room',
+        'room_code',
+        'room_info',
+        'is_host',
+        'pypoly_game_snapshot',
+        'pypoly_current_round',
+        'pypoly_turn_order',
+        'pypoly_land_ownership',
+        'pypoly_global_owned_lands',
+        'pypoly_used_questions',
+        'current_player_role'
+    ];
+
+    gameKeys.forEach(key => localStorage.removeItem(key));
+
+    const prefixes = [
+        'pypoly_synced_map_',
+        'pypoly_inv_',
+        'pypoly_jumps_'
+    ];
+
+    Object.keys(localStorage)
+        .filter(key => prefixes.some(prefix => key.startsWith(prefix)))
+        .forEach(key => localStorage.removeItem(key));
+
+    window.location.replace('lobby.html');
+}
+
+// 遊戲中對手斷線
+socket.on('opponent_disconnected', returnToLobbyOnDisconnect);
+
+// 決定先後手時對手斷線
+socket.on('order_dice_aborted', returnToLobbyOnDisconnect);
 	
 	window.netPlayerColors = {}; // 全域快照：存放連線收到的所有玩家外觀顏色
     window.netPlayerFaces = {};  // 🏆 新增：存放連線收到的所有玩家人臉貼圖
