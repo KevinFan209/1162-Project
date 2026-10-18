@@ -168,7 +168,9 @@ class OpsCog(commands.Cog):
     async def branches(self, interaction: discord.Interaction):
         await interaction.response.defer(thinking=True)
 
-        names = branch_manager.list_branches()
+        # 🏆 先 fetch 一次再列，確保剛 push 的新分支不會因為本機 git
+        # 資料庫沒更新過而漏掉（list_branches() 本身不 fetch，見其文件）。
+        names = await branch_manager.list_branches_fresh()
         if not names:
             await interaction.followup.send(embed=_embed(
                 "⚠️ 取不到分支清單",

@@ -3022,3 +3022,34 @@ PyPoly 變更紀錄 (changeLog)
   這個分支合併回 main、或是手動從這個分支的 ops/ 目錄另外啟動一個
   bot 行程來測，不能用平常 /start 這個分支的方式測到。
 ========================================================================
+[2026-10-18] #75 Discord bot：/branches 也補上 fetch，不再漏掉剛 push 的新分支
+
+  背景：使用者回報新建分支後 /branches 有時候看不到，以為是 #74
+  那次修好的問題又發生了。查證後確認是當初 #74 刻意沒蓋到的範圍——
+  #74 只在 resolve_branch()（/start、/restart 用的）失敗時自動
+  fetch 一次再重試，list_branches() 本身／自動完成都刻意沒改，理由
+  是自動完成每打一個字就會呼叫，加網路 fetch 會明顯變慢。但 /branches
+  這條獨立指令（ops_cog.py）直接呼叫 list_branches()，從頭到尾都走
+  這條沒有 fetch 的路徑，所以「新分支 push 後、還沒人對它跑過
+  /start」這段期間，/branches 必然看不到它——不是回歸，是範圍一直
+  沒蓋到。
+
+  修法：branch_manager.py 新增 list_branches_fresh()，先
+  git fetch origin 一次（失敗就靜默忽略，照樣回傳本機現有清單，不讓
+  /branches 因為離線而整個失敗）再呼叫既有的 list_branches()。
+  ops_cog.py 的 /branches 改呼叫這個新函式，取代直接呼叫
+  list_branches()。list_branches() 本身／自動完成完全不動，維持
+  #74 的決定（自動完成每個按鍵都觸發，不適合加 fetch）；/branches
+  是使用者主動按一次的指令，不會有同樣的顧慮。
+
+  驗證：
+  - py_compile 過 branch_manager.py／ops_cog.py。
+  - 直接跑一次 list_branches() 跟 list_branches_fresh() 對照：
+    前者回 17 筆（本機未更新的舊清單），後者 fetch 後回 18 筆，多出
+    的正好是一個剛 push、本機還沒同步過的新分支（hsuan_teacher）——
+    用真實情境直接重現並驗證修好。
+
+  ⚠️ 尚未做：這是 ops/ 這個 Discord bot 自己的程式碼，固定只從 main
+  worktree 的 ops/ 執行，要在 Discord 上實際測到 /branches 指令本身
+  的效果，需要重啟 bot 行程讓它載入這次改動。
+========================================================================

@@ -85,6 +85,23 @@ def list_branches() -> list[str]:
     return sorted(names)
 
 
+async def list_branches_fresh() -> list[str]:
+    """跟 list_branches() 一樣，但先 fetch 一次確保看到最新 push 的分支。
+
+    🏆 /branches 指令原本直接呼叫 list_branches()，而那個函式從不主動
+    fetch——新分支一 push，本機 git 資料庫沒人手動 fetch 過就不會知道它
+    存在，使用者會看到「明明建了分支卻沒出現在清單裡」。resolve_branch()
+    （/start 用的）已經有一樣的 fetch-retry，但那段邏輯刻意沒有搬進
+    list_branches() 本身，因為自動完成每打一個字就會呼叫它，加網路
+    fetch 會明顯變慢。/branches 是使用者主動按一次的指令，不是每個按鍵
+    都觸發，所以在這裡直接做無條件 fetch 是安全的，不會重現自動完成
+    那個顧慮。fetch 失敗（例如離線）就靜默忽略，照樣回傳本機現有的清單，
+    不讓 /branches 因為網路問題而整個失敗。
+    """
+    await _git_async(["fetch", "origin"])
+    return list_branches()
+
+
 def resolve_branch(raw: str | None) -> tuple[str | None, str]:
     """把使用者輸入的分支名對到真實存在的分支。回傳 (分支名, 錯誤訊息)。
 
