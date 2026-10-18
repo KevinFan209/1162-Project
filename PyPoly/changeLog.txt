@@ -3053,3 +3053,60 @@ PyPoly 變更紀錄 (changeLog)
   worktree 的 ops/ 執行，要在 Discord 上實際測到 /branches 指令本身
   的效果，需要重啟 bot 行程讓它載入這次改動。
 ========================================================================
+[2026-10-18] #76 Discord bot：worktree 卡在遠端強制推送前的舊快照時自動 reset 追上去
+
+  背景：#75 剛修完 /branches 的 fetch 問題，馬上就遇到實例驗證：新分支
+  hsuan_teacher 剛建立後，worktree 裡的內容是四個月前一份不相關的舊
+  內容（跟另一個分支 葉諭玹 共用歷史），不是現在 GitHub 上真正的
+  hsuan_teacher。查證後用 git reflog 的精確時間戳還原出完整時間線：
+  - 22:47:37　本機第一次 fetch 到 hsuan_teacher（當時組員是對著舊分支
+    葉諭玹 開出來的，內容還是那份舊的），記下 bd9239b。
+  - 22:51:15　有人對這個分支跑 /start，ensure_worktree() 建立 worktree
+    時，本機當下認識的 origin/hsuan_teacher 還是 bd9239b，本機分支因此
+    也卡在這個版本。
+  - 22:51:17（只晚 2 秒）　本機又 fetch 到一次，發現 origin/hsuan_teacher
+    被強制推送（reflog 寫 forced-update）成另一個版本——組員把 main
+    併進來，但是用 reset/force push 做的，不是普通 merge commit。
+
+  根因：worktree 剛好卡在「本機第一次認識這個分支」跟「這個分支在遠端
+  被強制改寫歷史」兩個事件中間，只差 2 秒的時間窗建立。而且因為是強制推送
+  （歷史改寫，不是單純往前推進），update() 原本用的
+  git merge --ff-only 原理上永遠無法把本機追上去——fast-forward 只能
+  處理「新增 commit」，沒辦法處理「歷史被整個換掉」，worktree 會卡在
+  舊快照直到有人手動介入。
+
+  修法（services/branch_manager.py）：
+  - 新增 _is_safe_to_reset(branch, path)：用 git log -g --format=%H
+    origin/<branch> 列出該 remote-tracking ref 自己的完整 reflog
+    歷史（每一筆都是 origin 自己某個時間點指過的版本），確認本機
+    worktree 目前的 HEAD 是否曾經出現在這份清單裡——如果有，代表
+    這份內容本來就是從 origin 複製來的快照，不是誰在這個 worktree
+    裡自己 commit、從沒推上去的東西，reset 不會毀掉任何人的工作。
+  - update() 的 fast-forward 失敗時，改成先呼叫這個函式確認安全，
+    安全才 git reset --hard origin/<branch> 自動追上去；確認不了
+    （本機可能真的有獨立 commit）才維持原本「跳過並說明原因」的
+    保守行為，不盲目 reset。
+  - 順手修正一個過度保守的既存判斷：原本的「有未提交改動」檢查
+    （git status --porcelain）連未追蹤檔案（例如 ensure_env() 自己
+    複製進來的 .env、跑過 Python 留下的 __pycache__）都算進去，但
+    merge --ff-only／reset --hard 都只動已追蹤檔案，未追蹤檔案本來
+    就不會被影響，擋這個只會讓每個新建的 worktree 永遠卡在「有未提交
+    的改動」。改成只看真正的已追蹤檔案異動（排除 git status 裡
+    "??" 開頭的行）。
+
+  驗證：
+  - py_compile 過 branch_manager.py。
+  - 直接對著真實的 hsuan_teacher worktree 跑新版 update()：修復前
+    HEAD 是 bd9239b（四個月前的舊內容），執行後正確偵測到強制推送、
+    自動 reset 追到當時 origin/hsuan_teacher 的 c1b7b12，且過程中
+    origin/hsuan_teacher 本身又被組員強制推送了第二次（c1b7b12→
+    2cd22f3→又被推回 c1b7b12），重新 fetch 後 worktree 依然正確同步
+    到最新的 c1b7b12，證明這個修法能處理連續多次強制推送的情況。
+  - reset 完後確認 .env／__pycache__ 這些未追蹤檔案都還在磁碟上沒被
+    刪除（git reset --hard 本來就不會動未追蹤檔案），且因為換成了
+    正確的 .gitignore，git status 也不再把它們列成「未提交」。
+
+  ⚠️ 尚未做：這是 ops/ 這個 Discord bot 自己的程式碼，固定只從 main
+  worktree 的 ops/ 執行，要讓實際跑著的 bot 行程套用這次改動，需要
+  重啟 bot。
+========================================================================

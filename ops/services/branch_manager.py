@@ -193,29 +193,78 @@ async def ensure_worktree(branch: str) -> tuple[bool, Path | None, str]:
     return True, path, f"已為分支 `{branch}` 建立工作目錄"
 
 
+async def _is_safe_to_reset(branch: str, path: Path) -> bool:
+    """本機這個 worktree 的 HEAD 是否曾經是 origin/<branch> 自己指過的舊版本。
+
+    🏆 只有在這個條件成立時，才能放心 reset --hard 追上去——這代表本機
+    這份內容原本就是從 origin 複製來的快照，不是誰在這個（理論上 bot
+    獨佔管理、沒人應該手動 commit）worktree 裡自己 commit 出來、從沒
+    推上去的東西，reset 不會毀掉任何人的工作。
+
+    會用到這個函式的情境：worktree 剛好在「本機第一次 fetch 到這個
+    分支」跟「這個分支在遠端被強制推送（reset/rebase）改寫歷史」兩個
+    事件中間的極短時間窗建立，卡死在改寫前的舊快照——這種情況
+    git merge --ff-only 原理上永遠無法把本機追上去（fast-forward
+    只能處理「新增 commit」，沒辦法處理「歷史被整個換掉」），需要
+    reset 才能恢復正常，且用 origin/<branch> 自己的 reflog 驗證過
+    「這份內容本來就來自 origin」，比單純判斷「分歧了就放手 reset」
+    安全得多。
+    """
+    ok, head = await _git_async(["rev-parse", "HEAD"], cwd=path)
+    if not ok:
+        return False
+    head = head.strip()
+
+    ok, out = await _git_async(["log", "-g", "--format=%H", f"origin/{branch}"])
+    if not ok:
+        return False
+    return head in out.splitlines()
+
+
 # ── 更新 ────────────────────────────────────────────────────
 
 async def update(branch: str, path: Path) -> str:
     """把該 worktree 更新到遠端最新。回傳要顯示給使用者的說明（空字串代表順利）。
 
-    刻意只做「快轉」。有未提交的改動或分支已分歧時一律跳過並說明原因，
-    絕不 reset --hard 或 checkout -- ——那會無聲地毀掉別人正在做的事。
+    預設只做「快轉」。有未提交的改動時一律跳過並說明原因，絕不動
+    uncommitted 的東西。分支已分歧時，只有在確認本機 HEAD 本來就是
+    origin/<branch> 自己 reflog 裡曾經出現過的舊版本（見
+    _is_safe_to_reset()）才會自動 reset --hard 追上去，其餘情況一律
+    跳過並說明原因，不盲目 reset——那會無聲地毀掉別人正在做的事。
     """
     ok, out = await _git_async(["fetch", "origin", branch])
     if not ok:
         return f"⚠️ fetch 失敗，改用磁碟上現有的版本：\n```\n{out[-300:]}\n```"
 
-    ok, dirty = await _git_async(["status", "--porcelain"], cwd=path)
-    if ok and dirty.strip():
-        n = len(dirty.strip().splitlines())
-        return f"⚠️ 這個工作目錄有 {n} 個未提交的改動，已跳過更新，用的是磁碟上現有的版本。"
+    # 🏆 只擋「已追蹤檔案被改過」（git status --porcelain 的 XY 不是
+    # "??"），未追蹤檔案（例如 ensure_env() 自己複製進來的 .env、
+    # Python 跑過後留下的 __pycache__）就算有也不算數——這兩個指令
+    # （merge --ff-only／reset --hard）都只動已追蹤檔案，未追蹤檔案
+    # 原本就不會被影響，擋這個只會讓每個新建的 worktree 永遠卡在
+    # 「有未提交的改動」，實際上沒有任何東西會被毀掉。
+    ok, status_out = await _git_async(["status", "--porcelain"], cwd=path)
+    tracked_dirty = [line for line in status_out.strip().splitlines() if not line.startswith("??")]
+    if ok and tracked_dirty:
+        return (f"⚠️ 這個工作目錄有 {len(tracked_dirty)} 個已追蹤檔案被改過但未提交，"
+                "已跳過更新，用的是磁碟上現有的版本。")
 
     ok, out = await _git_async(["merge", "--ff-only", f"origin/{branch}"], cwd=path)
-    if not ok:
-        return (f"⚠️ 無法快轉到 origin/{branch}（可能已分歧），"
-                f"用的是磁碟上現有的版本：\n```\n{out[-300:]}\n```")
+    if ok:
+        return ""
 
-    return ""
+    # 🏆 快轉失敗，先確認這真的只是「卡在 origin 自己的舊快照」，
+    # 不是本機有從沒推上去的 commit，才動 reset --hard。
+    if await _is_safe_to_reset(branch, path):
+        ok2, out2 = await _git_async(["reset", "--hard", f"origin/{branch}"], cwd=path)
+        if ok2:
+            return (f"ℹ️ 偵測到 `{branch}` 在遠端被強制推送過（歷史改寫，無法單純快轉），"
+                     "已確認本機只是卡在 origin 自己的舊快照、沒有任何未推送的本機 "
+                     "commit，自動 reset 同步到最新版本。")
+        return (f"⚠️ 無法快轉到 origin/{branch}（可能已分歧），嘗試自動 reset 也失敗了，"
+                f"用的是磁碟上現有的版本：\n```\n{out2[-300:]}\n```")
+
+    return (f"⚠️ 無法快轉到 origin/{branch}（可能已分歧，且本機有無法確認來源的獨立"
+            f"commit，為安全起見不自動 reset），用的是磁碟上現有的版本：\n```\n{out[-300:]}\n```")
 
 
 # ── .env ────────────────────────────────────────────────────
