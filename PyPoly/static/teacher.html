@@ -478,9 +478,11 @@
         <main class="admin-board" id="studentListView">
             <div class="board-header">
                 <div class="class-info-banner" id="classInfoBanner">
-                    <span class="class-badge-box" id="displayClassName">尚未建立班級</span>
+                    <select id="classSelectDropdown" class="class-badge-box" style="cursor: pointer; outline: none; display: none;" onchange="onSwitchClass(this.value)"></select>
+                    <span class="class-badge-box" id="noClassBadge">🏫 尚未建立班級</span>
                     <span class="code-badge-box" id="displayInviteCode" style="display: none;">邀請碼：------</span>
-                    <button class="btn-pixel-sm" style="background: #dfe4ea; color: var(--text-dark);" onclick="openClassModal()">✏️ 設定班級名稱</button>
+                    <button class="btn-pixel-sm" style="background: var(--bee-yellow); color: var(--text-dark);" onclick="openClassModal('create')">➕ 新增班級</button>
+                    <button class="btn-pixel-sm" id="btnRenameClass" style="background: #dfe4ea; color: var(--text-dark); display: none;" onclick="openClassModal('rename')">✏️ 班級改名</button>
                 </div>
 
                 <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
@@ -753,32 +755,48 @@
         }
     }
 
+    // 🏆 切換目前管理的班級
+    function onSwitchClass(newClassId) {
+        localStorage.setItem('teacher_active_class_id', String(newClassId));
+        fetchMyClass(true);
+    }
+
     async function fetchMyClass(silent = false) {
         try {
-            const res = await fetch(`${API_URL}/teacher/my_class`, { headers: authHeaders() });
-            if (res.status === 404) {
-                if (!silent) {
-                    showModal('⚠️ 後端尚未載入新路由 (404)', '目前的伺服器還沒有 /teacher/my_class 路由！<br>請確認 main.py 已存檔，並重新啟動後端伺服器（或 git push 後重啟 Discord 機器人）。', false);
-                }
-                return;
-            }
+            const savedClassId = localStorage.getItem('teacher_active_class_id');
+            const qParam = savedClassId ? `?class_id=${encodeURIComponent(savedClassId)}` : '';
+            const res = await fetch(`${API_URL}/teacher/my_class${qParam}`, { headers: authHeaders() });
             if (!res.ok) return;
             const data = await res.json();
             currentClassData = data;
 
-            const nameBadge = document.getElementById('displayClassName');
+            const dropdown = document.getElementById('classSelectDropdown');
+            const noClassBadge = document.getElementById('noClassBadge');
             const codeBadge = document.getElementById('displayInviteCode');
+            const btnRename = document.getElementById('btnRenameClass');
 
             if (!data.has_class) {
-                nameBadge.innerText = '🏫 尚未建立班級';
+                dropdown.style.display = 'none';
+                noClassBadge.style.display = 'inline-block';
                 codeBadge.style.display = 'none';
+                btnRename.style.display = 'none';
                 studentsCache = [];
                 renderStudents();
-                if (!silent) openClassModal(true);
+                if (!silent) openClassModal('create', true);
             } else {
-                nameBadge.innerText = `🏫 班級：${data.class_name}`;
+                // 記住目前選中的 class_id，讓考題庫與學習手冊頁面也能同步對應此班級
+                localStorage.setItem('teacher_active_class_id', String(data.class_id));
+
+                noClassBadge.style.display = 'none';
+                dropdown.style.display = 'inline-block';
+                btnRename.style.display = 'inline-block';
                 codeBadge.style.display = 'inline-block';
                 codeBadge.innerText = `🔑 班級邀請碼：${data.invite_code}`;
+
+                dropdown.innerHTML = (data.classes || []).map(c =>
+                    `<option value="${c.id}" ${c.id === data.class_id ? 'selected' : ''}>🏫 班級：${c.name}</option>`
+                ).join('');
+
                 studentsCache = data.students || [];
                 renderStudents();
             }
@@ -823,20 +841,28 @@
         }).join('');
     }
 
-    function openClassModal(isFirst = false) {
+    let classModalMode = 'create'; // 'create' 或 'rename'
+
+    function openClassModal(mode = 'create', isFirst = false) {
+        classModalMode = mode;
         const modal = document.getElementById('statusModal');
-        document.getElementById('modalTitle').innerText = isFirst ? '🏫 歡迎！請先建立您的班級' : '✏️ 設定班級名稱';
+        const isRename = (mode === 'rename' && currentClassData && currentClassData.has_class);
+
+        document.getElementById('modalTitle').innerText = isFirst
+            ? '🏫 歡迎！請先建立您的第一個班級'
+            : (isRename ? '✏️ 修改目前班級名稱' : '➕ 建立新班級');
         document.getElementById('modalTitle').style.color = 'var(--text-dark)';
-        const oldName = (currentClassData && currentClassData.class_name) ? currentClassData.class_name : '';
+
+        const defaultVal = isRename ? currentClassData.class_name : '';
 
         document.getElementById('modalBody').innerHTML = `
-            <p style="margin-bottom: 12px;">建立班級後，系統會自動產生一組 6 位數邀請碼供學生加入：</p>
-            <input type="text" id="classNameInput" value="${oldName}" placeholder="例如：三年二班、Python 創客營"
-                   style="width: 100%; padding: 12px; border: 3px solid var(--pixel-border); font-weight: 900; font-size: 1rem; background: #fffdf5; margin-bottom: 16px;">
+            <p style="margin-bottom: 12px;">${isRename ? '請輸入新的班級名稱：' : '每位老師可建立多個班級，系統將為新班級產生獨立的 6 位數邀請碼：'}</p>
+            <input type="text" id="classNameInput" autocomplete="off" value="${defaultVal}" placeholder="例如：五年一班、Python 進階班"
+                   style="width: 100%; padding: 12px; border: 3px solid var(--pixel-border); font-weight: 900; font-size: 1rem; background: #fffdf5; margin-bottom: 16px; outline: none;">
         `;
         document.getElementById('modalFooter').innerHTML = `
-            <button class="btn-3d" style="background: var(--pixel-green); color: white;" onclick="saveClassName()">確認儲存</button>
-            <button class="btn-3d" style="background: #dfe4ea;" onclick="closeModal()">取消</button>
+            <button type="button" class="btn-3d" style="background: var(--pixel-green); color: white;" onclick="saveClassName()">確認儲存</button>
+            <button type="button" class="btn-3d" style="background: #dfe4ea;" onclick="closeModal()">取消</button>
         `;
         modal.style.display = 'flex';
     }
@@ -848,19 +874,24 @@
             alert('請輸入班級名稱！');
             return;
         }
+        const payload = { name };
+        if (classModalMode === 'rename' && currentClassData && currentClassData.class_id) {
+            payload.class_id = currentClassData.class_id;
+        }
+
         try {
             const res = await fetch(`${API_URL}/teacher/create_class`, {
                 method: 'POST',
                 headers: authHeaders(true),
-                body: JSON.stringify({ name })
+                body: JSON.stringify(payload)
             });
-            if (res.status === 404) {
-                showModal('❌ 儲存失敗 (404)', '後端伺服器尚未載入 /teacher/create_class 路由！請確認 main.py 已存檔並重啟後端伺服器。', false);
-                return;
-            }
             const data = await res.json().catch(() => ({}));
             if (res.ok) {
                 closeModal();
+                // 若是新建班級，自動切換到剛建好的新班級！
+                if (data.class_id) {
+                    localStorage.setItem('teacher_active_class_id', String(data.class_id));
+                }
                 await fetchMyClass(true);
             } else {
                 showModal('❌ 儲存失敗', data.detail || `伺服器回應錯誤 (${res.status})`, false);
@@ -875,15 +906,17 @@
         const student_username = input.value.trim();
         if (!student_username) return;
 
+        const activeClassId = currentClassData?.class_id || Number(localStorage.getItem('teacher_active_class_id')) || null;
+
         const res = await fetch(`${API_URL}/teacher/add_student`, {
             method: 'POST',
             headers: authHeaders(true),
-            body: JSON.stringify({ student_username })
+            body: JSON.stringify({ student_username, class_id: activeClassId })
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok) {
             input.value = '';
-            showModal('✅ 加入成功', `已將學生「${data.username}」加入班級！`, true);
+            showModal('✅ 加入成功', `已將學生「${data.username}」加入「${data.class_name}」！`, true);
             fetchMyClass(true);
         } else {
             showModal('❌ 加入失敗', data.detail || '請確認學生帳號是否正確', false);
