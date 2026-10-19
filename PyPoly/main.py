@@ -2397,37 +2397,54 @@ def admin_mark_logs_read(db: Session = Depends(database.get_db), admin: models.U
     return {"status": "success"}
 
 
-# --- 教師專用：取得自己的班級與學生名單 ---
+# --- 教師專用：取得自己名下的所有班級 + 當前選定班級的學生名單 ---
 @app.get("/teacher/my_class")
-def teacher_get_my_class(db: Session = Depends(database.get_db), teacher: models.User = Depends(require_teacher)):
+def teacher_get_my_class(
+    class_id: Optional[int] = None,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
     perform_auto_cleanup(db)
-    classroom = db.query(models.Classroom).filter(
+
+    # 自動修復因改名而斷開連結的孤兒班級
+    all_db_classes = db.query(models.Classroom).all()
+    for c in all_db_classes:
+        owner_exists = db.query(models.User).filter(models.User.username == c.teacher_username).first()
+        if not owner_exists:
+            c.teacher_username = teacher.username
+            db.commit()
+
+    # 撈出該名老師名下的「所有班級」
+    my_classes = db.query(models.Classroom).filter(
         models.Classroom.teacher_username == teacher.username
-    ).first()
+    ).order_by(models.Classroom.id.asc()).all()
 
-    # 🏆 自動修復機制：如果因為之前老師改名導致班級的 teacher_username 還是舊名字（找不到對應 User），自動綁回目前老師身上！
-    if not classroom:
-        all_classes = db.query(models.Classroom).all()
-        for c in all_classes:
-            owner_exists = db.query(models.User).filter(models.User.username == c.teacher_username).first()
-            if not owner_exists:
-                c.teacher_username = teacher.username
-                db.commit()
-                classroom = c
-                break
+    if not my_classes:
+        return {"has_class": False, "classes": []}
 
-    if not classroom:
-        return {"has_class": False}
+    # 決定目前選中的是哪一個班級（若前端有傳 class_id 且屬於該老師就用它，否則預設選第一個）
+    active_class = None
+    if class_id:
+        active_class = next((c for c in my_classes if c.id == class_id), None)
+    if not active_class:
+        active_class = my_classes[0]
 
     students = db.query(models.User).filter(
-        models.User.class_id == classroom.id
+        models.User.class_id == active_class.id
     ).order_by(models.User.is_online.desc(), models.User.username.asc()).all()
 
     return {
         "has_class": True,
-        "class_id": classroom.id,
-        "class_name": classroom.name,
-        "invite_code": classroom.invite_code,
+        "class_id": active_class.id,
+        "class_name": active_class.name,
+        "invite_code": active_class.invite_code,
+        "classes": [
+            {
+                "id": c.id,
+                "name": c.name,
+                "invite_code": c.invite_code
+            } for c in my_classes
+        ],
         "students": [
             {
                 "username": s.username,
@@ -2438,40 +2455,47 @@ def teacher_get_my_class(db: Session = Depends(database.get_db), teacher: models
     }
 
 
-# --- 教師專用：建立班級或修改班級名稱 ---
+# --- 教師專用：新增班級 或 修改既有班級名稱 ---
 class CreateClassRequest(BaseModel):
     name: str
+    class_id: Optional[int] = None  # 若有傳 class_id 代表「修改該班級名稱」；若為 None 代表「建立一個新班級」
 
 @app.post("/teacher/create_class")
-def teacher_create_or_update_class(req: CreateClassRequest, db: Session = Depends(database.get_db), teacher: models.User = Depends(require_teacher)):
+def teacher_create_or_update_class(
+    req: CreateClassRequest,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
     name = req.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="班級名稱不能為空")
 
-    # 1. 先找這個老師自己名下有沒有班級
-    classroom = db.query(models.Classroom).filter(
-        models.Classroom.teacher_username == teacher.username
-    ).first()
-
-    # 2. 如果名下沒班級，但輸入的班級名稱已經存在（例如之前改名遺留的班級），直接認領回來並綁定到自己帳號下！
-    if not classroom:
-        existing_by_name = db.query(models.Classroom).filter(models.Classroom.name == name).first()
-        if existing_by_name:
-            existing_by_name.teacher_username = teacher.username
-            db.commit()
-            return {
-                "status": "reclaimed",
-                "class_id": existing_by_name.id,
-                "class_name": existing_by_name.name,
-                "invite_code": existing_by_name.invite_code
-            }
-
-    if classroom:
+    # 模式 A：修改既有班級名稱
+    if req.class_id:
+        classroom = db.query(models.Classroom).filter(
+            models.Classroom.id == req.class_id,
+            models.Classroom.teacher_username == teacher.username
+        ).first()
+        if not classroom:
+            raise HTTPException(status_code=404, detail="找不到要修改的班級")
         classroom.name = name
         db.commit()
-        return {"status": "updated", "class_id": classroom.id, "class_name": classroom.name, "invite_code": classroom.invite_code}
+        return {
+            "status": "updated",
+            "class_id": classroom.id,
+            "class_name": classroom.name,
+            "invite_code": classroom.invite_code
+        }
 
-    # 3. 真的完全沒有班級，才新建一個
+    # 模式 B：新增一個全新班級（先檢查同老師是否已有同名班級）
+    duplicate = db.query(models.Classroom).filter(
+        models.Classroom.teacher_username == teacher.username,
+        models.Classroom.name == name
+    ).first()
+    if duplicate:
+        raise HTTPException(status_code=400, detail=f"您已經建立過名為「{name}」的班級囉！")
+
+    # 產生不重複的 6 位數邀請碼
     chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
     invite_code = ""
     for _ in range(20):
@@ -2490,19 +2514,26 @@ def teacher_create_or_update_class(req: CreateClassRequest, db: Session = Depend
     db.add(new_class)
     db.commit()
     db.refresh(new_class)
-    return {"status": "created", "class_id": new_class.id, "class_name": new_class.name, "invite_code": new_class.invite_code}
+    return {
+        "status": "created",
+        "class_id": new_class.id,
+        "class_name": new_class.name,
+        "invite_code": new_class.invite_code
+    }
 
-# --- 教師專用：手動將學生加入班級 ---
+
+# --- 教師專用：手動將學生加入「當前選定的班級」 ---
 class AddStudentRequest(BaseModel):
     student_username: str
+    class_id: Optional[int] = None
 
 @app.post("/teacher/add_student")
-def teacher_add_student(req: AddStudentRequest, db: Session = Depends(database.get_db), teacher: models.User = Depends(require_teacher)):
-    classroom = db.query(models.Classroom).filter(
-        models.Classroom.teacher_username == teacher.username
-    ).first()
-    if not classroom:
-        raise HTTPException(status_code=400, detail="請先建立班級後再加入學生")
+def teacher_add_student(
+    req: AddStudentRequest,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
+    classroom = _get_teacher_classroom(db, teacher, req.class_id)
 
     target_username = req.student_username.strip()
     student = db.query(models.User).filter(models.User.username == target_username).first()
@@ -2518,16 +2549,21 @@ def teacher_add_student(req: AddStudentRequest, db: Session = Depends(database.g
 
 # --- 教師專用：將學生從班級中剔除 ---
 @app.delete("/teacher/students/{student_username}")
-def teacher_kick_student(student_username: str, db: Session = Depends(database.get_db), teacher: models.User = Depends(require_teacher)):
-    classroom = db.query(models.Classroom).filter(
+def teacher_kick_student(
+    student_username: str,
+    class_id: Optional[int] = None,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
+    my_class_ids = [c.id for c in db.query(models.Classroom).filter(
         models.Classroom.teacher_username == teacher.username
-    ).first()
-    if not classroom:
+    ).all()]
+    if not my_class_ids:
         raise HTTPException(status_code=404, detail="找不到班級")
 
     student = db.query(models.User).filter(
         models.User.username == student_username,
-        models.User.class_id == classroom.id
+        models.User.class_id.in_(my_class_ids)
     ).first()
     if not student:
         raise HTTPException(status_code=404, detail="該名學生不在您的班級中")
@@ -2539,19 +2575,21 @@ def teacher_kick_student(student_username: str, db: Session = Depends(database.g
 
 # --- 教師專用：查看單一學生的學習狀況與類別統計 ---
 @app.get("/teacher/student_stats/{student_username}")
-def teacher_get_student_stats(student_username: str, db: Session = Depends(database.get_db), teacher: models.User = Depends(require_teacher)):
-    classroom = db.query(models.Classroom).filter(
+def teacher_get_student_stats(
+    student_username: str,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
+    my_class_ids = [c.id for c in db.query(models.Classroom).filter(
         models.Classroom.teacher_username == teacher.username
-    ).first()
+    ).all()]
     student = db.query(models.User).filter(models.User.username == student_username).first()
     if not student:
         raise HTTPException(status_code=404, detail="找不到該名學生")
-    if teacher.role != "admin" and (not classroom or student.class_id != classroom.id):
+    if teacher.role != "admin" and student.class_id not in my_class_ids:
         raise HTTPException(status_code=403, detail="該名學生不在您的班級中")
 
     stats = _build_learn_stats(student_username, db)
-    
-    # 確保總答題數與答對題數以實際作答明細 (game_answer_logs) 為準，即使對局中途離開也能精準統計
     logs_total = sum(d["total"] for d in stats["dimensions"])
     logs_correct = sum(d["correct"] for d in stats["dimensions"])
     if logs_total > stats["summary"]["total_questions"]:
@@ -2561,22 +2599,28 @@ def teacher_get_student_stats(student_username: str, db: Session = Depends(datab
 
     return stats
 
+
 # ==========================================================
-# 🏆 第三階段：教師專屬考題庫 & 學習手冊 CRUD + 管理員異動通知
+# 🏆 第三階段（多班級版）：教師專屬考題庫 & 學習手冊 CRUD
 # ==========================================================
 
-def _get_teacher_classroom(db: Session, teacher: models.User) -> models.Classroom:
-    """取得該名老師建立的班級；若尚未建立班級則阻擋新增修改"""
-    classroom = db.query(models.Classroom).filter(
+def _get_teacher_classroom(db: Session, teacher: models.User, class_id: Optional[int] = None) -> models.Classroom:
+    """根據前端指定的 class_id 取得該老師的班級；若未指定則取該老師的第一個班級"""
+    query = db.query(models.Classroom).filter(
         models.Classroom.teacher_username == teacher.username
-    ).first()
+    )
+    if class_id:
+        classroom = query.filter(models.Classroom.id == class_id).first()
+        if classroom:
+            return classroom
+
+    classroom = query.order_by(models.Classroom.id.asc()).first()
     if not classroom:
-        raise HTTPException(status_code=400, detail="請先至「學生管理」建立您的班級後，再新增專屬考題或教材！")
+        raise HTTPException(status_code=400, detail="請先至「學生管理」建立您的班級後，再進行此操作！")
     return classroom
 
 
 def _log_teacher_action(db: Session, teacher: models.User, classroom: models.Classroom, action: str, target_type: str, detail: str):
-    """記錄老師對考題庫或學習手冊的異動，供管理員後台顯示通知"""
     log = models.TeacherAuditLog(
         teacher_username=teacher.username,
         class_id=classroom.id,
@@ -2589,12 +2633,17 @@ def _log_teacher_action(db: Session, teacher: models.User, classroom: models.Cla
     db.add(log)
 
 
-# --- 教師考題庫 API ---
+# --- 教師考題庫 API (支援多班級切換) ---
 @app.get("/teacher/questions/meta")
-def teacher_question_meta(db: Session = Depends(database.get_db), teacher: models.User = Depends(require_teacher)):
+def teacher_question_meta(
+    class_id: Optional[int] = None,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
     from sqlalchemy import or_
-    classroom = db.query(models.Classroom).filter(models.Classroom.teacher_username == teacher.username).first()
-    c_id = classroom.id if classroom else -1
+    my_classes = db.query(models.Classroom).filter(models.Classroom.teacher_username == teacher.username).all()
+    active_c = next((c for c in my_classes if c.id == class_id), my_classes[0] if my_classes else None)
+    c_id = active_c.id if active_c else -1
 
     topics = [t for (t,) in db.query(models.Question.topic)
               .filter(models.Question.topic.isnot(None),
@@ -2610,22 +2659,27 @@ def teacher_question_meta(db: Session = Depends(database.get_db), teacher: model
 
 @app.get("/teacher/questions")
 def teacher_list_questions(
+    class_id: Optional[int] = None,
     qtype: Optional[str] = None,
     difficulty: Optional[str] = None,
     topic: Optional[str] = None,
-    source: Optional[str] = None,  # "all" / "class" / "official"
+    source: Optional[str] = None,
     q: Optional[str] = None,
     db: Session = Depends(database.get_db),
     teacher: models.User = Depends(require_teacher),
 ):
     from sqlalchemy import or_
-    classroom = db.query(models.Classroom).filter(models.Classroom.teacher_username == teacher.username).first()
-    c_id = classroom.id if classroom else None
+    my_classes = db.query(models.Classroom).filter(
+        models.Classroom.teacher_username == teacher.username
+    ).order_by(models.Classroom.id.asc()).all()
+
+    active_c = next((c for c in my_classes if c.id == class_id), my_classes[0] if my_classes else None)
+    c_id = active_c.id if active_c else None
 
     query = db.query(models.Question)
     if source == "class":
         if not c_id:
-            return {"total": 0, "items": []}
+            return {"total": 0, "class_id": None, "class_name": None, "classes": [], "items": []}
         query = query.filter(models.Question.class_id == c_id)
     elif source == "official":
         query = query.filter(models.Question.class_id.is_(None))
@@ -2644,13 +2698,13 @@ def teacher_list_questions(
     if q and q.strip():
         query = query.filter(models.Question.content.like("%" + q.strip() + "%"))
 
-    # 班級專屬題目排在最前面，方便老師檢視自己出的題目
     class_priority = case((models.Question.class_id.isnot(None), 1), else_=0)
     rows = query.order_by(class_priority.desc(), models.Question.id.desc()).all()
     return {
         "total": len(rows),
         "class_id": c_id,
-        "class_name": classroom.name if classroom else None,
+        "class_name": active_c.name if active_c else None,
+        "classes": [{"id": c.id, "name": c.name} for c in my_classes],
         "items": [question_to_dict(r) for r in rows]
     }
 
@@ -2658,10 +2712,11 @@ def teacher_list_questions(
 @app.post("/teacher/questions")
 def teacher_create_question(
     payload: QuestionPayload,
+    class_id: Optional[int] = None,
     db: Session = Depends(database.get_db),
     teacher: models.User = Depends(require_teacher)
 ):
-    classroom = _get_teacher_classroom(db, teacher)
+    classroom = _get_teacher_classroom(db, teacher, class_id)
     clean_data = validate_question(payload)
     row = models.Question(**clean_data, class_id=classroom.id, created_by=teacher.username)
     db.add(row)
@@ -2675,16 +2730,18 @@ def teacher_create_question(
 def teacher_update_question(
     question_id: int,
     payload: QuestionPayload,
+    class_id: Optional[int] = None,
     db: Session = Depends(database.get_db),
     teacher: models.User = Depends(require_teacher)
 ):
-    classroom = _get_teacher_classroom(db, teacher)
+    my_classes = {c.id: c for c in db.query(models.Classroom).filter(models.Classroom.teacher_username == teacher.username).all()}
     row = db.query(models.Question).filter(models.Question.id == question_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="找不到這一題")
-    if row.class_id != classroom.id:
-        raise HTTPException(status_code=403, detail="官方預設題目為全服共用基底，僅供檢視；您可以新增班級專屬題目！")
+    if row.class_id not in my_classes:
+        raise HTTPException(status_code=403, detail="官方預設題目僅供檢視；您可以新增班級專屬題目！")
 
+    classroom = my_classes[row.class_id]
     for k, v in validate_question(payload).items():
         setattr(row, k, v)
     _log_teacher_action(db, teacher, classroom, "修改", "考題庫", f"#{row.id} [{row.topic}] {row.content[:60]}")
@@ -2699,13 +2756,14 @@ def teacher_delete_question(
     db: Session = Depends(database.get_db),
     teacher: models.User = Depends(require_teacher)
 ):
-    classroom = _get_teacher_classroom(db, teacher)
+    my_classes = {c.id: c for c in db.query(models.Classroom).filter(models.Classroom.teacher_username == teacher.username).all()}
     row = db.query(models.Question).filter(models.Question.id == question_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="找不到這一題")
-    if row.class_id != classroom.id:
+    if row.class_id not in my_classes:
         raise HTTPException(status_code=403, detail="無法刪除官方預設題目")
 
+    classroom = my_classes[row.class_id]
     detail_preview = f"#{row.id} [{row.topic}] {row.content[:60]}"
     db.delete(row)
     _log_teacher_action(db, teacher, classroom, "刪除", "考題庫", detail_preview)
@@ -2713,16 +2771,24 @@ def teacher_delete_question(
     return {"message": "success", "id": question_id}
 
 
-# --- 教師學習手冊 API ---
+# --- 教師學習手冊 API (支援多班級切換) ---
 @app.get("/teacher/handbook/list")
-def teacher_list_handbook(db: Session = Depends(database.get_db), teacher: models.User = Depends(require_teacher)):
+def teacher_list_handbook(
+    class_id: Optional[int] = None,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
     from sqlalchemy import or_
     base_count = db.query(models.HandbookCard).filter(models.HandbookCard.class_id.is_(None)).count()
     if base_count == 0:
         seed_handbook.seed_handbook_data(db)
 
-    classroom = db.query(models.Classroom).filter(models.Classroom.teacher_username == teacher.username).first()
-    c_id = classroom.id if classroom else None
+    my_classes = db.query(models.Classroom).filter(
+        models.Classroom.teacher_username == teacher.username
+    ).order_by(models.Classroom.id.asc()).all()
+
+    active_c = next((c for c in my_classes if c.id == class_id), my_classes[0] if my_classes else None)
+    c_id = active_c.id if active_c else None
 
     if c_id:
         cards = db.query(models.HandbookCard).filter(
@@ -2735,14 +2801,20 @@ def teacher_list_handbook(db: Session = Depends(database.get_db), teacher: model
 
     return {
         "class_id": c_id,
-        "class_name": classroom.name if classroom else None,
+        "class_name": active_c.name if active_c else None,
+        "classes": [{"id": c.id, "name": c.name} for c in my_classes],
         "items": cards
     }
 
 
 @app.post("/teacher/handbook/add")
-def teacher_add_handbook(card: HandbookCreate, db: Session = Depends(database.get_db), teacher: models.User = Depends(require_teacher)):
-    classroom = _get_teacher_classroom(db, teacher)
+def teacher_add_handbook(
+    card: HandbookCreate,
+    class_id: Optional[int] = None,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
+    classroom = _get_teacher_classroom(db, teacher, class_id)
     new_card = models.HandbookCard(**card.dict(), class_id=classroom.id, created_by=teacher.username)
     db.add(new_card)
     _log_teacher_action(db, teacher, classroom, "新增", "學習手冊", f"[{card.cat_name}] {card.title}")
@@ -2752,14 +2824,20 @@ def teacher_add_handbook(card: HandbookCreate, db: Session = Depends(database.ge
 
 
 @app.put("/teacher/handbook/{card_id}")
-def teacher_update_handbook(card_id: int, card: HandbookCreate, db: Session = Depends(database.get_db), teacher: models.User = Depends(require_teacher)):
-    classroom = _get_teacher_classroom(db, teacher)
+def teacher_update_handbook(
+    card_id: int,
+    card: HandbookCreate,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
+    my_classes = {c.id: c for c in db.query(models.Classroom).filter(models.Classroom.teacher_username == teacher.username).all()}
     target = db.query(models.HandbookCard).filter(models.HandbookCard.id == card_id).first()
     if not target:
         raise HTTPException(status_code=404, detail="找不到此知識卡片")
-    if target.class_id != classroom.id:
+    if target.class_id not in my_classes:
         raise HTTPException(status_code=403, detail="官方預設手冊僅供檢視；您可以新增班級專屬字卡！")
 
+    classroom = my_classes[target.class_id]
     for key, value in card.dict().items():
         setattr(target, key, value)
     _log_teacher_action(db, teacher, classroom, "修改", "學習手冊", f"[{card.cat_name}] {card.title}")
@@ -2768,14 +2846,19 @@ def teacher_update_handbook(card_id: int, card: HandbookCreate, db: Session = De
 
 
 @app.delete("/teacher/handbook/{card_id}")
-def teacher_delete_handbook(card_id: int, db: Session = Depends(database.get_db), teacher: models.User = Depends(require_teacher)):
-    classroom = _get_teacher_classroom(db, teacher)
+def teacher_delete_handbook(
+    card_id: int,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
+    my_classes = {c.id: c for c in db.query(models.Classroom).filter(models.Classroom.teacher_username == teacher.username).all()}
     target = db.query(models.HandbookCard).filter(models.HandbookCard.id == card_id).first()
     if not target:
         raise HTTPException(status_code=404, detail="找不到此知識卡片")
-    if target.class_id != classroom.id:
+    if target.class_id not in my_classes:
         raise HTTPException(status_code=403, detail="無法刪除官方預設字卡")
 
+    classroom = my_classes[target.class_id]
     detail_preview = f"[{target.cat_name}] {target.title}"
     db.delete(target)
     _log_teacher_action(db, teacher, classroom, "刪除", "學習手冊", detail_preview)

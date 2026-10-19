@@ -572,7 +572,8 @@
 
     async function fetchCards() {
         try {
-            const res = await fetch(`${API_URL}/teacher/handbook/list`, { headers: authHeaders() });
+			const activeClassId = localStorage.getItem('teacher_active_class_id') || '';
+			const res = await fetch(`${API_URL}/teacher/handbook/list?class_id=${encodeURIComponent(activeClassId)}`, { headers: authHeaders() });
             if (res.ok) {
                 const data = await res.json();
                 myClassName = data.class_name || "";
@@ -684,7 +685,10 @@
         }
 
         errBox.textContent = '';
-        const url = id ? `${API_URL}/teacher/handbook/${id}` : `${API_URL}/teacher/handbook/add`;
+		const activeClassId = localStorage.getItem('teacher_active_class_id') || '';
+		const url = id
+			? `${API_URL}/teacher/handbook/${id}`
+			: `${API_URL}/teacher/handbook/add?class_id=${encodeURIComponent(activeClassId)}`;
         try {
             const res = await fetch(url, {
                 method: id ? 'PUT' : 'POST',

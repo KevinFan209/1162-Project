@@ -627,34 +627,40 @@
     }
 
     async function fetchQuestions() {
-        const list = document.getElementById('questionList');
-        const params = new URLSearchParams();
-        const source = document.getElementById('filterSource').value;
-        const qtype = document.getElementById('filterQtype').value;
-        const topic = document.getElementById('filterTopic').value;
-        const diff = document.getElementById('filterDifficulty').value;
-        const kw = document.getElementById('filterKeyword').value.trim();
+		const list = document.getElementById('questionList');
+		const params = new URLSearchParams();
+		const source = document.getElementById('filterSource').value;
+		const qtype = document.getElementById('filterQtype').value;
+		const topic = document.getElementById('filterTopic').value;
+		const diff = document.getElementById('filterDifficulty').value;
+		const kw = document.getElementById('filterKeyword').value.trim();
 
-        if (source) params.set('source', source);
-        if (qtype) params.set('qtype', qtype);
-        if (topic) params.set('topic', topic);
-        if (diff) params.set('difficulty', diff);
-        if (kw) params.set('q', kw);
+		if (source) params.set('source', source);
+		if (qtype) params.set('qtype', qtype);
+		if (topic) params.set('topic', topic);
+		if (diff) params.set('difficulty', diff);
+		if (kw) params.set('q', kw);
 
-        try {
-            const res = await fetch(`${API_URL}/teacher/questions?${params}`, { headers: authHeaders() });
-            if (!res.ok) {
-                list.innerHTML = `<div class="list-state">載入失敗：${escapeHtml(await readError(res))}</div>`;
-                return;
-            }
-            const data = await res.json();
-            myClassName = data.class_name || "";
-            allQuestions = data.items || [];
-            renderQuestions();
-        } catch (err) {
-            list.innerHTML = `<div class="list-state">載入失敗</div>`;
-        }
-    }
+		// 🏆 必須在 fetch 發送之前，先把 activeClassId 設定到 params 裡
+		const activeClassId = localStorage.getItem('teacher_active_class_id');
+		if (activeClassId) {
+			params.set('class_id', activeClassId);
+		}
+
+		try {
+			const res = await fetch(`${API_URL}/teacher/questions?${params}`, { headers: authHeaders() });
+			if (!res.ok) {
+				list.innerHTML = `<div class="list-state">載入失敗：${escapeHtml(await readError(res))}</div>`;
+				return;
+			}
+			const data = await res.json();
+			myClassName = data.class_name || "";
+			allQuestions = data.items || [];
+			renderQuestions();
+		} catch (err) {
+			list.innerHTML = `<div class="list-state">載入失敗</div>`;
+		}
+	}
 
     function renderQuestions() {
         const list = document.getElementById('questionList');
@@ -829,9 +835,10 @@
         const btn = document.getElementById('btnSave');
         btn.disabled = true;
         try {
-            const url = editingId
-                ? `${API_URL}/teacher/questions/${editingId}`
-                : `${API_URL}/teacher/questions`;
+            const activeClassId = localStorage.getItem('teacher_active_class_id') || '';
+			const url = editingId
+				? `${API_URL}/teacher/questions/${editingId}?class_id=${encodeURIComponent(activeClassId)}`
+				: `${API_URL}/teacher/questions?class_id=${encodeURIComponent(activeClassId)}`;
             const res = await fetch(url, {
                 method: editingId ? 'PUT' : 'POST',
                 headers: authHeaders(true),
