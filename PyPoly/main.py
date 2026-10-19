@@ -639,7 +639,7 @@ def validate_question(q: QuestionPayload) -> dict:
 
 
 def question_to_dict(q: models.Question) -> dict:
-    """後台用的完整表示。含答案欄位，所以只給掛了 require_admin 的端點用。"""
+    """後台用的完整表示。"""
     return {
         "id": q.id,
         "category": q.category,
@@ -654,6 +654,8 @@ def question_to_dict(q: models.Question) -> dict:
         "reference_solution": q.reference_solution,
         "time_limit_sec": q.time_limit_sec,
         "max_attempts": q.max_attempts,
+        "class_id": getattr(q, "class_id", None),
+        "created_by": getattr(q, "created_by", None),
     }
 
 
@@ -1484,29 +1486,40 @@ async def get_map_config(
     difficulty: str,
     test: bool = False,
     qtype: str = None,
+    username: Optional[str] = None,
     db: Session = Depends(database.get_db),
 ):
-    """組出 26 格地圖。
-
-    test=1 為測試模式：把大部分冒險格換成 BLANK（踩到直接換人），
-    只留少數幾格保留答題流程，讓一局能快速跑完以驗證結算頁。
-    地圖由後端產生，雙方才保證拿到同一張；前端各自切換會導致兩人地圖不一致。
-    """
     try:
-        # 修正中文模式轉為資料庫 Key
+        from sqlalchemy import or_
         db_mode = "basic" if "基礎" in mode else "advanced"
-
-        # 🏆 進階模式底下同時存在兩種題型（gesture 手勢比數字 / code 手打程式碼），
-        #    只依 category 撈會兩種混著出現，玩家上一格比手勢、下一格要寫程式。
-        #    不指定時：基礎 -> choice、進階 -> code（進階模式的現行走向）。
-        #    要跑舊的手勢題請明確帶 ?qtype=gesture。
         db_qtype = qtype or ("choice" if db_mode == "basic" else "code")
-        
-        # 🏆 修正點：直接使用 func.random()，不要透過 models.database
+
+        # 🏆 判斷遊玩者所屬班級：優先從參數 username 找，若無則從目前活躍房間內的玩家找
+        user_class_id = None
+        if username:
+            u = db.query(models.User).filter(models.User.username == username).first()
+            if u and u.class_id:
+                user_class_id = u.class_id
+        else:
+            for r in active_rooms.values():
+                for p_name in r.get("players", []):
+                    u = db.query(models.User).filter(models.User.username == p_name).first()
+                    if u and u.class_id:
+                        user_class_id = u.class_id
+                        break
+                if user_class_id:
+                    break
+
+        # 🏆 一般玩家只抽官方題庫 (class_id IS NULL)；班級學生抽「官方 ＋ 該班級老師新增的題庫」
+        q_filter = models.Question.class_id.is_(None)
+        if user_class_id:
+            q_filter = or_(models.Question.class_id.is_(None), models.Question.class_id == user_class_id)
+
         questions = db.query(models.Question).filter(
             models.Question.category == db_mode,
             models.Question.qtype == db_qtype,
-            models.Question.difficulty == difficulty
+            models.Question.difficulty == difficulty,
+            q_filter
         ).order_by(func.random()).limit(20).all()
         
         countries = db.query(models.CountryScenario).order_by(func.random()).limit(20).all()
@@ -2523,3 +2536,224 @@ def teacher_get_student_stats(student_username: str, db: Session = Depends(datab
         stats["summary"]["accuracy"] = round(logs_correct / logs_total * 100) if logs_total else 0
 
     return stats
+
+# ==========================================================
+# 🏆 第三階段：教師專屬考題庫 & 學習手冊 CRUD + 管理員異動通知
+# ==========================================================
+
+def _get_teacher_classroom(db: Session, teacher: models.User) -> models.Classroom:
+    """取得該名老師建立的班級；若尚未建立班級則阻擋新增修改"""
+    classroom = db.query(models.Classroom).filter(
+        models.Classroom.teacher_username == teacher.username
+    ).first()
+    if not classroom:
+        raise HTTPException(status_code=400, detail="請先至「學生管理」建立您的班級後，再新增專屬考題或教材！")
+    return classroom
+
+
+def _log_teacher_action(db: Session, teacher: models.User, classroom: models.Classroom, action: str, target_type: str, detail: str):
+    """記錄老師對考題庫或學習手冊的異動，供管理員後台顯示通知"""
+    log = models.TeacherAuditLog(
+        teacher_username=teacher.username,
+        class_id=classroom.id,
+        class_name=classroom.name,
+        action=action,
+        target_type=target_type,
+        detail=(detail or "")[:250],
+        is_read=False
+    )
+    db.add(log)
+
+
+# --- 教師考題庫 API ---
+@app.get("/teacher/questions/meta")
+def teacher_question_meta(db: Session = Depends(database.get_db), teacher: models.User = Depends(require_teacher)):
+    from sqlalchemy import or_
+    classroom = db.query(models.Classroom).filter(models.Classroom.teacher_username == teacher.username).first()
+    c_id = classroom.id if classroom else -1
+
+    topics = [t for (t,) in db.query(models.Question.topic)
+              .filter(models.Question.topic.isnot(None),
+                      or_(models.Question.class_id.is_(None), models.Question.class_id == c_id))
+              .distinct().order_by(models.Question.topic).all()]
+    return {
+        "topics": topics,
+        "qtypes": list(QTYPES),
+        "difficulties": list(DIFFICULTIES),
+        "categories": list(CATEGORIES),
+    }
+
+
+@app.get("/teacher/questions")
+def teacher_list_questions(
+    qtype: Optional[str] = None,
+    difficulty: Optional[str] = None,
+    topic: Optional[str] = None,
+    source: Optional[str] = None,  # "all" / "class" / "official"
+    q: Optional[str] = None,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher),
+):
+    from sqlalchemy import or_
+    classroom = db.query(models.Classroom).filter(models.Classroom.teacher_username == teacher.username).first()
+    c_id = classroom.id if classroom else None
+
+    query = db.query(models.Question)
+    if source == "class":
+        if not c_id:
+            return {"total": 0, "items": []}
+        query = query.filter(models.Question.class_id == c_id)
+    elif source == "official":
+        query = query.filter(models.Question.class_id.is_(None))
+    else:
+        if c_id:
+            query = query.filter(or_(models.Question.class_id.is_(None), models.Question.class_id == c_id))
+        else:
+            query = query.filter(models.Question.class_id.is_(None))
+
+    if qtype:
+        query = query.filter(models.Question.qtype == qtype)
+    if difficulty:
+        query = query.filter(models.Question.difficulty == difficulty)
+    if topic:
+        query = query.filter(models.Question.topic == topic)
+    if q and q.strip():
+        query = query.filter(models.Question.content.like("%" + q.strip() + "%"))
+
+    # 班級專屬題目排在最前面，方便老師檢視自己出的題目
+    class_priority = case((models.Question.class_id.isnot(None), 1), else_=0)
+    rows = query.order_by(class_priority.desc(), models.Question.id.desc()).all()
+    return {
+        "total": len(rows),
+        "class_id": c_id,
+        "class_name": classroom.name if classroom else None,
+        "items": [question_to_dict(r) for r in rows]
+    }
+
+
+@app.post("/teacher/questions")
+def teacher_create_question(
+    payload: QuestionPayload,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
+    classroom = _get_teacher_classroom(db, teacher)
+    clean_data = validate_question(payload)
+    row = models.Question(**clean_data, class_id=classroom.id, created_by=teacher.username)
+    db.add(row)
+    _log_teacher_action(db, teacher, classroom, "新增", "考題庫", f"[{row.topic}] {row.content[:60]}")
+    db.commit()
+    db.refresh(row)
+    return question_to_dict(row)
+
+
+@app.put("/teacher/questions/{question_id}")
+def teacher_update_question(
+    question_id: int,
+    payload: QuestionPayload,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
+    classroom = _get_teacher_classroom(db, teacher)
+    row = db.query(models.Question).filter(models.Question.id == question_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="找不到這一題")
+    if row.class_id != classroom.id:
+        raise HTTPException(status_code=403, detail="官方預設題目為全服共用基底，僅供檢視；您可以新增班級專屬題目！")
+
+    for k, v in validate_question(payload).items():
+        setattr(row, k, v)
+    _log_teacher_action(db, teacher, classroom, "修改", "考題庫", f"#{row.id} [{row.topic}] {row.content[:60]}")
+    db.commit()
+    db.refresh(row)
+    return question_to_dict(row)
+
+
+@app.delete("/teacher/questions/{question_id}")
+def teacher_delete_question(
+    question_id: int,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
+    classroom = _get_teacher_classroom(db, teacher)
+    row = db.query(models.Question).filter(models.Question.id == question_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="找不到這一題")
+    if row.class_id != classroom.id:
+        raise HTTPException(status_code=403, detail="無法刪除官方預設題目")
+
+    detail_preview = f"#{row.id} [{row.topic}] {row.content[:60]}"
+    db.delete(row)
+    _log_teacher_action(db, teacher, classroom, "刪除", "考題庫", detail_preview)
+    db.commit()
+    return {"message": "success", "id": question_id}
+
+
+# --- 教師學習手冊 API ---
+@app.get("/teacher/handbook/list")
+def teacher_list_handbook(db: Session = Depends(database.get_db), teacher: models.User = Depends(require_teacher)):
+    from sqlalchemy import or_
+    base_count = db.query(models.HandbookCard).filter(models.HandbookCard.class_id.is_(None)).count()
+    if base_count == 0:
+        seed_handbook.seed_handbook_data(db)
+
+    classroom = db.query(models.Classroom).filter(models.Classroom.teacher_username == teacher.username).first()
+    c_id = classroom.id if classroom else None
+
+    if c_id:
+        cards = db.query(models.HandbookCard).filter(
+            or_(models.HandbookCard.class_id.is_(None), models.HandbookCard.class_id == c_id)
+        ).order_by(models.HandbookCard.order_index.asc(), models.HandbookCard.id.asc()).all()
+    else:
+        cards = db.query(models.HandbookCard).filter(
+            models.HandbookCard.class_id.is_(None)
+        ).order_by(models.HandbookCard.order_index.asc(), models.HandbookCard.id.asc()).all()
+
+    return {
+        "class_id": c_id,
+        "class_name": classroom.name if classroom else None,
+        "items": cards
+    }
+
+
+@app.post("/teacher/handbook/add")
+def teacher_add_handbook(card: HandbookCreate, db: Session = Depends(database.get_db), teacher: models.User = Depends(require_teacher)):
+    classroom = _get_teacher_classroom(db, teacher)
+    new_card = models.HandbookCard(**card.dict(), class_id=classroom.id, created_by=teacher.username)
+    db.add(new_card)
+    _log_teacher_action(db, teacher, classroom, "新增", "學習手冊", f"[{card.cat_name}] {card.title}")
+    db.commit()
+    db.refresh(new_card)
+    return {"status": "success", "card_id": new_card.id}
+
+
+@app.put("/teacher/handbook/{card_id}")
+def teacher_update_handbook(card_id: int, card: HandbookCreate, db: Session = Depends(database.get_db), teacher: models.User = Depends(require_teacher)):
+    classroom = _get_teacher_classroom(db, teacher)
+    target = db.query(models.HandbookCard).filter(models.HandbookCard.id == card_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="找不到此知識卡片")
+    if target.class_id != classroom.id:
+        raise HTTPException(status_code=403, detail="官方預設手冊僅供檢視；您可以新增班級專屬字卡！")
+
+    for key, value in card.dict().items():
+        setattr(target, key, value)
+    _log_teacher_action(db, teacher, classroom, "修改", "學習手冊", f"[{card.cat_name}] {card.title}")
+    db.commit()
+    return {"status": "success", "msg": "教材已更新"}
+
+
+@app.delete("/teacher/handbook/{card_id}")
+def teacher_delete_handbook(card_id: int, db: Session = Depends(database.get_db), teacher: models.User = Depends(require_teacher)):
+    classroom = _get_teacher_classroom(db, teacher)
+    target = db.query(models.HandbookCard).filter(models.HandbookCard.id == card_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="找不到此知識卡片")
+    if target.class_id != classroom.id:
+        raise HTTPException(status_code=403, detail="無法刪除官方預設字卡")
+
+    detail_preview = f"[{target.cat_name}] {target.title}"
+    db.delete(target)
+    _log_teacher_action(db, teacher, classroom, "刪除", "學習手冊", detail_preview)
+    db.commit()
+    return {"status": "success", "msg": "教材已刪除"}
