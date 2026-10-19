@@ -22,9 +22,6 @@
             --card-bg: #ffffff;
             --text-dark: #1e272e;
             --text-gray: #747d8c;
-            --success-green: #05c46b;
-            --success-green-shadow: #049f55;
-            --border-light: #1e272e;
         }
 
         /* 徹底重置所有內外距，避免頂部產生縫隙與線條殘留 */
@@ -263,6 +260,7 @@
             height: 100%;
         }
 
+        /* 💡 修正陰影：改為右下方塊狀像素陰影 box-shadow: 6px 6px 0 #000; */
         .board-header {
             background: white;
             padding: 18px 30px;
@@ -348,6 +346,14 @@
             transform: translate(-2px, -2px);
             box-shadow: 6px 6px 0 #000;
             background: #fffdf5;
+        }
+
+        .room-mode-tag {
+            background: #dfe4ea;
+            border: 2px solid var(--pixel-border);
+            padding: 2px 8px;
+            font-size: 0.75rem;
+            font-weight: 900;
         }
 
         .room-scroll::-webkit-scrollbar { width: 8px; }
@@ -455,39 +461,6 @@
     </div>
 </div>
 
-<!-- 🏆 高質感現代風格提示視窗（拓寬版面、確保「......囉！」在同一行） -->
-<div id="custom-ui-alert" style="
-    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-    background: rgba(15, 23, 42, 0.55); backdrop-filter: blur(5px);
-    display: none; align-items: center; justify-content: center;
-    z-index: 99999; opacity: 0; transition: opacity 0.3s ease;
-">
-    <div style="
-        background: white; padding: 40px; border-radius: 35px;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.25); border: 2px solid var(--border-light);
-        width: 90%; max-width: 520px; text-align: center;
-        transform: translateY(30px) scale(0.95); 
-        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    ">
-        <div id="customAlertIcon" style="font-size: 3rem; margin-bottom: 10px;">🎉</div>
-        <h2 id="customAlertTitle" style="font-size: 1.8rem; font-weight: 900; color: var(--text-dark); margin-bottom: 15px;">
-            提示
-        </h2>
-        <!-- 🏆 max-width 設定與 nowrap 確保長句子（如：現在你可以看到老師專屬準備的教材與題目囉！）在同一行顯示 -->
-        <p id="customAlertMsg" style="
-            font-size: 1.05rem; color: var(--text-gray); font-weight: 700; line-height: 1.7; margin-bottom: 30px;
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
-        ">
-            內容
-        </p>
-        <button id="customAlertBtn" onclick="document.getElementById('custom-ui-alert').style.display='none'" style="
-            background: var(--success-green); color: white; padding: 16px 40px; border: none;
-            border-radius: 15px; font-weight: 900; font-size: 1.1rem; cursor: pointer;
-            box-shadow: 0 6px 0 var(--success-green-shadow); width: 100%; transition: 0.1s;
-        ">我知道了</button>
-    </div>
-</div>
-
 <script src="js/ngrok-fetch.js"></script>
 <script>
     const API_URL = location.origin;
@@ -574,28 +547,49 @@
         setInterval(renderRooms, 10000);
     };
     
-    // 🏆 高質感現代風格提示視窗（自動修復按鈕空白、拓寬畫面支援同一行顯示）
     function showCustomAlert(title, message, isSuccess = false) {
-        const overlay = document.getElementById('custom-ui-alert');
-        if (!overlay) return;
+        const existingAlert = document.getElementById('custom-ui-alert');
+        if (existingAlert) existingAlert.remove();
 
-        const iconEl = overlay.querySelector('div > div:first-child');
-        const titleEl = document.getElementById('customAlertTitle');
-        const msgEl = document.getElementById('customAlertMsg');
-        const btnEl = document.getElementById('customAlertBtn');
+        const overlay = document.createElement('div');
+        overlay.id = 'custom-ui-alert';
+        overlay.style.cssText = `
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.3); backdrop-filter: blur(5px);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 99999; opacity: 0; transition: opacity 0.3s ease;
+        `;
 
-        if (iconEl) iconEl.innerText = isSuccess ? '🎉' : '⚠️';
-        if (titleEl) titleEl.innerText = title;
-        if (msgEl) msgEl.innerHTML = message;
+        const btnColor = isSuccess ? 'var(--success-green)' : '#ff4757'; 
+        const btnShadow = isSuccess ? 'var(--success-green-shadow)' : '#ff6b81';
 
-        if (btnEl) {
-            const btnColor = isSuccess ? 'var(--success-green)' : '#ff4757';
-            const btnShadow = isSuccess ? 'var(--success-green-shadow)' : '#ff6b81';
-            btnEl.style.background = btnColor;
-            btnEl.style.boxShadow = `0 6px 0 ${btnShadow}`;
-        }
+        overlay.innerHTML = `
+            <div style="
+                background: white; padding: 40px; border-radius: 35px;
+                box-shadow: 0 20px 50px rgba(0,0,0,0.15); border: 2px solid var(--border-light);
+                width: 90%; max-width: 420px; text-align: center;
+                transform: translateY(30px) scale(0.95); 
+                transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            ">
+                <div style="font-size: 3rem; margin-bottom: 10px;">
+                    ${isSuccess ? '🎉' : '⚠️'}
+                </div>
+                <h2 style="font-size: 1.8rem; font-weight: 900; color: var(--text-dark); margin-bottom: 15px;">
+                    ${title}
+                </h2>
+                <p style="font-size: 1.1rem; color: var(--text-gray); font-weight: 700; line-height: 1.6; margin-bottom: 30px;">
+                    ${message}
+                </p>
+                <button class="btn-3d" onclick="document.getElementById('custom-ui-alert').remove()" style="
+                    background: ${btnColor}; color: white; padding: 16px 40px; border: none;
+                    border-radius: 15px; font-weight: 900; font-size: 1.1rem; cursor: pointer;
+                    box-shadow: 0 6px 0 ${btnShadow}; width: 100%; transition: 0.1s;
+                ">我知道了</button>
+            </div>
+        `;
 
-        overlay.style.display = 'flex';
+        document.body.appendChild(overlay);
+
         requestAnimationFrame(() => {
             overlay.style.opacity = "1";
             overlay.children[0].style.transform = "translateY(0) scale(1)";
@@ -615,7 +609,7 @@
         if (isCreated !== "true") {
             showCustomAlert(
                 "角色尚未建立", 
-                "請先點擊左側的「建立專屬虛擬人物」按鈕完成自定義，才能夠加入對局喔！"
+                "請先點擊左側的<span style='color: var(--primary-blue);'>「建立專屬虛擬人物」</span>按鈕完成自定義，才能夠加入對局喔！"
             );
             return false;
         }
@@ -904,7 +898,9 @@
             if (res.ok) {
                 closeJoinClassModal();
                 updateClassBadgeUI(data.class_name);
-                showCustomAlert("加入成功！", `你已成功加入「${data.class_name}」！現在你可以看到老師專屬準備的教材與題目囉！`, true);
+                showCustomAlert("加入成功！", `你已成功加入「<b>${data.class_name}</b>」！<br>現在你可以看到老師專屬準備的教材與題目囉！<br>`, true);
+				
+				return
             } else {
                 showCustomAlert("加入失敗", data.detail || "請確認邀請碼是否正確");
             }
