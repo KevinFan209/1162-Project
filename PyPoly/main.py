@@ -474,28 +474,36 @@ def require_admin(authorization: str = Header(None), db: Session = Depends(datab
     return user
 
 # 6. 管理員：獲取所有用戶 (加權排序)
+# 6. 管理員：獲取所有用戶 (加權排序 + 班級資訊)
 @app.get("/admin/users")
 def get_all_users(db: Session = Depends(database.get_db), admin: models.User = Depends(require_admin)):
     perform_auto_cleanup(db)
     
-    # 🏆 admin 優先級高，排最前
-    admin_priority = case(
-        (models.User.role == 'admin', 1),
+    # 🏆 排序優先級：admin > teacher > player
+    role_priority = case(
+        (models.User.role == 'admin', 2),
+        (models.User.role == 'teacher', 1),
         else_=0
     )
     
     users = db.query(models.User).order_by(
-        admin_priority.desc(),
+        role_priority.desc(),
         models.User.is_online.desc(),
         models.User.username.asc()
     ).all()
+
+    # 撈出所有班級名稱對照表
+    classrooms = db.query(models.Classroom).all()
+    class_map = {c.id: c.name for c in classrooms}
     
     return [
         {
             "username": u.username, 
             "email": u.email, 
             "role": u.role, 
-            "is_online": u.is_online
+            "is_online": u.is_online,
+            "class_id": u.class_id,
+            "class_name": class_map.get(u.class_id) if u.class_id else None
         } for u in users
     ]
 
