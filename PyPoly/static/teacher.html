@@ -333,8 +333,8 @@
             text-align: center;
         }
         .kpi-label { font-size: 0.9rem; font-weight: 900; color: var(--text-gray); margin-bottom: 6px; }
-        .kpi-value { font-size: 2rem; font-weight: 900; color: var(--text-dark); font-family: 'Silkscreen', 'Zen Maru Gothic', sans-serif; }
-        .kpi-sub { font-size: 0.82rem; font-weight: 800; color: var(--text-gray); margin-top: 4px; }
+        .kpi-value { font-size: 2.2rem; font-weight: 900; color: var(--text-dark); font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif; }
+		.kpi-sub { font-size: 0.82rem; font-weight: 800; color: var(--text-gray); margin-top: 4px; }
 
         /* 長條圖區塊 */
         .chart-section {
@@ -642,7 +642,9 @@
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
-                if (document.getElementById('studentListView').style.display !== 'none') {
+                // 🏆 修正：只有在「學生列表顯示中」且「沒有打開任何彈窗」時才刷新列表，防止點擊按鈕失效
+                const modalOpen = document.getElementById('statusModal').style.display === 'flex';
+                if (document.getElementById('studentListView').style.display !== 'none' && !modalOpen) {
                     fetchMyClass(true);
                 }
             } catch (e) {}
@@ -812,8 +814,8 @@
                         </span>
                     </div>
                     <div class="action-btns">
-                        <button class="btn-icon btn-stats" onclick="openStudentStats('${s.username}')">📊 學習狀況</button>
-                        <button class="btn-icon btn-ban" onclick="confirmKickStudent('${s.username}')">剔除</button>
+                        <button type="button" class="btn-icon btn-stats" data-user="${s.username.replace(/"/g, '&quot;')}" onclick="openStudentStats(this.dataset.user)">📊 學習狀況</button>
+                        <button type="button" class="btn-icon btn-ban" data-user="${s.username.replace(/"/g, '&quot;')}" onclick="confirmKickStudent(this.dataset.user)">剔除</button>
                     </div>
                 </div>
             `;
@@ -889,22 +891,37 @@
 
     function confirmKickStudent(studentUsername) {
         const modal = document.getElementById('statusModal');
-        document.getElementById('modalTitle').innerText = '⚠️ 剔除學生確認';
-        document.getElementById('modalTitle').style.color = 'var(--pixel-red)';
-        document.getElementById('modalBody').innerHTML = `<p>確定要將學生「<b>${studentUsername}</b>」從班級中剔除嗎？<br>（剔除後該帳號將變回一般玩家）</p>`;
-        document.getElementById('modalFooter').innerHTML = `
-            <button class="btn-3d" style="background: var(--pixel-red); color: white;" id="confirmKickBtn">確定剔除</button>
-            <button class="btn-3d" style="background: #dfe4ea;" onclick="closeModal()">取消</button>
+        const titleEl = document.getElementById('modalTitle');
+        const bodyEl = document.getElementById('modalBody');
+        const footerEl = document.getElementById('modalFooter');
+
+        titleEl.innerText = '⚠️ 剔除學生確認';
+        titleEl.style.color = 'var(--pixel-red)';
+        bodyEl.innerHTML = `<p style="font-weight: 900; color: var(--text-dark); margin-bottom: 20px; line-height: 1.6;">確定要將學生「<b>${studentUsername}</b>」從班級中剔除嗎？<br><span style="font-size: 0.9rem; color: var(--text-gray);">（剔除後該帳號將變回一般玩家）</span></p>`;
+        footerEl.innerHTML = `
+            <button type="button" class="btn-3d" style="background: var(--pixel-red); color: white;" id="confirmKickBtn">確定剔除</button>
+            <button type="button" class="btn-3d" style="background: #dfe4ea; color: var(--text-dark);" onclick="closeModal()">取消</button>
         `;
-        document.getElementById('confirmKickBtn').onclick = async () => {
-            closeModal();
-            const res = await fetch(`${API_URL}/teacher/students/${encodeURIComponent(studentUsername)}`, {
-                method: 'DELETE',
-                headers: authHeaders()
-            });
-            if (res.ok) fetchMyClass(true);
-        };
+
         modal.style.display = 'flex';
+
+        document.getElementById('confirmKickBtn').onclick = async () => {
+            try {
+                const res = await fetch(`${API_URL}/teacher/students/${encodeURIComponent(studentUsername)}`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                if (res.ok) {
+                    await fetchMyClass(true);
+                    showModal('✅ 剔除成功', `已將學生「<b>${studentUsername}</b>」移出班級！`, true);
+                } else {
+                    const errData = await res.json().catch(() => ({}));
+                    showModal('❌ 剔除失敗', errData.detail || '無法剔除該名學生', false);
+                }
+            } catch (err) {
+                showModal('❌ 連線錯誤', '無法連線至伺服器', false);
+            }
+        };
     }
 
     async function openStudentStats(studentUsername) {
