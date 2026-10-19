@@ -484,9 +484,9 @@
                 </div>
 
                 <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                    <input type="text" id="addStudentInput" class="search-input" placeholder="輸入學生帳號手動加入...">
-                    <button class="btn-pixel-sm" onclick="manualAddStudent()">➕ 加入學生</button>
-                    <input type="text" id="searchStudentInput" class="search-input" placeholder="🔍 搜尋班級學生..." oninput="renderStudents()">
+                    <input type="text" id="addStudentInput" name=" manual_add_student_box" autocomplete="off" class="search-input" placeholder="輸入學生帳號手動加入...">
+					<button class="btn-pixel-sm" onclick="manualAddStudent()">➕ 加入學生</button>
+					<input type="search" id="searchStudentInput" name="student_search_filter_box" autocomplete="off" readonly onfocus="this.removeAttribute('readonly');" class="search-input" placeholder="🔍 搜尋班級學生..." oninput="renderStudents()">
                 </div>
             </div>
 
@@ -549,17 +549,14 @@
             <div class="user-list-container">
                 <div class="profile-form-card">
                     <div class="profile-group">
-                        <label>🧑‍🏫 教師名稱 / 登入 ID</label>
-                        <input type="text" id="profUsername" class="profile-input" placeholder="輸入新的教師名稱或帳號 ID">
-                    </div>
+						<label>🔑 目前密碼（若不修改密碼可留空）</label>
+						<input type="password" id="profOldPassword" autocomplete="new-password" class="profile-input" placeholder="欲修改密碼請先輸入目前密碼">
+					</div>
 
-                    <div class="profile-group">
-                        <label>✉️ 電子信箱（修改信箱需先寄送驗證碼）</label>
-                        <div style="display: flex; gap: 10px;">
-                            <input type="email" id="profEmail" class="profile-input" placeholder="輸入電子信箱">
-                            <button type="button" class="btn-pixel-sm" style="background: var(--bee-yellow); color: var(--text-dark); white-space: nowrap;" onclick="sendTeacherEmailOtp()">寄送驗證碼</button>
-                        </div>
-                    </div>
+					<div class="profile-group">
+						<label>🔒 新密碼（若不修改密碼可留空）</label>
+						<input type="password" id="profNewPassword" autocomplete="new-password" class="profile-input" placeholder="輸入新密碼">
+					</div>
 
                     <div class="profile-group">
                         <label>🔢 信箱驗證碼（若未修改信箱可留空）</label>
