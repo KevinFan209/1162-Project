@@ -4,11 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BeeRich - Admin User Management</title>
-    <!-- 引入與全站一致的精選像素與高質感字型 -->
     <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
-	<link rel="icon" href="/favicon.ico" type="image/jpeg">
-	<style>
+    <link rel="icon" href="/favicon.ico" type="image/jpeg">
+    <style>
         :root {
             --pixel-border: #1e272e;
             --bee-gold: #ffc048;
@@ -21,8 +20,6 @@
             --card-bg: #ffffff;
             --text-dark: #1e272e;
             --text-gray: #747d8c;
-            --sidebar-dark: #2f3542;
-            --sidebar-dark-shadow: #1e272e;
             --border-light: #1e272e;
             --danger-red: #ff3f34;
         }
@@ -47,7 +44,6 @@
 
         body {
             background-color: var(--bg-grid);
-            /* 像素幾何網格背景 */
             background-image: 
                 linear-gradient(rgba(0, 0, 0, 0.05) 2px, transparent 2px),
                 linear-gradient(90deg, rgba(0, 0, 0, 0.05) 2px, transparent 2px);
@@ -59,7 +55,6 @@
             position: relative;
         }
 
-        /* 頂部像素風格導覽列 */
         header {
             margin: 0 !important;
             top: 0;
@@ -110,7 +105,6 @@
             gap: 6px;
         }
 
-        /* Admin 主要佈局 */
         .admin-main {
             height: calc(100vh - 80px);
             display: flex;
@@ -129,7 +123,6 @@
             align-items: stretch;
         }
 
-        /* 側邊導覽欄 */
         .admin-nav {
             width: 280px;
             background: white;
@@ -143,7 +136,6 @@
         }
 
         .admin-nav h2 {
-            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
             font-weight: 900;
             font-size: 1.35rem;
             margin-bottom: 10px;
@@ -186,12 +178,6 @@
             box-shadow: 1px 1px 0 #000;
         }
 
-        .nav-link:active {
-            transform: translate(3px, 3px);
-            box-shadow: 0 0 0 #000;
-        }
-
-        /* 右側主看板 */
         .admin-board {
             flex: 1;
             display: flex;
@@ -207,15 +193,17 @@
             border: 4px solid var(--pixel-border);
             box-shadow: 6px 6px 0 #000;
             display: flex;
-            justify-content: flex-start;
-            align-items: center; 
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
         }
 
         .search-input {
             padding: 10px 16px;
             border: 3px solid var(--pixel-border);
             background: #fffdf5;
-            width: 350px;
+            width: 300px;
             font-weight: 900;
             font-size: 0.95rem;
             color: var(--text-dark);
@@ -227,7 +215,38 @@
             border-color: #000;
         }
 
-        /* 使用者清單表格容器 */
+        .header-tools {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .btn-tool {
+            padding: 9px 16px;
+            border: 3px solid var(--pixel-border);
+            background: #fffdf2;
+            font-weight: 900;
+            font-size: 0.9rem;
+            cursor: pointer;
+            box-shadow: 3px 3px 0 #000;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            position: relative;
+        }
+        .btn-tool:hover { background: var(--bee-yellow); }
+        .btn-tool:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+
+        .badge-unread {
+            background: var(--pixel-red);
+            color: white;
+            border: 2px solid var(--pixel-border);
+            padding: 1px 6px;
+            font-size: 0.75rem;
+            font-weight: 900;
+            margin-left: 4px;
+        }
+
         .user-list-container { 
             background: white;
             flex: 1;
@@ -239,7 +258,7 @@
 
         .table-header {
             display: grid;
-            grid-template-columns: 80px 1fr 1fr 1fr 160px;
+            grid-template-columns: 70px 1.2fr 1.2fr 120px 160px;
             padding: 0 24px 12px;
             font-weight: 900;
             color: var(--text-dark);
@@ -254,7 +273,7 @@
             border: 3px solid var(--pixel-border);
             box-shadow: 4px 4px 0 #000;
             display: grid;
-            grid-template-columns: 80px 1fr 1fr 1fr 160px;
+            grid-template-columns: 70px 1.2fr 1.2fr 120px 160px;
             align-items: center;
             margin-bottom: 12px;
             transition: all 0.08s ease;
@@ -276,9 +295,21 @@
             align-items: center;
             font-size: 1.3rem;
         }
-        .user-id { font-weight: 900; font-size: 1.05rem; color: var(--text-dark); }
+        .user-id { font-weight: 900; font-size: 1.05rem; color: var(--text-dark); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
         .user-email { color: var(--text-gray); font-weight: 900; font-size: 0.9rem; }
         
+        .role-tag {
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border: 2px solid var(--pixel-border);
+            box-shadow: 2px 2px 0 #000;
+            font-weight: 900;
+        }
+        .role-admin { background: var(--bee-gold); color: var(--text-dark); }
+        .role-teacher { background: #e0f2fe; color: #0369a1; }
+        .role-student { background: #fef08a; color: #854d0e; }
+        .role-player { background: #f1f5f9; color: var(--text-gray); }
+
         .user-status {
             display: inline-block;
             padding: 4px 10px;
@@ -291,7 +322,6 @@
         .status-offline { background: #dfe4ea; color: var(--text-dark); }
         .status-banned { background: #fff5f5; color: var(--pixel-red); }
 
-        /* 按鈕樣式 */
         .action-btns { display: flex; gap: 8px; justify-content: flex-end; }
         .btn-icon {
             padding: 8px 14px;
@@ -327,14 +357,17 @@
             padding: 32px 30px;
             border: 4px solid var(--pixel-border);
             box-shadow: 8px 8px 0px #000000;
-            width: 420px;
-            max-width: 90vw;
+            width: 460px;
+            max-width: 92vw;
+            max-height: 85vh;
+            overflow-y: auto;
             text-align: center;
             animation: modalPop 0.15s ease-out;
         }
 
+        .modal-content.wide { width: 680px; text-align: left; }
+
         .modal-content h2 {
-            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
             font-weight: 900;
             font-size: 1.5rem;
             margin-bottom: 12px;
@@ -348,7 +381,7 @@
             font-size: 1rem;
         }
 
-        .modal-footer { display: flex; justify-content: center; gap: 12px; }
+        .modal-footer { display: flex; justify-content: center; gap: 12px; margin-top: 18px; }
 
         .btn-3d {
             padding: 12px 26px;
@@ -367,15 +400,25 @@
             box-shadow: 0 0 0 #000;
         }
 
+        .mini-card {
+            background: #f8fafc;
+            border: 3px solid var(--pixel-border);
+            box-shadow: 3px 3px 0 #000;
+            padding: 12px 16px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
         @keyframes modalPop {
             from { transform: scale(0.9); opacity: 0; }
             to { transform: scale(1); opacity: 1; }
         }
 
-        /* 滾動條樣式 */
-        .user-list-container::-webkit-scrollbar { width: 8px; }
-        .user-list-container::-webkit-scrollbar-track { background: #dfe4ea; border-left: 2px solid var(--pixel-border); }
-        .user-list-container::-webkit-scrollbar-thumb { background: var(--pixel-border); }
+        .user-list-container::-webkit-scrollbar, .modal-content::-webkit-scrollbar { width: 8px; }
+        .user-list-container::-webkit-scrollbar-track, .modal-content::-webkit-scrollbar-track { background: #dfe4ea; border-left: 2px solid var(--pixel-border); }
+        .user-list-container::-webkit-scrollbar-thumb, .modal-content::-webkit-scrollbar-thumb { background: var(--pixel-border); }
 
         @media (max-width: 900px) {
             header { padding: 0 20px; }
@@ -399,7 +442,7 @@
             <h2><span>📋</span> 後台選單</h2>
             <a href="admin.html" class="nav-link active"><span>👥</span> 用戶權限管理</a>
             <a href="question.html" class="nav-link"><span>❓</span> 考題庫編輯</a>
-			<a href="handbook_admin.html" class="nav-link"><span>📖</span> 學習手冊管理</a>
+            <a href="handbook_admin.html" class="nav-link"><span>📖</span> 學習手冊管理</a>
             <a href="camera.html" class="nav-link"><span>📷</span> 影像辨識偵錯</a>
             <a href="game_data.html" class="nav-link"><span>📈</span> 遊戲數據監控</a>
             <a href="javascript:void(0);" class="nav-link" onclick="logout();" style="margin-top: auto; color: white; background: var(--pixel-red);"><span>🚪</span> 登出系統</a>
@@ -407,13 +450,20 @@
 
         <main class="admin-board">
             <div class="board-header">
-                <input type="text" id="searchInput" class="search-input" placeholder="🔍 搜尋 ID 或 使用者名稱...">
+                <input type="text" id="searchInput" class="search-input" placeholder="🔍 搜尋 ID、信箱或班級..." oninput="renderFilteredUsers()">
+                <div class="header-tools">
+                    <button class="btn-tool" onclick="openClassesModal()"><span>🏫</span> 班級總覽</button>
+                    <button class="btn-tool" onclick="openAuditModal()">
+                        <span>🔔</span> 教師異動通知
+                        <span id="unreadBadge" class="badge-unread" style="display: none;">0</span>
+                    </button>
+                </div>
             </div>
 
             <div class="user-list-container">
                 <div class="table-header">
                     <span>頭像</span>
-                    <span>使用者 ID</span>
+                    <span>使用者 ID 與身分</span>
                     <span>電子信箱</span>
                     <span>當前狀態</span>
                     <span style="text-align: right;">操作項目</span>
@@ -425,11 +475,11 @@
     </div>
 </div>
 
+<!-- 通用狀態 / 編輯彈窗 -->
 <div id="statusModal" class="modal-overlay" style="display: none;">
-    <div class="modal-content">
+    <div class="modal-content" id="modalBox">
         <h2 id="modalTitle">標題</h2>
-        <p id="modalMsg">內容訊息</p>
-        
+        <div id="modalBody"><p id="modalMsg">內容訊息</p></div>
         <div class="modal-footer" id="modalFooter">
             <button class="btn-3d" id="modalBtn" onclick="closeModal()">確定</button>
         </div>
@@ -439,31 +489,24 @@
 <script src="js/ngrok-fetch.js"></script>
 <script>
     const API_URL = location.origin;
-    let syncTimer = null; // 用於儲存心跳與列表刷新的計時器
+    let syncTimer = null;
+    let allUsersCache = [];
 
-    // --- 1. 跨分頁監聽 (防止手動刪除 token) ---
     window.addEventListener('storage', (e) => {
-        if (e.key === 'token' && !e.newValue) {
-            window.location.href = 'login.html';
-        }
+        if (e.key === 'token' && !e.newValue) window.location.href = 'login.html';
     });
 
-    // --- 2. 頁面初始化：驗證、復活與初次載入 ---
     document.addEventListener('DOMContentLoaded', async () => {
         const token = localStorage.getItem('token');
         const role = localStorage.getItem('role');
         const username = localStorage.getItem('username');
 
-        // 基本權限檢查
         if (!token || role !== 'admin' || !username) {
             window.location.href = 'login.html';
             return;
         }
 
         try {
-            // =============================
-            // 🏆 核心：老師建議的 Token 驗證與續期 (復活)
-            // =============================
             const verifyRes = await fetch(`${API_URL}/auth/verify_and_refresh?username=${encodeURIComponent(username)}`, {
                 method: "POST",
                 headers: { 'Authorization': `Bearer ${token}` }
@@ -476,46 +519,35 @@
                 return;
             }
 
-            console.log("管理員驗證成功，狀態已復活");
-
-            // 進場報到 (更新最後活動時間)
             await fetch(`${API_URL}/auth/heartbeat?username=${encodeURIComponent(username)}`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
-            // 啟動監控與自動刷新循環
             startAdminLoop(username, token);
-            
-            // 初次抓取使用者列表
             fetchUsers();
-
+            fetchUnreadCount();
         } catch (err) {
             console.error("初始化失敗:", err);
             window.location.href = 'login.html';
         }
     });
 
-    // --- 3. 核心監控循環：心跳 + 刷新列表 + 狀態校對 ---
     function startAdminLoop(username, token) {
         if (syncTimer) clearInterval(syncTimer);
-        
         syncTimer = setInterval(async () => {
             try {
-                // A. 發送心跳
                 fetch(`${API_URL}/auth/heartbeat?username=${encodeURIComponent(username)}`, {
                     method: 'POST', 
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
-                // B. 狀態校對 (防止管理員被重複登入攔截)
                 const res = await fetch(`${API_URL}/auth/me?username=${encodeURIComponent(username)}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 if (res.ok) {
                     const data = await res.json();
-                    // 如果被後端判定離線，強制跳轉
                     if (data.is_online === 0 || data.role === 'banned') {
                         clearInterval(syncTimer);
                         localStorage.clear();
@@ -523,17 +555,14 @@
                         return;
                     }
                 }
-                
-                // C. 自動刷新使用者清單 (讓管理員看到即時在線狀態)
                 fetchUsers();
-
+                fetchUnreadCount();
             } catch (err) {
                 console.error("監控連線異常");
             }
         }, 5000); 
     }
 
-    // --- 4. 獲取使用者列表 ---
     async function fetchUsers() {
         try {
             const token = localStorage.getItem('token');
@@ -541,57 +570,210 @@
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (!response.ok) return;
-
-            const users = await response.json();
-            const container = document.getElementById('userTableBody');
-            if (!container) return;
-            container.innerHTML = "";
-            
-            users.forEach(user => {
-                const row = document.createElement('div');
-                row.className = 'user-row';
-                
-                let statusText = user.is_online === 1 ? "● 在線中" : "○ 離線";
-                let statusClass = user.is_online === 1 ? "status-online" : "status-offline";
-                
-                if (user.role === 'banned') { 
-                    statusText = "✖ 已封鎖"; 
-                    statusClass = "status-banned"; 
-                }
-
-                row.innerHTML = `
-                    <div class="user-avatar">${user.role === 'admin' ? '👑' : '👾'}</div>
-                    <div class="user-id">${user.username}</div>
-                    <div class="user-email">${user.email || '無信箱資料'}</div>
-                    <div><span class="user-status ${statusClass}">${statusText}</span></div>
-                    <div class="action-btns">
-                        <button class="btn-icon btn-edit">編輯</button>
-                        <button class="btn-icon btn-ban" ${user.username === localStorage.getItem('username') ? 'disabled' : ''} 
-                                onclick="openBanConfirm('${user.username}', '${user.role}')">
-                            ${user.role === 'banned' ? '解封' : '封鎖'}
-                        </button>
-                    </div>
-                `;
-                container.appendChild(row);
-            });
+            allUsersCache = await response.json();
+            renderFilteredUsers();
         } catch (err) { 
             console.error("刷新清單異常", err); 
         }
     }
 
-    // --- 5. 封鎖/解封功能 ---
+    function renderFilteredUsers() {
+        const container = document.getElementById('userTableBody');
+        if (!container) return;
+        const q = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
+
+        const list = allUsersCache.filter(u => {
+            if (!q) return true;
+            return (u.username && u.username.toLowerCase().includes(q)) ||
+                   (u.email && u.email.toLowerCase().includes(q)) ||
+                   (u.class_name && u.class_name.toLowerCase().includes(q));
+        });
+
+        container.innerHTML = "";
+        list.forEach(user => {
+            const row = document.createElement('div');
+            row.className = 'user-row';
+            
+            let statusText = user.is_online === 1 ? "● 在線中" : "○ 離線";
+            let statusClass = user.is_online === 1 ? "status-online" : "status-offline";
+            if (user.role === 'banned') { 
+                statusText = "✖ 已封鎖"; 
+                statusClass = "status-banned"; 
+            }
+
+            // 🏆 區分管理員、老師、學生玩家、一般玩家
+            let avatarIcon = '👾';
+            let roleBadge = `<span class="role-tag role-player">一般玩家</span>`;
+            if (user.role === 'admin') {
+                avatarIcon = '👑';
+                roleBadge = `<span class="role-tag role-admin">管理員</span>`;
+            } else if (user.role === 'teacher') {
+                avatarIcon = '🧑‍🏫';
+                roleBadge = `<span class="role-tag role-teacher">老師</span>`;
+            } else if (user.class_name) {
+                avatarIcon = '🎓';
+                roleBadge = `<span class="role-tag role-student">學生：${user.class_name}</span>`;
+            }
+
+            const isSelf = user.username === localStorage.getItem('username');
+
+            row.innerHTML = `
+                <div class="user-avatar">${avatarIcon}</div>
+                <div class="user-id">
+                    <span>${user.username}</span>
+                    ${roleBadge}
+                </div>
+                <div class="user-email">${user.email || '無信箱資料'}</div>
+                <div><span class="user-status ${statusClass}">${statusText}</span></div>
+                <div class="action-btns">
+                    <button class="btn-icon btn-edit" ${user.role === 'admin' ? 'disabled' : ''}
+                            onclick="openRoleEditModal('${user.username}', '${user.role}')">編輯</button>
+                    <button class="btn-icon btn-ban" ${isSelf || user.role === 'admin' ? 'disabled' : ''} 
+                            onclick="openBanConfirm('${user.username}', '${user.role}')">
+                        ${user.role === 'banned' ? '解封' : '封鎖'}
+                    </button>
+                </div>
+            `;
+            container.appendChild(row);
+        });
+    }
+
+    // 🏆 編輯使用者身分 (設定為老師或一般玩家)
+    function openRoleEditModal(targetUser, currentRole) {
+        const modal = document.getElementById('statusModal');
+        const box = document.getElementById('modalBox');
+        box.classList.remove('wide');
+
+        document.getElementById('modalTitle').innerText = `✏️ 調整身分權限`;
+        document.getElementById('modalTitle').style.color = "var(--text-dark)";
+        document.getElementById('modalBody').innerHTML = `
+            <p style="margin-bottom: 14px;">請選擇「<b>${targetUser}</b>」的系統身分：</p>
+            <select id="roleSelectInput" style="width: 100%; padding: 12px; border: 3px solid var(--pixel-border); font-weight: 900; font-size: 1rem; background: #fffdf5; margin-bottom: 10px;">
+                <option value="player" ${currentRole === 'player' ? 'selected' : ''}>👾 玩家 / 學生 (Player)</option>
+                <option value="teacher" ${currentRole === 'teacher' ? 'selected' : ''}>🧑‍🏫 教師 (Teacher - 可建立班級與管理教材)</option>
+            </select>
+        `;
+        document.getElementById('modalFooter').innerHTML = `
+            <button class="btn-3d" id="saveRoleBtn" style="background: var(--pixel-green); color: white;">儲存變更</button>
+            <button class="btn-3d" style="background: #dfe4ea;" onclick="closeModal()">取消</button>
+        `;
+        document.getElementById('saveRoleBtn').onclick = async () => {
+            const newRole = document.getElementById('roleSelectInput').value;
+            await executeRoleChange(targetUser, newRole, `身分變更為 ${newRole === 'teacher' ? '老師' : '玩家'}`);
+        };
+        modal.style.display = 'flex';
+    }
+
+    // 🏆 查看所有班級總覽
+    async function openClassesModal() {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/admin/classes`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const classes = res.ok ? await res.json() : [];
+
+        const modal = document.getElementById('statusModal');
+        const box = document.getElementById('modalBox');
+        box.classList.add('wide');
+
+        document.getElementById('modalTitle').innerText = `🏫 教師班級總覽 (${classes.length} 個班級)`;
+        document.getElementById('modalTitle').style.color = "var(--text-dark)";
+
+        if (!classes.length) {
+            document.getElementById('modalBody').innerHTML = `<p style="text-align:center; color: var(--text-gray);">目前尚無老師建立班級。</p>`;
+        } else {
+            document.getElementById('modalBody').innerHTML = classes.map(c => `
+                <div class="mini-card">
+                    <div>
+                        <div style="font-weight: 900; font-size: 1.1rem;">🏫 ${c.name}</div>
+                        <div style="font-size: 0.85rem; color: var(--text-gray); font-weight: 800;">
+                            指導老師：<b>${c.teacher_username}</b> ｜ 邀請碼：<b style="color:var(--pixel-blue);">${c.invite_code}</b>
+                        </div>
+                    </div>
+                    <div class="role-tag role-student" style="font-size: 0.9rem;">🎓 學生 ${c.student_count} 人</div>
+                </div>
+            `).join('');
+        }
+        document.getElementById('modalFooter').innerHTML = `<button class="btn-3d" onclick="closeModal()">關閉</button>`;
+        modal.style.display = 'flex';
+    }
+
+    // 🏆 取得未讀教師通知數量
+    async function fetchUnreadCount() {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${API_URL}/admin/audit_logs`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+            const badge = document.getElementById('unreadBadge');
+            if (data.unread_count > 0) {
+                badge.style.display = 'inline-block';
+                badge.innerText = data.unread_count;
+            } else {
+                badge.style.display = 'none';
+            }
+        } catch (e) {}
+    }
+
+    // 🏆 查看教師異動通知
+    async function openAuditModal() {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/admin/audit_logs`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = res.ok ? await res.json() : { items: [] };
+
+        const modal = document.getElementById('statusModal');
+        const box = document.getElementById('modalBox');
+        box.classList.add('wide');
+
+        document.getElementById('modalTitle').innerText = `🔔 教師教材與考題異動通知`;
+        document.getElementById('modalTitle').style.color = "var(--text-dark)";
+
+        if (!data.items.length) {
+            document.getElementById('modalBody').innerHTML = `<p style="text-align:center; color: var(--text-gray);">目前尚無任何老師更動考題或學習手冊。</p>`;
+        } else {
+            document.getElementById('modalBody').innerHTML = data.items.map(item => `
+                <div class="mini-card" style="background: ${item.is_read ? '#f8fafc' : '#fffdf2'};">
+                    <div>
+                        <div style="font-weight: 900; font-size: 0.98rem;">
+                            ${item.is_read ? '' : '🔴 '}<b>${item.teacher_username}</b> 老師（${item.class_name || '班級'}）
+                            <span class="role-tag role-teacher">${item.action}${item.target_type}</span>
+                        </div>
+                        <div style="font-size: 0.88rem; color: var(--text-gray); font-weight: 800; margin-top: 4px;">
+                            內容：${item.detail || '—'}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 標記為已讀
+        await fetch(`${API_URL}/admin/audit_logs/read_all`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        fetchUnreadCount();
+
+        document.getElementById('modalFooter').innerHTML = `<button class="btn-3d" onclick="closeModal()">知道了</button>`;
+        modal.style.display = 'flex';
+    }
+
     function openBanConfirm(targetUser, currentRole) {
         const isBanning = currentRole !== 'banned';
         const actionText = isBanning ? "封鎖" : "解除封鎖";
         const newRole = isBanning ? "banned" : "player";
 
         const modal = document.getElementById('statusModal');
+        document.getElementById('modalBox').classList.remove('wide');
         const titleEl = document.getElementById('modalTitle');
-        const msgEl = document.getElementById('modalMsg');
+        const bodyEl = document.getElementById('modalBody');
         const footerEl = document.getElementById('modalFooter');
 
         titleEl.innerText = `⚠️ ${actionText}確認`;
-        msgEl.innerText = `您確定要 ${actionText} 使用者「${targetUser}」嗎？`;
+        bodyEl.innerHTML = `<p>您確定要 ${actionText} 使用者「${targetUser}」嗎？</p>`;
         titleEl.style.color = isBanning ? "var(--pixel-red)" : "var(--pixel-green)";
 
         footerEl.innerHTML = `
@@ -601,7 +783,6 @@
 
         document.getElementById('confirmActionBtn').onclick = async () => {
             await executeRoleChange(targetUser, newRole, actionText);
-            closeModal();
         };
 
         modal.style.display = 'flex';
@@ -620,7 +801,7 @@
             });
 
             if (res.ok) {
-                showModal("✅ 執行成功", `使用者 ${targetUser} 已 ${actionText}。`, true);
+                showModal("✅ 執行成功", `使用者 ${targetUser} 已完成：${actionText}。`, true);
                 fetchUsers();
             } else {
                 showModal("❌ 執行失敗", "無法變更權限", false);
@@ -630,43 +811,27 @@
         }
     }
 
-    // --- 6. 導航與手動登出 ---
     async function logout() {
-        if (typeof syncTimer !== 'undefined' && syncTimer) {
-            clearInterval(syncTimer);
-        }
-
+        if (syncTimer) clearInterval(syncTimer);
         const username = localStorage.getItem('username');
-        if (!username) return;
-
-        const url = API_URL + "/auth/logout?username=" + encodeURIComponent(username) + "&confirm=true";
-        console.log("正在發送登出請求到:", url);
-
-        try {
-            const response = await fetch(url, { 
-                method: 'POST',
-                mode: 'cors',
-                cache: 'no-cache'
-            });
-            const result = await response.json();
-            console.log("後端回應：", result);
-        } catch (err) {
-            console.error("登出連線失敗", err);
+        if (username) {
+            try {
+                await fetch(`${API_URL}/auth/logout?username=${encodeURIComponent(username)}&confirm=true`, { method: 'POST' });
+            } catch (err) {}
         }
-
         localStorage.clear();
         window.location.href = 'login.html';
     }
 
-    // --- 7. 通用 UI Modal 控制 ---
     function showModal(title, message, isSuccess = true) {
         const modal = document.getElementById('statusModal');
+        document.getElementById('modalBox').classList.remove('wide');
         const titleEl = document.getElementById('modalTitle');
-        const msgEl = document.getElementById('modalMsg');
+        const bodyEl = document.getElementById('modalBody');
         const footerEl = document.getElementById('modalFooter');
 
         titleEl.innerText = title;
-        msgEl.innerText = message;
+        bodyEl.innerHTML = `<p>${message}</p>`;
         titleEl.style.color = isSuccess ? "var(--pixel-green)" : "var(--pixel-red)";
         footerEl.innerHTML = `<button class="btn-3d" onclick="closeModal()">確定</button>`;
         modal.style.display = 'flex';
