@@ -398,18 +398,24 @@
     </div>
 </main>
 
+<script src="js/ngrok-fetch.js"></script>
+
 <script>
     const API_URL = location.origin;
     let handbookData = []; 
     let currentCategory = 'all';
 
     // 🏆 頁面初始化：優先從 FastAPI 後端資料庫抓取教材
+    // 🏆 頁面初始化：帶上學生帳號向 FastAPI 後端抓取「官方＋所屬班級」教材
     window.onload = async () => {
         try {
-            const res = await fetch(`${API_URL}/handbook/list`);
+            const currentUser = localStorage.getItem('username') || '';
+            const res = await fetch(`${API_URL}/handbook/list?username=${encodeURIComponent(currentUser)}`, {
+                headers: { 'Accept': 'application/json' }
+            });
             if (res.ok) {
                 const data = await res.json();
-                if (data && data.length > 0) {
+                if (Array.isArray(data) && data.length > 0) {
                     handbookData = data;
                 }
             }

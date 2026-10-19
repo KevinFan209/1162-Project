@@ -536,6 +536,17 @@
                 console.log("狀態已復活");
                 if (document.getElementById('topPlayerName')) document.getElementById('topPlayerName').innerText = username;
                 if (document.getElementById('sidePlayerName')) document.getElementById('sidePlayerName').innerText = username;
+				
+				// 🏆 新增這兩段：1. 進場瞬間先從 localStorage 秒讀班級名稱顯示，0 延遲！
+				const cachedClassName = localStorage.getItem('class_name');
+				if (cachedClassName) updateClassBadgeUI(cachedClassName);
+
+				// 🏆 2. 進場立刻跟後端確認一次最新班級狀態（不用等 5 秒）
+				fetch(`${API_URL}/auth/me?username=${encodeURIComponent(username)}`, {
+					headers: { 'Authorization': `Bearer ${token}` }
+				}).then(r => r.ok ? r.json() : null).then(d => {
+					if (d) updateClassBadgeUI(d.class_name);
+				}).catch(() => {});
 
                 startSyncLoop(username, token);
                 renderRooms(); 
@@ -869,10 +880,11 @@ function showCustomAlert(title, message, isSuccess = false) {
                 });
                 const res = await fetch(`${API_URL}/auth/me?username=${encodeURIComponent(username)}`, {
 					headers: { 'Authorization': `Bearer ${token}` }
-				}).then(r => r.json()).then(d => updateClassBadgeUI(d.class_name)).catch(() => {});
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.role === 'banned' || (data.is_online === 0 && data.role !== 'admin')) {
+				});
+				if (res.ok) {
+					const data = await res.json();
+					updateClassBadgeUI(data.class_name); // 🏆 在這裡更新班級標籤即可
+					if (data.role === 'banned' || (data.is_online === 0 && data.role !== 'admin')) {
                         clearInterval(syncTimer);
                         
                         const charBackups = {};
