@@ -299,11 +299,15 @@
         .user-email { color: var(--text-gray); font-weight: 900; font-size: 0.9rem; }
         
         .role-tag {
-            font-size: 0.75rem;
-            padding: 2px 8px;
+            display: inline-block;
+            min-width: 78px;
+            text-align: center;
+            font-size: 0.78rem;
+            padding: 3px 8px;
             border: 2px solid var(--pixel-border);
             box-shadow: 2px 2px 0 #000;
             font-weight: 900;
+            flex-shrink: 0;
         }
         .role-admin { background: var(--bee-gold); color: var(--text-dark); }
         .role-teacher { background: #e0f2fe; color: #0369a1; }
@@ -620,8 +624,8 @@
             row.innerHTML = `
                 <div class="user-avatar">${avatarIcon}</div>
                 <div class="user-id">
-                    <span>${user.username}</span>
                     ${roleBadge}
+                    <span>${user.username}</span>
                 </div>
                 <div class="user-email">${user.email || '無信箱資料'}</div>
                 <div><span class="user-status ${statusClass}">${statusText}</span></div>

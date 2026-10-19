@@ -882,9 +882,12 @@ def update_profile(
     if not new_username:
         raise HTTPException(status_code=400, detail="使用者 ID 不能為空")
 
+    # ---- 驗證全過，才實際寫入 ----
     if username_changed:
-        if db.query(models.User).filter(models.User.username == new_username).first():
-            raise HTTPException(status_code=400, detail="此 ID 已被使用")
+        # 🏆 新增這兩行：如果老師改了名字(ID)，一併更新他名下班級與通知紀錄的老師名稱
+        db.query(models.Classroom).filter(models.Classroom.teacher_username == current_username).update({"teacher_username": new_username})
+        db.query(models.TeacherAuditLog).filter(models.TeacherAuditLog.teacher_username == current_username).update({"teacher_username": new_username})
+        user.username = new_username
 
     if email_changed:
         if db.query(models.User).filter(models.User.email == new_email).first():
@@ -2319,3 +2322,204 @@ def student_leave_class(username: str, db: Session = Depends(database.get_db)):
     user.class_id = None
     db.commit()
     return {"status": "success"}
+
+
+# ==========================================================
+# 🏆 第二階段：管理員監控 (班級列表/教師通知) & 教師端後台 API
+# ==========================================================
+
+def require_teacher(authorization: str = Header(None), db: Session = Depends(database.get_db)):
+    """教師權限守衛：允許 role 為 teacher 或 admin 的帳號通行"""
+    username = auth_utils.get_current_user(authorization)
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user or user.role not in ("teacher", "admin"):
+        raise HTTPException(status_code=403, detail="需要老師或管理員權限")
+    return user
+
+
+# --- 管理員專用：查看所有老師建立的班級 ---
+@app.get("/admin/classes")
+def admin_list_classes(db: Session = Depends(database.get_db), admin: models.User = Depends(require_admin)):
+    classes = db.query(models.Classroom).order_by(models.Classroom.id.desc()).all()
+    result = []
+    for c in classes:
+        student_count = db.query(models.User).filter(models.User.class_id == c.id).count()
+        result.append({
+            "id": c.id,
+            "name": c.name,
+            "teacher_username": c.teacher_username,
+            "invite_code": c.invite_code,
+            "student_count": student_count,
+            "created_at": c.created_at
+        })
+    return result
+
+
+# --- 管理員專用：查看老師對題庫/手冊的更動提示 ---
+@app.get("/admin/audit_logs")
+def admin_get_audit_logs(db: Session = Depends(database.get_db), admin: models.User = Depends(require_admin)):
+    logs = db.query(models.TeacherAuditLog).order_by(models.TeacherAuditLog.id.desc()).limit(50).all()
+    unread_count = db.query(models.TeacherAuditLog).filter(models.TeacherAuditLog.is_read == False).count()
+    return {
+        "unread_count": unread_count,
+        "items": [
+            {
+                "id": l.id,
+                "teacher_username": l.teacher_username,
+                "class_name": l.class_name,
+                "action": l.action,
+                "target_type": l.target_type,
+                "detail": l.detail,
+                "is_read": l.is_read,
+                "created_at": l.created_at
+            } for l in logs
+        ]
+    }
+
+
+@app.post("/admin/audit_logs/read_all")
+def admin_mark_logs_read(db: Session = Depends(database.get_db), admin: models.User = Depends(require_admin)):
+    db.query(models.TeacherAuditLog).filter(models.TeacherAuditLog.is_read == False).update({"is_read": True})
+    db.commit()
+    return {"status": "success"}
+
+
+# --- 教師專用：取得自己的班級與學生名單 ---
+@app.get("/teacher/my_class")
+def teacher_get_my_class(db: Session = Depends(database.get_db), teacher: models.User = Depends(require_teacher)):
+    perform_auto_cleanup(db)
+    classroom = db.query(models.Classroom).filter(
+        models.Classroom.teacher_username == teacher.username
+    ).first()
+
+    if not classroom:
+        return {"has_class": False}
+
+    students = db.query(models.User).filter(
+        models.User.class_id == classroom.id
+    ).order_by(models.User.is_online.desc(), models.User.username.asc()).all()
+
+    return {
+        "has_class": True,
+        "class_id": classroom.id,
+        "class_name": classroom.name,
+        "invite_code": classroom.invite_code,
+        "students": [
+            {
+                "username": s.username,
+                "email": s.email,
+                "is_online": s.is_online
+            } for s in students
+        ]
+    }
+
+
+# --- 教師專用：建立班級或修改班級名稱 ---
+class CreateClassRequest(BaseModel):
+    name: str
+
+@app.post("/teacher/create_class")
+def teacher_create_or_update_class(req: CreateClassRequest, db: Session = Depends(database.get_db), teacher: models.User = Depends(require_teacher)):
+    name = req.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="班級名稱不能為空")
+
+    classroom = db.query(models.Classroom).filter(
+        models.Classroom.teacher_username == teacher.username
+    ).first()
+
+    if classroom:
+        classroom.name = name
+        db.commit()
+        return {"status": "updated", "class_id": classroom.id, "class_name": classroom.name, "invite_code": classroom.invite_code}
+
+    # 產生不重複的 6 位數邀請碼 (排除易混淆字元 I, O, 0, 1)
+    chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    invite_code = ""
+    for _ in range(20):
+        candidate = "".join(random.choices(chars, k=6))
+        if not db.query(models.Classroom).filter(models.Classroom.invite_code == candidate).first():
+            invite_code = candidate
+            break
+    if not invite_code:
+        invite_code = f"C{random.randint(10000, 99999)}"
+
+    new_class = models.Classroom(
+        name=name,
+        teacher_username=teacher.username,
+        invite_code=invite_code
+    )
+    db.add(new_class)
+    db.commit()
+    db.refresh(new_class)
+    return {"status": "created", "class_id": new_class.id, "class_name": new_class.name, "invite_code": new_class.invite_code}
+
+
+# --- 教師專用：手動將學生加入班級 ---
+class AddStudentRequest(BaseModel):
+    student_username: str
+
+@app.post("/teacher/add_student")
+def teacher_add_student(req: AddStudentRequest, db: Session = Depends(database.get_db), teacher: models.User = Depends(require_teacher)):
+    classroom = db.query(models.Classroom).filter(
+        models.Classroom.teacher_username == teacher.username
+    ).first()
+    if not classroom:
+        raise HTTPException(status_code=400, detail="請先建立班級後再加入學生")
+
+    target_username = req.student_username.strip()
+    student = db.query(models.User).filter(models.User.username == target_username).first()
+    if not student:
+        raise HTTPException(status_code=404, detail=f"找不到帳號為「{target_username}」的玩家")
+    if student.role in ("admin", "teacher"):
+        raise HTTPException(status_code=400, detail="無法將管理員或其他老師加入班級")
+
+    student.class_id = classroom.id
+    db.commit()
+    return {"status": "success", "username": student.username, "class_name": classroom.name}
+
+
+# --- 教師專用：將學生從班級中剔除 ---
+@app.delete("/teacher/students/{student_username}")
+def teacher_kick_student(student_username: str, db: Session = Depends(database.get_db), teacher: models.User = Depends(require_teacher)):
+    classroom = db.query(models.Classroom).filter(
+        models.Classroom.teacher_username == teacher.username
+    ).first()
+    if not classroom:
+        raise HTTPException(status_code=404, detail="找不到班級")
+
+    student = db.query(models.User).filter(
+        models.User.username == student_username,
+        models.User.class_id == classroom.id
+    ).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="該名學生不在您的班級中")
+
+    student.class_id = None
+    db.commit()
+    return {"status": "success"}
+
+
+# --- 教師專用：查看單一學生的學習狀況與類別統計 ---
+@app.get("/teacher/student_stats/{student_username}")
+def teacher_get_student_stats(student_username: str, db: Session = Depends(database.get_db), teacher: models.User = Depends(require_teacher)):
+    classroom = db.query(models.Classroom).filter(
+        models.Classroom.teacher_username == teacher.username
+    ).first()
+    student = db.query(models.User).filter(models.User.username == student_username).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="找不到該名學生")
+    if teacher.role != "admin" and (not classroom or student.class_id != classroom.id):
+        raise HTTPException(status_code=403, detail="該名學生不在您的班級中")
+
+    stats = _build_learn_stats(student_username, db)
+    
+    # 確保總答題數與答對題數以實際作答明細 (game_answer_logs) 為準，即使對局中途離開也能精準統計
+    logs_total = sum(d["total"] for d in stats["dimensions"])
+    logs_correct = sum(d["correct"] for d in stats["dimensions"])
+    if logs_total > stats["summary"]["total_questions"]:
+        stats["summary"]["total_questions"] = logs_total
+        stats["summary"]["correct"] = logs_correct
+        stats["summary"]["accuracy"] = round(logs_correct / logs_total * 100) if logs_total else 0
+
+    return stats

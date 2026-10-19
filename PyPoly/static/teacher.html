@@ -77,6 +77,12 @@
             cursor: pointer;
         }
 
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
         .page-tag {
             background: #e0f2fe;
             border: 3px solid var(--pixel-border);
@@ -348,9 +354,7 @@
             align-items: center;
         }
 
-        .bar-row {
-            margin-bottom: 16px;
-        }
+        .bar-row { margin-bottom: 16px; }
         .bar-header {
             display: flex;
             justify-content: space-between;
@@ -379,6 +383,39 @@
             font-weight: 900;
             color: var(--text-dark);
             white-space: nowrap;
+        }
+
+        /* 👤 教師個人資料設定表單 */
+        .profile-form-card {
+            max-width: 620px;
+            margin: 0 auto;
+            background: #f8fafc;
+            border: 3px solid var(--pixel-border);
+            box-shadow: 5px 5px 0 #000;
+            padding: 28px 32px;
+        }
+        .profile-group {
+            margin-bottom: 18px;
+        }
+        .profile-group label {
+            display: block;
+            font-weight: 900;
+            font-size: 0.92rem;
+            color: var(--text-dark);
+            margin-bottom: 6px;
+        }
+        .profile-input {
+            width: 100%;
+            padding: 11px 14px;
+            border: 3px solid var(--pixel-border);
+            background: #ffffff;
+            font-weight: 800;
+            font-size: 0.95rem;
+            color: var(--text-dark);
+            outline: none;
+        }
+        .profile-input:focus {
+            background: #fffdf2;
         }
 
         /* 像素對話彈窗 */
@@ -421,7 +458,7 @@
 <header>
     <div class="header-left"><h1 onclick="location.href='teacher.html'">BeeRich</h1></div>
     <div class="header-right">
-        <div class="page-tag"><span>🧑‍🏫</span> 教師管理後台</div>
+        <div class="page-tag"><span id="topTeacherName">🧑‍🏫 教師管理後台</span></div>
     </div>
 </header>
 
@@ -429,9 +466,10 @@
     <div class="admin-container">
         <aside class="admin-nav">
             <h2><span>📋</span> 教師選單</h2>
-            <a href="teacher.html" class="nav-link active"><span>🎓</span> 學生管理</a>
+            <a href="javascript:void(0);" id="navStudents" class="nav-link active" onclick="switchTab('students')"><span>🎓</span> 學生管理</a>
             <a href="teacher_question.html" class="nav-link"><span>❓</span> 考題庫管理</a>
             <a href="teacher_handbook.html" class="nav-link"><span>📖</span> 學習手冊</a>
+            <a href="javascript:void(0);" id="navProfile" class="nav-link" onclick="switchTab('profile')"><span>👤</span> 個人資料設定</a>
             <a href="lobby.html" class="nav-link"><span>🎮</span> 前往遊戲大廳</a>
             <a href="javascript:void(0);" class="nav-link" onclick="logout();" style="margin-top: auto; color: white; background: var(--pixel-red);"><span>🚪</span> 登出系統</a>
         </aside>
@@ -501,6 +539,51 @@
                 </div>
             </div>
         </main>
+
+        <!-- 👤 畫面三：教師個人資料設定 -->
+        <main class="admin-board" id="teacherProfileView" style="display: none;">
+            <div class="board-header">
+                <h2 style="font-weight: 900; font-size: 1.3rem;">👤 教師個人資料與帳號設定</h2>
+            </div>
+
+            <div class="user-list-container">
+                <div class="profile-form-card">
+                    <div class="profile-group">
+                        <label>🧑‍🏫 教師名稱 / 登入 ID</label>
+                        <input type="text" id="profUsername" class="profile-input" placeholder="輸入新的教師名稱或帳號 ID">
+                    </div>
+
+                    <div class="profile-group">
+                        <label>✉️ 電子信箱（修改信箱需先寄送驗證碼）</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="email" id="profEmail" class="profile-input" placeholder="輸入電子信箱">
+                            <button type="button" class="btn-pixel-sm" style="background: var(--bee-yellow); color: var(--text-dark); white-space: nowrap;" onclick="sendTeacherEmailOtp()">寄送驗證碼</button>
+                        </div>
+                    </div>
+
+                    <div class="profile-group">
+                        <label>🔢 信箱驗證碼（若未修改信箱可留空）</label>
+                        <input type="text" id="profEmailOtp" class="profile-input" placeholder="若更換信箱，請輸入收到的 6 位數驗證碼">
+                    </div>
+
+                    <hr style="border: none; border-top: 3px dashed var(--pixel-border); margin: 22px 0;">
+
+                    <div class="profile-group">
+                        <label>🔑 目前密碼（若不修改密碼可留空）</label>
+                        <input type="password" id="profOldPassword" class="profile-input" placeholder="欲修改密碼請先輸入目前密碼">
+                    </div>
+
+                    <div class="profile-group">
+                        <label>🔒 新密碼（若不修改密碼可留空）</label>
+                        <input type="password" id="profNewPassword" class="profile-input" placeholder="輸入新密碼">
+                    </div>
+
+                    <div style="display: flex; justify-content: flex-end; margin-top: 24px;">
+                        <button type="button" class="btn-3d" style="background: var(--pixel-green); color: white;" onclick="saveTeacherProfile()">💾 儲存個人資料</button>
+                    </div>
+                </div>
+            </div>
+        </main>
     </div>
 </div>
 
@@ -521,6 +604,7 @@
     let syncTimer = null;
     let currentClassData = null;
     let studentsCache = [];
+    let currentTeacherEmail = "";
 
     document.addEventListener('DOMContentLoaded', async () => {
         const token = localStorage.getItem('token');
@@ -532,27 +616,32 @@
             return;
         }
 
+        document.getElementById('topTeacherName').innerText = `🧑‍🏫 ${username} 老師`;
+
         try {
             await fetch(`${API_URL}/auth/verify_and_refresh?username=${encodeURIComponent(username)}`, {
                 method: "POST",
                 headers: { 'Authorization': `Bearer ${token}` }
             });
+            await loadTeacherMe();
             await fetchMyClass();
-            startTeacherLoop(username, token);
+            startTeacherLoop();
         } catch (err) {
             console.error(err);
         }
     });
 
-    function startTeacherLoop(username, token) {
+    function startTeacherLoop() {
         if (syncTimer) clearInterval(syncTimer);
         syncTimer = setInterval(async () => {
+            const username = localStorage.getItem('username');
+            const token = localStorage.getItem('token');
+            if (!username || !token) return;
             try {
                 fetch(`${API_URL}/auth/heartbeat?username=${encodeURIComponent(username)}`, {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
-                // 若正在看學生列表，每 5 秒刷新一次學生在線狀態
                 if (document.getElementById('studentListView').style.display !== 'none') {
                     fetchMyClass(true);
                 }
@@ -566,27 +655,132 @@
         return h;
     }
 
-    async function fetchMyClass(silent = false) {
-        const res = await fetch(`${API_URL}/teacher/my_class`, { headers: authHeaders() });
+    // 切換左側分頁（學生管理 vs 個人資料設定）
+    function switchTab(tab) {
+        document.getElementById('navStudents').classList.toggle('active', tab === 'students');
+        document.getElementById('navProfile').classList.toggle('active', tab === 'profile');
+
+        document.getElementById('studentListView').style.display = tab === 'students' ? 'flex' : 'none';
+        document.getElementById('studentStatsView').style.display = 'none';
+        document.getElementById('teacherProfileView').style.display = tab === 'profile' ? 'flex' : 'none';
+
+        if (tab === 'profile') {
+            loadTeacherMe();
+        }
+    }
+
+    async function loadTeacherMe() {
+        const username = localStorage.getItem('username');
+        const res = await fetch(`${API_URL}/auth/me?username=${encodeURIComponent(username)}`, {
+            headers: authHeaders()
+        });
         if (!res.ok) return;
         const data = await res.json();
-        currentClassData = data;
+        currentTeacherEmail = data.email || '';
+        document.getElementById('profUsername').value = data.username || '';
+        document.getElementById('profEmail').value = data.email || '';
+        document.getElementById('profEmailOtp').value = '';
+        document.getElementById('profOldPassword').value = '';
+        document.getElementById('profNewPassword').value = '';
+    }
 
-        const nameBadge = document.getElementById('displayClassName');
-        const codeBadge = document.getElementById('displayInviteCode');
+    async function sendTeacherEmailOtp() {
+        const newEmail = document.getElementById('profEmail').value.trim();
+        if (!newEmail) {
+            showModal('⚠️ 提示', '請先輸入新的電子信箱！', false);
+            return;
+        }
+        if (newEmail === currentTeacherEmail) {
+            showModal('⚠️ 提示', '此信箱與您目前的信箱相同，無需發送驗證碼。', false);
+            return;
+        }
+        try {
+            const res = await fetch(`${API_URL}/auth/send-otp-new-email`, {
+                method: 'POST',
+                headers: authHeaders(true),
+                body: JSON.stringify({ email: newEmail })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                showModal('📧 驗證碼已寄出', `已將 6 位數驗證碼寄至「${newEmail}」，請查收信箱並填入下方欄位！`, true);
+            } else {
+                showModal('❌ 寄送失敗', data.detail || '無法寄送驗證碼', false);
+            }
+        } catch (err) {
+            showModal('❌ 連線錯誤', '無法連線至伺服器', false);
+        }
+    }
 
-        if (!data.has_class) {
-            nameBadge.innerText = '🏫 尚未建立班級';
-            codeBadge.style.display = 'none';
-            studentsCache = [];
-            renderStudents();
-            if (!silent) openClassModal(true);
-        } else {
-            nameBadge.innerText = `🏫 班級：${data.class_name}`;
-            codeBadge.style.display = 'inline-block';
-            codeBadge.innerText = `🔑 班級邀請碼：${data.invite_code}`;
-            studentsCache = data.students || [];
-            renderStudents();
+    async function saveTeacherProfile() {
+        const new_username = document.getElementById('profUsername').value.trim();
+        const new_email = document.getElementById('profEmail').value.trim();
+        const email_otp = document.getElementById('profEmailOtp').value.trim();
+        const old_password = document.getElementById('profOldPassword').value;
+        const new_password = document.getElementById('profNewPassword').value;
+
+        if (!new_username) {
+            showModal('⚠️ 提示', '教師名稱 / ID 不能為空！', false);
+            return;
+        }
+
+        try {
+            const res = await fetch(`${API_URL}/auth/update-profile`, {
+                method: 'PUT',
+                headers: authHeaders(true),
+                body: JSON.stringify({
+                    new_username,
+                    new_email,
+                    email_otp: email_otp || null,
+                    old_password: old_password || null,
+                    new_password: new_password || null
+                })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                localStorage.setItem('token', data.access_token);
+                localStorage.setItem('username', data.username);
+                document.getElementById('topTeacherName').innerText = `🧑‍🏫 ${data.username} 老師`;
+                await loadTeacherMe();
+                showModal('✅ 更新成功', '您的教師個人資料已成功更新！', true);
+            } else {
+                showModal('❌ 更新失敗', data.detail || '請確認欄位與驗證碼是否正確', false);
+            }
+        } catch (err) {
+            showModal('❌ 連線錯誤', '伺服器連線失敗', false);
+        }
+    }
+
+    async function fetchMyClass(silent = false) {
+        try {
+            const res = await fetch(`${API_URL}/teacher/my_class`, { headers: authHeaders() });
+            if (res.status === 404) {
+                if (!silent) {
+                    showModal('⚠️ 後端尚未載入新路由 (404)', '目前的伺服器還沒有 /teacher/my_class 路由！<br>請確認 main.py 已存檔，並重新啟動後端伺服器（或 git push 後重啟 Discord 機器人）。', false);
+                }
+                return;
+            }
+            if (!res.ok) return;
+            const data = await res.json();
+            currentClassData = data;
+
+            const nameBadge = document.getElementById('displayClassName');
+            const codeBadge = document.getElementById('displayInviteCode');
+
+            if (!data.has_class) {
+                nameBadge.innerText = '🏫 尚未建立班級';
+                codeBadge.style.display = 'none';
+                studentsCache = [];
+                renderStudents();
+                if (!silent) openClassModal(true);
+            } else {
+                nameBadge.innerText = `🏫 班級：${data.class_name}`;
+                codeBadge.style.display = 'inline-block';
+                codeBadge.innerText = `🔑 班級邀請碼：${data.invite_code}`;
+                studentsCache = data.students || [];
+                renderStudents();
+            }
+        } catch (err) {
+            console.error(err);
         }
     }
 
@@ -626,7 +820,6 @@
         }).join('');
     }
 
-    // 建立或修改班級彈窗
     function openClassModal(isFirst = false) {
         const modal = document.getElementById('statusModal');
         document.getElementById('modalTitle').innerText = isFirst ? '🏫 歡迎！請先建立您的班級' : '✏️ 設定班級名稱';
@@ -640,26 +833,40 @@
         `;
         document.getElementById('modalFooter').innerHTML = `
             <button class="btn-3d" style="background: var(--pixel-green); color: white;" onclick="saveClassName()">確認儲存</button>
-            ${isFirst ? '' : `<button class="btn-3d" style="background: #dfe4ea;" onclick="closeModal()">取消</button>`}
+            <button class="btn-3d" style="background: #dfe4ea;" onclick="closeModal()">取消</button>
         `;
         modal.style.display = 'flex';
     }
 
     async function saveClassName() {
-        const name = document.getElementById('classNameInput').value.trim();
-        if (!name) return;
-        const res = await fetch(`${API_URL}/teacher/create_class`, {
-            method: 'POST',
-            headers: authHeaders(true),
-            body: JSON.stringify({ name })
-        });
-        if (res.ok) {
-            closeModal();
-            await fetchMyClass(true);
+        const nameInput = document.getElementById('classNameInput');
+        const name = nameInput ? nameInput.value.trim() : '';
+        if (!name) {
+            alert('請輸入班級名稱！');
+            return;
+        }
+        try {
+            const res = await fetch(`${API_URL}/teacher/create_class`, {
+                method: 'POST',
+                headers: authHeaders(true),
+                body: JSON.stringify({ name })
+            });
+            if (res.status === 404) {
+                showModal('❌ 儲存失敗 (404)', '後端伺服器尚未載入 /teacher/create_class 路由！請確認 main.py 已存檔並重啟後端伺服器。', false);
+                return;
+            }
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                closeModal();
+                await fetchMyClass(true);
+            } else {
+                showModal('❌ 儲存失敗', data.detail || `伺服器回應錯誤 (${res.status})`, false);
+            }
+        } catch (err) {
+            showModal('❌ 連線失敗', '無法連線至後端伺服器', false);
         }
     }
 
-    // 手動加入學生
     async function manualAddStudent() {
         const input = document.getElementById('addStudentInput');
         const student_username = input.value.trim();
@@ -670,7 +877,7 @@
             headers: authHeaders(true),
             body: JSON.stringify({ student_username })
         });
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         if (res.ok) {
             input.value = '';
             showModal('✅ 加入成功', `已將學生「${data.username}」加入班級！`, true);
@@ -680,7 +887,6 @@
         }
     }
 
-    // 剔除學生確認彈窗
     function confirmKickStudent(studentUsername) {
         const modal = document.getElementById('statusModal');
         document.getElementById('modalTitle').innerText = '⚠️ 剔除學生確認';
@@ -701,7 +907,6 @@
         modal.style.display = 'flex';
     }
 
-    // 📊 切換至單一學生的學習狀況分析頁面
     async function openStudentStats(studentUsername) {
         const res = await fetch(`${API_URL}/teacher/student_stats/${encodeURIComponent(studentUsername)}`, {
             headers: authHeaders()
@@ -713,6 +918,7 @@
         const stats = await res.json();
 
         document.getElementById('studentListView').style.display = 'none';
+        document.getElementById('teacherProfileView').style.display = 'none';
         document.getElementById('studentStatsView').style.display = 'flex';
 
         document.getElementById('statsStudentTitle').innerText = `📊 學生學習狀況分析 — ${stats.username}`;
@@ -726,7 +932,6 @@
         document.getElementById('kpiCorrectRatio').innerText = `答對 ${correct} 題 / 共回答 ${totalQ} 題`;
         document.getElementById('kpiAvgSec').innerText = `${stats.summary?.avg_answer_sec || 0} 秒`;
 
-        // 繪製練習題目類別長條圖
         const chartBox = document.getElementById('categoryBarChart');
         const dims = stats.dimensions || [];
         if (!dims.length) {
