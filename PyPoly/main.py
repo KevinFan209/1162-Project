@@ -23,7 +23,7 @@ import numpy as np
 from email.mime.text import MIMEText
 from typing import Dict, Optional, List
 from datetime import datetime, timedelta
-from sqlalchemy import case
+from sqlalchemy import case, text
 from game_start import GestureDetector
 import asyncio
 import socketio
@@ -417,11 +417,21 @@ def get_me(username: str, background_tasks: BackgroundTasks, db: Session = Depen
     user = db.query(models.User).filter(models.User.username == username).first()
     if not user:
         raise HTTPException(status_code=404, detail="找不到使用者")
+    
+    # 🏆 查詢該玩家是否有加入班級
+    class_name = None
+    if user.class_id:
+        classroom = db.query(models.Classroom).filter(models.Classroom.id == user.class_id).first()
+        if classroom:
+            class_name = classroom.name
+
     return {
         "username": user.username, 
         "is_online": user.is_online,
         "role": user.role,
-        "email": user.email
+        "email": user.email,
+        "class_id": user.class_id,
+        "class_name": class_name
     }
 
 # 5. 登出
@@ -2182,14 +2192,30 @@ class HandbookCreate(BaseModel):
 
 # 📖 1. 前台獲取所有學習手冊卡片 (依 order_index 排序)
 @app.get("/handbook/list")
-def get_handbook_cards(db: Session = Depends(database.get_db)):
-    cards = db.query(models.HandbookCard).order_by(models.HandbookCard.order_index.asc()).all()
-    
-    # 🏆 如果資料庫是空的，從獨立的種子檔案自動初始化寫入
-    if not cards:
+def get_handbook_cards(username: Optional[str] = None, db: Session = Depends(database.get_db)):
+    # 先確認有沒有官方基底教材，沒有就初始化
+    base_count = db.query(models.HandbookCard).filter(models.HandbookCard.class_id.is_(None)).count()
+    if base_count == 0:
         seed_handbook.seed_handbook_data(db)
-        cards = db.query(models.HandbookCard).order_by(models.HandbookCard.order_index.asc()).all()
-        
+
+    # 查詢玩家是否有加入班級
+    user_class_id = None
+    if username:
+        u = db.query(models.User).filter(models.User.username == username).first()
+        if u and u.class_id:
+            user_class_id = u.class_id
+
+    # 🏆 核心邏輯：抓取「官方全域教材 (class_id IS NULL)」＋「該生所屬班級教材」
+    from sqlalchemy import or_
+    if user_class_id:
+        cards = db.query(models.HandbookCard).filter(
+            or_(models.HandbookCard.class_id.is_(None), models.HandbookCard.class_id == user_class_id)
+        ).order_by(models.HandbookCard.order_index.asc(), models.HandbookCard.id.asc()).all()
+    else:
+        cards = db.query(models.HandbookCard).filter(
+            models.HandbookCard.class_id.is_(None)
+        ).order_by(models.HandbookCard.order_index.asc(), models.HandbookCard.id.asc()).all()
+
     return cards
 
 # 📖 2. 後台管理員新增卡片
@@ -2221,3 +2247,67 @@ def delete_handbook_card(card_id: int, db: Session = Depends(database.get_db)):
     db.delete(target)
     db.commit()
     return {"status": "success", "msg": "教材已刪除"}
+
+# ==========================================================
+# 🏆 教育版：自動補齊舊資料表欄位 & 玩家加入班級 API
+# ==========================================================
+
+def ensure_education_columns():
+    """啟動時自動為舊資料表補上 class_id 與 created_by 欄位，免除手動改 DB 的麻煩"""
+    alter_stmts = [
+        "ALTER TABLE users ADD COLUMN class_id INT NULL",
+        "ALTER TABLE questions ADD COLUMN class_id INT NULL",
+        "ALTER TABLE questions ADD COLUMN created_by VARCHAR(50) NULL",
+        "ALTER TABLE handbook_cards ADD COLUMN class_id INT NULL",
+        "ALTER TABLE handbook_cards ADD COLUMN created_by VARCHAR(50) NULL",
+    ]
+    with database.engine.connect() as conn:
+        for stmt in alter_stmts:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+            except Exception:
+                # 欄位若已存在會報錯，直接安全略過即可
+                pass
+
+# 啟動時執行一次欄位檢查
+ensure_education_columns()
+
+
+class JoinClassRequest(BaseModel):
+    username: str
+    invite_code: str
+
+
+@app.post("/classes/join")
+def student_join_class(req: JoinClassRequest, db: Session = Depends(database.get_db)):
+    code = req.invite_code.strip().upper()
+    if not code:
+        raise HTTPException(status_code=400, detail="請輸入班級邀請碼")
+
+    classroom = db.query(models.Classroom).filter(models.Classroom.invite_code == code).first()
+    if not classroom:
+        raise HTTPException(status_code=404, detail="找不到此邀請碼對應的班級，請向老師確認！")
+
+    user = db.query(models.User).filter(models.User.username == req.username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="找不到玩家帳號")
+
+    user.class_id = classroom.id
+    db.commit()
+    return {
+        "status": "success",
+        "class_id": classroom.id,
+        "class_name": classroom.name,
+        "teacher": classroom.teacher_username
+    }
+
+
+@app.post("/classes/leave")
+def student_leave_class(username: str, db: Session = Depends(database.get_db)):
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="找不到玩家帳號")
+    user.class_id = None
+    db.commit()
+    return {"status": "success"}

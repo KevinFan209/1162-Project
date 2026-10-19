@@ -372,20 +372,22 @@
 
 <div class="side-menu" id="sideMenu">
     <a href="profile.html" class="menu-item"><span>👤</span> 個人主頁</a>
+    <a href="handbook.html" class="menu-item"><span>📚</span> 學習手冊</a>
+    <a href="javascript:void(0)" onclick="openJoinClassModal()" class="menu-item"><span>🏫</span> 加入班級</a>
     <a href="guide.html" class="menu-item"><span>📖</span> 遊戲說明</a>
     <a href="learn.html" class="menu-item"><span>📊</span> 學習統計</a>
     <a href="settings.html" class="menu-item"><span>⚙️</span> 遊戲設定</a>
     <a href="lobby.html" class="menu-item"><span>🏠</span> 返回大廳</a>
     <a href="javascript:void(0)" onclick="logout()" class="menu-item danger"><span>🚪</span> 登出遊戲</a>
-	<a href="handbook.html" class="menu-item"><span>📖</span> 學習手冊</a>
 </div>
 
 <header>
     <div class="header-left"><h1>BeeRich</h1></div>
     <div class="header-right">
         <div class="player-badge">
-            <span id="topPlayerName">載入中...</span>
-        </div>
+			<span id="topClassBadge" style="display: none; background: var(--bee-yellow); border: 2px solid var(--pixel-border); padding: 2px 8px; font-size: 0.82rem; box-shadow: 2px 2px 0 #000;"></span>
+			<span id="topPlayerName">載入中...</span>
+		</div>
         <button class="menu-btn" onclick="toggleMenu()">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round">
                 <line x1="3" y1="12" x2="21" y2="12"></line>
@@ -440,6 +442,21 @@
         <div style="display: flex; gap: 12px;">
             <button class="btn-pixel" style="background: #dfe4ea; flex: 1; padding: 12px; color: var(--text-dark); box-shadow: 0 4px 0 #000;" onclick="closePasswordModal()">取消</button>
             <button class="btn-pixel btn-create" style="flex: 1; padding: 12px;" onclick="verifyRoomCode()">加入</button>
+        </div>
+    </div>
+</div>
+
+<!-- 🏫 像素化加入班級彈窗 -->
+<div id="joinClassModal" class="menu-overlay" style="display: none; align-items: center; justify-content: center; pointer-events: auto; z-index: 3000;">
+    <div style="width: 400px; background: white; border: 4px solid var(--pixel-border); box-shadow: 8px 8px 0 #000; padding: 30px; text-align: center;">
+        <h3 style="font-weight: 900; font-size: 1.35rem; margin-bottom: 10px; color: var(--text-dark);">🏫 加入老師的班級</h3>
+        <p id="currentClassHint" style="font-size: 0.9rem; color: var(--text-gray); font-weight: 800; margin-bottom: 16px;">請輸入老師提供的 6 位數班級邀請碼</p>
+        <input type="text" id="inputClassCode" 
+               style="width: 100%; margin-bottom: 22px; text-align: center; letter-spacing: 4px; font-size: 1.4rem; border: 3px solid var(--pixel-border); padding: 10px; font-weight: 900; outline: none; background: #fffdf5; text-transform: uppercase;" 
+               placeholder="班級邀請碼">
+        <div style="display: flex; gap: 12px;">
+            <button class="btn-pixel" style="background: #dfe4ea; flex: 1; padding: 12px; color: var(--text-dark); box-shadow: 0 4px 0 #000;" onclick="closeJoinClassModal()">取消</button>
+            <button class="btn-pixel btn-create" style="flex: 1; padding: 12px;" onclick="submitJoinClass()">確認加入</button>
         </div>
     </div>
 </div>
@@ -805,8 +822,8 @@
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const res = await fetch(`${API_URL}/auth/me?username=${encodeURIComponent(username)}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
+					headers: { 'Authorization': `Bearer ${token}` }
+				}).then(r => r.json()).then(d => updateClassBadgeUI(d.class_name)).catch(() => {});
                 if (res.ok) {
                     const data = await res.json();
                     if (data.role === 'banned' || (data.is_online === 0 && data.role !== 'admin')) {
@@ -828,9 +845,66 @@
                         
                         window.location.href = 'login.html';
                     }
+					updateClassBadgeUI(data.class_name);
                 }
             } catch (err) {}
         }, 5000);
+    }
+	
+	// 🏆 更新右上角的班級標籤
+    function updateClassBadgeUI(className) {
+        const badge = document.getElementById('topClassBadge');
+        const hint = document.getElementById('currentClassHint');
+        if (!badge) return;
+        if (className) {
+            badge.style.display = 'inline-block';
+            badge.innerText = `🏫 ${className}`;
+            localStorage.setItem('class_name', className);
+            if (hint) hint.innerHTML = `目前所在班級：<strong style="color:var(--pixel-green);">${className}</strong>（輸入新代碼可切換班級）`;
+        } else {
+            badge.style.display = 'none';
+            badge.innerText = '';
+            localStorage.removeItem('class_name');
+            if (hint) hint.innerText = '請輸入老師提供的 6 位數班級邀請碼';
+        }
+    }
+
+    function openJoinClassModal() {
+        toggleMenu(); // 關掉右側抽屜
+        const savedClass = localStorage.getItem('class_name');
+        updateClassBadgeUI(savedClass);
+        document.getElementById('inputClassCode').value = '';
+        document.getElementById('joinClassModal').style.display = 'flex';
+    }
+
+    function closeJoinClassModal() {
+        document.getElementById('joinClassModal').style.display = 'none';
+    }
+
+    async function submitJoinClass() {
+        const code = document.getElementById('inputClassCode').value.trim().toUpperCase();
+        const username = localStorage.getItem('username');
+        if (!code) {
+            showCustomAlert("提示", "請先輸入班級邀請碼喔！");
+            return;
+        }
+        try {
+            const res = await fetch(`${API_URL}/classes/join`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, invite_code: code })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                closeJoinClassModal();
+                updateClassBadgeUI(data.class_name);
+                showCustomAlert("加入成功！", `你已成功加入「<b>${data.class_name}</b>」！<br>現在你可以看到老師專屬準備的教材與題目囉！`, true);
+            } else {
+                showCustomAlert("加入失敗", data.detail || "請確認邀請碼是否正確");
+            }
+        } catch (err) {
+            showCustomAlert("連線錯誤", "無法連線至伺服器，請稍後再試");
+        }
     }
 </script>
 </body>
