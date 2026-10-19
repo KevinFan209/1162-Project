@@ -11,18 +11,24 @@
 	<link rel="icon" href="/favicon.ico" type="image/jpeg">
 	<style>
         :root {
-            --pixel-border: #1e272e;
-            --bee-gold: #ffc048;
-            --bee-yellow: #ffdd59;
-            --bee-dark: #2f3542;
-            --pixel-green: #05c46b;
-            --pixel-blue: #0fbcf9;
-            --pixel-red: #ff3f34;
-            --bg-grid: #d2dae2;
-            --card-bg: #ffffff;
-            --text-dark: #1e272e;
-            --text-gray: #747d8c;
-        }
+			--pixel-border: #1e272e;
+			--bee-gold: #ffc048;
+			--bee-yellow: #ffdd59;
+			--bee-dark: #2f3542;
+			--pixel-green: #05c46b;
+			--pixel-blue: #0fbcf9;
+			--pixel-red: #ff3f34;
+			--bg-grid: #d2dae2;
+			--card-bg: #ffffff;
+			--text-dark: #1e272e;
+			--text-gray: #747d8c;
+
+			/* 新增這三個 */
+			--success-green: #05c46b;
+			--success-green-shadow: #049e56;
+			--border-light: #dfe4ea;
+			--primary-blue: #0fbcf9;
+		}
 
         /* 徹底重置所有內外距，避免頂部產生縫隙與線條殘留 */
         html, body {
@@ -547,54 +553,94 @@
         setInterval(renderRooms, 10000);
     };
     
-    function showCustomAlert(title, message, isSuccess = false) {
-        const existingAlert = document.getElementById('custom-ui-alert');
-        if (existingAlert) existingAlert.remove();
+function showCustomAlert(title, message, isSuccess = false) {
+    const existingAlert = document.getElementById('custom-ui-alert');
+    if (existingAlert) existingAlert.remove();
 
-        const overlay = document.createElement('div');
-        overlay.id = 'custom-ui-alert';
-        overlay.style.cssText = `
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: rgba(0, 0, 0, 0.3); backdrop-filter: blur(5px);
-            display: flex; align-items: center; justify-content: center;
-            z-index: 99999; opacity: 0; transition: opacity 0.3s ease;
-        `;
+    const overlay = document.createElement('div');
+    overlay.id = 'custom-ui-alert';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(5px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 99999;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    `;
 
-        const btnColor = isSuccess ? 'var(--success-green)' : '#ff4757'; 
-        const btnShadow = isSuccess ? 'var(--success-green-shadow)' : '#ff6b81';
+    const btnColor = isSuccess ? 'var(--success-green)' : '#ff4757';
+    const btnShadow = isSuccess ? 'var(--success-green-shadow)' : '#d63031';
 
-        overlay.innerHTML = `
-            <div style="
-                background: white; padding: 40px; border-radius: 35px;
-                box-shadow: 0 20px 50px rgba(0,0,0,0.15); border: 2px solid var(--border-light);
-                width: 90%; max-width: 420px; text-align: center;
-                transform: translateY(30px) scale(0.95); 
-                transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            ">
-                <div style="font-size: 3rem; margin-bottom: 10px;">
-                    ${isSuccess ? '🎉' : '⚠️'}
-                </div>
-                <h2 style="font-size: 1.8rem; font-weight: 900; color: var(--text-dark); margin-bottom: 15px;">
-                    ${title}
-                </h2>
-                <p style="font-size: 1.1rem; color: var(--text-gray); font-weight: 700; line-height: 1.6; margin-bottom: 30px;">
-                    ${message}
-                </p>
-                <button class="btn-3d" onclick="document.getElementById('custom-ui-alert').remove()" style="
-                    background: ${btnColor}; color: white; padding: 16px 40px; border: none;
-                    border-radius: 15px; font-weight: 900; font-size: 1.1rem; cursor: pointer;
-                    box-shadow: 0 6px 0 ${btnShadow}; width: 100%; transition: 0.1s;
-                ">我知道了</button>
+    overlay.innerHTML = `
+        <div style="
+            background: white;
+            padding: 32px 32px 24px;
+            border-radius: 35px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+            border: 2px solid var(--border-light);
+            width: 90%;
+            max-width: 420px;
+            text-align: center;
+            transform: translateY(30px) scale(0.95);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        ">
+            <div style="font-size: 3rem; margin-bottom: 10px;">
+                ${isSuccess ? '🎉' : '⚠️'}
             </div>
-        `;
 
-        document.body.appendChild(overlay);
+            <h2 style="
+                font-size: 1.8rem;
+                font-weight: 900;
+                color: var(--text-dark);
+                margin-bottom: 12px;
+            ">
+                ${title}
+            </h2>
 
-        requestAnimationFrame(() => {
-            overlay.style.opacity = "1";
-            overlay.children[0].style.transform = "translateY(0) scale(1)";
-        });
-    }
+            <p style="
+                font-size: 1rem;
+                color: var(--text-gray);
+                font-weight: 700;
+                line-height: 1.5;
+                margin-bottom: 18px;
+                word-break: break-word;
+            ">
+                ${message}
+            </p>
+
+            <button onclick="document.getElementById('custom-ui-alert').remove()" style="
+                display: block;
+                width: 100%;
+                margin-top: 8px;
+                background: ${btnColor};
+                color: white;
+                padding: 14px 24px;
+                border: none;
+                border-radius: 15px;
+                font-weight: 900;
+                font-size: 1.05rem;
+                cursor: pointer;
+                box-shadow: 0 6px 0 ${btnShadow};
+            ">
+                我知道了
+            </button>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    requestAnimationFrame(() => {
+        overlay.style.opacity = "1";
+        overlay.children[0].style.transform = "translateY(0) scale(1)";
+    });
+}
     
     function hasCreatedCharacter() {
         const currentUsername = localStorage.getItem('username');
@@ -898,9 +944,11 @@
             if (res.ok) {
                 closeJoinClassModal();
                 updateClassBadgeUI(data.class_name);
-                showCustomAlert("加入成功！", `你已成功加入「<b>${data.class_name}</b>」！<br>現在你可以看到老師專屬準備的教材與題目囉！<br>`, true);
-				
-				return
+                showCustomAlert(
+					"加入成功！",
+					`你已成功加入「<b>${data.class_name}</b>」！<br><span style="white-space: nowrap;">現在你可以看到老師專屬準備的教材與題目囉！</span>`,
+					true
+				);
             } else {
                 showCustomAlert("加入失敗", data.detail || "請確認邀請碼是否正確");
             }
