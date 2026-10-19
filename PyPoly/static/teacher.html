@@ -614,6 +614,10 @@
         }
 
         document.getElementById('topTeacherName').innerText = `🧑‍🏫 ${username} 老師`;
+		
+		fetchMyClass();
+        loadTeacherMe();
+        startTeacherLoop();
 
         try {
             await fetch(`${API_URL}/auth/verify_and_refresh?username=${encodeURIComponent(username)}`, {

@@ -2405,6 +2405,17 @@ def teacher_get_my_class(db: Session = Depends(database.get_db), teacher: models
         models.Classroom.teacher_username == teacher.username
     ).first()
 
+    # 🏆 自動修復機制：如果因為之前老師改名導致班級的 teacher_username 還是舊名字（找不到對應 User），自動綁回目前老師身上！
+    if not classroom:
+        all_classes = db.query(models.Classroom).all()
+        for c in all_classes:
+            owner_exists = db.query(models.User).filter(models.User.username == c.teacher_username).first()
+            if not owner_exists:
+                c.teacher_username = teacher.username
+                db.commit()
+                classroom = c
+                break
+
     if not classroom:
         return {"has_class": False}
 
@@ -2437,16 +2448,30 @@ def teacher_create_or_update_class(req: CreateClassRequest, db: Session = Depend
     if not name:
         raise HTTPException(status_code=400, detail="班級名稱不能為空")
 
+    # 1. 先找這個老師自己名下有沒有班級
     classroom = db.query(models.Classroom).filter(
         models.Classroom.teacher_username == teacher.username
     ).first()
+
+    # 2. 如果名下沒班級，但輸入的班級名稱已經存在（例如之前改名遺留的班級），直接認領回來並綁定到自己帳號下！
+    if not classroom:
+        existing_by_name = db.query(models.Classroom).filter(models.Classroom.name == name).first()
+        if existing_by_name:
+            existing_by_name.teacher_username = teacher.username
+            db.commit()
+            return {
+                "status": "reclaimed",
+                "class_id": existing_by_name.id,
+                "class_name": existing_by_name.name,
+                "invite_code": existing_by_name.invite_code
+            }
 
     if classroom:
         classroom.name = name
         db.commit()
         return {"status": "updated", "class_id": classroom.id, "class_name": classroom.name, "invite_code": classroom.invite_code}
 
-    # 產生不重複的 6 位數邀請碼 (排除易混淆字元 I, O, 0, 1)
+    # 3. 真的完全沒有班級，才新建一個
     chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
     invite_code = ""
     for _ in range(20):
@@ -2466,7 +2491,6 @@ def teacher_create_or_update_class(req: CreateClassRequest, db: Session = Depend
     db.commit()
     db.refresh(new_class)
     return {"status": "created", "class_id": new_class.id, "class_name": new_class.name, "invite_code": new_class.invite_code}
-
 
 # --- 教師專用：手動將學生加入班級 ---
 class AddStudentRequest(BaseModel):
