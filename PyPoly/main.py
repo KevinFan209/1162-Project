@@ -2962,6 +2962,11 @@ def get_my_teacher_apply_status(
         .first()
     )
 
+    # 🏆 核心修正：如果該帳號目前已是一般玩家 (player)，但過去曾有 approved 的舊紀錄，
+    # 代表已被管理員撤銷教師身分，直接視為無申請狀態（回傳 None），讓前端顯示全新的申請表單！
+    if user.role == "player" and latest_app and latest_app.status == "approved":
+        latest_app = None
+
     return {
         "username": user.username,
         "email": user.email,

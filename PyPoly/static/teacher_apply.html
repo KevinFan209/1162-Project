@@ -254,8 +254,8 @@
         const card = document.getElementById('mainCard');
         const app = data.application;
 
-        // 情況 1：已經是老師或管理員（或申請已通過）
-        if (data.role === 'teacher' || data.role === 'admin' || (app && app.status === 'approved')) {
+        // 情況 1：只有當前實際身分真的是 teacher 或 admin 時，才顯示已具備資格
+        if (data.role === 'teacher' || data.role === 'admin') {
             card.innerHTML = `
                 <div class="card-title"><span>🧑‍🏫</span> 教師資格認證中心</div>
                 <div class="status-banner" style="background: #ebfffa;">
