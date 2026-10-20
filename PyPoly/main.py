@@ -2521,6 +2521,38 @@ def teacher_create_or_update_class(
         "invite_code": new_class.invite_code
     }
 
+# --- 教師專用：刪除（解散）班級 ---
+@app.delete("/teacher/classes/{class_id}")
+def teacher_delete_class(
+    class_id: int,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
+    classroom = db.query(models.Classroom).filter(
+        models.Classroom.id == class_id,
+        models.Classroom.teacher_username == teacher.username
+    ).first()
+    if not classroom:
+        raise HTTPException(status_code=404, detail="找不到該班級或您無權限刪除此班級")
+
+    deleted_name = classroom.name
+
+    # 1. 將該班級所有學生的 class_id 設為 None（變回一般玩家，保留所有遊戲與答題紀錄）
+    db.query(models.User).filter(models.User.class_id == class_id).update(
+        {"class_id": None}, synchronize_session=False
+    )
+
+    # 2. 刪除該班級專屬的考題與學習手冊字卡（不影響官方基底題庫）
+    db.query(models.Question).filter(models.Question.class_id == class_id).delete(synchronize_session=False)
+    db.query(models.HandbookCard).filter(models.HandbookCard.class_id == class_id).delete(synchronize_session=False)
+
+    # 3. 記錄一筆通知給管理員，並刪除該班級資料列
+    _log_teacher_action(db, teacher, classroom, "刪除", "班級", f"已解散班級：{deleted_name}")
+    db.delete(classroom)
+    db.commit()
+
+    return {"status": "success", "deleted_class_id": class_id, "deleted_class_name": deleted_name}
+
 
 # --- 教師專用：手動將學生加入「當前選定的班級」 ---
 class AddStudentRequest(BaseModel):

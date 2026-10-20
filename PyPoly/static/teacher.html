@@ -458,7 +458,10 @@
 <header>
     <div class="header-left"><h1 onclick="location.href='teacher.html'">BeeRich</h1></div>
     <div class="header-right">
-        <div class="page-tag"><span id="topTeacherName">🧑‍🏫 教師管理後台</span></div>
+        <div class="page-tag">
+            <span id="topActiveClassBadge" style="display: none; background: var(--bee-yellow); border: 2px solid var(--pixel-border); padding: 2px 8px; font-size: 0.85rem; box-shadow: 2px 2px 0 #000; margin-right: 4px;"></span>
+            <span id="topTeacherName">🧑‍🏫 教師管理後台</span>
+        </div>
     </div>
 </header>
 
@@ -483,6 +486,7 @@
                     <span class="code-badge-box" id="displayInviteCode" style="display: none;">邀請碼：------</span>
                     <button class="btn-pixel-sm" style="background: var(--bee-yellow); color: var(--text-dark);" onclick="openClassModal('create')">➕ 新增班級</button>
                     <button class="btn-pixel-sm" id="btnRenameClass" style="background: #dfe4ea; color: var(--text-dark); display: none;" onclick="openClassModal('rename')">✏️ 班級改名</button>
+                    <button class="btn-pixel-sm" id="btnDeleteClass" style="background: #fff5f5; color: var(--pixel-red); display: none;" onclick="confirmDeleteClass()">🗑️ 刪除班級</button>
                 </div>
 
                 <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
@@ -761,6 +765,21 @@
         fetchMyClass(true);
     }
 
+	// 🏆 更新右上角目前所在的班級徽章
+    function updateTopClassBadge(className) {
+        const badge = document.getElementById('topActiveClassBadge');
+        if (!badge) return;
+        if (className) {
+            badge.style.display = 'inline-block';
+            badge.innerText = `🏫 ${className}`;
+            localStorage.setItem('teacher_active_class_name', className);
+        } else {
+            badge.style.display = 'none';
+            badge.innerText = '';
+            localStorage.removeItem('teacher_active_class_name');
+        }
+    }
+
     async function fetchMyClass(silent = false) {
         try {
             const savedClassId = localStorage.getItem('teacher_active_class_id');
@@ -774,22 +793,27 @@
             const noClassBadge = document.getElementById('noClassBadge');
             const codeBadge = document.getElementById('displayInviteCode');
             const btnRename = document.getElementById('btnRenameClass');
+            const btnDelete = document.getElementById('btnDeleteClass');
 
             if (!data.has_class) {
                 dropdown.style.display = 'none';
                 noClassBadge.style.display = 'inline-block';
                 codeBadge.style.display = 'none';
                 btnRename.style.display = 'none';
+                if (btnDelete) btnDelete.style.display = 'none';
+                localStorage.removeItem('teacher_active_class_id');
+                updateTopClassBadge(null);
                 studentsCache = [];
                 renderStudents();
                 if (!silent) openClassModal('create', true);
             } else {
-                // 記住目前選中的 class_id，讓考題庫與學習手冊頁面也能同步對應此班級
                 localStorage.setItem('teacher_active_class_id', String(data.class_id));
+                updateTopClassBadge(data.class_name);
 
                 noClassBadge.style.display = 'none';
                 dropdown.style.display = 'inline-block';
                 btnRename.style.display = 'inline-block';
+                if (btnDelete) btnDelete.style.display = 'inline-block';
                 codeBadge.style.display = 'inline-block';
                 codeBadge.innerText = `🔑 班級邀請碼：${data.invite_code}`;
 
@@ -803,6 +827,51 @@
         } catch (err) {
             console.error(err);
         }
+    }
+
+    // 🗑️ 刪除班級確認彈窗
+    function confirmDeleteClass() {
+        if (!currentClassData || !currentClassData.has_class) return;
+        const targetId = currentClassData.class_id;
+        const targetName = currentClassData.class_name;
+
+        const modal = document.getElementById('statusModal');
+        document.getElementById('modalTitle').innerText = '⚠️ 刪除班級確認';
+        document.getElementById('modalTitle').style.color = 'var(--pixel-red)';
+        document.getElementById('modalBody').innerHTML = `
+            <p style="font-weight: 900; color: var(--text-dark); margin-bottom: 18px; line-height: 1.6;">
+                確定要刪除班級「<b style="color:var(--pixel-red);">${targetName}</b>」嗎？<br>
+                <span style="font-size: 0.9rem; color: var(--text-gray);">
+                    • 班級內的學生將自動轉回<b>一般玩家</b>（所有遊戲紀錄與數據皆會保留）<br>
+                    • 該班級專屬的考題與學習手冊字卡將會一併清除
+                </span>
+            </p>
+        `;
+        document.getElementById('modalFooter').innerHTML = `
+            <button type="button" class="btn-3d" style="background: var(--pixel-red); color: white;" id="confirmDelClassBtn">確定刪除</button>
+            <button type="button" class="btn-3d" style="background: #dfe4ea; color: var(--text-dark);" onclick="closeModal()">取消</button>
+        `;
+        modal.style.display = 'flex';
+
+        document.getElementById('confirmDelClassBtn').onclick = async () => {
+            try {
+                const res = await fetch(`${API_URL}/teacher/classes/${targetId}`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok) {
+                    localStorage.removeItem('teacher_active_class_id');
+                    localStorage.removeItem('teacher_active_class_name');
+                    await fetchMyClass(true);
+                    showModal('✅ 班級已刪除', `班級「<b>${targetName}</b>」已成功刪除，原班級學生已全數轉回一般玩家！`, true);
+                } else {
+                    showModal('❌ 刪除失敗', data.detail || '無法刪除班級', false);
+                }
+            } catch (err) {
+                showModal('❌ 連線錯誤', '無法連線至伺服器', false);
+            }
+        };
     }
 
     function renderStudents() {

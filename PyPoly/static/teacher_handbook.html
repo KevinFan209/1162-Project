@@ -364,8 +364,11 @@
 
 <header>
     <div class="header-left"><h1 onclick="location.href='teacher.html'">BeeRich</h1></div>
-    <div class="header-right">
-        <div class="page-tag"><span id="topTeacherTag">📖 教師學習手冊管理</span></div>
+	<div class="header-right">
+        <div class="page-tag">
+            <span id="topActiveClassBadge" style="display: none; background: var(--bee-yellow); border: 2px solid var(--pixel-border); padding: 2px 8px; font-size: 0.85rem; box-shadow: 2px 2px 0 #000; margin-right: 4px;"></span>
+            <span id="topTeacherTag">📖 教師學習手冊管理</span>
+        </div>
     </div>
 </header>
 
@@ -548,6 +551,13 @@
         }
 
         document.getElementById('topTeacherTag').innerText = `📖 ${username} 老師 — 學習手冊管理`;
+		
+		const cachedClass = localStorage.getItem('teacher_active_class_name');
+		if (cachedClass) {
+			const badge = document.getElementById('topActiveClassBadge');
+			badge.style.display = 'inline-block';
+			badge.innerText = `🏫 ${cachedClass}`;
+		}
 
         document.getElementById('cardModal').addEventListener('click', (e) => {
             if (e.target.id === 'cardModal') closeModal();
@@ -577,6 +587,18 @@
             if (res.ok) {
                 const data = await res.json();
                 myClassName = data.class_name || "";
+				
+				const badge = document.getElementById('topActiveClassBadge');
+				if (badge) {
+					if (myClassName) {
+						badge.style.display = 'inline-block';
+						badge.innerText = `🏫 ${myClassName}`;
+						localStorage.setItem('teacher_active_class_name', myClassName);
+					} else {
+						badge.style.display = 'none';
+					}
+				}
+				
                 allCards = data.items || [];
                 filterTable();
             }
