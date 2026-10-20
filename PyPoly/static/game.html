@@ -76,66 +76,93 @@
 
     /* 頂部像素風格導覽列 */
     header {
-        position: relative;
-        z-index: 10;
-        background: white;
-        padding: 0 35px;
+        position: fixed;
+        top: 18px;
+        left: 24px;
+        right: 24px;
+        z-index: 20;
+        background: transparent !important;
+        padding: 0;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        height: 80px;
-        border-bottom: 4px solid var(--pixel-border);
-        box-shadow: none !important;
+        height: 64px;
+        border: none !important;
+        pointer-events: none;
+    }
+
+    .header-left {
+        pointer-events: auto;
+        background: rgba(15, 23, 42, 0.75);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        border: 1.5px solid rgba(255, 255, 255, 0.22);
+        padding: 8px 24px;
+        border-radius: 999px;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.25);
     }
 
     .header-left h1 {
         font-family: 'VT323', monospace;
-        font-size: 3.2rem;
+        font-size: 2.6rem;
         line-height: 1;
-        color: var(--bee-gold);
-        text-shadow: 
-            2px 2px 0 var(--pixel-border),
-            -1.5px -1.5px 0 var(--pixel-border),
-            2px -1.5px 0 var(--pixel-border),
-            -1.5px 2px 0 var(--pixel-border),
-            4px 4px 0 var(--bee-dark);
+        color: #ffdd59;
+        text-shadow: 0 2px 10px rgba(255, 221, 89, 0.45);
         letter-spacing: 2px;
         user-select: none;
         cursor: pointer;
     }
     
     /* 右上角狀態列 */
-    .header-right { display: flex; align-items: center; gap: 14px; }
-    .top-status-item {
-        background: #fffdf2;
-        padding: 6px 14px;
-        border: 3px solid var(--pixel-border);
-        border-radius: 4px;
-        font-weight: 900;
-        font-size: 0.92rem;
-        color: var(--text-dark);
+    .header-right {
         display: flex;
         align-items: center;
-        gap: 6px;
-        box-shadow: 3px 3px 0 #000;
+        gap: 12px;
+        pointer-events: auto;
     }
-    .lap-status { background: var(--bee-yellow); }
+
+    .top-status-item {
+        background: rgba(15, 23, 42, 0.72);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        padding: 10px 18px;
+        border: 1.5px solid rgba(255, 255, 255, 0.2);
+        border-radius: 999px;
+        font-weight: 900;
+        font-size: 0.95rem;
+        color: #f8fafc;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+    .lap-status {
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.9), rgba(217, 119, 6, 0.9));
+        border-color: rgba(254, 243, 199, 0.5);
+        color: #ffffff;
+        box-shadow: 0 8px 25px rgba(245, 158, 11, 0.35);
+    }
 
     .menu-btn {
-		background: white;
-		border: 3px solid var(--pixel-border);
-		cursor: pointer;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 6px;
-		box-shadow: 3px 3px 0 #000;
-		transition: 0.1s;
-	}
+        background: rgba(255, 255, 255, 0.88);
+        backdrop-filter: blur(12px);
+        border: 1.5px solid rgba(255, 255, 255, 0.6);
+        border-radius: 50%;
+        width: 46px;
+        height: 46px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+        transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
 
-	.menu-btn:hover { 
-		background: #fffdf2; 
-	}
+	.menu-btn:hover {
+        transform: translateY(-2px) scale(1.05);
+        background: #ffffff;
+    }
 
 	.menu-btn:active { 
 		transform: translate(2px, 2px); 
@@ -169,23 +196,26 @@
 
     /* 側邊欄與玩家卡片 */
     .game-main {
-        position: relative;
-        z-index: 10;
-        flex: 1;
-        display: grid;
-        grid-template-columns: 1fr 360px;
-        gap: 20px;
-        padding: 20px;
+        position: fixed;
+        top: 96px;
+        right: 24px;
+        bottom: 24px;
+        z-index: 15;
+        display: flex;
+        flex-direction: column;
+        width: 340px;
         pointer-events: none;
     }
     .side-panel {
         pointer-events: auto;
         display: flex;
         flex-direction: column;
-        gap: 12px;
-        max-height: calc(100vh - 120px);
+        gap: 14px;
+        max-height: 100%;
         overflow-y: auto;
+        padding-right: 4px;
     }
+    .side-panel::-webkit-scrollbar { width: 0px; }
     
     .game-player-card {
         background: white;
@@ -2943,48 +2973,50 @@ window.onload = async function() {
             const isMe = (player === myName);
             const playerCard = document.createElement('div');
             
-            // 第二點修正：border 改為統一的淺灰色 (#e2e8f0)，取消特定顏色
             playerCard.style.cssText = `
-                background: rgba(255, 255, 255, 0.9);
-                border-radius: 16px;
-                padding: 15px;
-                margin-bottom: 12px;
-                box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-                border: 1.5px solid #e2e8f0; 
+                background: rgba(15, 23, 42, 0.72);
+                backdrop-filter: blur(16px);
+                -webkit-backdrop-filter: blur(16px);
+                border-radius: 22px;
+                padding: 16px 18px;
+                margin-bottom: 4px;
+                box-shadow: 0 12px 32px rgba(15, 23, 42, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+                border: 1.5px solid ${isMe ? 'rgba(56, 189, 248, 0.55)' : 'rgba(255, 255, 255, 0.15)'};
                 display: flex;
                 flex-direction: column;
-                gap: 10px;
+                gap: 12px;
+                transition: transform 0.2s ease, box-shadow 0.2s ease;
             `;
 
-           playerCard.innerHTML = `
+            playerCard.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="font-size: 1.1rem;">👤</span>
-                        <span style="font-weight: 800; color: #334155;">${player}${isMe ? ' <span style="color:#64748b; font-size:0.8rem;">(你)</span>' : ''}</span>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div style="width: 34px; height: 34px; border-radius: 50%; background: ${isMe ? 'linear-gradient(135deg, #38bdf8, #2563eb)' : 'rgba(255,255,255,0.12)'}; display: flex; align-items: center; justify-content: center; font-size: 1rem; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">👤</div>
+                        <span style="font-weight: 900; color: #f8fafc; font-size: 1.08rem; letter-spacing: 0.5px;">
+                            ${player} ${isMe ? '<span style="background: rgba(56,189,248,0.2); color: #38bdf8; border: 1px solid rgba(56,189,248,0.4); padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; margin-left: 6px;">YOU</span>' : ''}
+                        </span>
                     </div>
                 </div>
                 
-                <div style="display: flex; gap: 8px;">
-                    <div style="flex: 1; background: #fff9db; padding: 8px; border-radius: 10px; display: flex; align-items: center; gap: 6px; border: 1px solid #ffec99;">
-                        <span style="color: #fab005; font-weight: 900;">💰</span>
-                        <span id="balance-${player}" style="font-weight: 900; color: #f08c00; font-size: 1.1rem;">5,000</span>
+                <div style="display: flex; gap: 10px;">
+                    <div style="flex: 1; background: rgba(251, 191, 36, 0.14); padding: 9px 12px; border-radius: 14px; display: flex; align-items: center; gap: 8px; border: 1px solid rgba(251, 191, 36, 0.3);">
+                        <span style="font-size: 1.1rem;">💰</span>
+                        <span id="balance-${player}" style="font-weight: 900; color: #fde047; font-size: 1.15rem; text-shadow: 0 2px 8px rgba(250, 204, 21, 0.35);">5,000</span>
                     </div>
-                    <div style="flex: 1; background: #e3f2fd; padding: 8px; border-radius: 10px; display: flex; align-items: center; gap: 6px; border: 1px solid #bbdefb;">
-                        <span style="color: #2196f3; font-weight: 900;">⏳</span>
-                        <span id="laps-${player}" style="font-weight: 800; color: #1976d2; font-size: 1rem;">回合 1 / ${totalLaps}</span>
+                    <div style="flex: 1; background: rgba(56, 189, 248, 0.14); padding: 9px 12px; border-radius: 14px; display: flex; align-items: center; gap: 8px; border: 1px solid rgba(56, 189, 248, 0.3);">
+                        <span style="font-size: 1.05rem;">⏳</span>
+                        <span id="laps-${player}" style="font-weight: 800; color: #7dd3fc; font-size: 0.95rem;">回合 1 / ${totalLaps}</span>
                     </div>
                 </div>
 
-                <div style="margin-top: 2px; background: #f8fafc; padding: 8px 12px; border-radius: 10px; display: flex; align-items: center; gap: 8px; border: 1px solid #e2e8f0; min-height: 42px;">
-                    <span style="font-size: 1.2rem;">🎒</span>
+                <div style="background: rgba(255, 255, 255, 0.07); padding: 8px 12px; border-radius: 12px; display: flex; align-items: center; gap: 8px; border: 1px solid rgba(255, 255, 255, 0.1); min-height: 40px;">
+                    <span style="font-size: 1.1rem;">🎒</span>
                     <div id="inventory-${player}" style="display: flex; gap: 6px; flex-wrap: wrap; flex: 1; align-items: center;">
-                        <span style="font-size: 0.85rem; color: #94a3b8; font-weight: 700;">載入中...</span>
+                        <span style="font-size: 0.82rem; color: #94a3b8; font-weight: 700;">載入中...</span>
                     </div>
                 </div>
             `;
             container.appendChild(playerCard);
-            
-            // 🏆 生成卡片後，立刻繪製該玩家的背包內容
             updateInventoryUI(player);
         });
     }
@@ -3119,36 +3151,63 @@ function applyBoardAppearance() {
 	
 	function init3D() {
 		scene = new THREE.Scene();
-		scene.background = new THREE.Color(0xf1f5f9);
+		// 🏆 1. 柔和的天空漸層基底色 + 遠景空氣霧 (Fog)，消除遠處地板生硬的邊界感
+		const skyColor = 0xdbeafe; 
+		scene.background = new THREE.Color(skyColor);
+		scene.fog = new THREE.FogExp2(skyColor, 0.0045);
 		
-		camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+		camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
 		camera.position.set(0, 100, 100);
 		camera.lookAt(0, 0, 0);
 
-		renderer = new THREE.WebGLRenderer({ antialias: true });
+		// 🏆 2. 開啟高解析度抗鋸齒、物理色調映射 (ACESFilmic) 與柔和陰影
+		renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
 		renderer.setSize(window.innerWidth, window.innerHeight);
+		renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+		renderer.shadowMap.enabled = true;
+		renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+		renderer.outputEncoding = THREE.sRGBEncoding;
+		renderer.toneMapping = THREE.ACESFilmicToneMapping;
+		renderer.toneMappingExposure = 1.1;
 		document.getElementById('threejs-container').appendChild(renderer.domElement);
 
-		const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-		scene.add(ambientLight);
-		const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-		directionalLight.position.set(20, 40, 20);
+		// 🏆 3. 雙色半球環境光（上方天空微藍光 + 下方草地微暖反光），讓方塊的每個面都有自然色溫差！
+		const hemiLight = new THREE.HemisphereLight(0xffffff, 0x86efac, 0.65);
+		hemiLight.position.set(0, 80, 0);
+		scene.add(hemiLight);
+
+		// 🏆 4. 主太陽光（帶真實立體陰影投射）
+		const directionalLight = new THREE.DirectionalLight(0xfffbeb, 0.95);
+		directionalLight.position.set(35, 65, 40);
+		directionalLight.castShadow = true;
+		directionalLight.shadow.mapSize.width = 2048;
+		directionalLight.shadow.mapSize.height = 2048;
+		directionalLight.shadow.camera.near = 10;
+		directionalLight.shadow.camera.far = 180;
+		const d = 55;
+		directionalLight.shadow.camera.left = -d;
+		directionalLight.shadow.camera.right = d;
+		directionalLight.shadow.camera.top = d;
+		directionalLight.shadow.camera.bottom = -d;
+		directionalLight.shadow.bias = -0.0005;
 		scene.add(directionalLight);
 
-		// 淺綠地面：場景級的裝飾，只加一次，不隨 create3DBoard() 重蓋
-		// 棋盤而重蓋（見 static/js/board-build.js）。
-		//
-		// ⚠️ 不加 addBoardEnclosure()（正方體圍牆）：進到冒險格會切到
-		// 環景全景圖模式（initAdventureVisuals），圍牆的四片牆是巨大的
-		// 實心平面，會直接擋住環景圖——地面留著沒關係（在腳下，不會
-		// 擋到環景視角），圍牆會擋所以拿掉。
-		addGroundPlane(scene);
+		// 🏆 5. 背光補光（Rim Light），讓角色與建築背光面不會死黑，更有玩具模型質感
+		const fillLight = new THREE.DirectionalLight(0x93c5fd, 0.35);
+		fillLight.position.set(-30, 25, -30);
+		scene.add(fillLight);
 
+		addGroundPlane(scene);
 		create3DBoard();
-		createVisionScreen(); // 這裡會建立繪圖用的 Canvas
-		
+		createVisionScreen();
 		initAdventureVisuals();
-		
+
+		// 支援視窗縮放自動調整比例
+		window.addEventListener('resize', () => {
+			camera.aspect = window.innerWidth / window.innerHeight;
+			camera.updateProjectionMatrix();
+			renderer.setSize(window.innerWidth, window.innerHeight);
+		});
 
 		animate();
 	}
@@ -3864,7 +3923,7 @@ async function playStealAnimationCore(attackerName, victimName) {
     if(!attackerModel || !victimModel) return;
 
     // 確保背景明亮，絕不黑屏
-    scene.background = new THREE.Color(0xf1f5f9); 
+    scene.background = new THREE.Color(0xdbeafe); 
     if (panoSphere) { panoSphere.visible = false; panoSphere.material.opacity = 0; }
     allTileMeshes.forEach(m => m.visible = true);
 
@@ -5198,7 +5257,7 @@ async function playJailAnimationCore(playerName, tileIdx) {
     playSfx('jail'); // 🏆 需求⑥：監獄鐵籠砸下音效
 
     // 1. 場景清理：顯示亮色背景，隱藏除了此格以外的物件
-    scene.background = new THREE.Color(0xf1f5f9); 
+    scene.background = new THREE.Color(0xdbeafe); 
     if (panoSphere) { panoSphere.visible = false; panoSphere.material.opacity = 0; }
     setBoardVisibility(false, tileIdx);
 
@@ -7192,7 +7251,7 @@ function triggerGameOver() {
 
 // 🏆 強化重置函式：徹底解決黑屏與 UI 殘留
 function resetToGodViewState() {
-    scene.background = new THREE.Color(0xf1f5f9);
+    scene.background = new THREE.Color(0xdbeafe);
     if (panoSphere) { panoSphere.visible = false; panoSphere.material.opacity = 0; }
     setBoardVisibility(true);
     
@@ -7497,7 +7556,7 @@ function exitSpectatorMode() {
     document.getElementById('back-to-god-btn').style.display = 'none';
 
     // 🏆 修正三-A：恢復亮色背景，解決黑屏問題
-    scene.background = new THREE.Color(0xf1f5f9);
+    scene.background = new THREE.Color(0xdbeafe);
 
     if (panoSphere) {
         panoSphere.visible = false; 
@@ -7554,7 +7613,7 @@ async function autoSmoothExitToGodView() {
     window.isSpectating = false;
 
     // 🏆 修正：恢復場景背景，解決黑屏問題
-    scene.background = new THREE.Color(0xf1f5f9); 
+    scene.background = new THREE.Color(0xdbeafe); 
     
     if (panoSphere) {
         panoSphere.visible = false;
