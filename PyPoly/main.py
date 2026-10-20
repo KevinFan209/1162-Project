@@ -291,8 +291,9 @@ ADMIN_EMAILS = ["admin@gmail.com"]
 
 # 📧 Gmail SMTP 設定（改由環境變數提供；請於 PyPoly/.env 填入，切勿寫死於程式碼）
 #    ⚠️ 原先寫死的應用程式密碼已移除，請至 Google 帳戶撤銷該密碼並重新產生。
-SENDER_EMAIL = os.getenv("SENDER_EMAIL", "")
-SENDER_PASSWORD = os.getenv("SENDER_PASSWORD", "")
+# 檔案上方確認有執行 load_dotenv()
+SENDER_EMAIL = os.getenv("SENDER_EMAIL")
+SENDER_PASSWORD = os.getenv("SENDER_PASSWORD")
 
 # 暫存驗證碼
 otp_storage: Dict[str, str] = {}
@@ -2907,41 +2908,49 @@ ALLOWED_CERT_EXTS = {".pdf", ".jpg", ".jpeg", ".png"}
 
 
 def _send_teacher_review_email(to_email: str, real_name: str, username: str, approved: bool, reason: str = ""):
-    """審核完成後寄發通知信（若未設定 SMTP 則安全印出 log 不中斷流程）"""
+    """審核完成後，使用系統信箱 pypoly.service@gmail.com 自動寄發通知信給老師"""
     if not SENDER_EMAIL or not SENDER_PASSWORD:
-        print(f"ℹ️ [未設定 SMTP，略過寄信] 收件人:{to_email} 結果:{'通過' if approved else '未通過'}")
+        print(f"ℹ️ [未設定 SMTP，略過寄信] 收件人:{to_email}")
         return
     try:
         if approved:
-            subject = "【BeeRich 碼上致富】🎉 恭喜！您的教師資格申請已審核通過"
+            subject = "【BeeRich 碼上致富】🎉 教師資格審核通過通知"
             body = (
-                f"親愛的 {real_name} 老師（帳號：{username}）您好：\n\n"
-                f"恭喜您！您提交的「BeeRich 教師資格申請」已經審核通過！\n"
-                f"您的帳號權限已正式升級為「教師（Teacher）」。\n\n"
-                f"現在您可以登入系統（或於大廳點選教師資格頁面進入「教師管理後台」），\n"
-                f"開始建立您的專屬班級、邀請學生並編輯班級專屬考題與學習手冊！\n\n"
-                f"BeeRich 碼上致富 營運團隊 敬上"
+                f"親愛的 {real_name} 老師（遊戲帳號：{username}）您好：\n\n"
+                f"恭喜您！您提交的「BeeRich 教師資格審核」已經正式通過！\n"
+                f"您的帳號身分已升級為「教師（Teacher）」。\n\n"
+                f"現在您可以直接前往 BeeRich 遊戲系統登入，系統將自動引導您進入「教師管理後台」\n"
+                f"（或可由遊戲大廳右側選單點選「🧑‍🏫 教師資格」進入教師後台），\n"
+                f"開始建立您的專屬班級、查看學生學習狀況，以及管理班級專屬考題庫與學習手冊！\n\n"
+                f"祝您教學愉快！\n"
+                f"BeeRich 碼上致富 系統團隊 敬上"
             )
         else:
-            subject = "【BeeRich 碼上致富】⚠️ 您的教師資格申請審核結果通知"
+            subject = "【BeeRich 碼上致富】⚠️ 教師資格審核結果通知（未通過）"
             body = (
-                f"親愛的 {real_name}（帳號：{username}）您好：\n\n"
-                f"感謝您申請 BeeRich 教師資格。經管理員審核後，目前暫未通過，原因如下：\n"
+                f"親愛的 {real_name}（遊戲帳號：{username}）您好：\n\n"
+                f"感謝您申請 BeeRich 教師資格。經管理員審核後，本次申請暫未通過，原因如下：\n"
                 f"「{reason}」\n\n"
-                f"您可隨時登入遊戲大廳，點選右側選單「🧑‍🏫 教師資格」查看詳情並重新提交申請。\n\n"
-                f"BeeRich 碼上致富 營運團隊 敬上"
+                f"請您登入 BeeRich 遊戲大廳，於右側選單點選「🧑‍🏫 教師資格」查看詳情，\n"
+                f"修正並備妥相關資料後即可再次提交申請。\n\n"
+                f"BeeRich 碼上致富 系統團隊 敬上"
             )
+
         msg = MIMEText(body, "plain", "utf-8")
         msg["Subject"] = subject
         msg["From"] = SENDER_EMAIL
         msg["To"] = to_email
+
         with smtplib.SMTP("smtp.gmail.com", 587) as server:
             server.starttls()
-            server.login(SENDER_EMAIL, SENDER_PASSWORD)
+            # 自動移除密碼中的空白字元以確保 Gmail SMTP 登入穩定
+            clean_pwd = SENDER_PASSWORD.replace(" ", "")
+            server.login(SENDER_EMAIL, clean_pwd)
             server.sendmail(SENDER_EMAIL, [to_email], msg.as_string())
-        print(f"📧 已寄送教師審核結果通知信至 {to_email}")
+
+        print(f"📧 已成功由 {SENDER_EMAIL} 寄出教師審核通知信至 {to_email}")
     except Exception as e:
-        print(f"⚠️ 教師審核通知信寄送失敗: {e}")
+        print(f"❌ 教師審核通知信寄送失敗: {e}")
 
 
 # 1. 玩家端：查詢自己目前的最新申請狀態與身分
