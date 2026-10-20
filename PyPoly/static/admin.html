@@ -456,6 +456,10 @@
             <div class="board-header">
                 <input type="text" id="searchInput" class="search-input" placeholder="🔍 搜尋 ID、信箱或班級..." oninput="renderFilteredUsers()">
                 <div class="header-tools">
+                    <button class="btn-tool" onclick="openTeacherAppsModal()">
+                        <span>📝</span> 教師資格審核
+                        <span id="pendingAppsBadge" class="badge-unread" style="display: none;">0</span>
+                    </button>
                     <button class="btn-tool" onclick="openClassesModal()"><span>🏫</span> 班級總覽</button>
                     <button class="btn-tool" onclick="openAuditModal()">
                         <span>🔔</span> 教師異動通知
@@ -719,7 +723,29 @@
                 badge.style.display = 'none';
             }
         } catch (e) {}
+		
+		// 同步更新待審核的教師資格申請數量紅點
+        try {
+            const token = localStorage.getItem('token');
+            const appRes = await fetch(`${API_URL}/admin/teacher_applications`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (appRes.ok) {
+                const appData = await appRes.json();
+                const appBadge = document.getElementById('pendingAppsBadge');
+                if (appBadge) {
+                    if (appData.pending_count > 0) {
+                        appBadge.style.display = 'inline-block';
+                        appBadge.innerText = appData.pending_count;
+                    } else {
+                        appBadge.style.display = 'none';
+                    }
+                }
+            }
+        } catch (e) {}
     }
+	
+	
 
     // 🏆 查看教師異動通知
     async function openAuditModal() {
