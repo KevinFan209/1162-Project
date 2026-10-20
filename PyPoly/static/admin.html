@@ -764,6 +764,191 @@
         document.getElementById('modalFooter').innerHTML = `<button class="btn-3d" onclick="closeModal()">知道了</button>`;
         modal.style.display = 'flex';
     }
+	
+	let teacherAppsCache = [];
+
+    // 📝 1. 打開教師資格申請列表 (含待處理與所有已通過/未通過歷史紀錄)
+    async function openTeacherAppsModal() {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/admin/teacher_applications`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = res.ok ? await res.json() : { items: [] };
+        teacherAppsCache = data.items || [];
+
+        const modal = document.getElementById('statusModal');
+        const box = document.getElementById('modalBox');
+        box.classList.add('wide');
+
+        document.getElementById('modalTitle').innerText = `📝 教師資格申請與審核紀錄 (${teacherAppsCache.length} 筆)`;
+        document.getElementById('modalTitle').style.color = "var(--text-dark)";
+
+        if (!teacherAppsCache.length) {
+            document.getElementById('modalBody').innerHTML = `<p style="text-align:center; color: var(--text-gray);">目前尚無任何教師資格申請紀錄。</p>`;
+        } else {
+            const statusMap = {
+                pending: { label: '⏳ 待審核', bg: '#ffdd59', color: '#1e272e' },
+                reviewing: { label: '🔍 審核中', bg: '#e0f2fe', color: '#0369a1' },
+                approved: { label: '✅ 已通過', bg: '#ebfffa', color: '#05c46b' },
+                rejected: { label: '❌ 未通過', bg: '#fff5f5', color: '#ff3f34' }
+            };
+
+            document.getElementById('modalBody').innerHTML = teacherAppsCache.map(a => {
+                const st = statusMap[a.status] || statusMap.pending;
+                const dateStr = a.created_at ? new Date(a.created_at.endsWith('Z') ? a.created_at : a.created_at + 'Z').toLocaleString('zh-TW') : '—';
+                const reasonHtml = (a.status === 'rejected' && a.reject_reason)
+                    ? `<div style="font-size: 0.85rem; color: var(--pixel-red); font-weight: 900; margin-top: 4px;">📌 未通過原因：${a.reject_reason}</div>`
+                    : '';
+
+                return `
+                    <div class="mini-card" style="background: ${a.status === 'pending' ? '#fffdf2' : '#f8fafc'};">
+                        <div style="flex: 1; padding-right: 12px;">
+                            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                <span class="role-tag" style="background: ${st.bg}; color: ${st.color};">${st.label}</span>
+                                <span style="font-weight: 900; font-size: 1.05rem;">${a.real_name}（帳號：${a.username}）</span>
+                            </div>
+                            <div style="font-size: 0.85rem; color: var(--text-gray); font-weight: 800; margin-top: 4px;">
+                                📅 申請日期：${dateStr} ｜ ✉️ ${a.email}
+                            </div>
+                            ${reasonHtml}
+                        </div>
+                        <button class="btn-icon btn-edit" onclick="inspectTeacherApp(${a.id})">
+                            ${(a.status === 'pending' || a.status === 'reviewing') ? '🔍 點入審核' : '📄 查看詳情'}
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        document.getElementById('modalFooter').innerHTML = `<button class="btn-3d" onclick="closeModal()">關閉</button>`;
+        modal.style.display = 'flex';
+    }
+
+    // 📝 2. 管理員點入單筆申請 -> 自動通知後端改為「審核中 (reviewing)」，並顯示完整申請資料與證書
+    async function inspectTeacherApp(appId) {
+        const token = localStorage.getItem('token');
+        const app = teacherAppsCache.find(x => x.id === appId);
+        if (!app) return;
+
+        // 若原本是待審核，管理員一點進來立刻變為「審核中」
+        if (app.status === 'pending') {
+            await fetch(`${API_URL}/admin/teacher_applications/${appId}/mark_reviewing`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            app.status = 'reviewing';
+        }
+
+        const dateStr = app.created_at ? new Date(app.created_at.endsWith('Z') ? app.created_at : app.created_at + 'Z').toLocaleString('zh-TW') : '—';
+        const isPdf = (app.cert_file_url || '').toLowerCase().endsWith('.pdf');
+        const certPreviewHtml = isPdf
+            ? `<a href="${app.cert_file_url}" target="_blank" class="btn-icon" style="display:inline-block; background: var(--bee-yellow); color: var(--text-dark); text-decoration: none;">📄 在新分頁打開 PDF 教師資格證</a>`
+            : `<div style="margin-top: 8px;">
+                   <a href="${app.cert_file_url}" target="_blank" style="font-size:0.85rem; color:#0284c7; font-weight:900;">🔍 點擊放大檢視原圖</a>
+                   <img src="${app.cert_file_url}" alt="教師資格證" style="display:block; max-width:100%; max-height:260px; border:3px solid var(--pixel-border); margin-top:6px; object-fit:contain; background:#fff;">
+               </div>`;
+
+        const historyResultHtml = app.status === 'approved'
+            ? `<div style="margin-top:12px; padding:10px; background:#ebfffa; border:2px solid var(--pixel-border); font-weight:900; color:var(--pixel-green);">✅ 此申請已審核通過（由 ${app.reviewed_by || '管理員'} 審核）</div>`
+            : (app.status === 'rejected'
+                ? `<div style="margin-top:12px; padding:10px; background:#fff5f5; border:2px solid var(--pixel-border); font-weight:900; color:var(--pixel-red);">❌ 此申請未通過｜原因：${app.reject_reason || '—'}</div>`
+                : '');
+
+        document.getElementById('modalTitle').innerText = `📋 審核教師資格申請 — ${app.real_name}`;
+        document.getElementById('modalBody').innerHTML = `
+            <div style="background:#f8fafc; border:3px solid var(--pixel-border); padding:18px; font-weight:800; line-height:1.8; font-size:0.95rem;">
+                <div>📅 <b>申請日期：</b>${dateStr}</div>
+                <div>👾 <b>遊戲帳號：</b>${app.username}</div>
+                <div>👤 <b>真實姓名：</b>${app.real_name}</div>
+                <div>✉️ <b>電子信箱：</b>${app.email}</div>
+                <div style="margin-top:8px;">🎯 <b>教學目標：</b><br>
+                    <div style="background:white; border:2px solid var(--pixel-border); padding:10px; margin-top:4px; white-space:pre-wrap;">${app.teaching_goal}</div>
+                </div>
+                <div style="margin-top:10px;">📎 <b>教師資格證：</b><br>${certPreviewHtml}</div>
+                ${historyResultHtml}
+            </div>
+        `;
+
+        if (app.status === 'pending' || app.status === 'reviewing') {
+            document.getElementById('modalFooter').innerHTML = `
+                <button class="btn-3d" style="background: var(--pixel-green); color: white;" onclick="confirmApproveTeacher(${app.id}, '${app.username}', '${app.real_name}')">✅ 通過</button>
+                <button class="btn-3d" style="background: var(--pixel-red); color: white;" onclick="openRejectPrompt(${app.id}, '${app.username}', '${app.real_name}')">❌ 未通過</button>
+                <button class="btn-3d" style="background: #dfe4ea;" onclick="openTeacherAppsModal()">🔙 返回列表</button>
+            `;
+        } else {
+            document.getElementById('modalFooter').innerHTML = `
+                <button class="btn-3d" style="background: #dfe4ea;" onclick="openTeacherAppsModal()">🔙 返回列表</button>
+            `;
+        }
+    }
+
+    // 📝 3. 點擊「通過」後跳出「是否將 xxx 改為老師」確認視窗
+    function confirmApproveTeacher(appId, username, realName) {
+        const box = document.getElementById('modalBox');
+        box.classList.remove('wide');
+
+        document.getElementById('modalTitle').innerText = `✅ 確認通過教師資格`;
+        document.getElementById('modalTitle').style.color = "var(--pixel-green)";
+        document.getElementById('modalBody').innerHTML = `
+            <p style="font-size: 1.05rem;">您確定要通過審核，並將「<b>${realName}（帳號：${username}）</b>」的身分改為<b>老師（Teacher）</b>嗎？</p>
+        `;
+        document.getElementById('modalFooter').innerHTML = `
+            <button class="btn-3d" style="background: var(--pixel-green); color: white;" onclick="submitReviewAction(${appId}, 'approve')">確認改為老師</button>
+            <button class="btn-3d" style="background: #dfe4ea;" onclick="inspectTeacherApp(${appId})">取消</button>
+        `;
+    }
+
+    // 📝 4. 點擊「未通過」後要求填寫未通過原因並送出
+    function openRejectPrompt(appId, username, realName) {
+        const box = document.getElementById('modalBox');
+        box.classList.remove('wide');
+
+        document.getElementById('modalTitle').innerText = `❌ 填寫未通過原因`;
+        document.getElementById('modalTitle').style.color = "var(--pixel-red)";
+        document.getElementById('modalBody').innerHTML = `
+            <p style="margin-bottom: 10px;">請說明「<b>${realName}（${username}）</b>」未通過審核的原因（申請人將於教師資格頁面與信箱收到此原因）：</p>
+            <textarea id="rejectReasonInput" placeholder="例如：上傳之教師資格證圖片模糊無法辨識，請重新上傳清晰版本..."
+                      style="width:100%; min-height:100px; padding:12px; border:3px solid var(--pixel-border); font-weight:800; font-size:0.95rem; background:#fffdf5; outline:none;"></textarea>
+        `;
+        document.getElementById('modalFooter').innerHTML = `
+            <button class="btn-3d" style="background: var(--pixel-red); color: white;" onclick="submitReviewAction(${appId}, 'reject')">送出未通過結果</button>
+            <button class="btn-3d" style="background: #dfe4ea;" onclick="inspectTeacherApp(${appId})">取消</button>
+        `;
+    }
+
+    // 📝 5. 送出審核結果並刷新人員管理列表
+    async function submitReviewAction(appId, action) {
+        const token = localStorage.getItem('token');
+        let reject_reason = null;
+        if (action === 'reject') {
+            reject_reason = (document.getElementById('rejectReasonInput')?.value || '').trim();
+            if (!reject_reason) {
+                alert('請填寫未通過的原因！');
+                return;
+            }
+        }
+
+        const res = await fetch(`${API_URL}/admin/teacher_applications/${appId}/review`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ action, reject_reason })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+            fetchUsers();       // 立即刷新後方「用戶權限管理」列表，讓該帳號瞬間從一般玩家變成「🧑‍🏫 老師」
+            fetchUnreadCount(); // 更新待審核紅點
+            if (action === 'approve') {
+                showModal('🎉 審核通過', `已成功將「${data.username}」的身分改為老師，並發送郵件通知！`, true);
+            } else {
+                showModal('📌 已退回申請', `已記錄未通過原因並通知「${data.username}」。`, true);
+            }
+        } else {
+            showModal('❌ 操作失敗', data.detail || '審核儲存失敗', false);
+        }
+    }
 
     function openBanConfirm(targetUser, currentRole) {
         const isBanning = currentRole !== 'banned';

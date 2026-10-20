@@ -221,3 +221,20 @@ class TeacherAuditLog(Base):
     detail = Column(String(255))      # 題目或手冊標題摘要
     is_read = Column(Boolean, default=False) # 管理員是否已讀
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class TeacherApplication(Base):
+    """玩家申請成為教師的審核紀錄表"""
+    __tablename__ = "teacher_applications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)   # 申請人遊戲帳號 ID
+    real_name = Column(String(100), nullable=False)             # 申請人真實姓名
+    email = Column(String(100), nullable=False)                 # 接收通知的聯絡信箱
+    teaching_goal = Column(Text, nullable=False)                # 教學目標 (希望用本系統達成什麼)
+    cert_file_url = Column(String(255), nullable=False)         # 教師資格證檔案路徑 (.pdf / .jpg / .png)
+    # 狀態流轉：pending(待審核) -> reviewing(審核中，管理員已點開) -> approved(已通過) / rejected(未通過)
+    status = Column(String(20), default="pending", index=True)
+    reject_reason = Column(Text, nullable=True)                 # 未通過原因
+    created_at = Column(DateTime, default=datetime.utcnow)      # 申請日期
+    reviewed_at = Column(DateTime, nullable=True)               # 審核完成日期
+    reviewed_by = Column(String(50), nullable=True)             # 審核的管理員帳號

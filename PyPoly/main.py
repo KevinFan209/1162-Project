@@ -6,7 +6,7 @@ for _stream in (sys.stdout, sys.stderr):
     except Exception:
         pass
 
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect, Header
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect, Header, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -2896,3 +2896,252 @@ def teacher_delete_handbook(
     _log_teacher_action(db, teacher, classroom, "刪除", "學習手冊", detail_preview)
     db.commit()
     return {"status": "success", "msg": "教材已刪除"}
+
+# ==========================================================
+# 🏆 教師資格申請與管理員審核系統 (含證書上傳 & 自動寄信通知)
+# ==========================================================
+
+CERT_UPLOAD_DIR = os.path.join("static", "uploads", "teacher_certs")
+os.makedirs(CERT_UPLOAD_DIR, exist_ok=True)
+ALLOWED_CERT_EXTS = {".pdf", ".jpg", ".jpeg", ".png"}
+
+
+def _send_teacher_review_email(to_email: str, real_name: str, username: str, approved: bool, reason: str = ""):
+    """審核完成後寄發通知信（若未設定 SMTP 則安全印出 log 不中斷流程）"""
+    if not SENDER_EMAIL or not SENDER_PASSWORD:
+        print(f"ℹ️ [未設定 SMTP，略過寄信] 收件人:{to_email} 結果:{'通過' if approved else '未通過'}")
+        return
+    try:
+        if approved:
+            subject = "【BeeRich 碼上致富】🎉 恭喜！您的教師資格申請已審核通過"
+            body = (
+                f"親愛的 {real_name} 老師（帳號：{username}）您好：\n\n"
+                f"恭喜您！您提交的「BeeRich 教師資格申請」已經審核通過！\n"
+                f"您的帳號權限已正式升級為「教師（Teacher）」。\n\n"
+                f"現在您可以登入系統（或於大廳點選教師資格頁面進入「教師管理後台」），\n"
+                f"開始建立您的專屬班級、邀請學生並編輯班級專屬考題與學習手冊！\n\n"
+                f"BeeRich 碼上致富 營運團隊 敬上"
+            )
+        else:
+            subject = "【BeeRich 碼上致富】⚠️ 您的教師資格申請審核結果通知"
+            body = (
+                f"親愛的 {real_name}（帳號：{username}）您好：\n\n"
+                f"感謝您申請 BeeRich 教師資格。經管理員審核後，目前暫未通過，原因如下：\n"
+                f"「{reason}」\n\n"
+                f"您可隨時登入遊戲大廳，點選右側選單「🧑‍🏫 教師資格」查看詳情並重新提交申請。\n\n"
+                f"BeeRich 碼上致富 營運團隊 敬上"
+            )
+        msg = MIMEText(body, "plain", "utf-8")
+        msg["Subject"] = subject
+        msg["From"] = SENDER_EMAIL
+        msg["To"] = to_email
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login(SENDER_EMAIL, SENDER_PASSWORD)
+            server.sendmail(SENDER_EMAIL, [to_email], msg.as_string())
+        print(f"📧 已寄送教師審核結果通知信至 {to_email}")
+    except Exception as e:
+        print(f"⚠️ 教師審核通知信寄送失敗: {e}")
+
+
+# 1. 玩家端：查詢自己目前的最新申請狀態與身分
+@app.get("/teacher_apply/my_status")
+def get_my_teacher_apply_status(
+    authorization: str = Header(None),
+    db: Session = Depends(database.get_db)
+):
+    username = auth_utils.get_current_user(authorization)
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="找不到使用者")
+
+    latest_app = (
+        db.query(models.TeacherApplication)
+        .filter(models.TeacherApplication.username == username)
+        .order_by(models.TeacherApplication.id.desc())
+        .first()
+    )
+
+    return {
+        "username": user.username,
+        "email": user.email,
+        "role": user.role,
+        "application": {
+            "id": latest_app.id,
+            "real_name": latest_app.real_name,
+            "email": latest_app.email,
+            "teaching_goal": latest_app.teaching_goal,
+            "cert_file_url": latest_app.cert_file_url,
+            "status": latest_app.status,  # pending / reviewing / approved / rejected
+            "reject_reason": latest_app.reject_reason,
+            "created_at": latest_app.created_at,
+            "reviewed_at": latest_app.reviewed_at,
+        } if latest_app else None
+    }
+
+
+# 2. 玩家端：提交（或重新提交）教師資格申請
+@app.post("/teacher_apply/submit")
+async def submit_teacher_application(
+    real_name: str = Form(...),
+    email: str = Form(...),
+    teaching_goal: str = Form(...),
+    cert_file: UploadFile = File(...),
+    authorization: str = Header(None),
+    db: Session = Depends(database.get_db)
+):
+    username = auth_utils.get_current_user(authorization)
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="找不到使用者")
+
+    # 檢查是否有正在「待審核」或「審核中」的申請，避免重複狂送
+    active_app = (
+        db.query(models.TeacherApplication)
+        .filter(
+            models.TeacherApplication.username == username,
+            models.TeacherApplication.status.in_(["pending", "reviewing"])
+        )
+        .first()
+    )
+    if active_app:
+        raise HTTPException(status_code=400, detail="您已有正在審核中的申請，請靜候審核結果！")
+
+    real_name = real_name.strip()
+    email = email.strip()
+    teaching_goal = teaching_goal.strip()
+    if not real_name or not email or not teaching_goal:
+        raise HTTPException(status_code=400, detail="請完整填寫姓名、信箱與教學目標！")
+
+    # 檢查檔案副檔名 (.pdf / .jpg / .png)
+    orig_filename = cert_file.filename or ""
+    ext = os.path.splitext(orig_filename)[1].lower()
+    if ext not in ALLOWED_CERT_EXTS:
+        raise HTTPException(status_code=400, detail="教師資格證僅限上傳 PDF、JPG 或 PNG 格式！")
+
+    content = await cert_file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="檔案大小請勿超過 10MB")
+
+    safe_name = f"cert_{username}_{int(datetime.utcnow().timestamp())}{ext}"
+    save_path = os.path.join(CERT_UPLOAD_DIR, safe_name)
+    with open(save_path, "wb") as f:
+        f.write(content)
+
+    file_url = f"/static/uploads/teacher_certs/{safe_name}"
+
+    new_app = models.TeacherApplication(
+        username=username,
+        real_name=real_name,
+        email=email,
+        teaching_goal=teaching_goal,
+        cert_file_url=file_url,
+        status="pending"
+    )
+    db.add(new_app)
+    db.commit()
+    db.refresh(new_app)
+
+    return {"status": "success", "application_id": new_app.id}
+
+
+# 3. 管理員端：取得所有教師資格申請列表 (含待處理數量統計)
+@app.get("/admin/teacher_applications")
+def admin_list_teacher_applications(
+    db: Session = Depends(database.get_db),
+    admin: models.User = Depends(require_admin)
+):
+    apps = db.query(models.TeacherApplication).order_by(models.TeacherApplication.id.desc()).all()
+    pending_count = sum(1 for a in apps if a.status in ("pending", "reviewing"))
+    return {
+        "pending_count": pending_count,
+        "items": [
+            {
+                "id": a.id,
+                "username": a.username,
+                "real_name": a.real_name,
+                "email": a.email,
+                "teaching_goal": a.teaching_goal,
+                "cert_file_url": a.cert_file_url,
+                "status": a.status,
+                "reject_reason": a.reject_reason,
+                "created_at": a.created_at,
+                "reviewed_at": a.reviewed_at,
+                "reviewed_by": a.reviewed_by,
+            } for a in apps
+        ]
+    }
+
+
+# 4. 管理員端：點進單筆申請時，將 pending 自動改為 reviewing (讓老師端看到「審核中」)
+@app.post("/admin/teacher_applications/{app_id}/mark_reviewing")
+def admin_mark_application_reviewing(
+    app_id: int,
+    db: Session = Depends(database.get_db),
+    admin: models.User = Depends(require_admin)
+):
+    app_row = db.query(models.TeacherApplication).filter(models.TeacherApplication.id == app_id).first()
+    if not app_row:
+        raise HTTPException(status_code=404, detail="找不到該筆申請")
+
+    if app_row.status == "pending":
+        app_row.status = "reviewing"
+        db.commit()
+    return {"status": "success", "current_status": app_row.status}
+
+
+# 5. 管理員端：審核通過或未通過
+class ReviewApplicationRequest(BaseModel):
+    action: str  # "approve" 或 "reject"
+    reject_reason: Optional[str] = None
+
+@app.post("/admin/teacher_applications/{app_id}/review")
+def admin_review_teacher_application(
+    app_id: int,
+    req: ReviewApplicationRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(database.get_db),
+    admin: models.User = Depends(require_admin)
+):
+    app_row = db.query(models.TeacherApplication).filter(models.TeacherApplication.id == app_id).first()
+    if not app_row:
+        raise HTTPException(status_code=404, detail="找不到該筆申請")
+
+    applicant = db.query(models.User).filter(models.User.username == app_row.username).first()
+    if not applicant:
+        raise HTTPException(status_code=404, detail="找不到該申請人的玩家帳號")
+
+    if req.action == "approve":
+        app_row.status = "approved"
+        app_row.reject_reason = None
+        app_row.reviewed_at = datetime.utcnow()
+        app_row.reviewed_by = admin.username
+        # 🏆 正式將該玩家帳號升格為 teacher
+        if applicant.role != "admin":
+            applicant.role = "teacher"
+        db.commit()
+
+        background_tasks.add_task(
+            _send_teacher_review_email,
+            app_row.email, app_row.real_name, app_row.username, True, ""
+        )
+        return {"status": "approved", "username": applicant.username}
+
+    elif req.action == "reject":
+        reason = (req.reject_reason or "").strip()
+        if not reason:
+            raise HTTPException(status_code=400, detail="請填寫未通過的原因！")
+        app_row.status = "rejected"
+        app_row.reject_reason = reason
+        app_row.reviewed_at = datetime.utcnow()
+        app_row.reviewed_by = admin.username
+        db.commit()
+
+        background_tasks.add_task(
+            _send_teacher_review_email,
+            app_row.email, app_row.real_name, app_row.username, False, reason
+        )
+        return {"status": "rejected", "username": applicant.username}
+
+    else:
+        raise HTTPException(status_code=400, detail="無效的審核動作")
