@@ -83,28 +83,24 @@ function buildBoard(scene, gameMap) {
     const tileGeo = new THREE.BoxGeometry(BOARD_TILE_SIZE, BOARD_TILE_THICK, BOARD_TILE_SIZE);
 
     layout.forEach((td) => {
-        // 🏆 改為稍微帶一點溫潤粗糙度的材質，並開啟投射/接收陰影
-        const tile = new THREE.Mesh(
-            tileGeo,
-            new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.55, metalness: 0.05 })
-        );
+        // 每格各自的材質：買地後會改 material.color 當作擁有者標記，
+        // 共用材質的話會一次染到全部。
+        const tile = new THREE.Mesh(tileGeo, new THREE.MeshStandardMaterial({ color: 0xffffff }));
         tile.position.set(td.x, td.y, td.z);
-        tile.castShadow = true;
-        tile.receiveShadow = true;
         tile.userData.layout = td;
         scene.add(tile);
         tiles.push(tile);
         positions.push(tile.position);
 
-        // 抬高的格子底下補一根立體石柱
+        // 抬高的格子底下補一根支柱，看起來才像空中步道而不是浮空方塊。
+        // 掛在格子底下（tile.add）而不是 scene，才會跟著格子一起隱藏。
         if (td.y > 0.4) {
             const pillar = new THREE.Mesh(
-                new THREE.BoxGeometry(BOARD_TILE_SIZE * 0.65, td.y, BOARD_TILE_SIZE * 0.65),
-                new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.8, metalness: 0.1 })
+                new THREE.BoxGeometry(BOARD_TILE_SIZE * 0.62, td.y, BOARD_TILE_SIZE * 0.62),
+                new THREE.MeshStandardMaterial({ color: 0x78909c, roughness: 0.9 })
             );
+            // 區域座標：從格子底面往下延伸 td.y
             pillar.position.set(0, -td.y / 2 - BOARD_TILE_THICK / 2, 0);
-            pillar.castShadow = true;
-            pillar.receiveShadow = true;
             pillar.name = "board_pillar";
             tile.add(pillar);
         }
@@ -273,16 +269,15 @@ function addGroundShadows(tiles, layout) {
 function addGroundPlane(scene) {
     const ground = new THREE.Mesh(
         new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE),
-        // 🏆 改用 MeshStandardMaterial 接收太陽光與環境霧氣，呈現柔和的立體大地感
-        new THREE.MeshStandardMaterial({
-            color: 0xa7f3d0,
-            roughness: 0.92,
-            metalness: 0.0
-        })
-    );
+        // 用 MeshBasicMaterial，不是 MeshStandardMaterial：Standard 材質
+        // 會受光照影響，同一個顏色會因為表面朝向跟光源的夾角不同，算出
+        // 不一樣的亮度——地面朝正上方（幾乎正對光源）跟牆面朝水平方向
+        // 拿到的光照量差很多，即使兩者材質顏色數值完全一樣，畫面上看
+        // 起來還是會不一樣深。Basic 材質不吃光照，直接畫材質本身的
+        // 顏色，地面和牆才能真的呈現同一個顏色，不受朝向影響。
+        new THREE.MeshBasicMaterial({ color: GROUND_COLOR }));
     ground.rotation.x = -Math.PI / 2;
     ground.position.set(0, GROUND_Y, 0);
-    ground.receiveShadow = true;
     ground.name = "ground_plane";
     scene.add(ground);
     return ground;
@@ -361,14 +356,6 @@ function applyBoardAppearanceTo(tiles, gameMap) {
         if (facility) {
             facility.name = BOARD_DECOR_NAME;
             tile.add(facility);
-
-            // 🏆 讓格子上的樹木、岩石、商店、監獄全部擁有真實光影投射
-            tile.traverse((child) => {
-                if (child.isMesh && child.name !== "board_ground_shadow") {
-                    child.castShadow = true;
-                    child.receiveShadow = true;
-                }
-            });
         }
     });
 }
