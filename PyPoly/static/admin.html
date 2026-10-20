@@ -964,12 +964,16 @@
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok) {
-            fetchUsers();       // 立即刷新後方「用戶權限管理」列表，讓該帳號瞬間從一般玩家變成「🧑‍🏫 老師」
-            fetchUnreadCount(); // 更新待審核紅點
+            fetchUsers();
+            fetchUnreadCount();
+            const mailNotice = data.email_sent
+                ? `<br><br><span style="color:var(--pixel-green); font-size:0.9rem;">📧 ${data.email_msg}</span>`
+                : `<br><br><span style="color:var(--pixel-red); font-size:0.88rem;">⚠️ 郵件發送失敗：${data.email_msg}</span>`;
+
             if (action === 'approve') {
-                showModal('🎉 審核通過', `已成功將「${data.username}」的身分改為老師，並發送郵件通知！`, true);
+                showModal('🎉 審核通過', `已成功將「<b>${data.username}</b>」的身分改為老師！${mailNotice}`, true);
             } else {
-                showModal('📌 已退回申請', `已記錄未通過原因並通知「${data.username}」。`, true);
+                showModal('📌 已退回申請', `已記錄未通過原因。${mailNotice}`, true);
             }
         } else {
             showModal('❌ 操作失敗', data.detail || '審核儲存失敗', false);

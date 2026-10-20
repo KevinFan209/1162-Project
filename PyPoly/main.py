@@ -2907,11 +2907,18 @@ os.makedirs(CERT_UPLOAD_DIR, exist_ok=True)
 ALLOWED_CERT_EXTS = {".pdf", ".jpg", ".jpeg", ".png"}
 
 
-def _send_teacher_review_email(to_email: str, real_name: str, username: str, approved: bool, reason: str = ""):
-    """審核完成後，使用系統信箱 pypoly.service@gmail.com 自動寄發通知信給老師"""
-    if not SENDER_EMAIL or not SENDER_PASSWORD:
-        print(f"ℹ️ [未設定 SMTP，略過寄信] 收件人:{to_email}")
-        return
+def _send_teacher_review_email(to_email: str, real_name: str, username: str, approved: bool, reason: str = "") -> tuple[bool, str]:
+    """審核完成後寄發通知信，並回傳 (是否成功, 狀態訊息) 供管理員前端即時顯示"""
+    # 每次寄信前重新載入一次 .env，避免重設環境變數沒讀到
+    load_dotenv(override=True)
+    sender_email = (os.getenv("SENDER_EMAIL") or SENDER_EMAIL or "").strip()
+    sender_pwd = (os.getenv("SENDER_PASSWORD") or SENDER_PASSWORD or "").strip()
+
+    if not sender_email or not sender_pwd:
+        msg = "未讀取到 .env 的 SENDER_EMAIL 或 SENDER_PASSWORD（請確認 .env 與 main.py 同目錄，且檔名不是 .env.txt）"
+        print(f"ℹ️ [略過寄信] {msg}")
+        return False, msg
+
     try:
         if approved:
             subject = "【BeeRich 碼上致富】🎉 教師資格審核通過通知"
@@ -2938,19 +2945,21 @@ def _send_teacher_review_email(to_email: str, real_name: str, username: str, app
 
         msg = MIMEText(body, "plain", "utf-8")
         msg["Subject"] = subject
-        msg["From"] = SENDER_EMAIL
+        msg["From"] = sender_email
         msg["To"] = to_email
 
-        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+        with smtplib.SMTP("smtp.gmail.com", 587, timeout=10) as server:
             server.starttls()
-            # 自動移除密碼中的空白字元以確保 Gmail SMTP 登入穩定
-            clean_pwd = SENDER_PASSWORD.replace(" ", "")
-            server.login(SENDER_EMAIL, clean_pwd)
-            server.sendmail(SENDER_EMAIL, [to_email], msg.as_string())
+            clean_pwd = sender_pwd.replace(" ", "")
+            server.login(sender_email, clean_pwd)
+            server.sendmail(sender_email, [to_email], msg.as_string())
 
-        print(f"📧 已成功由 {SENDER_EMAIL} 寄出教師審核通知信至 {to_email}")
+        print(f"📧 已成功由 {sender_email} 寄出教師審核通知信至 {to_email}")
+        return True, f"已成功寄送通知信至 {to_email}"
     except Exception as e:
-        print(f"❌ 教師審核通知信寄送失敗: {e}")
+        err_str = f"{type(e).__name__}: {e}"
+        print(f"❌ 教師審核通知信寄送失敗: {err_str}")
+        return False, err_str
 
 
 # 1. 玩家端：查詢自己目前的最新申請狀態與身分
@@ -3113,7 +3122,6 @@ class ReviewApplicationRequest(BaseModel):
 def admin_review_teacher_application(
     app_id: int,
     req: ReviewApplicationRequest,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(database.get_db),
     admin: models.User = Depends(require_admin)
 ):
@@ -3130,16 +3138,19 @@ def admin_review_teacher_application(
         app_row.reject_reason = None
         app_row.reviewed_at = datetime.utcnow()
         app_row.reviewed_by = admin.username
-        # 🏆 正式將該玩家帳號升格為 teacher
         if applicant.role != "admin":
             applicant.role = "teacher"
         db.commit()
 
-        background_tasks.add_task(
-            _send_teacher_review_email,
+        sent, mail_msg = _send_teacher_review_email(
             app_row.email, app_row.real_name, app_row.username, True, ""
         )
-        return {"status": "approved", "username": applicant.username}
+        return {
+            "status": "approved",
+            "username": applicant.username,
+            "email_sent": sent,
+            "email_msg": mail_msg
+        }
 
     elif req.action == "reject":
         reason = (req.reject_reason or "").strip()
@@ -3151,11 +3162,15 @@ def admin_review_teacher_application(
         app_row.reviewed_by = admin.username
         db.commit()
 
-        background_tasks.add_task(
-            _send_teacher_review_email,
+        sent, mail_msg = _send_teacher_review_email(
             app_row.email, app_row.real_name, app_row.username, False, reason
         )
-        return {"status": "rejected", "username": applicant.username}
+        return {
+            "status": "rejected",
+            "username": applicant.username,
+            "email_sent": sent,
+            "email_msg": mail_msg
+        }
 
     else:
         raise HTTPException(status_code=400, detail="無效的審核動作")
