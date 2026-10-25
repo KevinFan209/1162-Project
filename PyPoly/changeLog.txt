@@ -4351,3 +4351,65 @@ PyPoly 變更紀錄 (changeLog)
   (2) 開 static/preview/game_punish.html，重複點「模擬跳一次」，
   觀察開合跳的動作幅度/節奏是否符合預期。
 ========================================================================
+[2026-10-26] #97 預覽頁加上座標調整面板（手臂/鏟子）＋ 修復蓋房子後格子下沉
+
+  背景：使用者反饋上一輪新增的兩個動畫預覽頁裡，手臂、鏟子的擺放
+  看起來有點怪，但用文字描述 3D 旋轉/位移很難溝通，要求直接在預覽頁
+  上加一個可互動調整面板。同時使用者實測 game_purchase.html 時發現
+  蓋房子後格子似乎會下沉，懷疑是 bug，要求一併處理。
+
+  1. 蓋房子後格子下沉——確認是真 bug：
+     static/js/purchase-animation.js 的 runPurchaseAnimationCore()
+     收尾動畫把格子的 y 寫死成 gsap.to(targetTile.position, { y: 0.5,
+     ... })，但棋盤 26 格裡（static/js/board-layout.js 的
+     BOARD_HEIGHTS）只有 4 格原始高度天生是 0.5，其餘 22 格範圍
+     0~4，地形類型也完全不影響高度（查過 board-build.js／
+     board-terrain.js）。蓋房子時格子被拉去這個固定值，原始高度
+     不是 0.5 的格子蓋完房子後看起來就像下沉或上浮。改成
+     y: tilePos.y（函式一開頭已存好的格子原始高度），蓋完房子後維持
+     原高。改在共用模組裡，game.html 跟預覽頁一起吃到修正。
+
+  2. 新增共用模組 static/js/transform-gizmo.js：
+     createTransformGizmoPanel({ renderer, camera, pageName, targets })
+     ——純函式、不汙染全域，沿用 minimap.js/shop-ui.js 同一套模組
+     慣例。對每個指定的 Object3D 提供 position/rotation 數字輸入框
+     + 微調按鈕（滿足「可以旋轉、上下左右移動」），並在畫面上對應
+     物件旁邊放一個跟著物件世界座標投影位置走的浮動標籤（滿足
+     「加上座標並顯示在物件旁邊」）。「💾 儲存」按鈕把所有 target
+     當前的 position/rotation 存成 JSON——優先用瀏覽器的
+     showSaveFilePicker()（Chrome/Edge 可直接選到 static/preview/），
+     不支援則 fallback 成自動下載，面板上有提示字樣說明這種情況要
+     自己手動搬進 static/preview/。
+
+  3. static/preview/game_punish.html：接上調整面板，target 是
+     leftArm／rightArm（開合跳動畫唯一會動的兩個部位）。
+
+  4. static/preview/game_purchase.html：接上調整面板，target 是
+     leftArm／rightArm／鏟子。鏟子部分額外建了一個「調整用」的獨立
+     鏟子實例（跟真正動畫會臨時建立/移除的鏟子分開），播放收購/加蓋
+     動畫時暫時隱藏避免同框重疊，動畫播完恢復顯示繼續可調。
+
+  驗證：
+  - static/js/transform-gizmo.js、static/js/purchase-animation.js、
+    static/preview/game_purchase.html、static/preview/game_punish.html
+    都用 Node vm.Script 做語法檢查，通過。
+  - 把伺服器實際開起來，用 curl 確認上述 4 個檔案都回 HTTP 200。
+
+  ⚠️ 尚未做（面板好不好用、標籤位置準不準、拖拉手感如何，沒辦法無
+  瀏覽器代測，需要使用者自己開開看）：
+  (1) 開兩個預覽頁，確認調整面板出現、浮動標籤跟著物件移動。
+  (2) 用數字輸入框/微調按鈕調整手臂/鏟子，確認畫面物件跟著動、
+  標籤數字同步更新。
+  (3) 點「💾 儲存」，確認能存出 JSON（或至少觸發下載）。
+  (4) 在 game_purchase.html 重新測蓋房子/加蓋動畫，確認格子不再
+  下沉/上浮。
+
+  ⚠️ 不在這次範圍：這次只做調整工具跟存 JSON，不讀 JSON、不改
+  player-model.js／spectator-animations.js 裡手臂、鏟子的實際座標
+  ——等使用者調好存出 JSON 後，下一輪再讀那份 JSON 手動套用。套用
+  時要注意：leftArm/rightArm 的座標是全專案共用的角色模型本體
+  （player-model.js 的 createCustomBoxCharacter()），套用會影響整個
+  遊戲的角色姿勢，不只這兩個動畫；鏟子座標有兩個呼叫點（收購動畫、
+  搶奪動畫）目前數值剛好相同，套用收購頁調出來的 JSON 只會改收購
+  動畫那一處，不會動搶奪動畫。
+========================================================================

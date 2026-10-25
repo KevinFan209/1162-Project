@@ -187,8 +187,13 @@ async function runPurchaseAnimationCore(ctx, playerName, tileIndex, color, isUpg
 
             targetTile.material.color.set(color);
 
+            // 🏆 修正：原本這裡寫死 y: 0.5，但棋盤 26 格裡只有 4 格原始
+            // 高度天生是 0.5（見 board-layout.js 的 BOARD_HEIGHTS，範圍
+            // 0~4）——蓋房子時格子會被拉去這個固定值，原始高度不是 0.5
+            // 的格子看起來就像蓋完房子後下沉或上浮。改成用函式一開頭
+            // 已經存好的 tilePos.y（格子原始高度），蓋完房子後維持原高。
             gsap.to(targetTile.position, {
-                y: 0.5, duration: 1, onComplete: () => {
+                y: tilePos.y, duration: 1, onComplete: () => {
                     resolve();
                 }
             });
