@@ -4312,3 +4312,42 @@ PyPoly 變更紀錄 (changeLog)
   (3) 測一輪完整對局，確認 movePlayerSequence() 的 try/finally
   加固沒有改變正常移動的動畫/行為。
 ========================================================================
+[2026-10-26] #96 新增收購/加蓋土地動畫預覽頁，沿用既有開合跳預覽頁
+
+  背景：使用者反饋答對問題選擇收購土地時的動畫、以及開合跳處罰的
+  動畫看起來都有點問題，想各自獨立做成 preview 頁面調整。
+
+  1. 收購/加蓋土地動畫：比照本輪其他預覽頁的「先抽模組、不要複製」
+     慣例，把 game.html 原本寫死的 createHouse()／
+     runPurchaseAnimation() 抽到新檔 static/js/purchase-animation.js
+     （createHouse() 原樣搬移；runPurchaseAnimation() 改名
+     runPurchaseAnimationCore(ctx, ...)，改吃跟 buildSpectatorAnimCtx()
+     同一套 ctx 形狀）。game.html 三處呼叫點（land_bought_sync 兩個
+     分支 + executePurchase() 自己購買的分支）改呼叫
+     runPurchaseAnimationCore(buildSpectatorAnimCtx(), ...)，行為
+     完全不變。新增 static/preview/game_purchase.html：單一角色
+     Alice 站在測試地塊上，三顆按鈕——播放收購（空地蓋新房）、播放
+     加蓋（已有房子再加一層）、重設格子——方便反覆測試同一段動畫
+     調時間/位置。⚠️ 命名澄清：使用者說的「插旗」在程式碼裡實際是
+     鏟子挖地 + 蓋房子的動畫（grep 全專案沒有任何插旗相關程式碼），
+     已在預覽頁面上註明，避免誤會成功能缺失。
+
+  2. 開合跳動畫：檢查後發現 static/preview/game_punish.html **已經
+     存在**（抽對局事件模組那輪做的），已經有「模擬跳一次」按鈕可
+     直接重複觸發 play3DJumpAnimation()、搭配可自由旋轉的鏡頭，足以
+     滿足這次調整動畫的需求，直接沿用，沒有重做一份。
+
+  驗證：
+  - static/game.html、static/js/purchase-animation.js、
+    static/preview/game_purchase.html 都用 Node vm.Script 做語法
+    檢查，通過。
+  - 把伺服器實際開起來，用 curl 確認上述檔案加上
+    static/preview/game_punish.html 都回 HTTP 200。
+
+  ⚠️ 尚未做（3D 視覺效果的位置/時間/鏡頭角度好不好看，沒辦法無瀏覽器
+  代測，需要使用者自己開啟兩個預覽頁用眼睛判斷再調參數）：
+  (1) 開 static/preview/game_purchase.html，分別點兩顆播放按鈕，
+  觀察挖地動作、鏡頭運鏡、房子長出來的時機與位置是否符合預期。
+  (2) 開 static/preview/game_punish.html，重複點「模擬跳一次」，
+  觀察開合跳的動作幅度/節奏是否符合預期。
+========================================================================
