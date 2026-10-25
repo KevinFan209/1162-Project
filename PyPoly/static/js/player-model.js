@@ -61,9 +61,32 @@ function createCustomBoxCharacter(colors, faceDataUrl) {
     group.add(bodyMesh);
 
     // 3. 手臂
+    // 🏆 修復開合跳等揮手動畫的旋轉軸心：手臂本身用置中的 BoxGeometry
+    // 當 Mesh 直接掛在角色根節點下的話，.rotation 會繞著整條手臂的
+    // 正中間轉，不是肩膀。改成「肩膀 Group（沿用 leftArm/rightArm
+    // 這兩個名字，外部都靠 getObjectByName 找这两个名字，不用改任何
+    // 呼叫端）＋ 裡面才是真正的手臂 Mesh（新名字 leftArmMesh/
+    // rightArmMesh，往下偏移半截手臂長度）」，靜止姿勢視覺位置跟
+    // 原來完全一樣，只是旋轉軸心從手臂中間移到肩膀。
     const armGeo = new THREE.BoxGeometry(0.24, 1.0, 0.4);
-    const leftArm = new THREE.Mesh(armGeo, armMat); leftArm.position.set(-0.52, 1.5, 0); leftArm.name = "leftArm"; group.add(leftArm);
-    const rightArm = new THREE.Mesh(armGeo, armMat); rightArm.position.set(0.52, 1.5, 0); rightArm.name = "rightArm"; group.add(rightArm);
+
+    const leftArmPivot = new THREE.Group();
+    leftArmPivot.position.set(-0.52, 2.0, 0);
+    leftArmPivot.name = "leftArm";
+    group.add(leftArmPivot);
+    const leftArmMesh = new THREE.Mesh(armGeo, armMat);
+    leftArmMesh.position.set(0, -0.5, 0);
+    leftArmMesh.name = "leftArmMesh";
+    leftArmPivot.add(leftArmMesh);
+
+    const rightArmPivot = new THREE.Group();
+    rightArmPivot.position.set(0.52, 2.0, 0);
+    rightArmPivot.name = "rightArm";
+    group.add(rightArmPivot);
+    const rightArmMesh = new THREE.Mesh(armGeo, armMat);
+    rightArmMesh.position.set(0, -0.5, 0);
+    rightArmMesh.name = "rightArmMesh";
+    rightArmPivot.add(rightArmMesh);
 
     // 4. 腿部
     const legGeo = new THREE.BoxGeometry(0.36, 0.8, 0.4);

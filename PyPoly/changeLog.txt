@@ -4426,3 +4426,61 @@ PyPoly 變更紀錄 (changeLog)
   驗證：static/js/transform-gizmo.js 用 Node vm.Script 做語法檢查，
   通過。CSS 定位本身沒辦法無瀏覽器代測，需要使用者自己看一下位置。
 ========================================================================
+[2026-10-26] #99 套用收購鏟子角度＋修正開合跳手臂的旋轉軸心與方向
+
+  背景：#97/#98 做的調整面板讓使用者可以在預覽頁實測。使用者先在
+  game_purchase.html 調好鏟子角度存成 JSON，又在 game_punish.html
+  實測開合跳動畫後回報：手臂旋轉目前以整條手臂的正中間為軸、依 RZ
+  正方向轉，應該是以手臂頂端（肩膀）為軸心、往 RZ 負方向轉。先在
+  兩個預覽頁裡各自用本地覆寫驗證過兩個修法都正確，使用者確認沒問題
+  後，這次正式套進共用模組。
+
+  1. static/js/purchase-animation.js：鏟子 `shovel.rotation.x =
+     Math.PI / 2;` 後面加一行 `shovel.rotation.z = Math.PI;`——套用
+     使用者用調整面板調出來、存在
+     static/preview/game_purchase_transform.json 的角度（該檔案是
+     預覽頁暫存記錄，套用完已刪除，不進版控）。只套這個收購動畫的
+     呼叫點，沒有動 static/js/spectator-animations.js 裡搶奪動畫的
+     鏟子（即使數值目前剛好相同，那是不同功能）。
+
+  2. static/js/player-model.js：`createCustomBoxCharacter()` 的
+     `leftArm`/`rightArm` 原本是直接掛在角色根節點下、用置中
+     BoxGeometry 的 Mesh，旋轉軸心在整條手臂的正中間。改成「肩膀
+     Group（沿用 leftArm/rightArm 這兩個名字，所有既有呼叫點用
+     getObjectByName 找這兩個名字完全不用改）＋ 裡面才是真正的手臂
+     Mesh（新名字 leftArmMesh/rightArmMesh，往下偏移半截手臂長度）」
+     兩層結構，靜止姿勢視覺位置跟原來完全一樣，只有旋轉軸心從手臂
+     中間移到肩膀。這是全專案共用的角色模型本體，除了開合跳，
+     game.html 裡另外兩處揮手動畫（觀戰收到 FLAPPY_FLAP 廣播的揮手、
+     經過起點的慶祝動畫）也會一起吃到肩膀軸心修正，但那兩處的揮動
+     方向/幅度這次沒有調整，維持原樣。
+
+  3. static/js/punish-minigame.js：`play3DJumpAnimation()` 裡
+     `leftArm`/`rightArm` 的 `rotation.z` 目標值正負號互換——原本的
+     方向會讓垂下的手臂往身體內側甩（跟開合跳張開的動作相反），改成
+     讓兩隻手臂同時往身體外側甩開。
+
+  4. static/preview/game_punish.html：拿掉上一輪為了先驗證而加的
+     本地 `rebuildArmPivots()`/`previewJumpAnimation()`
+     （player-model.js／punish-minigame.js 已經是正式修正過的版本，
+     繼續疊加本地覆寫會在已經有肩膀 pivot 的結構上再包一層，造成
+     命名衝突），「🏃 模擬跳一次」改回直接呼叫共用模組的
+     `play3DJumpAnimation(model)`。
+
+  驗證：
+  - static/js/player-model.js、static/js/punish-minigame.js、
+    static/js/purchase-animation.js、static/preview/game_purchase.html、
+    static/preview/game_punish.html、static/game.html 都用 Node
+    vm.Script 做語法檢查，通過。
+  - 把伺服器實際開起來，用 curl 確認上述 6 個檔案都回 HTTP 200。
+  - 使用者已經在改成本地覆寫版本的兩個預覽頁上實測過軸心/方向/角度
+    都沒問題，這次只是把同一套邏輯原樣套進共用模組，沒有改變驗證過
+    的效果。
+
+  ⚠️ 尚未做（沒辦法無瀏覽器代測，建議抽空看一次）：
+  (1) 重新開 game_punish.html／game_purchase.html，確認拿掉本地
+  覆寫、改呼叫共用模組之後，效果跟剛才驗證的本地版本一致。
+  (2) 找機會看一次真正對局裡「經過起點」的慶祝動畫跟觀戰時 flappy
+  bird 揮手動畫，確認肩膀軸心修正沒有讓這兩個也跑掉（這兩處的方向/
+  幅度這次沒有調整，只有軸心位置變了）。
+========================================================================

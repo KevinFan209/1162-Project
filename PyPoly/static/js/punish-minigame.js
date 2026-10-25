@@ -26,10 +26,12 @@ function play3DJumpAnimation(model) {
     });
 
     // 雙手揮動 (簡單的開合跳手臂動作)
+    // 🏆 修正方向：原本的正負號會讓垂下的手臂往身體內側甩（跟開合跳
+    // 張開的動作相反），改成讓兩隻手臂同時往身體外側甩開。
     const leftArm = model.getObjectByName("leftArm");
     const rightArm = model.getObjectByName("rightArm");
     if (leftArm && rightArm) {
-        gsap.to(leftArm.rotation, { z: Math.PI / 1.5, duration: 0.25, yoyo: true, repeat: 1 });
-        gsap.to(rightArm.rotation, { z: -Math.PI / 1.5, duration: 0.25, yoyo: true, repeat: 1 });
+        gsap.to(leftArm.rotation, { z: -Math.PI / 1.5, duration: 0.25, yoyo: true, repeat: 1 });
+        gsap.to(rightArm.rotation, { z: Math.PI / 1.5, duration: 0.25, yoyo: true, repeat: 1 });
     }
 }

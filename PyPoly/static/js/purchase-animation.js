@@ -114,6 +114,7 @@ async function runPurchaseAnimationCore(ctx, playerName, tileIndex, color, isUpg
     model.add(shovel);
     shovel.position.set(0.6, 1.2, 0.6);
     shovel.rotation.x = Math.PI / 2;
+    shovel.rotation.z = Math.PI; // 使用者用 static/preview/game_purchase.html 的調整面板調出來的角度
 
     return new Promise(resolve => {
         const buildTl = gsap.timeline();
