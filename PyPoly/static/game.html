@@ -3153,26 +3153,40 @@ async function loadPlayerModels() {
             }
         });
 
-		const startPos = mapBlocks[0];
-        const nextPos = mapBlocks[1];
-        
-        // 取得前進方向，並利用外積算出「右邊方向」
-        const dirForward = new THREE.Vector3().subVectors(nextPos, startPos).normalize();
-        const dirRight = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dirForward).normalize();
-            
 		// 玩家一(0)分配左車道偏移 -1.2，玩家二(1)分配右車道偏移 1.2
-		const laneOffset = (index === 0) ? -1.2 : 1.2; 
-            
-		// 將車道記憶在模型上，供移動時讀取
-		model.userData.laneOffset = laneOffset; 
+		const laneOffset = (index === 0) ? -1.2 : 1.2;
 
-		// 乘上側向向量，達到肩並肩的效果
-		const finalStartPos = startPos.clone().addScaledVector(dirRight, laneOffset);
-		model.position.set(finalStartPos.x, finalStartPos.y + 0.5, finalStartPos.z);
-            
-		// 看向下一個格子的同一個車道位置
-		const finalNextPos = nextPos.clone().addScaledVector(dirRight, laneOffset);
-		model.lookAt(finalNextPos.x, model.position.y, finalNextPos.z);
+		// 將車道記憶在模型上，供移動時讀取
+		model.userData.laneOffset = laneOffset;
+
+		// 🏆 修復虛擬人物跑到地圖正中央：原本這裡直接讀 mapBlocks[0]／
+		// [1] 完全沒防呆，旁邊職責重疊的 repositionPlayerModelsToStart()
+		// 反而有防呆（mapBlocks.length < 2 就 return）。如果這個瀏覽器
+		// （常見於觀戰者/對手，地圖資料到位時機可能跟主玩家不同）執行
+		// 到這裡時 mapBlocks 還是空的，原本會直接丟例外，model.position
+		// 永遠不會被設定，模型就會卡在 Three.js 預設的 (0,0,0)——剛好
+		// 是棋盤 26 格環形排列的幾何中心，看起來就像「跑到地圖正中央」。
+		// 改成不中斷整個迴圈，模型留在預設位置，等地圖同步完成後交給
+		// 已經存在的 repositionPlayerModelsToStart() 補上正確座標。
+		if (mapBlocks && mapBlocks.length >= 2) {
+			const startPos = mapBlocks[0];
+			const nextPos = mapBlocks[1];
+
+			// 取得前進方向，並利用外積算出「右邊方向」
+			const dirForward = new THREE.Vector3().subVectors(nextPos, startPos).normalize();
+			const dirRight = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dirForward).normalize();
+
+			// 乘上側向向量，達到肩並肩的效果
+			const finalStartPos = startPos.clone().addScaledVector(dirRight, laneOffset);
+			model.position.set(finalStartPos.x, finalStartPos.y + 0.5, finalStartPos.z);
+
+			// 看向下一個格子的同一個車道位置
+			const finalNextPos = nextPos.clone().addScaledVector(dirRight, laneOffset);
+			model.lookAt(finalNextPos.x, model.position.y, finalNextPos.z);
+		} else {
+			console.warn(`⚠️ loadPlayerModels(): mapBlocks 尚未就緒（長度 ${mapBlocks ? mapBlocks.length : 0}），` +
+				`玩家 [${playerName}] 暫不設定初始座標，等地圖同步完成後由 repositionPlayerModelsToStart() 補上`);
+		}
 
         scene.add(model);
         playerModels[playerName] = model;
@@ -5860,10 +5874,17 @@ async function playStartAnimation(playerName) {
 
 
 // game.html - 修正後的 movePlayerSequence (支援字卡自動隱藏與恢復)
+// 🏆 加固：原本函式內部有多處沒有防呆的查表／解析
+// （mapBlocks[playerCurrentIndex[playerName]]、JSON.parse(localStorage
+// .getItem('pypoly_game_snapshot')).players），一旦某個時間點短暫讀到
+// 空值而丟出例外，函式會中途中斷、isMoving 永遠卡在 true（下面
+// `if (isMoving) return;` 會擋掉這個玩家之後所有移動指令）。改用
+// try/finally 保證不管中途有沒有丟例外，isMoving 一定會被重置。
 async function movePlayerSequence(playerName, steps) {
-    if (isMoving) return; 
+    if (isMoving) return;
     isMoving = true;
 
+    try {
     const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
     const myName = localStorage.getItem('username');
@@ -5871,7 +5892,6 @@ async function movePlayerSequence(playerName, steps) {
 
     const model = playerModels[playerName];
     if (!model) {
-        isMoving = false;
         return;
     }
 
@@ -5978,7 +5998,9 @@ async function movePlayerSequence(playerName, steps) {
             triggerTask();
         }
     }
-    isMoving = false;
+    } finally {
+        isMoving = false;
+    }
 }
 
 // 🏆 修正一：預設位置改為 center，並確保絕對置中
@@ -6483,9 +6505,18 @@ function resetToGodViewState() {
 
         const idx = playerCurrentIndex[pName] || 0;
         const nIdx = (idx + 1) % mapBlocks.length;
-        const offset = (pName === players[0] ? -1.5 : 1.5);
+        const laneOffset = (pName === players[0] ? -0.8 : 0.8); // 跟 movePlayerSequence() 同一套車道偏移
+        const lookOffset = (pName === players[0] ? -1.5 : 1.5);
+
+        // 🏆 修復虛擬人物跑到地圖正中央：原本這裡只有 lookAt（改朝向），
+        // 從沒真的把 .position 設回棋盤格——showAdventureCharacter()
+        // 答題時會把本尊搬到攝影機前方（跟棋盤座標無關），這裡原本的
+        // 「會把人物歸位」只是改朝向，不是真的歸位。
+        if (m && mapBlocks[idx]) {
+            m.position.set(mapBlocks[idx].x + laneOffset, mapBlocks[idx].y + 0.8, mapBlocks[idx].z);
+        }
         if (m && mapBlocks[nIdx]) {
-            m.lookAt(mapBlocks[nIdx].x + offset, m.position.y, mapBlocks[nIdx].z);
+            m.lookAt(mapBlocks[nIdx].x + lookOffset, m.position.y, mapBlocks[nIdx].z);
         }
         m.visible = true;
     });

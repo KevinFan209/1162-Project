@@ -4244,3 +4244,71 @@ PyPoly 變更紀錄 (changeLog)
   (3) 小鳥飛觀戰視角確認完全不受影響。
   (4) 確認離開觀戰模式（按「回到上帝視角」）後，角色方塊不會殘留。
 ========================================================================
+[2026-10-26] #95 修復虛擬人物跑到地圖正中央（經過健身格/商店格時出現）
+
+  背景：使用者回報經過健身格、商店格時，遊玩方或觀戰方其中一方的
+  虛擬人物會跑到地圖正中央。用 3 個背景 agent 分別查了一般移動的
+  位置同步機制、健身格（PUNISH）流程、商店格（SHOP）流程，三組
+  研究互相印證：健身格跟商店格本身的程式碼完全乾淨，從走到格子、
+  處理、到結束都沒有動過玩家模型本尊的 .position（商店格唯一會動
+  座標的是 .clone() 出來的獨立商店舞台替身，不影響本尊）。真正的
+  問題在更早的答題階段：
+
+  1. showAdventureCharacter()（第 1660-1684 行，QUIZ/QUIZ_CODE 答題
+     時呼叫）會把本尊 playerModels[myName] 直接搬到「攝影機前方
+     3.2、往下 1.6」這個跟棋盤座標完全無關的位置，讓玩家答題時
+     看得到自己的角色。
+  2. resetToGodViewState()（第 6470 行起，每次換人回合都會呼叫）
+     的註解宣稱會把人物歸位，但實際上只做 .lookAt()（改朝向）跟
+     .visible，從頭到尾沒有任何一行 .position.set()，根本沒有真的
+     歸位。玩家答完題、沒有在同一回合內再擲骰移動的話，本尊會一路
+     卡在答題時的座標，直到下一次 movePlayerSequence() 才會被動畫
+     帶走。
+  3. 為什麼看起來像地圖正中央：Three.js 的 THREE.Group（角色模型
+     本體）建構子預設 position 就是 (0,0,0)，而棋盤 26 格是以
+     (0,0,0) 為幾何中心排成一圈的環，沒有一格落在原點——loadPlayerModels()
+     （第 3156 行起）建立模型時直接讀 mapBlocks[0]/[1] 完全沒有
+     防呆（旁邊職責重疊的 repositionPlayerModelsToStart() 反而有
+     防呆），如果某個瀏覽器（常見於觀戰者/對手）執行到這裡時
+     mapBlocks 還是空的，會直接丟例外，模型就精準卡在 Three.js
+     預設的 (0,0,0)，從建立那一刻就沒離開過地圖正中央。
+
+  修法：
+  - resetToGodViewState()：補上真正的 .position.set()，用
+    playerCurrentIndex[pName] 對應的 mapBlocks 座標 + 跟
+    movePlayerSequence() 同一套 ±0.8 車道偏移、+0.8 高度慣例，不只
+    改朝向。
+  - loadPlayerModels()：建立模型時設定初始座標那段補上
+    mapBlocks.length >= 2 的防呆（比照 repositionPlayerModelsToStart()
+    既有寫法），mapBlocks 還沒就緒時不中斷整個迴圈，模型留在預設
+    位置，等地圖同步完成後交給已經存在的 repositionPlayerModelsToStart()
+    補上正確座標。
+  - movePlayerSequence()：研究時發現這個函式內部有多處沒有防呆的
+    查表/解析（mapBlocks[playerCurrentIndex[playerName]]、
+    JSON.parse(localStorage.getItem('pypoly_game_snapshot')).players），
+    一旦短暫讀到空值丟例外會讓 isMoving 永遠卡在 true、該玩家之後
+    所有移動指令都被擋掉——順手加固，整個函式主體包進
+    try/finally，保證 isMoving 一定會被重置，不改變正常移動的
+    行為。
+
+  不在這次範圍：playerCurrentIndex 完全沒有伺服器權威狀態、沒有
+  reconnect/resync 機制（兩邊各自重播 {user, steps} delta 自行
+  累加），這是更大的架構缺口，會造成「格子編號本身兩邊對不起來」
+  這個不同症狀，這次不處理；研究中額外發現的其他 5 處
+  JSON.parse(localStorage...).players 無防呆呼叫（不在
+  movePlayerSequence() 內）這次也不處理，留著之後一次性處理。
+
+  驗證：
+  - static/game.html 用 Node vm.Script 做語法檢查，通過。
+  - 把伺服器實際開起來，用 curl 確認頁面回 HTTP 200。
+
+  ⚠️ 尚未做（位置/動畫沒辦法無瀏覽器代測，是這次任務本身的核心
+  風險）：
+  (1) 兩人對局，一人答對一題進入收購決策或直接結束回合（不要緊接著
+  再擲骰），換手後確認自己的角色正確站在原本的格子上。
+  (2) 接著走到健身格、商店格，確認雙方視角（遊玩方+觀戰方）角色
+  位置都正常，不會出現在地圖正中央；特別測「答題→直接經過健身格/
+  商店格」這個最容易觸發的連續情境。
+  (3) 測一輪完整對局，確認 movePlayerSequence() 的 try/finally
+  加固沒有改變正常移動的動畫/行為。
+========================================================================
