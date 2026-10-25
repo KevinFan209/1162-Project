@@ -4181,3 +4181,66 @@ PyPoly 變更紀錄 (changeLog)
   使用者在 character.html 重新按一次「清除人臉」（跑到新版
   clearFace()）或自行清掉瀏覽器的 localStorage，新程式碼才會生效。
 ========================================================================
+[2026-10-26] #94 收購決策觀戰視角：去除角色白底、位置改用跟遊玩玩家視角一致的公式
+
+  背景：組長要求「收購決策觀戰畫面和諧一點，背景看需不需要調整」，
+  使用者的想法是「人物位置跟遊玩玩家視角的虛擬人物位置相同，去掉
+  白色背景」。查過兩邊程式碼後確認：
+
+  遊玩玩家視角（決策當下）看到的是自己的真實攝影機畫面
+  （initCameraAndStartVision() 開 getUserMedia），畫在 virtualScreen
+  這個平面上——疊在主場景 panoSphere 全景照片前面，用
+  camera.position + forward/right 偏移算位置，完全沒有顯示自己的
+  3D 角色方塊。
+
+  觀戰視角（看不到決策者的真實攝影機串流）用
+  renderPlayerModelInActiveVisionFrame()（static/game.html 原第
+  2322-2476 行）生一個 3D 角色方塊頂替，但這個函式另開了一個完全
+  獨立的迷你 3D 舞台（自己的 window.spec3DScene/spec3DCamera/
+  spec3DRenderer），寫死 300×170px、白色背景、-35px 位移，直接把
+  .vision-frame-right 原本「大面積、靠下、透明背景」的版面蓋掉，
+  所以看起來像貼紙浮在全景照片上，位置也跟遊玩玩家視角的
+  virtualScreen 對不上。
+
+  附帶發現：window.spec3DModel 這個變數名稱被這個函式跟小鳥飛觀戰
+  專用的 renderFlappyBirdAvatarSpectator()（有自己獨立的
+  window.fbSpec3DScene 等）共用，兩邊各自想從不同的 scene 移除它，
+  會互相覆蓋、讓舊 clone 變孤兒物件殘留在錯的 scene 裡（小洩漏，
+  跟 changeLog #68/#93 同一類問題）。
+
+  修法：不再另開迷你 3D 舞台，renderPlayerModelInActiveVisionFrame()
+  改成直接把替身 clone 放進主場景 scene，位置用跟 virtualScreen
+  完全一樣的「相機位置 + forward/right 偏移」公式計算，角色因此自然
+  站在全景照片前面，不再需要白色背景，不需要自己的
+  renderer/動畫迴圈（進了主場景跟著主渲染迴圈一起畫）。改用全新的
+  window.specDecisionAvatarModel 取代 window.spec3DModel，附帶修掉
+  跟小鳥飛觀戰共用變數名稱造成的殘留洩漏；resetToGodViewState() 補
+  一行清理，離開觀戰/回到上帝視角時把這個替身從主場景移除。
+  renderFlappyBirdAvatarSpectator()／window.fbSpec3D*／FLAPPY_FLAP
+  事件處理完全沒有改動。
+
+  AVATAR_FORWARD(3.2)/AVATAR_RIGHT(0.5)/AVATAR_DOWN(1.0)/
+  AVATAR_SCALE(0.9) 這組位置/大小參數沒辦法不開瀏覽器就知道好不好
+  看，先抓一組起點值，實測後再微調。
+
+  QUIZ/QUIZ_CODE 兩個觀戰階段共用同一個函式，這次修完後一併受益，
+  觀戰別人答題時也會從白底浮貼圖變成融入全景照片的角色。
+
+  驗證：
+  - static/game.html 用 Node vm.Script 做語法檢查，通過。
+  - 把伺服器實際開起來，用 curl 確認頁面回 HTTP 200。
+  - 確認移除後的程式碼沒有留下會報錯的殘留呼叫：僅存的
+    'spectator-universal-3d-canvas' 查詢都有 if (specCanvas) 防呆，
+    不會因為這個元素不再被建立而出錯；window.spec3DModel/
+    window.fbSpec3DScene 確認只剩 renderFlappyBirdAvatarSpectator()
+    跟 FLAPPY_FLAP 處理在用，完全沒有被這次改動影響。
+
+  ⚠️ 尚未做（3D 定位/觀感沒辦法無瀏覽器代測，是這次任務本身的核心
+  風險）：
+  (1) 兩人對局，一人觸發收購決策，另一人用觀戰視角確認角色不再有
+  白色背景、位置/大小是否協調，AVATAR_FORWARD/RIGHT/DOWN/SCALE
+  這組初始值大機率需要微調。
+  (2) 答題（基礎手勢題/進階程式碼題）觀戰視角一併確認沒有跟著壞掉。
+  (3) 小鳥飛觀戰視角確認完全不受影響。
+  (4) 確認離開觀戰模式（按「回到上帝視角」）後，角色方塊不會殘留。
+========================================================================

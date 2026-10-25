@@ -2315,164 +2315,70 @@ function renderPlayerModelInShop(playerName) {
     });
 }
 
-// 🏆 全新宣告收購階段專用的 3D 舞台全域變率
-let decAvatarScene, decAvatarCamera, decAvatarRenderer, decAvatarModel, decAnimationId;
+// 🏆 修復觀戰視角收購決策角色白底貼圖：原本這裡另開一個完全獨立的
+// 迷你 3D 舞台（自己的 scene/camera/renderer），寫死 300×170px、白色
+// 背景、-35px 位移去蓋掉 .vision-frame-right 原本「大面積、靠下、
+// 透明背景」的版面（CSS 第 466-476 行），看起來像貼紙一樣浮在全景
+// 照片上，位置也跟遊玩玩家視角看自己攝影機畫面用的 virtualScreen
+// 完全對不上（virtualScreen 是疊在主場景 panoSphere 前面的平面，用
+// camera.position + forward/right 偏移算位置，見 submitQuizAnswer／
+// handleCodeSuccess 進入 PURCHASE_DECISION 那段）。
+//
+// 改成不另開場景，直接把替身 clone 放進主場景 scene，位置用跟
+// virtualScreen 同一套相機相對偏移公式計算——角色因此自然站在全景
+// 照片前面，不需要白色背景，也不用自己的 renderer/動畫迴圈（進了主
+// 場景會跟著主渲染迴圈一起畫）。
+//
+// ⚠️ window.spec3DModel 這個變數名稱原本被這個函式跟小鳥飛觀戰專用的
+// renderFlappyBirdAvatarSpectator()（各自想從不同的 scene 移除它）
+// 共用，會互相覆蓋、讓舊 clone 變孤兒物件殘留。這裡改用全新的
+// window.specDecisionAvatarModel，不再跟小鳥飛那邊衝突；
+// renderFlappyBirdAvatarSpectator() 本身完全沒有改動。
+//
+// AVATAR_FORWARD／AVATAR_RIGHT／AVATAR_DOWN／AVATAR_SCALE 這組數字
+// 沒辦法不開瀏覽器就知道好不好看，先抓一組起點值，實測後再微調。
+const AVATAR_FORWARD = 3.2; // 👈 角色離觀戰者相機多遠（沿 virtualScreen 用的 forward 方向）
+const AVATAR_RIGHT = 0.5;   // 👈 角色左右偏移（正數往右）
+const AVATAR_DOWN = 1.0;    // 👈 角色往下偏移多少，避免浮在視線正中央
+const AVATAR_SCALE = 0.9;   // 👈 角色大小
 
-// 🏆 終極通用 3D 鏡頭畫面渲染 (加入防覆蓋保護、新增畫布整體平移參數)
 function renderPlayerModelInActiveVisionFrame(playerName) {
-    // 🏆 修正一：加入 100ms 延遲保護，確保 fillTaskUI 已經把題目更新完畢，才不會把我們的畫布刷掉！
-    setTimeout(() => {
-        const canvasId = 'spectator-universal-3d-canvas';
-        
-        // =========================================================================
-        // 💡 【大師微調教學區】 你隨時可以坐在這裡改數字，調整畫布與人物大小位置！
-        // =========================================================================
-        const targetWidth = 300;   // 👈 1. 調整畫布寬度
-        const targetHeight = 170;  // 👈 2. 調整畫布高度
-        
-        const canvasMoveX = "-35px"; // 👈 🆕 3. 調整「整個白底畫布」左右移動！【負數往左，正數往右，例如 "-35px"】
+    if (!scene || !camera) return;
 
-        const modelX = -0.45;      // 👈 4. 調整人物在畫布內的左右！【正數往右，負數往左】
-        const modelY = -0.15;      // 👈 5. 調整人物在畫布內的上下！【正數往上，負數往下】
-        
-        const modelScale = 0.72;   // 👈 6. 調整人物模型大小！
-        const cameraZ = 3.5;       // 👈 7. 調整相機拉遠拉近！
-        // =========================================================================
+    if (window.specDecisionAvatarModel) {
+        // 只 remove，不 dispose——clone 出來的材質/幾何是跟真身共用的
+        // 參照，不是獨立複製品，dispose 會連真身一起壞掉。
+        scene.remove(window.specDecisionAvatarModel);
+        window.specDecisionAvatarModel = null;
+    }
 
-        const taskUI = document.getElementById('adventure-task-ui');
-        const decisionUI = document.getElementById('adventure-decision-ui');
-        
-        let activeContainer = null;
-        let targetUI = null;
+    const sourceModel = playerModels[playerName];
+    if (!sourceModel) return;
 
-        if (decisionUI && decisionUI.style.display !== 'none' && decisionUI.style.display !== '') {
-            targetUI = decisionUI;
-        } else if (taskUI && taskUI.style.display !== 'none' && taskUI.style.display !== '') {
-            targetUI = taskUI;
+    const model = sourceModel.clone();
+    model.visible = true;
+    model.traverse((child) => {
+        child.visible = true;
+        if (child.isMesh) {
+            const srcChild = sourceModel.getObjectByName(child.name);
+            if (srcChild) child.material = srcChild.material;
+            child.layers.set(0);
         }
+    });
 
-        if (targetUI) {
-            activeContainer = targetUI.querySelector('.vision-frame-right, .vision-frame-left, .vision-container, .vision-frame, .camera-wrapper');
-        }
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+    const pos = new THREE.Vector3().copy(camera.position)
+        .addScaledVector(forward, AVATAR_FORWARD)
+        .addScaledVector(right, AVATAR_RIGHT);
+    pos.y -= AVATAR_DOWN;
 
-        if (!activeContainer) {
-            const allPossibleFrames = document.querySelectorAll('.vision-frame-right, .vision-frame-left, .vision-container, .vision-frame, .camera-wrapper');
-            for (let frame of allPossibleFrames) {
-                if (frame.offsetWidth > 0 || frame.offsetHeight > 0 || window.getComputedStyle(frame).display !== 'none') {
-                    activeContainer = frame;
-                    break;
-                }
-            }
-        }
+    model.position.copy(pos);
+    model.scale.setScalar(AVATAR_SCALE);
+    model.lookAt(camera.position);
 
-        if (!activeContainer) {
-            activeContainer = document.querySelector('.vision-frame-right, .vision-frame-left, .vision-container, .vision-frame');
-        }
-
-        if (!activeContainer) {
-            console.warn(`[VISION DEBUG] 仍找不到相機容器，可能 UI 尚未完全展開。`);
-            return;
-        }
-
-        console.log(`[VISION DEBUG] 成功鎖定相機畫布容器：`, activeContainer);
-
-        // 隱藏原有的實體視訊畫面 (video 標籤等)
-        Array.from(activeContainer.children).forEach(child => {
-            if (child.id !== canvasId) child.style.display = 'none';
-        });
-
-        let canvas = document.getElementById(canvasId);
-        if (!canvas) {
-            canvas = document.createElement('canvas');
-            canvas.id = canvasId;
-            activeContainer.appendChild(canvas);
-        }
-        
-        // 🏆 修正二：加入 canvasMoveX 參數與圖層置頂 (zIndex)，解決畫布平移與被遮擋問題
-        activeContainer.style.display = 'flex';
-        activeContainer.style.justifyContent = 'center';
-        activeContainer.style.alignItems = 'center';
-        activeContainer.style.width = '100%';
-        activeContainer.style.maxWidth = `${targetWidth}px`;  
-        activeContainer.style.height = `${targetHeight}px`;   
-        activeContainer.style.backgroundColor = '#ffffff';
-        activeContainer.style.overflow = 'hidden';
-        activeContainer.style.margin = '0 auto';
-        
-        activeContainer.style.transform = `translateX(${canvasMoveX})`; // 執行畫布左右平移
-        activeContainer.style.position = 'relative';
-        activeContainer.style.zIndex = '9999'; // 確保畫布在最上層，不被題目 UI 蓋住！
-        activeContainer.style.opacity = '1';
-
-        canvas.style.display = 'block';
-        canvas.style.width = '100%';
-        canvas.style.height = '100%'; 
-        canvas.style.objectFit = 'contain';
-        canvas.style.borderRadius = '12px';
-        canvas.style.backgroundColor = '#ffffff';
-
-        // 初始化 3D 舞台
-        if (!window.spec3DScene) {
-            window.spec3DScene = new THREE.Scene();
-            window.spec3DScene.background = new THREE.Color(0xffffff); 
-            
-            window.spec3DCamera = new THREE.PerspectiveCamera(45, targetWidth / targetHeight, 0.1, 100);
-            window.spec3DCamera.position.set(0, 1.3, cameraZ); 
-            window.spec3DCamera.lookAt(0, 1.1, 0);
-
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.85); 
-            window.spec3DScene.add(ambientLight);
-            const dirLight = new THREE.DirectionalLight(0xffffff, 0.45);
-            dirLight.position.set(5, 10, 7);
-            window.spec3DScene.add(dirLight);
-
-            window.spec3DRenderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
-        }
-
-        const scene = window.spec3DScene;
-        const camera = window.spec3DCamera;
-        const renderer = window.spec3DRenderer;
-        
-        renderer.setSize(targetWidth, targetHeight);
-        camera.aspect = targetWidth / targetHeight;
-        camera.updateProjectionMatrix();
-
-        camera.position.z = cameraZ;
-
-        if (window.spec3DAnimId) {
-            cancelAnimationFrame(window.spec3DAnimId);
-            window.spec3DAnimId = null;
-        }
-        if (window.spec3DModel) scene.remove(window.spec3DModel);
-
-        const sourceModel = playerModels[playerName];
-        if (sourceModel) {
-            const model = sourceModel.clone();
-            window.spec3DModel = model;
-            
-            model.visible = true;
-            model.traverse((child) => {
-                child.visible = true;
-                if (child.isMesh) {
-                    const srcChild = sourceModel.getObjectByName(child.name);
-                    if (srcChild) child.material = srcChild.material; 
-                }
-            });
-
-            model.position.set(modelX, modelY, 0); 
-            model.scale.set(modelScale, modelScale, modelScale); 
-            model.rotation.set(0, 0, 0); 
-            scene.add(model);
-        }
-
-        function animate() {
-            window.spec3DAnimId = requestAnimationFrame(animate);
-            if (renderer && scene && camera) {
-                renderer.render(scene, camera);
-            }
-        }
-        animate();
-    }, 100); // 100ms 的延遲保護
+    scene.add(model);
+    window.specDecisionAvatarModel = model;
 }
 
 
@@ -6603,6 +6509,13 @@ function resetToGodViewState() {
     }
     const specUniversalCanvas = document.getElementById('spectator-universal-3d-canvas');
     if (specUniversalCanvas) specUniversalCanvas.style.display = 'none';
+
+    // 🏆 收購決策/答題觀戰替身（renderPlayerModelInActiveVisionFrame）
+    // 離開觀戰/回到上帝視角時一併從主場景移除，避免殘留。
+    if (window.specDecisionAvatarModel) {
+        scene.remove(window.specDecisionAvatarModel);
+        window.specDecisionAvatarModel = null;
+    }
 
     // 還原所有相機框的外觀與原有的實體相機視訊
     const frames = document.querySelectorAll('.vision-frame-right, .vision-frame-left, .vision-container, .vision-frame, .camera-wrapper');
