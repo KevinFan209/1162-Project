@@ -23,26 +23,35 @@ function createCustomBoxCharacter(colors, faceDataUrl) {
 
     // 1. 🏆 頭部多重材質處理：Index 4 是正前方 (+Z)
     const headGeo = new THREE.BoxGeometry(0.8, 0.8, 0.8);
-    let headMaterialSetting = headMat;
+    const headMesh = new THREE.Mesh(headGeo, headMat);
+    headMesh.position.set(0, 2.4, 0);
+    headMesh.name = "head";
+    group.add(headMesh);
 
+    // 🏆 修復對局中人臉全黑：原本不管圖片載不載得到都先組好
+    // [headMat,...,faceMat,...] 這個材質陣列，圖片 404（例如 character.html
+    // 清除人臉後留下失效網址）時 faceTex 永遠沒有真正的像素資料，WebGL
+    // 渲染一張「指定了 texture 但內容是空的」材質就是全黑。改成等圖片
+    // 真的 onload 成功才把材質換成帶貼圖的陣列，onerror 時明確退回單一
+    // 純色材質，不會再卡在全黑的半成品狀態。
     if (faceDataUrl) {
         const img = new Image();
-        img.src = faceDataUrl;
         const faceTex = new THREE.Texture(img);
-        img.onload = () => { faceTex.needsUpdate = true; };
-        
-        const faceMat = new THREE.MeshStandardMaterial({ 
-            map: faceTex,
-            roughness: 0.5
-        });
-        // 🚀 關鍵：[右, 左, 上, 下, 前(人臉貼圖), 後]
-        headMaterialSetting = [headMat, headMat, headMat, headMat, faceMat, headMat];
+        img.onload = () => {
+            faceTex.needsUpdate = true;
+            const faceMat = new THREE.MeshStandardMaterial({
+                map: faceTex,
+                roughness: 0.5
+            });
+            // 🚀 關鍵：[右, 左, 上, 下, 前(人臉貼圖), 後]
+            headMesh.material = [headMat, headMat, headMat, headMat, faceMat, headMat];
+        };
+        img.onerror = () => {
+            console.warn('⚠️ 人臉貼圖載入失敗，退回純色頭部：', faceDataUrl);
+            headMesh.material = headMat;
+        };
+        img.src = faceDataUrl;
     }
-
-    const headMesh = new THREE.Mesh(headGeo, headMaterialSetting);
-    headMesh.position.set(0, 2.4, 0);
-    headMesh.name = "head"; 
-    group.add(headMesh);
 
     // 2. 身體
     const bodyGeo = new THREE.BoxGeometry(0.8, 1.0, 0.4);

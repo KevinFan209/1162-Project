@@ -4122,3 +4122,62 @@ PyPoly 變更紀錄 (changeLog)
   (4) 大廳開著畫面放一段時間（跨過幾次 10 秒輪詢），確認不會再瞬間
   跳出「房間列表載入失敗」又消失。
 ========================================================================
+[2026-10-26] #93 修復對局中虛擬人物臉部全黑（character.html 清除人臉後殘留失效網址）
+
+  背景：使用者回報在 character.html 清除人臉後，對局中虛擬人物臉部
+  （只有臉那一面）會整片全黑。查證後是三個問題疊加，不是單一 bug。
+
+  根因：
+  1. character.html 的人臉資料存在兩個 localStorage key：通用的
+     pypoly_char_face，跟 game.html 實際讀取的 pypoly_char_face_<username>。
+     clearFace()／clearFaceFeatures() 都只清了前者，從沒清過後者；
+     mirrorFaceToUserKey()（存檔時執行）在 pypoly_char_face 是空的
+     時候也什麼都不做，不會清掉後者的舊值。於是「清除人臉」整個流程
+     走完，per-user key 仍殘留清除前的舊網址——而 clearFace() 當下
+     已經呼叫 DELETE /auth/camera_face 把伺服器檔案真的刪了。
+  2. game.html 建立自己模型時（約第 3167-3176 行）直接信任這個殘留
+     網址，沒有像對手分支一樣「本機沒快取到才去問伺服器」的防呆。
+  3. static/js/player-model.js 的 createCustomBoxCharacter() 載入
+     人臉圖片時只處理 onload，完全沒有 onerror——網址 404 時材質
+     陣列已經先組好、貼圖永遠沒有真正的像素資料，WebGL 渲染出來
+     就是全黑，正好只有臉那一面（陣列 index 4）用到這個壞掉的材質。
+     game.html 的 updateMeshFaceTexture() 也有半成品防呆：
+     faceDataUrl 是 null 時直接 return，沒有把材質重設回純色，所以
+     就算之後 restoreCharacterFromServer() 正確問到伺服器「沒有相機
+     照片」，也沒辦法糾正畫面。
+
+  修法：
+  - character.html：clearFace()／clearFaceFeatures() 補上清除
+    pypoly_char_face_<username>；mirrorFaceToUserKey() 在
+    pypoly_char_face 是空的時候改成明確 removeItem 這個 per-user key，
+    不再略過不處理。
+  - static/js/player-model.js：createCustomBoxCharacter() 改成先用
+    單一純色材質建立 headMesh，有 faceDataUrl 時才非同步載入圖片，
+    onload 成功才把材質換成帶貼圖的陣列，onerror 時明確退回單一
+    純色材質，不會再卡在全黑的半成品狀態。
+  - game.html：updateMeshFaceTexture() 的 faceDataUrl 為 null 分支
+    改成明確把材質重設回單一純色，而不是直接 return 什麼都不做。
+
+  不在這次範圍：game.html 自己模型的面板缺少「本機沒快取到才去問
+  伺服器」防呆（跟對手分支不對稱）這點沒有額外補——上面四個修法已經
+  從根本堵住「清除後留下失效網址」跟「失效網址造成全黑」兩個環節，
+  這個不對稱純粹是設計一致性問題，不是這次全黑 bug 的必要條件，先
+  不擴大範圍。另外 updateMeshFaceTexture() 的圖片載入失敗（非
+  faceDataUrl 為 null，而是圖片本身 404）分支，退回的是 loadTextureSafe
+  內建的深色純色貼圖（#1e293b），不是真正的膚色——這是另一個較小的
+  顏色不一致，不影響「全黑」這次的主要症狀，先標註不處理。
+
+  驗證：
+  - static/game.html／static/character.html 用 Node vm.Script 做
+    語法檢查，static/js/player-model.js 用 node -e 直接編譯檢查，
+    全部通過。
+  - 把伺服器實際開起來，用 curl 確認三個檔案都回 HTTP 200。
+
+  ⚠️ 尚未做（需要實際開瀏覽器才能代測）：
+  (1) 實際在 character.html 設定相機人臉、存檔、進對局確認正常顯示；
+  清除人臉、存檔、再進對局確認臉部恢復成純色膚色，不會再全黑。
+  (2) 這次修的是「以後清除才會正確清乾淨」，使用者自己瀏覽器裡**現在
+  已經殘留**的 pypoly_char_face_<username> 舊值不會自動被清掉，需要
+  使用者在 character.html 重新按一次「清除人臉」（跑到新版
+  clearFace()）或自行清掉瀏覽器的 localStorage，新程式碼才會生效。
+========================================================================

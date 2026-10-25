@@ -1250,6 +1250,9 @@ function updateFeatureSelectionUI() {
 function clearFaceFeatures() {
     hasFeatureFace = false;
     localStorage.removeItem('pypoly_char_face');
+    // 🏆 跟 clearFace() 同一個理由：一併清掉 game.html 實際讀取的
+    // per-user key，不然會殘留一個已經失效的舊人臉網址。
+    localStorage.removeItem(`pypoly_char_face_${localStorage.getItem('username') || 'default_user'}`);
     if (shaderMat) {
         const prevTex = shaderMat.uniforms.faceTex.value;
         if (prevTex) prevTex.dispose();
@@ -1509,6 +1512,12 @@ function clearFace() {
     shaderMat.uniforms.hasFace.value = 0.0;
     shaderMat.needsUpdate = true;
     localStorage.removeItem('pypoly_char_face');
+    // 🏆 修復對局中人臉全黑：這裡原本只清了 pypoly_char_face，沒清
+    // game.html 實際讀取的 per-user key，造成那個 key 繼續指向底下
+    // DELETE /auth/camera_face 剛刪掉的伺服器檔案——下次進對局會去載入
+    // 一張已經 404 的圖片，臉那一面因此整片全黑。
+    const clearedUser = localStorage.getItem('username') || 'default_user';
+    localStorage.removeItem(`pypoly_char_face_${clearedUser}`);
     document.getElementById('clearFaceBtn').disabled = true;
     setBadge('idle', '已清除人臉貼圖');
     hideSavedFacePreview();
@@ -1596,6 +1605,10 @@ function mirrorFaceToUserKey() {
     const faceData = localStorage.getItem('pypoly_char_face');
     if (faceData) {
         localStorage.setItem(`pypoly_char_face_${currentName}`, faceData);
+    } else {
+        // 🏆 原本這裡 faceData 是空的時候什麼都不做，導致清除人臉後存檔
+        // 時沒有把舊的 per-user key 一併清掉——明確移除，不要留著舊值。
+        localStorage.removeItem(`pypoly_char_face_${currentName}`);
     }
 }
 

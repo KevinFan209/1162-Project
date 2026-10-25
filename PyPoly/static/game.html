@@ -3058,7 +3058,17 @@ function applyBoardAppearance() {
 
 // 🏆 2. 專門處理 3D 人臉異步載入與動態編織材質的黃金核心
 function updateMeshFaceTexture(mesh, faceDataUrl, skinColor) {
-    if (!mesh || !faceDataUrl) return;
+    if (!mesh) return;
+
+    // 🏆 修復對局中人臉全黑：faceDataUrl 是 null（例如伺服器確認這個人
+    // 沒有相機人臉貼圖）時，原本這裡直接 return 什麼都不做，導致頭部
+    // 材質卡在建立模型當下的狀態，沒辦法被這次「問過伺服器」的結果糾正。
+    // 改成明確把材質重設回單一純色，跟 createCustomBoxCharacter() 沒有
+    // faceDataUrl 時的預設狀態一致。
+    if (!faceDataUrl) {
+        mesh.material = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.6 });
+        return;
+    }
 
     // 人臉貼圖失敗時不該退回天空圖，第三參數傳 null 直接改用純色
     loadTextureSafe(faceDataUrl, (texture) => {
