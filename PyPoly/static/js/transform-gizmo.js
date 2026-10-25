@@ -29,10 +29,10 @@ function createTransformGizmoPanel(opts) {
 
     const panel = document.createElement('div');
     panel.style.cssText = `
-        position: fixed; left: 16px; bottom: 16px; z-index: 20;
+        position: fixed; right: 16px; top: 50%; transform: translateY(-50%); z-index: 20;
         background: rgba(15,23,42,0.92); color: #e2e8f0; border-radius: 14px;
         padding: 14px 16px; font-family: 'Segoe UI', '微軟正黑體', sans-serif;
-        font-size: 0.78rem; max-width: 300px; max-height: 70vh; overflow-y: auto;
+        font-size: 0.78rem; max-width: 300px; max-height: 80vh; overflow-y: auto;
         box-shadow: 0 8px 24px rgba(0,0,0,0.3);
     `;
 
