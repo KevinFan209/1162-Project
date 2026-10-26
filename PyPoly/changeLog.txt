@@ -4484,3 +4484,66 @@ PyPoly 變更紀錄 (changeLog)
   bird 揮手動畫，確認肩膀軸心修正沒有讓這兩個也跑掉（這兩處的方向/
   幅度這次沒有調整，只有軸心位置變了）。
 ========================================================================
+[2026-10-26] #100 修復對局中對手人臉顯示全黑（#93 之後再次復發）
+
+  背景：#93 修過一次對局人臉全黑，使用者這次又遇到，而且觀察到更
+  精確的線索：雙方玩家看到的全黑角色都是「對方」，自己的臉都正常。
+  使用者自己的猜測：應該要「確定偵測到圖片才貼上去」，而且目前同步
+  機制太依賴 localStorage。查過之後確認兩個根因都成立。
+
+  根因 1（直接對應「黑臉」視覺症狀）：static/game.html 的
+  updateMeshFaceTexture() 把人臉貼圖載入包在 loadTextureSafe()——
+  那是給天空圖設計的「失敗就換一張替代圖，連替代圖都失敗才退純色」，
+  失敗時退的 makeSolidTexture() 預設是寫死的深藍黑色 #1e293b，
+  跟角色真正的膚色完全無關，而且不管成功失敗都走同一個 onLoad，
+  所以「貼圖載入失敗」跟「貼圖載入成功」用同一條路徑處理，失敗時
+  這塊錯誤替代色就被當成正常人臉貼上去——這才是玩家看到的「黑臉」。
+  static/js/player-model.js 的 createCustomBoxCharacter()（#93 修的
+  那處）本身的 onerror 寫得是對的，問題只在這個函式。
+
+  根因 2（使用者自己的猜測，確認屬實）：pypoly_char_face_<使用者
+  名字> 這個 localStorage key 跨對局永久保留、從來沒有人清過對手的，
+  loadPlayerModels() 建立對手模型時又把它當第一優先，比即時問伺服器
+  還優先。只要這個使用者名字之前在這個瀏覽器出現過一次，不管那次的
+  臉網址現在還有效沒有（尤其是相機照片，使用者去 character.html
+  清除人臉會把伺服器檔案真的刪掉），下一局照樣直接採信舊網址，
+  載入失敗後就踩進根因 1。broadcastMyAppearance() 廣播自己的臉時
+  一樣繞了一手 localStorage，而不是直接用剛問完伺服器、存在記憶體
+  裡的新鮮值——這解釋了「自己看到的自己正常，但對手看到的我可能是
+  黑的」這種不對稱：問題不只在接收端，發送端廣播的值也可能不新鮮。
+
+  修法：
+  1. updateMeshFaceTexture() 改成自己管理 THREE.TextureLoader 載入，
+     只有真的載入成功才貼上人臉材質，失敗（例如對手 localStorage
+     快取的舊相機照片網址已失效）直接退回純膚色，跟沒有 faceDataUrl
+     時一致，不會再貼出跟膚色無關的色塊。
+  2. 新增 window.netPlayerFaces（記憶體，跟既有的 netPlayerColors
+     同一個模式，只在這次連線期間有效）。user_appearance_broadcast
+     收到時寫入這個記憶體快取（同時仍寫一份進 localStorage，給
+     results.html 等其他頁面相容用，不受這次修改影響）。
+  3. loadPlayerModels() 判斷對手臉的優先順序改成：這次連線收到的
+     記憶體快取 → 即時問 /auth/character + /auth/camera_face →
+     localStorage（最後手段）。
+  4. restoreCharacterFromServer() 算出自己的臉之後，多存一份到
+     window.myCharacterRecipe.faceUrl（記憶體）；broadcastMyAppearance()
+     改成優先讀這個記憶體值，讀不到才退回原本的 localStorage 讀法
+     （相容頁面重整後記憶體被清空、但 localStorage 還在的情況）。
+
+  不在這次範圍：static/js/player-model.js 的 createCustomBoxCharacter()
+  （本身 onerror 已經是對的）；character.html／lobby.html／
+  profile.html／results.html 讀寫「自己的」pypoly_char_face 的邏輯
+  （跟這次對局中同步對手外觀是兩件事，沒有被動到）；/auth/camera_face
+  後端本身（沒發現問題）。
+
+  驗證：
+  - static/game.html 用 Node vm.Script 做語法檢查，通過。
+  - 把伺服器實際開起來，用 curl 確認 HTTP 200。
+
+  ⚠️ 尚未做（真正兩人連線對局才能驗證，沒辦法代測）：
+  (1) 兩個帳號連一局（至少一個是曾經玩過、這個瀏覽器 localStorage
+  裡有舊臉快取的使用者），確認雙方互相看到的對方人臉都正常，不再
+  出現黑臉。
+  (2) 刻意測「使用者 A 在 character.html 清除人臉之後」再跟 B 開
+  一局，確認 B 看到的 A 最多退回純膚色，不會是色塊。
+  (3) 確認 results.html 的贏家人臉顯示沒有被這次修改影響。
+========================================================================

@@ -686,7 +686,7 @@
             🗺️ 查看戰術小地圖
         </button>
 		
-		<div id="debug-master-panel" style="background: rgba(15, 23, 42, 0.95); padding: 18px; border-radius: 20px; border: 2.5px solid #ffde59; margin-top: 10px; pointer-events: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+		<div id="debug-master-panel" style="display: none; background: rgba(15, 23, 42, 0.95); padding: 18px; border-radius: 20px; border: 2.5px solid #ffde59; margin-top: 10px; pointer-events: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
 			<h3 style="color: #ffde59; font-size: 1.1rem; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
 				<span>🛠️</span> 開發者控制台
 			</h3>
@@ -1167,6 +1167,9 @@ async function restoreCharacterFromServer() {
             localStorage.setItem('pypoly_char_face', faceUrl);
             localStorage.setItem(`pypoly_char_face_${myName}`, faceUrl);
         }
+        // 🏆 廣播自己外觀時改優先讀這裡（記憶體、這次連線最新鮮），不要
+        // 再繞一手 localStorage——見 broadcastMyAppearance()。
+        window.myCharacterRecipe.faceUrl = faceUrl;
 
         // loadPlayerModels() 可能已經先用預設顏色建好自己的模型（跟這支
         // 非同步還原流程誰先完成不保證），這裡補一次即時更新，確保畫面
@@ -1184,7 +1187,14 @@ function broadcastMyAppearance() {
     const myName = localStorage.getItem('username');
     const myColors = window.myCharacterRecipe && window.myCharacterRecipe.colors;
 
-    let myLocalFace = localStorage.getItem(`pypoly_char_face_${myName}`);
+    // 🏆 優先用記憶體裡 restoreCharacterFromServer() 剛問過伺服器算出來
+    // 的新鮮值（可能是 undefined，代表還沒 restore 完或沒有臉）；
+    // localStorage 只在記憶體沒有時當最後手段（例如重整過頁面、
+    // 記憶體被清空，但上次存過的值還在）。
+    let myLocalFace = window.myCharacterRecipe && window.myCharacterRecipe.faceUrl;
+    if (!myLocalFace) {
+        myLocalFace = localStorage.getItem(`pypoly_char_face_${myName}`);
+    }
     if (!myLocalFace) {
         myLocalFace = localStorage.getItem('pypoly_char_face');
         if (myLocalFace) localStorage.setItem(`pypoly_char_face_${myName}`, myLocalFace);
@@ -1228,6 +1238,12 @@ socket.on('user_appearance_broadcast', (data) => {
         window.netPlayerColors[data.user] = safeColors;
     }
     if (data.face) {
+        // 🏆 記憶體快取（跟 netPlayerColors 同一個模式，只在這次連線
+        // 期間有效）——loadPlayerModels() 判斷對手臉優先用這個，不要
+        // 再把 localStorage 當第一優先（那個 key 會跨對局永久保留，
+        // 可能是失效的舊相機照片網址）。這裡仍然也寫一份進
+        // localStorage，給 results.html 等其他頁面相容用。
+        window.netPlayerFaces[data.user] = data.face;
         localStorage.setItem(`pypoly_char_face_${data.user}`, data.face);
     }
     
@@ -2972,27 +2988,46 @@ function updateMeshFaceTexture(mesh, faceDataUrl, skinColor) {
     // 材質卡在建立模型當下的狀態，沒辦法被這次「問過伺服器」的結果糾正。
     // 改成明確把材質重設回單一純色，跟 createCustomBoxCharacter() 沒有
     // faceDataUrl 時的預設狀態一致。
-    if (!faceDataUrl) {
+    const resetToPlainSkin = () => {
         mesh.material = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.6 });
+    };
+    if (!faceDataUrl) {
+        resetToPlainSkin();
         return;
     }
 
-    // 人臉貼圖失敗時不該退回天空圖，第三參數傳 null 直接改用純色
-    loadTextureSafe(faceDataUrl, (texture) => {
-        texture.wrapS = THREE.ClampToEdgeWrapping;
-        texture.wrapT = THREE.ClampToEdgeWrapping;
-        texture.minFilter = THREE.LinearFilter;
-        
-        // 皮膚色材質
-        const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.6 });
-        // 人臉材質
-        const faceMat = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.5, transparent: true });
+    // 🏆 修復對局中對手人臉全黑（第二輪）：原本借用 loadTextureSafe()，
+    // 那是給天空圖設計的「失敗就換一張替代圖，連替代圖都失敗才退純色」
+    // ——失敗時退的 makeSolidTexture() 預設是寫死的深藍黑色 #1e293b，
+    // 跟這裡的 skinColor 完全無關，而且不管成功失敗都走同一個
+    // onLoad，所以失敗時這塊「錯誤替代色」會被當成正常的人臉貼圖貼上
+    // 去——這就是玩家看到的「黑臉」。人臉貼圖這裡改成自己管理載入，
+    // 只有真的載入成功才貼上人臉材質，失敗（例如對手 localStorage
+    // 裡快取的舊相機照片網址已經失效）直接退回純膚色，跟沒有
+    // faceDataUrl 時一致，不會再貼出跟膚色無關的色塊。
+    new THREE.TextureLoader().load(
+        faceDataUrl,
+        (texture) => {
+            texture.wrapS = THREE.ClampToEdgeWrapping;
+            texture.wrapT = THREE.ClampToEdgeWrapping;
+            texture.minFilter = THREE.LinearFilter;
 
-        // Three.js 立方體面索引：0:+X, 1:-X, 2:+Y, 3:-Y, 4:+Z, 5:-Z。 正前方是 +Z (Index 4)
-        mesh.material = [skinMat, skinMat, skinMat, skinMat, faceMat, skinMat];
-        mesh.material.forEach(m => m.needsUpdate = true);
-        console.log(`🎯 3D 角色面部貼圖渲染更新成功！`);
-    }, null);   // null = 不用天空圖當替身，失敗時退純色
+            // 皮膚色材質
+            const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.6 });
+            // 人臉材質
+            const faceMat = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.5, transparent: true });
+
+            // Three.js 立方體面索引：0:+X, 1:-X, 2:+Y, 3:-Y, 4:+Z, 5:-Z。 正前方是 +Z (Index 4)
+            mesh.material = [skinMat, skinMat, skinMat, skinMat, faceMat, skinMat];
+            mesh.material.forEach(m => m.needsUpdate = true);
+            console.log(`🎯 3D 角色面部貼圖渲染更新成功！`);
+        },
+        undefined,
+        () => {
+            console.warn(`⚠️ 人臉貼圖載入失敗，退回純膚色：${faceDataUrl}`);
+            resetToPlainSkin();
+        }
+    );
 }
 
 // 🏆 3. 網絡收到對手廣播時，深度清洗全身顏色與臉部的函式
@@ -3093,7 +3128,14 @@ async function loadPlayerModels() {
             activeFace = exactFace || localStorage.getItem('pypoly_char_face');
         } else {
             let oppColors = window.netPlayerColors && window.netPlayerColors[playerName];
-            activeFace = exactFace; // 對手如果網路已經傳來，優先用，不混用自己的
+            // 🏆 修復對局中對手人臉全黑：優先順序改成「這次連線收到的
+            // 廣播（記憶體，最新鮮）→ 即時問伺服器 → localStorage
+            // （跨對局永久保留，可能是失效的舊網址，只在前兩者都拿不到
+            // 時當最後手段）」。原本把 localStorage 當第一優先，對手
+            // 上次玩過的舊相機照片網址如果後來失效（例如去
+            // character.html 清除人臉），這裡會一直採信舊網址，載入
+            // 失敗後就會貼出黑臉。
+            activeFace = window.netPlayerFaces && window.netPlayerFaces[playerName];
 
             if (!oppColors || !activeFace) {
                 // 對手還沒透過 Socket.IO 廣播傳來顏色/臉（例如晚進房間）：
@@ -3135,6 +3177,13 @@ async function loadPlayerModels() {
                 } catch (err) {
                     console.warn(`⚠️ 取得玩家 [${playerName}] 相機人臉貼圖失敗`, err);
                 }
+            }
+
+            if (!activeFace) {
+                // 最後手段：localStorage 裡上次見過這個使用者名字時
+                // 快取的臉——可能已經失效，但 updateMeshFaceTexture()
+                // 現在載入失敗會退回純膚色，不會再出現黑臉色塊。
+                activeFace = exactFace;
             }
         }
 
