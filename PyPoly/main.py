@@ -1513,6 +1513,11 @@ async def disconnect(sid):
     room, user = info.get("room"), info.get("user")
     print(f"🔌 [斷線] {user} 離開房間 {room}")
 
+    # 🏆 修復結算頁誤判斷線：要在下面「移除玩家、可能刪房間」之前先讀
+    # 這個旗標，不然房間被刪掉後就讀不到了。旗標由 handle_dice_event()
+    # 收到 GAME_OVER 廣播時設定，見那裡的完整說明。
+    game_already_ended = bool(active_rooms.get(room, {}).get('game_ended'))
+
     # 1. 若還在決定先後手階段，整份清掉並通知同房的人。
     #    ⚠️ 不能只在「斷線者已提交過點數」時才處理——死鎖恰恰發生在他還沒提交
     #    就離開的情況（剩下的人永遠湊不滿 2 人）。只要該房有進行中的擲骰回合，
@@ -1540,7 +1545,11 @@ async def disconnect(sid):
                 touch_room(r)
 
     # 3. 通知同房其他人，讓前端能顯示提示而不是無限等待
-    await sio.emit('opponent_disconnected', {"user": user, "room": room}, room=room)
+    #    🏆 遊戲已經結束的話，這次「斷線」其實是玩家正常跳轉去結算頁
+    #    （results.html 完全不用 Socket.IO），不是真的斷線，不要誤導
+    #    還留在 game.html 的另一位玩家。
+    if not game_already_ended:
+        await sio.emit('opponent_disconnected', {"user": user, "room": room}, room=room)
 
 
 @sio.event
@@ -1646,6 +1655,20 @@ async def handle_dice_event(sid, data):
     room = data.get('room')
     print(f"📣 廣播擲骰事件: {data}")
     await sio.emit('dice_event_sync', data, room=room)
+
+    # 🏆 修復結算頁誤判斷線：game.html 的 triggerGameOver() 結算時，
+    # 結算者送完 /game/settle 幾乎立刻跳轉 results.html，非結算者固定
+    # 等 1.5 秒才跳轉——結算者通常會先離開 game.html，瀏覽器關閉他的
+    # Socket.IO 連線，被 disconnect() 誤判成真的斷線，廣播給還留在
+    # game.html（正在等那 1.5 秒）的另一位玩家，顯示「對手已離線」。
+    # 這裡收到 GAME_OVER 廣播時先記住這個房間遊戲已經結束，disconnect()
+    # 就能用這個旗標判斷「這次斷線其實是正常跳轉去結算頁，不是真的斷
+    # 線」，不要再廣播 opponent_disconnected。results.html 完全不用
+    # Socket.IO，遊戲結束後這個房間不會再需要偵測斷線，永久壓下沒有
+    # 副作用；旗標掛在 active_rooms[room] 上，房間本來就會在雙方都
+    # 離開後被刪除，不用額外清除。
+    if data.get('type') == 'GAME_OVER' and room in active_rooms:
+        active_rooms[room]['game_ended'] = True
 
 # 在 main.py 中加入此段落
 @sio.on('player_move_sync_request')
