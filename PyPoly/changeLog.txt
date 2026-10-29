@@ -4634,3 +4634,77 @@ PyPoly 變更紀錄 (changeLog)
   一局，確認 B 看到的 A 最多退回純膚色，不會是色塊。
   (3) 確認 results.html 的贏家人臉顯示沒有被這次修改影響。
 ========================================================================
+[2026-10-29] 合併三個分支進 main：Fan-fix-issue-v2、hsuan_teacher、jiajiun-next
+
+  背景：三個分支都已經是各自最新進度（sandyphone 組員還沒做完，
+  先不合併）。合併前先用 git merge-tree 做唯讀模擬測過自動合併，
+  針對報錯的檔案深入比對後，再逐一手動整合，過程中有兩處是「雙方
+  各自獨立修了同一個 bug，需要合併兩邊的功能」，不是單純二選一。
+
+  1. git merge origin/Fan-fix-issue-v2：只有 changeLog.txt 衝突
+     （兩邊都在檔案尾端各自附加紀錄），直接把兩邊的新增內容接起來。
+
+  2. git merge origin/hsuan_teacher：main.py 的 get_map_config() 跟
+     static/admin.html 衝突，都是「兩邊各自修了同一處」：
+     - get_map_config()：Fan-fix-issue-v2 加了 room_map_cache（同
+       房間第一次呼叫才真的生成地圖/題目，之後都回傳同一份快取，
+       保證雙方拿到一致的地圖）；hsuan_teacher 加了依使用者班級過濾
+       題庫（學生額外抽得到自己老師新增的題庫）。兩個都是真功能，
+       合併成「用房間快取包住依班級過濾的查詢」，兩邊都保留。
+     - admin.html 的「編輯使用者」按鈕：兩邊各自獨立修過同一個
+       bug（#36，按鈕原本沒有 onclick）——Fan-fix-issue-v2 的下拉單
+       只有玩家/封鎖，hsuan_teacher 的只有玩家/教師。合併成同時有
+       玩家/教師/封鎖 3 個選項的下拉單（不含 admin，兩邊原本都沒讓
+       admin 選項出現在單上），重用 Fan-fix-issue-v2 已經抽出來的
+       static/js/admin-role-modal.js 的 fillEditRoleModal()（本來就
+       支援自訂選項陣列），順便刪掉合併後變成重複的舊版
+       openEditRoleModal() 包裝函式。
+
+  3. git merge origin/jiajiun-next：static/game.html 衝突，7 個區塊：
+     - 4 個是純寫法/註解差異或「jiajiun-next 改到的函式其實是死
+       函式」（例如幫沒人呼叫的 showAdventureTaskUI() 加選項編號——
+       真正會用到的 static/js/quiz-ui.js 的 renderBasicQuizQuestion()
+       早就有一樣的編號），保留 main 這邊即可，沒有任何功能損失。
+     - 對手斷線處理（opponent_disconnected／order_dice_aborted）：
+       合併 main 原本「跳通知、按鈕手動離開」（#11）跟 jiajiun-next
+       「收到就自動清狀態、直接導回大廳」（#31）——改成「先跳通知
+       （按鈕仍可提早手動離開），5 秒後沒有手動離開就自動導回」，
+       離開時先 POST /rooms/leave 讓後端房間狀態正確更新，再清掉
+       jiajiun-next 那整串遊戲相關 localStorage key，兩個事件共用
+       同一套處理（order_dice_aborted 原本完全沒有自動導回，這次
+       一併補上）。
+     - 過路費動畫 playTollAnimationCore()：比對發現這個函式在
+       Fan-fix-issue-v2 抽模組（static/js/spectator-animations.js）
+       時幾乎完整保留了運鏡/人物消失的邏輯，實際逐行比對後只少了一行
+       playSfx('steal')（收到過路費時原本有的音效），已經補回共用
+       模組裡。
+
+  4. 順便查過 game.html 整份檔案有沒有沒人呼叫的死函式，找到 6 個
+     （updateModelColors／startAutoVisionGame／applyPlus3Effect／
+     showAdventureTaskUI／initCameraWithOverlay／enterSpectatorMode，
+     都已跨檔案交叉確認不是別處在用）——這次合併不動，列成之後的
+     清理任務。
+
+  驗證：
+  - main.py 用 python -m py_compile 通過；game.html／admin.html 用
+    Node vm.Script 語法檢查通過；spectator-animations.js／
+    admin-role-modal.js 同樣通過。
+  - 伺服器實際開起來，curl 確認 15 個關鍵頁面（login/lobby/game/
+    admin/handbook/handbook_admin/teacher 系列 4 個頁面/character/
+    profile/WaitingRoom/question/settings）全部回 HTTP 200；
+    /rooms/public 回 200。
+
+  ⚠️ 尚未做（需要真正連線對局/後台操作才能驗證，沒辦法代測）：
+  (1) 兩人對局中途讓一方斷線，確認先跳通知、5 秒後自動導回大廳，
+  房間狀態跟 localStorage 都正確清乾淨；決定先後手階段斷線也要有
+  同樣行為。
+  (2) 觸發一次過路費事件，確認運鏡、動畫結束後人物消失、收錢音效
+  都正常。
+  (3) 後台「編輯使用者」按鈕，確認下拉選單同時有玩家/教師/封鎖
+  3 個選項，三種身分切換都正確生效。
+  (4) 開一局測試地圖/題目在房間兩端完全一致，同時用一個有加入班級
+  的學生帳號測試能抽到該班老師新增的題庫。
+  (5) handbook／teacher 系列頁面的完整功能流程。
+  (6) jiajiun-next 原本修的房間列表標題、刷新閃爍、#17/#23 等
+  bug 確認還是修好的狀態。
+========================================================================

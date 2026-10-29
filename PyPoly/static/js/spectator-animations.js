@@ -171,6 +171,7 @@ async function playTollAnimationCore(ctx, payerName, ownerName, tollAmount, used
                   spawnCombatText('right', "💢 沒收到錢", "#94a3b8");
                   gsap.to(ownerModel.rotation, { z: 0.3, duration: 0.2, yoyo: true, repeat: 3 });
               } else {
+                  playSfx('steal'); // 🏆 jiajiun-next 分支合併時補回：過路費實際收走錢時原本有音效，抽模組時漏掉了
                   spawnCombatText('left', `💸 -$${tollAmount}`, "#ff4757");
                   spawnCombatText('right', `🤑 +$${tollAmount}`, "#00cdac");
                   gsap.to(ownerModel.position, { y: ownerModel.position.y + 0.8, duration: 0.3, yoyo: true, repeat: 1 });
