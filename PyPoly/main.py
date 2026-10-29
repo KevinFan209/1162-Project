@@ -36,6 +36,7 @@ from collections import Counter  # 🏆 需求⑨：統計最常出現語法
 import os
 import json   # 🏆 角色外觀的大小驗證用
 import base64
+import hashlib  # 🏆 相機人臉貼圖存檔的檔名用 email 雜湊，不直接曝露信箱
 from fastapi.staticfiles import StaticFiles
 from PIL import Image # 需安裝 pillow: pip install Pillow
 import io
@@ -68,6 +69,11 @@ AVATAR_DIR = os.path.join("static", "avatars")
 os.makedirs(AVATAR_DIR, exist_ok=True)
 os.makedirs("models", exist_ok=True)
 
+# 🏆 相機拍的人臉貼圖存成實體檔案（跟 users.character_data 的配方分開，
+# 配方欄位 8KB 上限就是設計成不放圖片的）。
+CAMERA_FACE_DIR = os.path.join("static", "char_face_camera")
+os.makedirs(CAMERA_FACE_DIR, exist_ok=True)
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/models", StaticFiles(directory="models"), name="models")
 
@@ -95,12 +101,22 @@ active_rooms = {}
 
 land_ownership = {}
 
+# 🏆 同一個房間的地圖只生成一次、存在這裡——/game/map_config 本身有
+# 題目／國家／棋盤形狀三處不同的隨機性，兩個裝置各自獨立呼叫一次就
+# 各自抽到不同結果（即使遊戲邏輯沒壞，兩邊看到的棋盤形狀/格子內容卻
+# 會不一樣）。第一次呼叫生成並存進這裡，之後不管是同一個人重新整理、
+# 還是房間裡的另一位玩家呼叫，都直接回傳同一份，保證全房看到的地圖
+# 完全一致。
+room_map_cache = {}
+
 # 🏆 刪房時一併清掉該房的擲骰暫存（dice_order_results / room_dice_data 於檔案下方定義，
-#    此函式在請求時才執行，屆時兩個全域字典已存在）。同時清 code 與其大寫版以防鍵不一致。
+#    此函式在請求時才執行，屆時兩個全域字典已存在）跟地圖快取。同時清
+#    code 與其大寫版以防鍵不一致。
 def _clear_room_dice_state(code: str):
     for key in {code, code.upper()}:
         dice_order_results.pop(key, None)
         room_dice_data.pop(key, None)
+        room_map_cache.pop(key, None)
 
 
 # ==========================================================
@@ -498,9 +514,45 @@ def update_user_role(target_username: str, data: dict, db: Session = Depends(dat
     # 🏆 核心邏輯：如果是封鎖，強制變 0 讓他在 5 秒內被踢出
     if new_role == "banned":
         user.is_online = 0
-        
+
     db.commit()
     return {"message": "success"}
+
+
+# 🏆 修復 #37：後台遊戲數據頁原本整頁都是寫死的假資料。這裡只接有
+# 現成資料來源的部分——在線人數/進行中對局/今日正確率/LIVE 對局列表。
+# 「伺服器延遲」「24 小時趨勢圖」沒有任何現成資料來源（量測/時間序列
+# 快照都是新的追蹤基礎設施，不是接線），前端改成明確的「尚未支援」
+# 提示，不在這支 API 回傳假資料。
+@app.get("/admin/game_stats")
+def get_game_stats(db: Session = Depends(database.get_db), admin: models.User = Depends(require_admin)):
+    online_count = db.query(models.User).filter(models.User.is_online == 1).count()
+
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_answers = db.query(models.GameAnswerLog).filter(
+        models.GameAnswerLog.created_at >= today_start).all()
+    total = len(today_answers)
+    correct = sum(1 for a in today_answers if a.is_correct)
+    today_accuracy = round(correct / total * 100, 1) if total else 0.0
+
+    # active_rooms 是記憶體裡最即時的來源，不用額外查資料庫
+    live_rooms = [
+        {
+            "code": code,
+            "name": r.get("name", code),
+            "players": r.get("players", []),
+            "mode": r.get("mode", ""),
+            "difficulty": r.get("difficulty", ""),
+        }
+        for code, r in active_rooms.items() if r.get("status") == "gaming"
+    ]
+
+    return {
+        "online_count": online_count,
+        "ongoing_matches": len(live_rooms),
+        "today_accuracy": today_accuracy,
+        "live_rooms": live_rooms,
+    }
 
 # ==========================================================
 # 🏆 題庫後台 CRUD（給 question.html 用）
@@ -987,6 +1039,123 @@ def get_character(username: str = None, authorization: str = Header(None),
     }
 
 
+# ==========================================================
+# 相機人臉貼圖（存成伺服器檔案，不進 character_data）
+#
+# 跟 colors/features 配方不同，這是真的圖片——8KB 的配方欄位設計上就
+# 不該塞圖片，所以另外存成 static/ 底下的實體檔案，透過既有的
+# app.mount("/static", ...) 直接對外可讀。
+#
+# ⚠️ 檔名刻意不直接用 email：static/ 掛載出去完全沒有權限檢查，網址是
+# 公開可猜的，如果檔名就是信箱字串，知道（或猜到）同學信箱的人就能
+# 直接打開他拍的照片，是真實的隱私風險。改用 email 的雜湊值當檔名的
+# key——伺服器內部邏輯上仍然「以 email 識別使用者」，只是對外網址看
+# 不出真實信箱。
+# ==========================================================
+
+CAMERA_FACE_MAX_BYTES = 3 * 1024 * 1024  # 3MB：相機截圖的 JPEG 通常遠小於這個量級，純防呆
+
+
+def _camera_face_key(email: str) -> str:
+    return hashlib.sha256(email.encode("utf-8")).hexdigest()[:24]
+
+
+def _find_camera_face_file(key: str):
+    for ext in (".jpg", ".jpeg", ".png"):
+        path = os.path.join(CAMERA_FACE_DIR, key + ext)
+        if os.path.isfile(path):
+            return path
+    return None
+
+
+class CameraFaceUpload(BaseModel):
+    image: str  # data:image/jpeg;base64,.... 或純 base64 字串
+
+
+@app.post("/auth/camera_face")
+def save_camera_face(payload: CameraFaceUpload, authorization: str = Header(None),
+                      db: Session = Depends(database.get_db)):
+    """把相機拍的人臉貼圖存成伺服器檔案（不是進 character_data）。"""
+    username = auth_utils.get_current_user(authorization)   # 無效 token 會拋 401
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="找不到使用者")
+
+    raw = payload.image
+    ext = ".jpg"
+    if raw.strip().startswith("data:") and "," in raw:
+        header, raw = raw.split(",", 1)
+        if "image/png" in header:
+            ext = ".png"
+
+    try:
+        img_bytes = base64.b64decode(raw)
+    except Exception:
+        raise HTTPException(status_code=400, detail="圖片資料解碼失敗")
+
+    if len(img_bytes) > CAMERA_FACE_MAX_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"圖片過大（{len(img_bytes)} bytes，上限 {CAMERA_FACE_MAX_BYTES}）")
+
+    try:
+        Image.open(io.BytesIO(img_bytes)).verify()
+    except Exception:
+        raise HTTPException(status_code=400, detail="不是合法的圖片檔案")
+
+    key = _camera_face_key(user.email)
+    # 先清掉舊檔（可能是不同副檔名），避免殘留孤兒檔案。
+    for old_ext in (".jpg", ".jpeg", ".png"):
+        old_path = os.path.join(CAMERA_FACE_DIR, key + old_ext)
+        if os.path.isfile(old_path):
+            os.remove(old_path)
+
+    file_path = os.path.join(CAMERA_FACE_DIR, key + ext)
+    with open(file_path, "wb") as f:
+        f.write(img_bytes)
+
+    print(f"📸 {username} 更新了相機人臉貼圖（伺服器檔案）")
+    return {"status": "success"}
+
+
+@app.get("/auth/camera_face")
+def get_camera_face(username: str = None, authorization: str = Header(None),
+                     db: Session = Depends(database.get_db)):
+    """查詢是否有伺服器端的相機人臉貼圖檔案。
+
+    跟 /auth/character 一樣的慣例：省略 username 用 token 查自己，帶
+    username 可查任何人（這次先只有 lobby/profile 查自己在用，之後要
+    給觀戰/對手畫面用也走這條）。
+    """
+    if not username:
+        username = auth_utils.get_current_user(authorization)   # 無效 token 會拋 401
+
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="找不到使用者")
+
+    file_path = _find_camera_face_file(_camera_face_key(user.email))
+    if not file_path:
+        return {"exists": False, "url": None}
+    return {"exists": True, "url": "/" + file_path.replace("\\", "/")}
+
+
+@app.delete("/auth/camera_face")
+def delete_camera_face(authorization: str = Header(None), db: Session = Depends(database.get_db)):
+    """刪除自己的相機人臉貼圖檔案（character.html 按「清除人臉」時呼叫）。"""
+    username = auth_utils.get_current_user(authorization)   # 無效 token 會拋 401
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="找不到使用者")
+
+    key = _camera_face_key(user.email)
+    removed = False
+    for ext in (".jpg", ".jpeg", ".png"):
+        path = os.path.join(CAMERA_FACE_DIR, key + ext)
+        if os.path.isfile(path):
+            os.remove(path)
+            removed = True
+    return {"status": "success", "removed": removed}
 
 
 class AvatarUpload(BaseModel):
@@ -1322,7 +1491,23 @@ async def disconnect(sid):
         await sio.emit('order_dice_aborted',
                        {"reason": "opponent_left", "user": user}, room=room)
 
-    # 2. 通知同房其他人，讓前端能顯示提示而不是無限等待
+    # 2. 🏆 修復 #11：把斷線的玩家從 active_rooms[room]['players'] 移除，
+    #    邏輯跟 /rooms/leave 一致——原本這裡完全沒做，斷線玩家的名字會
+    #    殘留在房間名單裡，最多留到 60 分鐘閒置回收才會消失，期間另一位
+    #    玩家重新整理後會看到不一致的房間狀態。
+    if room and room in active_rooms:
+        r = active_rooms[room]
+        if 'players' in r and user in r['players']:
+            r['players'].remove(user)
+            if not r['players']:
+                del active_rooms[room]
+                _clear_room_dice_state(room)
+                sync_room_log(room, "abandoned")
+                print(f"🧹 房間 {room} 已空，自動清理完成（斷線觸發）")
+            else:
+                touch_room(r)
+
+    # 3. 通知同房其他人，讓前端能顯示提示而不是無限等待
     await sio.emit('opponent_disconnected', {"user": user, "room": room}, room=room)
 
 
@@ -1453,6 +1638,7 @@ async def handle_move_finished(sid, data):
 async def get_map_config(
     mode: str,
     difficulty: str,
+    room: str,
     test: bool = False,
     qtype: str = None,
     db: Session = Depends(database.get_db),
@@ -1461,8 +1647,18 @@ async def get_map_config(
 
     test=1 為測試模式：把大部分冒險格換成 BLANK（踩到直接換人），
     只留少數幾格保留答題流程，讓一局能快速跑完以驗證結算頁。
-    地圖由後端產生，雙方才保證拿到同一張；前端各自切換會導致兩人地圖不一致。
+
+    🏆 room 是必帶參數，用來查/存 room_map_cache：同一個房間只在第一次
+    呼叫時真的生成（題目、國家、棋盤形狀都各自有隨機性），之後不管是
+    誰、什麼時候呼叫，都直接回傳同一份快取結果——這樣才能保證房間裡
+    每個人拿到的地圖完全一致。地圖由後端產生這件事本身不會自動保證
+    一致，一致性是靠這層快取保證的；之前沒有這層快取，純粹由後端產生
+    不代表兩人會拿到同一張（每次呼叫都各自重新 random 一次）。
     """
+    room_key = room.strip().upper()
+    if room_key in room_map_cache:
+        return room_map_cache[room_key]
+
     try:
         # 修正中文模式轉為資料庫 Key
         db_mode = "basic" if "基礎" in mode else "advanced"
@@ -1581,6 +1777,7 @@ async def get_map_config(
             full_map[i]["y"] = y
             full_map[i]["z"] = z
 
+        room_map_cache[room_key] = full_map
         return full_map
 
     except Exception as e:
@@ -1844,6 +2041,13 @@ async def handle_update_pose_count(sid, data):
 # 1. 作答紀錄：每答一題寫入一筆明細 (game_answer_logs)
 @app.post("/game/answer_log")
 def log_answer(data: dict, db: Session = Depends(database.get_db)):
+    # 🏆 修復 #40：之前沒有任何防呆，呼叫端缺欄位就靜默存 NULL，累積到
+    # 資料庫裡變成一堆看不出題目內容的壞資料（根因在前端，已修，見
+    # game.html 的 #40 註解）。這裡補一行警告，往後如果又有新的呼叫端
+    # 漏傳欄位，能在伺服器 log 第一時間發現，不用等使用者自己發現。
+    if not data.get("category") and not data.get("question_text"):
+        print(f"⚠️ answer_log 缺少題目內容: room={data.get('room_code')} "
+              f"user={data.get('username')}")
     log = models.GameAnswerLog(
         room_code=data.get("room_code"),
         username=data.get("username"),
@@ -1852,6 +2056,10 @@ def log_answer(data: dict, db: Session = Depends(database.get_db)):
         question_text=data.get("question_text"),
         chosen_answer=data.get("chosen_answer"),
         correct_answer=data.get("correct_answer"),
+        # 🏆 顯示端要的是選項實際內容，不是「選項幾號」，跟 question_text
+        # 一樣存答題當下的快照（questions.opt1~4 會被 seed_data 清空重建）。
+        chosen_text=data.get("chosen_text"),
+        correct_text=data.get("correct_text"),
         is_correct=bool(data.get("is_correct")),
         answer_sec=float(data.get("answer_sec") or 0),
     )
@@ -2085,6 +2293,22 @@ def _build_learn_stats(username: str, db: Session) -> dict:
         } for l in logs if not l.is_correct][:5],
     }
 
+    # 🏆 修復 #40：learn.html 原本把上面 ai_context.recent_wrong（只給
+    # AI 當脈絡、只挑錯題、上限 5 筆）誤用當成「全部作答紀錄」，答對的
+    # 部分只能用寫死範本硬塞。這裡補一個真正「這個人答過的全部題目」
+    # 的欄位，對/錯都在裡面、不設上限——recent_wrong 維持原樣不動，
+    # 它是給 AI 用的穩定契約。
+    answer_history = [{
+        "topic": l.category,
+        "question": l.question_text,
+        "chosen": l.chosen_answer,
+        "correct": l.correct_answer,
+        "chosen_text": l.chosen_text,
+        "correct_text": l.correct_text,
+        "is_correct": l.is_correct,
+        "created_at": l.created_at.isoformat() if l.created_at else None,
+    } for l in logs]
+
     return {
         "username": username,
         "games_played": len(records),
@@ -2092,6 +2316,7 @@ def _build_learn_stats(username: str, db: Session) -> dict:
         "dimensions": dimensions,
         "recent_games": recent_games,
         "ai_context": ai_context,
+        "answer_history": answer_history,
     }
 
 

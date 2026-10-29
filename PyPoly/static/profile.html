@@ -440,7 +440,8 @@
     <div class="profile-container">
         <!-- 左側資訊欄 -->
         <aside class="profile-aside">
-            <div class="avatar-box">
+            <!-- 🏆 修正 #35：原本這整塊完全沒有 onclick，點了沒反應 -->
+            <div class="avatar-box" id="profile-avatar-box" onclick="location.href='character.html'" style="cursor:pointer;">
                 <div style="font-size: 3.2rem;">👾</div>
                 <p style="margin-top: 10px; font-weight: 900; font-size: 0.95rem;">點擊更換頭像</p>
             </div>
@@ -517,6 +518,10 @@
 </div>
 
 <script src="js/ngrok-fetch.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="js/player-model.js"></script>
+<script src="js/character-face.js"></script>
+<script src="js/character-preview.js"></script>
 <script>
     const API_URL = location.origin;
     let syncTimer = null;
@@ -528,6 +533,53 @@
         if (!token || !username) {
             window.location.href = 'login.html';
             return;
+        }
+
+        // 🏆 修正 #35，並跟 lobby.html 用同一套邏輯：每次載入頁面時直接
+        // 問資料庫要 colors/features，現場渲染出縮圖——不再依賴
+        // character.html 寫入的 pypoly_char_preview 快取，換裝置、清過
+        // localStorage 也能正確顯示。真正的角色建立/編輯一律在
+        // character.html 進行，這裡只負責顯示。
+        const avatarBox = document.getElementById('profile-avatar-box');
+        if (avatarBox) {
+            try {
+                const charRes = await fetch(`${API_URL}/auth/character`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const charData = charRes.ok ? await charRes.json() : null;
+                const character = charData && charData.character;
+                if (character && character.colors) {
+                    // 相機拍的人臉貼圖不存資料庫的 colors/features，而是存成
+                    // 伺服器檔案（/auth/camera_face）——查有沒有這個使用者的
+                    // 照片，有的話優先用，不要讓 renderCharacterPreview 用 DB
+                    // 的 features 重新合成出一張不是真實外觀的臉。
+                    let cameraFaceUrl = null;
+                    try {
+                        const camRes = await fetch(`${API_URL}/auth/camera_face`, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        if (camRes.ok) {
+                            const camData = await camRes.json();
+                            if (camData.exists) cameraFaceUrl = camData.url;
+                        }
+                    } catch (err) {
+                        console.warn('⚠️ 查詢相機人臉貼圖失敗', err);
+                    }
+                    renderCharacterPreview(character.colors, character.features, (dataUrl) => {
+                        avatarBox.innerHTML = `<img src="${dataUrl}" alt="我的角色" style="width: 100%; height: 100%; object-fit: contain;">`;
+                    }, cameraFaceUrl);
+                } else {
+                    const myFace = localStorage.getItem(`pypoly_char_face_${username}`) || localStorage.getItem('pypoly_char_face');
+                    const savedCharImage = localStorage.getItem('pypoly_char_preview');
+                    if (savedCharImage) {
+                        avatarBox.innerHTML = `<img src="${savedCharImage}" alt="我的角色" style="width: 100%; height: 100%; object-fit: contain;">`;
+                    } else if (myFace) {
+                        avatarBox.innerHTML = `<img src="${myFace}" style="width:100%; height:100%; object-fit:cover; border:2px solid var(--bee-yellow);">`;
+                    }
+                }
+            } catch (err) {
+                console.warn('⚠️ 讀取角色資料失敗，無法顯示角色縮圖', err);
+            }
         }
 
         try {

@@ -432,6 +432,7 @@
         }
 
         .cam-preview video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: none; }
+        .saved-face-preview { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: none; }
         .face-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; transform: scaleX(-1); }
         .cam-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #dfe4ea; }
         .cam-placeholder svg { opacity: 0.6; }
@@ -473,6 +474,19 @@
             background: var(--pixel-green);
             color: #ffffff;
             box-shadow: 0 4px 0 #000;
+        }
+
+        /* 統一的「儲存到遊戲」按鈕，固定在角色預覽框右下角，取代原本三張
+           卡各自一顆的設計——不管目前是調顏色、五官套裝還是相機模式，
+           都用這一顆存。 */
+        .save-fab {
+            position: absolute;
+            right: 20px;
+            bottom: 20px;
+            width: auto;
+            margin-top: 0;
+            padding: 14px 30px;
+            z-index: 5;
         }
 
         .btn-red {
@@ -612,6 +626,7 @@
                 <div class="panel-sub">拖曳旋轉・滾輪縮放</div>
             </div>
             <canvas id="model-canvas"></canvas>
+            <button class="btn btn-green save-fab" onclick="saveCharacter()">💾 儲存到遊戲</button>
         </div>
 
         <!-- 右：操作面板 -->
@@ -668,7 +683,6 @@
                     <button class="preset-btn" onclick="applyPreset('ocean')"><div class="preset-dots"><div class="preset-dot" style="background:#a8d8f0"></div><div class="preset-dot" style="background:#2897d6"></div><div class="preset-dot" style="background:#0077b6"></div><div class="preset-dot" style="background:#005588"></div><div class="preset-dot" style="background:#002244"></div></div>海洋</button>
                     <button class="preset-btn" onclick="applyPreset('purple')"><div class="preset-dots"><div class="preset-dot" style="background:#e8b4f0"></div><div class="preset-dot" style="background:#aa66ee"></div><div class="preset-dot" style="background:#8844cc"></div><div class="preset-dot" style="background:#5522aa"></div><div class="preset-dot" style="background:#2a1066"></div></div>神秘</button>
                 </div>
-                <button class="btn btn-green" onclick="saveColors()">儲存到遊戲</button>
                 <button class="btn btn-red"   onclick="resetColors()">還原預設顏色</button>
             </div>
 
@@ -697,7 +711,6 @@
                 <div class="section-label"><span>🎭</span> 表情套裝</div>
                 <div class="expr-grid" id="expr-grid"></div>
 
-                <button class="btn btn-green" onclick="saveFaceFeatures()" style="margin-top:12px">儲存到遊戲</button>
                 <button class="btn btn-red"   onclick="clearFaceFeatures()">清除五官</button>
             </div>
 
@@ -714,6 +727,7 @@
                         </svg>
                         <p>開啟後自動偵測人臉</p>
                     </div>
+                    <img id="camSavedFacePreview" class="saved-face-preview" alt="已儲存的人臉貼圖">
                 </div>
                 <span class="badge idle" id="statusBadge">等待開啟相機</span>
                 <button class="btn btn-blue"  id="camToggleBtn" onclick="toggleCamera()">開啟相機</button>
@@ -809,23 +823,6 @@ animateLoop(0);
 const partColors = {
     head: '#f5c18a', arm: '#5cbaee', body: '#4a90d9', legs: '#2c4a8c', feet: '#2c1f14'
 };
-
-(function applyStoredColors() {
-    const raw = localStorage.getItem('pypoly_char_colors');
-    if (!raw) return;
-    try {
-        const saved = JSON.parse(raw);
-        Object.keys(saved).forEach(k => { if (k in partColors) partColors[k] = saved[k]; });
-        Object.entries(partColors).forEach(([g, hex]) => {
-            const inp    = document.getElementById('color-'   + g);
-            const swatch = document.getElementById('swatch-' + g);
-            const hexEl  = document.getElementById('hex-'    + g);
-            if (inp)    inp.value               = hex;
-            if (swatch) swatch.style.background = hex;
-            if (hexEl)  hexEl.textContent       = hex;
-        });
-    } catch(e) {}
-})();
 
 const PRESETS = {
     default: { head:'#f5c18a', arm:'#5cbaee', body:'#4a90d9', legs:'#2c4a8c', feet:'#2c1f14' },
@@ -934,7 +931,7 @@ function onColorInput(group, hex) {
     document.getElementById('swatch-' + group).style.background = hex;
     document.getElementById('hex-'    + group).textContent       = hex;
     updateShaderColors();
-    if (localStorage.getItem('pypoly_char_features')) composeFaceTexture();
+    if (hasFeatureFace) composeFaceTexture();
 }
 function applyPreset(name) {
     const p = PRESETS[name]; if (!p) return;
@@ -946,7 +943,7 @@ function applyPreset(name) {
         document.getElementById('hex-'    + g).textContent       = hex;
     });
     updateShaderColors();
-    if (localStorage.getItem('pypoly_char_features')) composeFaceTexture();
+    if (hasFeatureFace) composeFaceTexture();
 }
 
 async function saveCharacterToServer() {
@@ -965,33 +962,9 @@ async function saveCharacterToServer() {
     }
 }
 
-function saveColors() {
-    localStorage.setItem('pypoly_char_colors', JSON.stringify(partColors));
-    saveCharacterToServer();
-    saveCharacterPreviewImage();
-    showModal('儲存成功', '外觀顏色已儲存！按下確定返回大廳。');
-    document.querySelector('#modal button').onclick = () => window.location.href = '../../static/lobby.html';
-}
 function resetColors() {
-    localStorage.removeItem('pypoly_char_colors');
     applyPreset('default');
     showModal('已重置', '已還原角色預設顏色。');
-}
-function loadSavedColors() {
-    const raw = localStorage.getItem('pypoly_char_colors');
-    if (!raw) { updateShaderColors(); return; }
-    try {
-        const saved = JSON.parse(raw).colors || JSON.parse(raw);
-        Object.entries(saved).forEach(([g, hex]) => {
-            if (!(g in partColors)) return;
-            partColors[g] = hex;
-            const inp = document.getElementById('color-' + g);
-            if (inp) inp.value = hex;
-            document.getElementById('swatch-' + g).style.background = hex;
-            document.getElementById('hex-'    + g).textContent       = hex;
-        });
-        updateShaderColors();
-    } catch(e) { updateShaderColors(); }
 }
 
 // =====================================================
@@ -1043,8 +1016,7 @@ loader.load('models/minecraft_-_steve.glb', (gltf) => {
     controls.maxDistance = dist * 4;
     controls.update();
 
-    loadSavedColors();
-    loadSavedFaceOrFeatures();
+    restoreCharacterFromServer();
 
 }, undefined, () => {
     showModal('模型載入失敗', '找不到角色模型，請確認 models/minecraft_-_steve.glb 存在。');
@@ -1053,7 +1025,15 @@ loader.load('models/minecraft_-_steve.glb', (gltf) => {
 // =====================================================
 //  Face Features System (方案 A — Canvas 繪製)
 // =====================================================
-const faceFeatures = { eyebrow: 'standard', eye: 'round', nose: 'none', mouth: 'smile' };
+// 🏆 五官的「空」狀態——玩家沒碰過五官分頁（例如只調顏色、或用相機
+// 拍臉）時就是這組，不要預設套一組「看起來像有選過」的標準表情，
+// 存進資料庫才會是真的空，不是誤存成玩家自己選的樣子。
+const EMPTY_FACE_FEATURES = { eyebrow: 'none', eye: 'none', nose: 'none', mouth: 'none' };
+const faceFeatures = Object.assign({}, EMPTY_FACE_FEATURES);
+// 是否正在使用「五官套裝」臉（相對於相機拍的臉／完全沒設定臉）——
+// 取代原本讀 localStorage pypoly_char_features 存在與否來判斷的做法，
+// 因為 colors／features 已經不再寫入 localStorage。
+let hasFeatureFace = false;
 
 const FEATURE_OPTIONS = {
     eyebrow: [
@@ -1065,6 +1045,7 @@ const FEATURE_OPTIONS = {
         { id:'sad',      label:'悲傷' },
     ],
     eye: [
+        { id:'none',   label:'無' },
         { id:'round',  label:'圓眼' },
         { id:'big',    label:'大眼' },
         { id:'half',   label:'半閉' },
@@ -1078,6 +1059,7 @@ const FEATURE_OPTIONS = {
         { id:'cat',    label:'貓鼻' },
     ],
     mouth: [
+        { id:'none',     label:'無' },
         { id:'neutral',  label:'無表情' },
         { id:'smile',    label:'微笑' },
         { id:'grin',     label:'大笑' },
@@ -1179,6 +1161,10 @@ function drawFeatureThumbnail(type, id) {
 
 function composeFaceTexture() {
     const faceCanvas = buildFaceCanvas(partColors, faceFeatures);
+    // 四項都是「無」時，語意上就是「沒有臉」，hasFace 要真的設成 0，
+    // 不要只是畫面看起來差不多（shader 裡 hasFace=1 時臉部法向的環境
+    // 光是 0.95，跟 hasFace=0 的 0.85 有微小差異，要讓狀態真的一致）。
+    const allNone = Object.values(faceFeatures).every(v => v === 'none');
 
     const prev = document.getElementById('face-feat-preview');
     if (prev) {
@@ -1193,7 +1179,7 @@ function composeFaceTexture() {
         const tex = new THREE.CanvasTexture(faceCanvas);
         tex.needsUpdate = true;
         shaderMat.uniforms.faceTex.value = tex;
-        shaderMat.uniforms.hasFace.value = 1.0;
+        shaderMat.uniforms.hasFace.value = allNone ? 0.0 : 1.0;
         shaderMat.needsUpdate = true;
     }
     return faceCanvas;
@@ -1242,11 +1228,13 @@ function selectFeature(type, id) {
     document.querySelectorAll(`.feat-opt[data-type="${type}"]`).forEach(btn => {
         btn.classList.toggle('selected', btn.dataset.id === id);
     });
+    hasFeatureFace = true;
     composeFaceTexture();
 }
 
 function applyExpressionPreset(preset) {
     Object.assign(faceFeatures, preset);
+    hasFeatureFace = true;
     buildFeatureRows();
     composeFaceTexture();
 }
@@ -1259,19 +1247,12 @@ function updateFeatureSelectionUI() {
     });
 }
 
-function saveFaceFeatures() {
-    const faceCanvas = composeFaceTexture();
-    localStorage.setItem('pypoly_char_features', JSON.stringify(faceFeatures));
-    localStorage.setItem('pypoly_char_face', faceCanvas.toDataURL('image/png'));
-    saveCharacterToServer();
-    saveCharacterPreviewImage();
-    showModal('儲存成功', '臉部五官已儲存！按下確定返回大廳。');
-    document.querySelector('#modal button').onclick = () => window.location.href = '../../static/lobby.html';
-}
-
 function clearFaceFeatures() {
-    localStorage.removeItem('pypoly_char_features');
+    hasFeatureFace = false;
     localStorage.removeItem('pypoly_char_face');
+    // 🏆 跟 clearFace() 同一個理由：一併清掉 game.html 實際讀取的
+    // per-user key，不然會殘留一個已經失效的舊人臉網址。
+    localStorage.removeItem(`pypoly_char_face_${localStorage.getItem('username') || 'default_user'}`);
     if (shaderMat) {
         const prevTex = shaderMat.uniforms.faceTex.value;
         if (prevTex) prevTex.dispose();
@@ -1285,23 +1266,32 @@ function clearFaceFeatures() {
         ctx.fillStyle = partColors.head || '#f5c18a';
         ctx.fillRect(0, 0, 512, 512);
     }
-    Object.assign(faceFeatures, { eyebrow:'standard', eye:'round', nose:'none', mouth:'smile' });
+    Object.assign(faceFeatures, EMPTY_FACE_FEATURES);
     updateFeatureSelectionUI();
     showModal('已清除', '臉部五官已清除。');
 }
 
-function loadSavedFaceOrFeatures() {
-    const featRaw = localStorage.getItem('pypoly_char_features');
-    if (featRaw) {
-        try {
-            Object.assign(faceFeatures, JSON.parse(featRaw));
-            updateFeatureSelectionUI();
-            composeFaceTexture();
-            return;
-        } catch(e) {}
-    }
-    const dataUrl = localStorage.getItem('pypoly_char_face');
-    if (!dataUrl || !shaderMat) return;
+// 顯示/隱藏相機卡片裡的「已儲存人臉貼圖」靜態預覽（跟即時相機畫面
+// 共用同一個框，開相機時要讓出來給 <video>）。
+function showSavedFacePreview(url) {
+    const img = document.getElementById('camSavedFacePreview');
+    const placeholder = document.getElementById('camPlaceholder');
+    if (!img || !url) return;
+    img.src = url;
+    img.style.display = 'block';
+    if (placeholder) placeholder.style.display = 'none';
+}
+function hideSavedFacePreview() {
+    const img = document.getElementById('camSavedFacePreview');
+    if (!img) return;
+    img.style.display = 'none';
+    img.removeAttribute('src');
+}
+
+// 把一張臉部貼圖（本機 data URL 或伺服器網址都可以）套到 3D 模型上，
+// 並同步更新相機卡片的狀態（按鈕/badge/靜態預覽圖）。
+function applySavedFaceTexture(url) {
+    if (!url || !shaderMat) return;
     const img = new Image();
     img.onload = () => {
         const fc = document.createElement('canvas');
@@ -1316,8 +1306,85 @@ function loadSavedFaceOrFeatures() {
         shaderMat.needsUpdate = true;
         document.getElementById('clearFaceBtn').disabled = false;
         setBadge('captured', '已載入儲存的人臉貼圖');
+        showSavedFacePreview(url);
+        // 快取回本機，維持跟其他地方（mirrorFaceToUserKey 等）一致的
+        // 讀取來源，不管這張臉原本是從本機還是伺服器拿到的。
+        localStorage.setItem('pypoly_char_face', url);
     };
-    img.src = dataUrl;
+    img.src = url;
+}
+
+// 🏆 colors／features 這份「配方」一律從伺服器的 GET /auth/character 取得，
+// 不再快取進 localStorage——重新整理、換裝置、登出再登入都會重新抓一次，
+// 資料庫才是唯一事實來源（這個 API 本來就存在，main.py 早就有 PUT/GET
+// /auth/character 把配方存進 users.character_data，只是以前前端還是以
+// localStorage 為主要來源）。
+async function restoreCharacterFromServer() {
+    const token = localStorage.getItem('token');
+    let character = null;
+    if (token) {
+        try {
+            const res = await fetch(`${API_URL}/auth/character`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                character = data.character;
+            }
+        } catch (err) {
+            console.warn('⚠️ 從伺服器讀取角色外觀失敗（維持預設值）', err);
+        }
+    }
+
+    if (character && character.colors) {
+        Object.entries(character.colors).forEach(([g, hex]) => {
+            if (!(g in partColors)) return;
+            partColors[g] = hex;
+            const inp = document.getElementById('color-' + g);
+            const swatch = document.getElementById('swatch-' + g);
+            const hexEl = document.getElementById('hex-' + g);
+            if (inp) inp.value = hex;
+            if (swatch) swatch.style.background = hex;
+            if (hexEl) hexEl.textContent = hex;
+        });
+    }
+    updateShaderColors();
+
+    // 🏆 自從五官預設值改成全「無」之後（參見 EMPTY_FACE_FEATURES），
+    // 只要存過檔，character.features 永遠是一個物件、不會是 null——
+    // 不能再用「features 存在與否」判斷這個人是不是用五官套裝，要看
+    // 裡面是不是真的有任何一項不是 'none'。沒有任何有意義的五官，才
+    // 代表這個人可能是用相機（優先查伺服器），或是真的什麼都沒設定過。
+    const hasMeaningfulFeatures = character && character.features
+        && Object.values(character.features).some(v => v !== 'none');
+
+    if (hasMeaningfulFeatures) {
+        Object.assign(faceFeatures, character.features);
+        updateFeatureSelectionUI();
+        composeFaceTexture();
+        hasFeatureFace = true;
+    } else {
+        let cameraFaceUrl = null;
+        if (token) {
+            try {
+                const camRes = await fetch(`${API_URL}/auth/camera_face`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (camRes.ok) {
+                    const camData = await camRes.json();
+                    if (camData.exists) cameraFaceUrl = camData.url;
+                }
+            } catch (err) {
+                console.warn('⚠️ 查詢伺服器相機人臉貼圖失敗', err);
+            }
+        }
+        // 伺服器沒有相機照片才退回本機快取（例如還沒重新上傳過的舊資料）。
+        applySavedFaceTexture(cameraFaceUrl || localStorage.getItem('pypoly_char_face'));
+    }
+
+    if (character) {
+        mirrorFaceToUserKey();
+    }
 }
 
 buildFeatureRows();
@@ -1390,6 +1457,7 @@ async function startCamera() {
         videoEl.srcObject = stream; videoEl.style.display = 'block';
         await videoEl.play();
         document.getElementById('camPlaceholder').style.display = 'none';
+        hideSavedFacePreview();
         document.getElementById('camToggleBtn').textContent = '關閉相機';
         setBadge('live', '相機運作中，請對準臉部');
         initFaceDetector();
@@ -1430,8 +1498,8 @@ function applyFaceToModel() {
     shaderMat.uniforms.hasFace.value = 1.0;
     shaderMat.needsUpdate = true;
     localStorage.setItem('pypoly_char_face', faceCanvas.toDataURL('image/jpeg', 0.85));
-    localStorage.removeItem('pypoly_char_features');
-    Object.assign(faceFeatures, { eyebrow:'standard', eye:'round', nose:'none', mouth:'smile' });
+    hasFeatureFace = false;
+    Object.assign(faceFeatures, EMPTY_FACE_FEATURES);
     updateFeatureSelectionUI();
     document.getElementById('clearFaceBtn').disabled = false;
     setBadge('captured', '人臉已貼至角色臉部');
@@ -1444,56 +1512,103 @@ function clearFace() {
     shaderMat.uniforms.hasFace.value = 0.0;
     shaderMat.needsUpdate = true;
     localStorage.removeItem('pypoly_char_face');
+    // 🏆 修復對局中人臉全黑：這裡原本只清了 pypoly_char_face，沒清
+    // game.html 實際讀取的 per-user key，造成那個 key 繼續指向底下
+    // DELETE /auth/camera_face 剛刪掉的伺服器檔案——下次進對局會去載入
+    // 一張已經 404 的圖片，臉那一面因此整片全黑。
+    const clearedUser = localStorage.getItem('username') || 'default_user';
+    localStorage.removeItem(`pypoly_char_face_${clearedUser}`);
     document.getElementById('clearFaceBtn').disabled = true;
     setBadge('idle', '已清除人臉貼圖');
+    hideSavedFacePreview();
+
+    // 伺服器上如果之前存過相機人臉貼圖檔案，一併刪掉，不然 lobby/profile
+    // 還是會顯示那張舊照片。best-effort，失敗也不擋 UI。
+    const token = localStorage.getItem('token');
+    if (token) {
+        fetch(`${API_URL}/auth/camera_face`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        }).catch(err => console.warn('⚠️ 刪除伺服器端相機人臉貼圖失敗', err));
+    }
 }
 
-function saveCharacterPreviewImage() {
-    try {
-        if (!renderer || !scene || !threeCamera) return;
+// 🏆 統一的「儲存到遊戲」按鈕（放在角色預覽框右下角），取代原本三張
+// 卡各自一顆、邏輯重複又互相不知道對方存了什麼的設計。不管玩家目前
+// 是在調顏色、用五官套裝、還是用相機拍臉，都是按這一顆存。
+//
+// 判斷目前是哪種「臉」靠 hasFeatureFace（五官套裝互動時會設成 true，
+// applyFaceToModel() 相機模式則會設成 false）：
+// - 五官套裝模式：重新合成一次目前的五官組合存回 pypoly_char_face
+//   （給 game.html 等其他地方當圖片 fallback 用），並順手清掉伺服器上
+//   可能殘留的舊相機照片（不會再被用到，留著只是孤兒檔案）。
+// - 相機模式：把 pypoly_char_face（相機截圖）上傳到伺服器
+//   /auth/camera_face，這樣換裝置登入也能看到同一張照片。
+// - 兩者都沒有（從沒碰過臉部功能、只調了顏色）：兩段都不做，不去動
+//   伺服器上可能存在的舊資料，避免誤刪。
+async function saveCharacter() {
+    if (hasFeatureFace) {
+        const faceCanvas = composeFaceTexture();
+        localStorage.setItem('pypoly_char_face', faceCanvas.toDataURL('image/png'));
+    }
 
-        const originalBackground = scene.background;
-        const oldClearColor = new THREE.Color();
-        renderer.getClearColor(oldClearColor);
-        const oldClearAlpha = renderer.getClearAlpha();
+    saveCharacterToServer();
+    mirrorFaceToUserKey();
 
-        scene.background = null;
-        renderer.setClearColor(0x000000, 0); 
+    const token = localStorage.getItem('token');
+    let cameraUploadOk = true;
 
-        let gridObject = null;
-        scene.traverse((child) => {
-            if (child instanceof THREE.GridHelper) {
-                gridObject = child;
-                child.visible = false; 
-            }
-        });
-
-        controls.target.set(0, 1.5, 0);       
-        threeCamera.position.set(0, 1.5, 3.8); 
-        threeCamera.updateProjectionMatrix(); 
-        controls.update();
-
-        renderer.render(scene, threeCamera);
-        const previewImage = renderer.domElement.toDataURL('image/png');
-        localStorage.setItem('pypoly_char_preview', previewImage);
-        
-        const currentName = localStorage.getItem('username') || 'default_user';
-        localStorage.setItem(`pypoly_char_preview_${currentName}`, previewImage);
-
-        scene.background = originalBackground;
-        renderer.setClearColor(oldClearColor, oldClearAlpha);
-        if (gridObject) gridObject.visible = true;
-
-        const currentUser = localStorage.getItem('username') || 'default_user';
-        localStorage.setItem(`pypoly_char_created_${currentUser}`, "true"); 
-        localStorage.setItem(`pypoly_char_colors_${currentUser}`, JSON.stringify(partColors));
-        
-        const faceData = localStorage.getItem('pypoly_char_face');
-        if (faceData) {
-            localStorage.setItem(`pypoly_char_face_${currentUser}`, faceData);
+    if (hasFeatureFace) {
+        if (token) {
+            fetch(`${API_URL}/auth/camera_face`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            }).catch(err => console.warn('⚠️ 清理舊相機人臉貼圖失敗', err));
         }
-    } catch (err) {
-        console.error('儲存角色預覽圖失敗：', err);
+    } else {
+        const faceDataUrl = localStorage.getItem('pypoly_char_face');
+        if (faceDataUrl) {
+            cameraUploadOk = false;
+            if (token) {
+                try {
+                    const res = await fetch(`${API_URL}/auth/camera_face`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                        body: JSON.stringify({ image: faceDataUrl })
+                    });
+                    cameraUploadOk = res.ok;
+                    if (!res.ok) console.warn('⚠️ 相機人臉貼圖上傳伺服器失敗：HTTP', res.status);
+                } catch (err) {
+                    console.warn('⚠️ 相機人臉貼圖上傳伺服器失敗', err);
+                }
+            }
+        }
+    }
+
+    if (cameraUploadOk) {
+        showModal('儲存成功', '角色外觀已儲存！按下確定返回大廳。');
+    } else {
+        showModal('部分儲存失敗', '顏色/五官已儲存，但相機人臉貼圖上傳伺服器失敗（可能是網路問題）。這台裝置還是會記住這張臉，但換裝置可能看不到，請檢查網路後再儲存一次。');
+    }
+    document.querySelector('#modal button').onclick = () => window.location.href = '../../static/lobby.html';
+}
+
+// 🏆 character.html 的職責現在只是建立/編輯角色並把配方存進資料庫
+// （saveCharacterToServer()）——縮圖改由 lobby.html／profile.html 在
+// 載入時直接拿資料庫的 colors/features 即時渲染（static/js/
+// character-preview.js），不再需要這裡截圖快取 pypoly_char_preview，
+// 所以把截圖那段整個拿掉。這支函式現在只剩一件事：把相機/五官合成的
+// 臉部貼圖（圖片，資料庫不存，只能留在本機）鏡射成 per-user key，
+// 供同一台裝置上其他頁面（game.html、結算畫面等）讀取。
+function mirrorFaceToUserKey() {
+    const currentName = localStorage.getItem('username') || 'default_user';
+    const faceData = localStorage.getItem('pypoly_char_face');
+    if (faceData) {
+        localStorage.setItem(`pypoly_char_face_${currentName}`, faceData);
+    } else {
+        // 🏆 原本這裡 faceData 是空的時候什麼都不做，導致清除人臉後存檔
+        // 時沒有把舊的 per-user key 一併清掉——明確移除，不要留著舊值。
+        localStorage.removeItem(`pypoly_char_face_${currentName}`);
     }
 }
 

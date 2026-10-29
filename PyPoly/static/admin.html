@@ -434,6 +434,7 @@
 </div>
 
 <script src="js/ngrok-fetch.js"></script>
+<script src="js/admin-role-modal.js"></script>
 <script>
     const API_URL = location.origin;
     let syncTimer = null; // 用於儲存心跳與列表刷新的計時器
@@ -562,7 +563,7 @@
                     <div class="user-email">${user.email || '無信箱資料'}</div>
                     <div><span class="user-status ${statusClass}">${statusText}</span></div>
                     <div class="action-btns">
-                        <button class="btn-icon btn-edit">編輯</button>
+                        <button class="btn-icon btn-edit" onclick="openEditRoleModal('${user.username}', '${user.role}')">編輯</button>
                         <button class="btn-icon btn-ban" ${user.username === localStorage.getItem('username') ? 'disabled' : ''} 
                                 onclick="openBanConfirm('${user.username}', '${user.role}')">
                             ${user.role === 'banned' ? '解封' : '封鎖'}
@@ -601,6 +602,24 @@
             closeModal();
         };
 
+        modal.style.display = 'flex';
+    }
+
+    // 🏆 修復 #36：編輯按鈕原本完全沒有 onclick。後端除了 role 之外沒有
+    // 其他可編輯欄位（username/email/密碼都不該讓後台隨意改），所以
+    // 「編輯」定義成手動調整角色權限，跟封鎖/解封本質上是同一支 API，
+    // 只是給一個更直接的下拉選單，不限於 player↔banned 兩種。
+    // 🏆 fillEditRoleModal() 已抽至 static/js/admin-role-modal.js
+    // （預覽頁 static/preview/admin_edit_role.html 也用同一份）
+    function openEditRoleModal(targetUser, currentRole) {
+        const modal = document.getElementById('statusModal');
+        fillEditRoleModal(
+            document.getElementById('modalTitle'),
+            document.getElementById('modalMsg'),
+            document.getElementById('modalFooter'),
+            targetUser, currentRole, null,
+            (newRole) => executeRoleChange(targetUser, newRole, "更新權限")
+        );
         modal.style.display = 'flex';
     }
 

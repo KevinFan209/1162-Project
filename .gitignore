@@ -20,3 +20,6 @@ PyPoly/scenarios_geo_data.sql
 
 # 實測遊玩時發現的已知問題清單（個人筆記，不進版控）。
 prob.md
+
+# 玩家創建角色時使用的臉部相機拍攝的照片，因為是個人隱私資料，所以不進版控。
+PyPoly/static/char_face_camera/

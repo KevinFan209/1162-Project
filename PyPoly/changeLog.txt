@@ -3109,4 +3109,1528 @@ PyPoly 變更紀錄 (changeLog)
   ⚠️ 尚未做：這是 ops/ 這個 Discord bot 自己的程式碼，固定只從 main
   worktree 的 ops/ 執行，要讓實際跑著的 bot 行程套用這次改動，需要
   重啟 bot。
+
+[2026-10-10] #75 虛擬人物相關 issue：#20/#27/#35 角色資料還原、#18 補儲存按鈕、#22 移動偏移改用穩定依據
+
+  背景：盤點 GitHub 上跟虛擬人物有關的 issue，逐一讀過程式碼找根因，
+  這次處理其中 3 組（#21 臉部表情沒對齊信心不足，先不處理；#24 觀戰者
+  收購畫面版位沒有具體描述要怎麼調，等回報的人補充再處理）。
+
+  #20（登出後虛擬人物不會保留）+ #27（虛擬人物僅存 localStorage，未
+  正確存進資料庫）+ #35（個人主頁的更換頭像無反應）：追完發現後端
+  main.py 早就有 PUT/GET /auth/character 把 colors／features 這份
+  「配方」存進 users.character_data，不是完全沒做持久化。問題是
+  lobby.html、profile.html 的角色顯示從來沒呼叫過這個 API，只讀
+  localStorage 的 pypoly_char_face_*／pypoly_char_preview——這就是
+  「登出或換裝置就不見」的直接原因，資料庫裡有資料，只是這兩頁沒去
+  讀。另外 profile.html 的「點擊更換頭像」那塊完全沒有 onclick，是
+  字面上的 bug，點了什麼都不會發生。
+
+  修法：
+  - character.html 新增 restoreCharacterFromServerIfEmpty()，在
+    loadSavedColors()／loadSavedFaceOrFeatures() 套用完本機快取之後
+    才呼叫——如果本機原本就沒有 pypoly_char_colors／
+    pypoly_char_features 任何一個，才去問伺服器，有資料就套用並呼叫
+    既有的 saveCharacterPreviewImage() 補回本機快取，不會覆蓋使用者
+    已經在調的狀態。
+  - lobby.html／profile.html：本機沒有預覽圖快取時，改呼叫
+    GET /auth/character 確認伺服器端有沒有角色資料，避免
+    hasCreatedCharacter() 誤判成「尚未建立角色」擋住建立對局；真正
+    要重新顯示預覽圖導去 character.html（上面那條會自動還原），不在
+    這兩頁各自重刻一份渲染邏輯。
+  - profile.html 的 .avatar-box 補上 onclick，並改成跟 lobby.html
+    一樣讀真實預覽圖，不再放死的 👾 表情符號。
+
+  ⚠️ 範圍限制：後端 _validate_character() 刻意只存 colors／features
+  配方，不存成品圖，8KB 上限就是為了擋掉圖片——攝影機拍的臉部貼圖
+  （pypoly_char_face）完全沒有送到伺服器過，這次修完之後色彩/五官
+  可以跨裝置還原，但攝影機拍的臉還是不能，這是後端目前刻意的設計
+  邊界，不是這次沒修完。
+
+  #18（相機建立虛擬人物缺少「儲存到遊戲」按鈕）：character.html 的
+  相機人臉貼圖卡只有「開啟相機」「套用人臉到角色臉部」「清除人臉」
+  三個按鈕，缺跟另外兩張卡一樣的「儲存到遊戲」。補上按鈕＋新函式
+  saveCameraFace()——不能直接重用 saveFaceFeatures()（那支是五官
+  套裝卡用的，會連帶重置 faceFeatures），新函式只做
+  saveCharacterToServer() + saveCharacterPreviewImage() + 導回大廳，
+  跟 applyFaceToModel() 已經做的「存進 pypoly_char_face＋即時貼到
+  模型」接起來。
+
+  #22（虛擬人物會亂跑到格子正中央）：movePlayerSequence()
+  （game.html）原本用 Object.keys(playerModels)[0]（物件屬性插入
+  順序）判斷誰該往左偏、誰該往右偏，這個順序取決於兩個玩家的模型
+  分別在什麼時機被建立，兩邊瀏覽器不保證一致，模型重建時也可能跟著
+  變。改用 pypoly_game_snapshot.players（伺服器同步下來的加入順序，
+  兩邊看到的保證是同一份資料）判斷，讀不到時才退回原本的寫法。
+
+  驗證：
+  - 對真的跑起來的伺服器（不是模擬）用 requests 測
+    PUT→GET /auth/character 的完整往返，確認 colors／features 存進去
+    之後讀得回來，也確認帶 username 查詢（換裝置/觀戰情境）一樣拿得
+    到同一份資料。⚠️ 測試過程中用了共用測試帳號 112213007，PUT 的
+    測試資料蓋掉了這個帳號原本的角色配色（created_at 顯示是
+    2026-08-22 建立的真實資料，不是空的），測完後已經把它還原成
+    character.html 的預設配色（並非原始值，因為沒有先備份原始值就
+    直接蓋掉，這是我這次測試的疏失）——如果這個帳號是哪位組員在用，
+    麻煩之後重新調一次顏色/五官，抱歉。
+  - 四個改動過的檔案都用 Node vm.Script 做過 inline script 語法檢查。
+
+  ⚠️ 尚未做（需要實際開瀏覽器測）：
+  (1) 用帳號在瀏覽器 1 建角色設顏色，換瀏覽器/清 localStorage 模擬
+  換裝置，確認 lobby/profile 不會誤判成尚未建立角色，進 character.html
+  後顏色/五官正確還原；登出再登入也測一次。
+  (2) 相機建立人臉貼圖後確認「儲存到遊戲」按鈕出現且能正常儲存。
+  (3) 兩人連線對局，雙方畫面確認移動時虛擬人物正確分開站在格子
+  兩側，建議多測幾輪、含中途重新整理頁面。
+========================================================================
+
+[2026-10-11] #76 虛擬人物 colors／features 改成一律從資料庫讀取，不再依賴 localStorage
+
+  背景：換裝置登入同一帳號，沒有主動建立角色的那一方裝置雖然能正常
+  進對局，但實測發現它的 localStorage 其實沒有顏色/五官資料，只有
+  pypoly_char_created_${user} 這個「是否已建立」的旗標——代表
+  localStorage 才是「這台裝置看到的外觀」的實際來源，資料庫只是拿來
+  判斷「有沒有建立過」，沒被當成顯示用的來源。這次把這個模式反過來：
+  colors／features 這份「配方」一律以資料庫（PUT/GET /auth/character，
+  main.py 本來就有，不用改後端）為唯一事實來源，前端完全移除
+  pypoly_char_colors、pypoly_char_colors_${user}、pypoly_char_features、
+  pypoly_char_created_${user} 這四類 localStorage key 的讀寫。
+
+  範圍：相機拍的臉部貼圖（pypoly_char_face*）、3D 預覽截圖
+  （pypoly_char_preview*）這兩種 base64 圖片資料這次不動，繼續留在
+  localStorage——後端 _validate_character() 的 8KB 上限是刻意設計成
+  只存配方、擋掉圖片，要支援圖片持久化是另一個要新增欄位/評估儲存
+  空間的更大改動，已跟使用者確認這次先不做。
+
+  修改：
+  - character.html：拿掉 applyStoredColors() IIFE／loadSavedColors()／
+    loadSavedFaceOrFeatures()／restoreCharacterFromServerIfEmpty()，
+    合併成一支 restoreCharacterFromServer()，模型載入完成後無條件問
+    一次伺服器（不再是「本機沒資料才問」），伺服器沒有五官配方時才
+    fallback 到本機相機人臉貼圖。新增記憶體旗標 hasFeatureFace 取代
+    原本讀 pypoly_char_features 存在與否來判斷「要不要重繪五官臉」。
+  - lobby.html／profile.html：hasCreatedCharacter() 改成 async，直接
+    呼叫 GET /auth/character 問資料庫（character !== null），不再讀寫
+    pypoly_char_created_${user} 這個本機旗標；三個呼叫處（
+    checkAndCreateRoom／joinRoom／quickVerify）補 await。profile.html
+    移除原本「本機沒快取時順便問伺服器設旗標」的 side effect（旗標
+    已經不存在，不需要了）。
+  - game.html：新增 window.myCharacterRecipe（記憶體，只存自己的
+    colors/features），restoreCharacterFromServer() 改寫進這裡而不是
+    localStorage，並在它完成時如果 playerModels[myName] 已經建好，
+    補一次 updateModelAppearance() 即時刷新——因為 loadPlayerModels()
+    跟這支非同步還原流程誰先完成不保證，少這一步會讓自己的模型卡在
+    預設顏色。broadcastMyAppearance()／getPlayerLandColor() 改讀這個
+    記憶體物件；收到對手廣播的 colors 改存進 window.netPlayerColors
+    這個記憶體 map（不再寫 pypoly_char_colors_${user}）。
+    loadPlayerModels() 改成 async，對手顏色優先讀
+    window.netPlayerColors，沒有的話（例如晚進房間、還沒收到對方廣播）
+    直接呼叫 GET /auth/character?username=（這個 API 本來就支援查
+    任何人、不需要 token）當 fallback，不再顯示預設顏色。移除死掉的
+    getPlayerColors()（確認過沒有任何地方呼叫它）。
+  - results.html：renderWinnerAvatar() 改成 async，不管贏家是自己還是
+    對手，統一直接呼叫 GET /auth/character?username= 問資料庫要
+    colors（這頁是獨立頁面導航，game.html 存在記憶體裡的狀態不會留
+    著，不能沿用）。人臉貼圖維持現狀讀 localStorage（圖片，範圍外）。
+  - 刪除 static/pypoly_char.js：確認過全專案沒有任何 <script src>
+    引用它，是一套平行、過時的死程式碼（自己的 loadPlayerModels()／
+    char_data_sync 實作，從未被載入過），留著容易誤導之後的人。
+
+  驗證：
+  - 全專案 grep pypoly_char_colors／pypoly_char_features／
+    pypoly_char_created，確認只剩一處註解提到字串，沒有任何讀寫。
+  - 五個改動過的檔案（character/lobby/profile/game/results.html）都
+    用 Node vm.Script 做過 inline script 語法檢查，全部通過。
+  - 把伺服器實際開起來（curl 打得到 200），再用 requests 模擬「登入
+    帳號 → PUT 存一組 colors/features → 全新 session（不帶任何本機
+    狀態，等同換裝置）」，驗證兩種路徑都拿得回同一份資料：帶 token
+    查自己、完全不帶 token 只用 ?username= 查別人（lobby/game/results
+    這幾頁對別人角色的查詢方式）。4/4 通過。
+    ⚠️ 測試又用了共用測試帳號 112213007（上一輪 #75 已經提醒過這個
+    帳號是共用的），PUT 測試資料再次蓋掉它當時的配色——測完已經把它
+    還原成 character.html 的預設配色（跟 #75 還原的值一樣）。這次有
+    记住要還原，但還是要提醒：如果這個帳號是哪位組員在用，顏色/五官
+    會跟你自己調的不一樣，請重新調一次。
+
+  ⚠️ 尚未做（需要實際開瀏覽器測，3D 渲染沒辦法用無瀏覽器腳本代測）：
+  (1) 帳號 A 在瀏覽器 1 建立角色、調好顏色/五官，換一台瀏覽器（或清
+  空全部 localStorage 模擬換裝置）用同帳號登入，確認大廳/個人主頁不
+  會誤判成尚未建立角色，進 character.html 顏色/五官直接正確還原
+  （不用重新手動調），不開相機的情況下進對局角色顏色也正確。
+  (2) 兩人連線對局，確認雙方顏色都正確顯示在對方畫面上，含一方晚進
+  房間、另一方已經廣播過才加入的情境（驗證 GET fallback 有被用到）。
+  (3) 對局結束進 results.html，確認贏家（自己或對手）顏色正確顯示，
+  即使是另開一個全新瀏覽器分頁/視窗直接導到 results.html 測試。
+========================================================================
+
+[2026-10-13] #77 lobby/profile 左側角色縮圖改成每次載入頁面即時從資料庫渲染
+
+  背景：#76 把 colors/features 改成一律從資料庫讀取之後，使用者實測
+  「用 112213070 建立角色、登出換另一台裝置登入」，發現大廳左側的
+  Q 版角色縮圖還是沒有顯示。查了才發現 lobby.html 那個縮圖框
+  （lobby-char-box）其實完全沒有改到——它從頭到尾只讀
+  pypoly_char_preview／pypoly_char_face_* 這兩個圖片快取，從來沒有
+  問過資料庫。這兩個快取是 character.html 的 saveCharacterPreviewImage()
+  在「這台裝置」實際編輯/建立角色時才會寫入的 base64 截圖，新裝置
+  從沒跑過 character.html，自然兩個 key 都是空的，框就什麼都不顯示。
+
+  使用者要求：character.html 的職責收斂成只負責建立/編輯角色並存進
+  資料庫；lobby/profile 左側的預覽框改成每次載入頁面時直接拿資料庫的
+  colors/features 即時渲染出縮圖，不要再依賴 character.html 產生的
+  截圖快取。
+
+  修改：
+  - 新增 static/js/character-preview.js：renderCharacterPreview(colors,
+    features, onFrame) 離屏渲染縮圖的共用函式。重用既有的
+    player-model.js 的 createCustomBoxCharacter()（跟遊戲裡、結算畫面
+    同一套方塊角色模型，不是 character.html 編輯頁用的 GLB Steve 模型
+    ——避免在 lobby/profile 多載入一個幾 MB 的 GLB 檔案跟整套自訂
+    shader 材質邏輯，只為了畫一張縮圖；代價是縮圖風格跟 character.html
+    編輯畫面不是同一個模型，跟遊戲內/結算畫面的風格反而更一致）跟
+    character-face.js 的 buildFaceDataUrl()。faceDataUrl 的材質圖是
+    非同步載入，onFrame 可能被呼叫兩次：第一次立刻給一張保底，有五官
+    配方的話 150ms 後再補一次確保貼圖真的貼上。
+  - lobby.html／profile.html：各自補 3 個 <script> 引用
+    （three.min.js／player-model.js／character-face.js／
+    character-preview.js），window.onload 裡原本直接讀 localStorage
+    圖片的那段改成先呼叫 GET /auth/character（帶 token 查自己），有
+    colors 就呼叫 renderCharacterPreview() 即時產生縮圖；資料庫真的
+    沒有角色資料（還沒建立過）才退回舊的本機快取圖片當保底，沒有就
+    維持空白——跟 hasCreatedCharacter() 的判斷邏輯一致。
+  - character.html：saveCharacterPreviewImage() 整支改名、改寫成
+    mirrorFaceToUserKey()，拿掉截圖/寫入 pypoly_char_preview 那段
+    （改由 lobby/profile 自己即時渲染，不需要這裡快取），只保留把
+    pypoly_char_face 鏡射成 pypoly_char_face_${user} 的部分（相機人臉
+    貼圖仍是本機圖片資料，game.html 等其他頁面還是靠這個 per-user key
+    讀取，沒有這段會壞掉）。4 個呼叫處同步改名。
+
+  驗證：
+  - 全專案 grep pypoly_char_preview，確認只剩 lobby.html／profile.html
+    的保底讀取，character.html 不再寫入。
+  - character.html／lobby.html／profile.html 都用 Node vm.Script 做過
+    inline script 語法檢查，全部通過。
+  - 把伺服器實際開起來，確認 character.html／lobby.html／profile.html／
+    新增的 static/js/character-preview.js 都能正常載入（curl 200）。
+  - 用 112213070（純讀取，沒有覆蓋）確認資料庫裡確實有這個帳號的
+    colors/features（created_at 2026-08-21，是使用者自己建立的真實
+    資料），而且帶 token 查自己、不帶 token 只用 username 查（lobby/
+    profile 換裝置時的查詢方式）兩條路徑都讀得到同一份資料，驗證了
+    這次回報的 bug 純粹是前端從沒去問資料庫，不是後端或 #76 的
+    colors/features 存取邏輯有問題。
+
+  ⚠️ 尚未做（需要實際開瀏覽器測，3D 渲染沒辦法用無瀏覽器腳本代測）：
+  用 112213070 登入裝置 A 建立/調整角色，登出後在裝置 B（或清空
+  localStorage 模擬換裝置）用同帳號登入，確認大廳、個人主頁左側的
+  角色縮圖都能直接顯示正確的顏色/五官，不需要先在裝置 B 打開一次
+  character.html。
+========================================================================
+
+[2026-10-13] #78 補修 #77：相機拍的臉部貼圖在 lobby/profile 縮圖會被 DB 的預設五官蓋掉
+
+  背景：#77 把 lobby/profile 的角色縮圖改成每次用資料庫的 colors/
+  features 即時合成之後，使用者實測「相機辨識人臉並儲存」，發現 lobby
+  左側縮圖沒有顯示相機拍的臉。查了發現根因：相機人臉貼圖本來就刻意
+  不存資料庫（只存配方，8KB 上限擋圖片）；character.html 的
+  applyFaceToModel()（相機流程）存檔前會把 faceFeatures 重置成預設值
+  （眉標準/眼圓/鼻無/嘴微笑）才送 PUT，所以資料庫的 features 永遠是
+  這組預設值，不是「這個人其實是用相機拍的」。renderCharacterPreview()
+  只要看到 features 存在就會照這組預設值重新合成出一張「五官圖示臉」，
+  蓋掉了使用者實際拍的照片——這是 #77 把截圖邏輯從 character.html（
+  直接截當下畫面，相機貼圖本來就已經貼上了）搬到 lobby.html（只用
+  DB 資料重新合成）時漏掉的情境。
+
+  修法：static/js/character-preview.js 的 renderCharacterPreview() 新增
+  第 4 個參數 localFaceOverride——如果呼叫端在本機找到這個使用者的臉部
+  貼圖快取（pypoly_char_face_*，character.html 存檔時都會鏡射過來，
+  不管是相機拍的還是五官套裝合成的），優先直接拿來用，不要重新用 DB
+  的 features 合成。lobby.html／profile.html 呼叫前補讀這個本機快取
+  傳進去。這台裝置本來就是拍照/存檔的那台，本機快取一定有；換到別的
+  裝置本機沒有快取，才會退回用 DB 的 features 合成（跟 #77 的行為
+  一致，相機照片本來就不能跨裝置，這是已知範圍限制，不是這次要修的）。
+
+  驗證：
+  - character-preview.js／lobby.html／profile.html 都用 Node vm.Script
+    做過語法檢查，全部通過。
+  - 把伺服器實際開起來，確認三個檔案都能正常載入（curl 200）。
+
+  ⚠️ 尚未做（需要實際開瀏覽器測）：在 character.html 開相機、辨識人臉
+  後按「儲存到遊戲」，回大廳/個人主頁確認左側縮圖顯示的是剛拍的臉，
+  不是五官圖示臉。
+========================================================================
+
+[2026-10-13] #79 五官預設改成「空」+ 補齊「無」選項；相機人臉貼圖改存伺服器檔案
+
+  背景：使用者提出兩個後續需求。(1) 五官系統裡「眉毛」「鼻子」已經有
+  「無」選項，「眼睛」「嘴巴」沒有；而且就算玩家從沒碰過五官分頁，
+  faceFeatures 的程式預設值本來就是一組「有五官」的樣子（眉標準/眼圓/
+  鼻無/嘴微笑），存檔時會原樣送進資料庫，看起來像是玩家自己選的，
+  不是真的空。(2) 相機拍的人臉貼圖目前只活在瀏覽器 localStorage（#76～
+  #78 都刻意把這塊留在範圍外），這次要真的存到伺服器磁碟，讓 lobby/
+  profile 的縮圖可以不靠本機快取、直接用伺服器上的真實照片。
+
+  第一部分 — 五官預設空 + 補「無」選項：
+  - character.html 新增共用常數 EMPTY_FACE_FEATURES = {eyebrow:'none',
+    eye:'none', nose:'none', mouth:'none'}，faceFeatures 初始值、
+    clearFaceFeatures()、applyFaceToModel()（相機模式）三處重置都改用
+    這個常數，不再各自寫死一份「有五官」的預設物件字面值。
+  - FEATURE_OPTIONS.eye／FEATURE_OPTIONS.mouth 各補一筆 {id:'none',
+    label:'無'}。character-face.js 的 drawFaceFeatures() 跟
+    drawFeatureThumbnail() 對每個分類都是 if/else-if 鏈、沒有
+    catch-all——'none' 本來就會 fallthrough、什麼都不畫，跟眉毛/鼻子
+    現有的「無」選項原理一樣，兩支畫圖函式完全不用改。
+  - composeFaceTexture() 原本無論內容是什麼都把 hasFace 設成 1.0，就算
+    四項全是 'none' 也一樣；改成先算
+    allNone = Object.values(faceFeatures).every(v => v === 'none')，
+    hasFace 設成 allNone ? 0.0 : 1.0，讓「全部是無」在 shader 層級也
+    真正等同「沒有臉」（原本只是視覺上幾乎一樣，臉部法向環境光仍有
+    0.95 跟 0.85 的微小差異）。
+  - saveCharacterToServer() 不用加任何判斷邏輯：現在預設值本身就是空
+    的，玩家沒碰過五官分頁送出去的就是全 'none'，語意已經正確。
+
+  第二部分 — 相機人臉貼圖改存伺服器檔案：
+  - 查過 models.py 確認 User 本來就有 email（unique, not null），
+    main.py 用 app.mount("/static", ...) 掛載整個 static/ 目錄，放檔案
+    進 static/char_face_camera/ 就會在 /static/char_face_camera/ 直接
+    可讀——但目前 static 檔案完全沒有權限檢查，如果檔名直接用信箱字串，
+    任何人知道/猜到同學信箱就能直接打開他的相機截圖，是真實隱私風險
+    （已跟使用者確認過，選擇用信箱的雜湊值當檔名，伺服器內部邏輯上
+    仍然「以信箱識別」，對外網址看不出真實信箱）。
+  - main.py 新增 3 個 API：
+    - POST /auth/camera_face（需登入）：解出使用者的 email，算
+      sha256(email) 前 24 字元當檔名 key，驗證 base64 解碼成功、大小
+      不超過 3MB、用 PIL Image.open().verify() 確認真的是圖片，通過才
+      寫進 static/char_face_camera/<key>.<ext>（先清掉舊副檔名的檔案，
+      避免孤兒檔案）。
+    - GET /auth/camera_face?username=（可省略）：沿用 /auth/character
+      已有的慣例——省略用 token 查自己，帶 username 不需要 token
+      （之後要給觀戰/對手畫面用也走這條，這次只有 lobby/profile 查
+      自己在用）。回傳 {exists, url}。
+    - DELETE /auth/camera_face（需登入）：刪除自己的檔案，
+      character.html 按「清除人臉」時呼叫，避免清除後 lobby 還顯示
+      舊照片。
+  - character.html：saveCameraFace() 補一段把相機截圖的 base64 POST
+    給 /auth/camera_face；clearFace() 補呼叫 DELETE（best-effort，
+    失敗不擋 UI）。
+  - static/js/character-preview.js：#78 加的 localFaceOverride（優先用
+    本機 pypoly_char_face_* 快取）改名成 overrideFaceUrl，語意從「優先
+    用本機快取」換成「優先用呼叫端傳進來的任何圖片網址」——伺服器
+    檔案才是真正跨裝置可靠的來源，本機快取只是同一台裝置的暫存。
+    另外補兩次延遲重截圖（150ms、600ms），因為現在的 faceUrl 可能是
+    伺服器網路圖片，載入比本機 data URL 解碼慢一些。
+  - lobby.html／profile.html：縮圖渲染前先呼叫 GET /auth/camera_face
+    查自己，有 exists:true 就把 url 傳給 renderCharacterPreview() 當
+    臉部貼圖來源，取代原本查本機快取的邏輯。
+
+  不在這次範圍：game.html／results.html 的對手頭像渲染（目前靠
+  Socket.IO 即時廣播，只在同一場對局內有效）這次不改，範圍只限
+  lobby/profile 的縮圖預覽框，跟使用者這次訊息指定的一致。
+
+  驗證：
+  - main.py 用 py_compile，character.html／lobby.html／profile.html／
+    character-preview.js 用 Node vm.Script 做過語法檢查，全部通過。
+  - 把伺服器實際開起來，用 requests 對 POST/GET/DELETE
+    /auth/camera_face 做完整往返測試（用 112213070）：上傳一張測試圖
+    → exists:true → 網址打得到且 Content-Type 是圖片 → 網址裡確認
+    沒有洩漏 @ 信箱字元 → 不帶 token 只用 username 查詢（lobby/profile
+    換裝置情境）也拿得到 → 超過 3MB 跟不是合法圖片都正確被擋 4xx →
+    DELETE 後確認檔案真的被刪除、exists 變回 false。12/12 通過，測完
+    目錄裡沒有殘留測試檔案。
+  - 用 requests 確認 PUT 全部 'none' 的 features 之後，GET 拿回來的
+    四項確實都是 'none'（測試前先讀出這個帳號原本的資料、測完立刻
+    還原，沒有造成資料異動）。
+
+  ⚠️ 尚未做（需要實際開瀏覽器測）：
+  (1) 開一個全新角色，確認模型臉部真的是空白膚色，不是預設微笑臉；
+  五官分頁眼睛/嘴巴能選到「無」且模型正確反映。
+  (2) 用 112213070 開相機拍臉存檔，換裝置登入同帳號，確認 lobby／
+  profile 縮圖直接顯示剛拍的那張臉。
+  (3) 按「清除人臉」後回大廳，確認縮圖不再顯示剛才那張相機照片。
+========================================================================
+
+[2026-10-13] #80 補修 saveCameraFace()：沒套用人臉或上傳失敗時不該顯示「儲存成功」
+
+  背景：使用者回報「辨識人臉並按下儲存後，lobby 沒顯示剛拍的臉，
+  static/char_face_camera 裡也沒有圖片」。排查後確認這次是使用者測試
+  用的伺服器沒有重啟拉到 #79 的最新 commit（commit/push 不會自動重啟
+  服務，bot 是透過 /start <branch> 手動啟動的，兩者脫鉤——已寫進新的
+  記憶 pypoly-stale-server-debugging，之後同類回報先問有沒有重啟，
+  不用急著深挖程式碼）。但排查過程中發現 saveCameraFace() 本身確實有
+  一個真正的 UX 漏洞，一併修掉：
+
+  - 如果玩家只是看著相機的即時偵測畫面（badge 顯示「偵測到人臉，可
+    貼至角色臉部」），沒有按下中間的「套用人臉到角色臉部」就直接按
+    「儲存到遊戲」，pypoly_char_face 會是空的——#79 的版本遇到這種
+    情況會直接跳過上傳，卻還是顯示「儲存成功」，造成誤導。
+  - 即使確實套用過，上傳 /auth/camera_face 失敗時（網路問題、伺服器
+    掉線）原本只在 console.warn 留一行紀錄，畫面一樣顯示「儲存成功」，
+    玩家完全不會知道照片其實沒有真的存到伺服器。
+
+  修法：static/character.html 的 saveCameraFace() 開頭先檢查
+  pypoly_char_face 是否存在，沒有就跳出提示請先套用、直接 return；
+  上傳結果記錄進 uploadOk，依照結果顯示「儲存成功」或「部分儲存失敗」
+  （後者說明顏色/五官已存、但相機照片上傳失敗，建議檢查網路後重試）。
+
+  驗證：
+  - character.html 用 Node vm.Script 語法檢查通過。
+  - 伺服器開機、character.html 正常載入（curl 200）。
+
+  ⚠️ 尚未做（需要實際開瀏覽器測）：相機偵測到臉但不按「套用」直接按
+  「儲存到遊戲」，確認會跳出「尚未套用人臉」提示而不是誤導的成功訊息；
+  正常套用+儲存流程，確認 lobby 縮圖能看到剛拍的臉、char_face_camera
+  目錄有新檔案。
+========================================================================
+
+[2026-10-13] #81 重進 character.html 時沒有還原相機人臉貼圖（#79 五官空預設值連帶造成的新 bug）
+
+  背景：使用者回報「重新進入 character.html，相機卡那一欄沒有顯示之前
+  拍過的人臉，3D 模型上也沒有套用，但存檔還是能正常回到大廳」。追下去
+  發現根因跟 #79 有關：restoreCharacterFromServer() 原本用
+  `character.features` 存在與否判斷「這個人是不是用五官套裝」，只有
+  features 是 null 時才會 fallback 去找相機照片。但 #79 把五官預設值
+  從「一組有五官的樣子」改成 EMPTY_FACE_FEATURES（全部 'none'）之後，
+  只要存過檔（不管是調顏色、存五官、還是存相機照片，三者都會呼叫
+  saveCharacterToServer() 把目前的 faceFeatures 送出去），
+  character.features 就永遠是一個物件、不會是 null——相機使用者的
+  features 也會是這組全 'none' 的物件，等於這個 fallback 分支從 #79
+  之後就再也進不去了，相機照片永遠不會被還原。
+
+  另外使用者也指出：就算這個判斷邏輯對了，相機卡片本身（video/相機
+  預覽框那一欄）原本也沒有任何機制可以顯示「已經存過的照片」——之前
+  只有把照片套到 3D 模型上，相機卡片的框永遠只有「開啟後自動偵測
+  人臉」的 placeholder 或即時畫面兩種狀態，沒有第三種「顯示已存檔
+  照片」的狀態。
+
+  修法：
+  - 判斷條件改成 `Object.values(character.features).some(v => v !== 'none')`
+    ——要「至少一項不是 none」才算是真的用五官套裝，不能再只看
+    features 存在與否。沒有任何有意義的五官，才進入 fallback：先問
+    伺服器 GET /auth/camera_face（#79 新增的 API），有就用伺服器的
+    照片；沒有才退回本機 pypoly_char_face（舊資料或離線情境）。
+  - 相機卡片新增一個 `<img id="camSavedFacePreview">`，疊在
+    video/placeholder 上面（`.saved-face-preview`，跟 video 一樣
+    `transform: scaleX(-1)` 維持鏡像一致）。新函式
+    `showSavedFacePreview()`/`hideSavedFacePreview()` 控制顯示；
+    開相機（startCamera()）時隱藏（讓即時畫面接手），清除人臉
+    （clearFace()）時也隱藏。
+  - 把原本寫在 restoreCharacterFromServer() 裡面那段套用臉部材質的
+    程式碼抽成 applySavedFaceTexture(url)，不管 url 是本機 data URL
+    還是伺服器網址都能處理：套到 shaderMat、更新 badge／clearFaceBtn、
+    呼叫 showSavedFacePreview()，並把結果快取回 localStorage
+    的 pypoly_char_face（不管原始來源是本機還是伺服器，統一快取，
+    維持跟 mirrorFaceToUserKey() 等既有邏輯一致）。
+
+  驗證：
+  - character.html 用 Node vm.Script 語法檢查通過。
+  - 伺服器實際開機，character.html 正常載入（curl 200）。
+  - 用 112213070（目前這個帳號的 features 剛好就是全 'none'，正好是
+    這次要修的情境）驗證資料層：上傳一張測試照片 → GET
+    /auth/camera_face 回 exists:true 且網址打得到圖片 → 刪除清理，
+    確認不影響帳號原本的顏色/五官資料。
+
+  ⚠️ 尚未做（需要實際開瀏覽器測）：用之前拍過照片存檔的帳號重新整理
+  或重新登入進 character.html，確認相機卡片直接顯示那張照片（不用
+  重新開相機）、3D 模型臉部也正確套用；開相機後確認照片預覽會被即時
+  畫面取代；按「清除人臉」後確認照片預覽跟著消失。
+========================================================================
+
+[2026-10-13] #82 character.html 三顆「儲存到遊戲」統一成一顆，移到角色預覽框右下角
+
+  背景：使用者要求把顏色卡、五官卡、相機卡各自的「儲存到遊戲」按鈕
+  統一成一顆，放在左側「角色預覽」3D 畫面那個 div 的右下角。
+
+  修法：
+  - `.model-panel`（角色預覽框）本來就是 `position: relative`，直接在
+    裡面加一顆 `.save-fab`（`position: absolute; right/bottom: 20px`），
+    `onclick="saveCharacter()"`，取代原本三張卡各自的按鈕。
+  - 刪除三顆舊按鈕跟對應的 `saveColors()`／`saveFaceFeatures()`／
+    `saveCameraFace()` 三支函式（grep 確認過沒有其他地方呼叫），合併
+    成一支 `saveCharacter()`：
+    - 用 `hasFeatureFace` 判斷目前是哪種臉：true 是五官套裝模式、
+      false 是相機模式或完全沒設定臉。
+    - 五官套裝模式：重新合成一次目前的五官組合存回
+      `pypoly_char_face`（維持原本 saveFaceFeatures() 的行為，給
+      game.html 等其他地方當圖片 fallback），並清掉伺服器上可能殘留
+      的舊相機照片（不會再被用到，避免孤兒檔案）。
+    - 相機模式：把 `pypoly_char_face`（相機截圖）上傳到
+      `/auth/camera_face`（維持原本 saveCameraFace() 的行為）。
+    - 兩者都沒有（只調了顏色，從沒碰過臉部功能）：兩段都不做，不去
+      動伺服器上可能存在的舊相機照片，避免誤刪使用者在別的裝置存的
+      資料。
+    - 移除舊版 saveCameraFace() 那個「沒套用人臉就擋下來」的提示——
+      統一成一顆按鈕之後，「沒有臉」本來就是合法的預設狀態（#79 五官
+      預設改空之後），不該再跳提示擋存檔。
+
+  驗證：
+  - character.html 用 Node vm.Script 語法檢查通過。
+  - 伺服器實際開機，character.html 正常載入（curl 200）。
+  - grep 確認 saveColors／saveFaceFeatures／saveCameraFace 三個舊函式
+    名稱跟三顆舊按鈕的 HTML 完全消失，只剩一顆 save-fab。
+
+  ⚠️ 尚未做（需要實際開瀏覽器測）：分別測三種情境——只調顏色、用五官
+  套裝、用相機拍臉——確認統一的「儲存到遊戲」按鈕都能正確存檔並回到
+  大廳；五官套裝存檔後確認伺服器上舊的相機照片真的被清掉（如果之前
+  有存過）。
+========================================================================
+
+[2026-10-13] #83 修復兩位玩家地圖形狀不同步（/game/map_config 沒有房間快取，各自獨立 random）
+
+  背景：使用者實測 #22（虛擬人物移動偏移）確認修好的同時，回報一個
+  新發現的問題：兩台裝置的棋盤地圖形狀沒有同步，而且在不同步的情況
+  下遊戲還能正常進行、不會出錯——先用一個背景 agent 深入查過
+  fetchMapConfig()／main.py 的 /game/map_config／board_geo.py 之後確認
+  根因：
+
+  - `/game/map_config` 這個 API 完全沒有房間概念（函式簽章只有
+    mode/difficulty/test/qtype，沒有房號），每次呼叫都是獨立重新
+    random 三處：題目（`func.random()`）、國家內容（`func.random()`）、
+    棋盤形狀（`board_geo.choose_shape()` 從圓形/方形/六邊形/無限符號
+    四種等機率隨機挑一種，main.py 呼叫
+    `board_geo.compute_shape_board(elevations)` 時沒有帶
+    `shape_key`，所以每次都會重新抽）。main.py 的程式註解甚至寫著
+    「地圖由後端產生，雙方才保證拿到同一張」，但這個假設只有在「同一
+    房間只生成一次」時才成立，實際上並沒有這個機制。
+  - 前端 game.html 的 `fetchMapConfig()` 原本有一套「host 生成後 2 秒
+    透過 Socket.IO 廣播 SYNC_MAP、guest 收到才覆蓋本機地圖」的補救
+    機制，但跟真正的 join_game_room（加入 Socket.IO 房間）是兩條獨立
+    的非同步流程，沒有任何先後保證——guest 的 socket 可能還沒加入房間，
+    host 這邊 2 秒的廣播就已經送出並被伺服器丟棄（`sio.emit(...,
+    room=room)` 對還沒加入該 room 的 sid 是靜默失效，沒有任何重試）。
+    而且只要自己的 fetch 先成功，就會立刻把（可能是錯的）地圖寫進
+    `localStorage['pypoly_synced_map_'+roomCode]`——下次 `fetchMapConfig()`
+    開頭就會直接命中這個本機快取、直接 return，永遠不會再給 SYNC_MAP
+    補救的機會，等於一旦沒接到廣播就永久卡住，整場對局（甚至重新整理
+    後）都維持錯誤的地圖，但因為兩邊各自的地圖內部都是合法完整的 26
+    格資料，遊戲邏輯不會出錯、不會當掉，純粹是「兩邊看到的不一樣」。
+
+  修法（核心只改一個地方：讓後端對同一個房間保證回傳同一份地圖，
+  整條競速問題直接消失，不需要修補原本脆弱的廣播機制）：
+  - `main.py` 新增 `room_map_cache = {}`（跟 `active_rooms` 同一層級的
+    全域字典），`/game/map_config` 新增必填參數 `room`，函式開頭先查
+    `room_map_cache`，有就直接回傳快取、不重新生成；沒有才走原本的
+    生成邏輯，生成完存進快取再回傳。這樣同一個房間不管誰、什麼時候
+    呼叫，都保證拿到完全一樣的地圖（形狀/題目/國家內容全部一致），
+    從根本上讓這個 API 對同一房間具有冪等性。
+  - 房號正規化用 `.strip().upper()`，跟專案裡其他地方（如
+    `delete_room()`）的房號大小寫慣例一致。
+  - 刪房/房間清空/對局結束這三個既有的清理點（都呼叫共用的
+    `_clear_room_dice_state(code)`）一併補上清掉 `room_map_cache`，
+    避免房號之後被重複使用時沿用到上一局的舊地圖。
+  - `static/game.html` 的 `fetchMapConfig()` 呼叫 URL 補上
+    `&room=${encodeURIComponent(roomCode)}`——這是唯一需要改的前端
+    改動，原本「host 廣播 SYNC_MAP、本機快取 storedMap」那段邏輯直接
+    留著不動：既然後端現在保證兩邊獨立呼叫就會拿到同一份，這段廣播/
+    本機快取變成多餘但無害（不會再有實際影響，只是備援路徑），沒有
+    必要為了「乾淨」去動一個目前運作中、而且跟其他 dice_event 類型
+    共用同一個 Socket.IO 頻道的機制，風險大於收益。
+
+  ⚠️ 已知但本次不處理的邊界情況：如果同一個房號在清理之後被重新使用
+  （理論上可能發生），瀏覽器端 `pypoly_synced_map_${roomCode}` 這個
+  localStorage 快取沒有連動清掉，舊分頁沒關的話可能沿用到上一局的
+  地圖——這是前端既有的設計、跟這次修的問題無關，先記錄起來，之後
+  如果真的遇到再處理。
+
+  驗證：
+  - main.py 用 py_compile，static/game.html 用 Node vm.Script 語法
+    檢查，全部通過。
+  - 把伺服器實際開起來，用 requests 模擬「兩個裝置各自獨立呼叫同一個
+    房間」：連續呼叫兩次同一個房號，確認回傳的地圖完全相同（含棋盤
+    形狀、題目、國家內容，逐一比對整個 JSON 相等）；小寫房號也能命中
+    同一份快取；不同房號各自獨立生成、互不影響；沒帶 room 參數會被
+    FastAPI 擋下來（422），不會又變成每次都重新 random。6/6 通過。
+
+  ⚠️ 尚未做（需要實際兩台裝置連線測）：兩人連線進同一場對局，確認
+  雙方畫面的棋盤形狀、題目、國家內容完全一致；重新整理其中一方的
+  頁面，確認重整後仍跟另一方一致（驗證伺服器快取而不是本機快取在
+  保證一致性）。
+========================================================================
+
+[2026-10-13] #84 game.html 對局中沒顯示相機拍的臉（跟 #81 一樣的 bug，補到自己跟對手兩邊）
+
+  背景：使用者回報「對局中沒有正常顯示在創建角色時使用相機拍攝的
+  人臉」。這是跟 character.html 的 #81 完全同一類的 bug，只是發生在
+  game.html 自己另一份 restoreCharacterFromServer() 複製品裡，之前
+  #81 只修了 character.html，game.html 這份一直沒跟著改。之前的
+  #79/#81 計畫也明確把 game.html／results.html 的頭像渲染排在範圍
+  外，這次使用者確認要接上去修。
+
+  根因（跟 #81 一樣）：自從五官預設值改成全 'none'
+  （EMPTY_FACE_FEATURES）之後，只要存過檔 character.features 就永遠
+  是物件、不會是 null。game.html 的 restoreCharacterFromServer()
+  原本無條件呼叫 `buildFaceDataUrl(char.colors, char.features || {})`
+  合成臉——相機使用者的 features 也會是這組全 'none' 的物件，於是
+  永遠合成出一張空白臉，蓋掉本來該顯示的相機照片。
+
+  修法：
+  - `restoreCharacterFromServer()`（自己的外觀，socket 連線時觸發）：
+    改成先判斷 `Object.values(char.features).some(v => v !== 'none')`，
+    有意義的五官才用 buildFaceDataUrl 合成；沒有才去問
+    `GET /auth/camera_face`（#79 新增的 API，帶 token 查自己），有照片
+    才用那個網址。結果一樣寫回 pypoly_char_face／pypoly_char_face_${myName}，
+    下游的 broadcastMyAppearance()／loadPlayerModels() 完全不用改，
+    自動吃到正確的臉（相機照片的網址也能直接當 createCustomBoxCharacter
+    的 faceDataUrl 參數用，player-model.js 內部只是 new Image().src=...，
+    一般 URL 跟 base64 data URL 都適用）。
+  - `loadPlayerModels()` 對手分支：原本晚進房間、還沒收到對手
+    Socket.IO 外觀廣播時，已經有查 `GET /auth/character?username=`
+    補顏色的 fallback，但完全沒管臉；這次補上同一套邏輯——用同一次
+    呼叫順便拿 features，判斷有沒有意義；沒有意義或沒有 features，
+    才再查一次 `GET /auth/camera_face?username=`（不需要 token，跟
+    `/auth/character` 一樣的公開查詢慣例）。這樣對手晚進房間、或者
+    這場對局完全沒收到即時廣播，也能看到對方真正的相機照片，不是只
+    靠 Socket.IO 單一管道。
+
+  不在這次範圍：results.html 的贏家頭像渲染（renderWinnerAvatar()）
+  目前還是只查 colors，沒有查 features／camera_face——跟這次修的是
+  同一類問題，但使用者這次明確只確認要修 game.html，先不動
+  results.html，之後如果也想修可以用同一套邏輯。
+
+  驗證：
+  - static/game.html 用 Node vm.Script 語法檢查通過。
+  - 伺服器實際開機，game.html 正常載入（curl 200）。
+  - 這次沒有新增後端 API，依賴的 /auth/character、/auth/camera_face
+    行為已經在 #79／#81 用真實資料驗證過（empty features + 有相機
+    照片的帳號，兩個 API 都回傳正確資料），這裡純粹是前端邏輯接線，
+    改動模式跟已驗證過的 #81 完全一致。
+
+  ⚠️ 尚未做（需要兩台裝置實際連線測，Socket.IO 多人同步沒辦法無瀏覽器
+  代測）：用之前拍過相機照片存檔的帳號連線對局，確認自己的虛擬人物
+  正確顯示相機照片；另一位玩家晚一點加入房間，確認也能看到對方的
+  相機照片（不只是靠即時廣播，驗證 fallback 查詢真的有被用到）。
+========================================================================
+
+[2026-10-13] #85 補修 #83：非房主玩家一進房間虛擬人物站在舊地圖起點，等同步才「跳」過去
+
+  背景：使用者實測 #83（地圖房間快取）之後回報：非房主玩家剛進房間時
+  畫面會先顯示「一種隨機形狀的地圖」，虛擬人物也站在那份地圖的起點，
+  過一陣子才同步成房主的地圖形狀——但這時虛擬人物沒有跟著搬到新地圖
+  的起點，留在舊地圖的座標上，變成浮在奇怪的地方（後續流程不受影響，
+  使用者仍要求修正這個視覺問題）。
+
+  根因分兩層：
+
+  1. 真正的資料來源已經在 #83 修好了（同一房號、不管誰呼叫、什麼時候
+     呼叫 /game/map_config 都保證拿到同一份地圖），但 game.html 的
+     fetchMapConfig() 在打這個 API 之前，會先檢查 localStorage 裡
+     `pypoly_synced_map_${roomCode}` 這個本機快取，有就直接用、完全
+     不會再問伺服器——如果這個房號在這台裝置上之前（例如上一輪測試）
+     留過地圖，就會直接沿用那份舊資料，#83 的伺服器端修正完全派不上
+     用場，因為網路請求根本沒有被打出去。這正是使用者這次實測到的
+     現象：用了舊房號重測，瀏覽器裡還留著 #83 之前的舊地圖快取。
+  2. 即使退一步，單純的競速（host 跟 guest 幾乎同時各自呼叫、理論上
+     應該都拿到伺服器同一份快取結果）在目前單一 worker process 的部署
+     下其實不會真的發生——/game/map_config 整個函式內部沒有任何
+     await，Python asyncio 的協作式排程下不會在函式中途被另一個請求
+     打斷，查快取跟寫快取之間是原子的。所以真正會讓兩邊看到不同形狀
+     的，就是上面第 1 點的本機舊快取，不是伺服器端的競速。
+  3. 退一步說，就算地圖本身後來同步修正了（SYNC_MAP 收到房主廣播、
+     create3DBoard() 重蓋棋盤），這個事件處理也只會重建「棋盤本身」，
+     從來沒有連動把已經建好的玩家模型重新貼到新地圖的起點——這是
+     SYNC_MAP 這個修正路徑本身原本就有的獨立缺陷（不管觸發原因是
+     上面的本機舊快取、還是任何未來可能的其他時機），虛擬人物因此
+     卡在舊地圖的座標上。
+
+  修法：
+  - static/game.html 的 fetchMapConfig()：移除「先查本機快取、有就
+    直接用不打網路」的那段短路邏輯。後端現在已經保證同一房號的回應
+    一致，本機快取不再是同步保障的一部分，留著反而是風險（舊房號的
+    殘留資料會蓋掉 #83 的修正）。拿掉之後，每次都真的問一次伺服器，
+    成功拿到回應仍然會寫回同一個 localStorage key（給
+    triggerTask() 等其他地方當防呆 fallback 用，這部分不變）。
+  - 新增 repositionPlayerModelsToStart()：收到 SYNC_MAP、create3DBoard()
+    重蓋棋盤之後，依照模型已經記住的 laneOffset，把所有已經建好的
+    虛擬人物模型重新貼回新地圖的起點（邏輯跟 loadPlayerModels() 第一次
+    擺放時完全一樣，只是重用已記住的車道偏移，不用重新判斷是第幾位
+    玩家）。只在收到 SYNC_MAP 當下呼叫——這個時間點理論上大家都還在
+    起點，不會錯誤搬動已經走到別的格子的玩家。
+
+  驗證：
+  - static/game.html 用 Node vm.Script 語法檢查通過。
+  - 伺服器實際開機，game.html 正常載入（curl 200）。
+  - 核心的「同一房號保證回傳同一份地圖」已經在 #83 用 requests 驗證過
+    （6/6 通過），這次純粹是拿掉一段會蓋掉該修正的本機短路邏輯，以及
+    補上模型重新定位，兩者都是前端邏輯、沒有新增後端變動。
+
+  ⚠️ 尚未做（需要實際兩台裝置連線測，且最好用一個「全新、沒在這台
+  裝置測過的房號」確認）：非房主玩家進房間後，棋盤形狀應該直接就是
+  跟房主一致的最終形狀，不會先閃一次錯的再跳成對的；虛擬人物從頭到
+  尾都站在正確的起點，不會出現位置跳動。
+========================================================================
+
+[2026-10-14] #86 修復 urgent 標籤剩餘 6 個 issue：#8/#9/#11/#36/#37（#33 先觀察不直接修）
+
+  背景：GitHub 上標 urgent 的 11 個 issue，#5/#7/#32 已確認是舊 commit
+  `46d1eb3` 修好、已關閉；#10 純粹是部署環境變數沒填；#29（信箱驗證）
+  是新功能這次不排。這次處理剩下確認根因的 6 個，用背景 agent 深入讀過
+  實際程式碼，不是看標題猜；#11、#37 各有一個設計/範圍問題先跟使用者
+  確認過方向。
+
+  #36（後台編輯按鈕沒反應）：
+  - 根因：admin.html:565 的「編輯」按鈕完全沒有 onclick，對照旁邊
+    「封鎖」按鈕明顯漏掉。後端已有通用的 PUT /admin/users/{user}/role。
+  - 修法：按鈕補 onclick="openEditRoleModal(...)"，新增
+    openEditRoleModal() 複用既有 #statusModal，換成角色下拉選單
+    （一般玩家/封鎖），確認後呼叫既有的 executeRoleChange()，後端
+    不用改。
+
+  #9（小鳥飛畫面突然跳出擋住畫面）：
+  - 根因：adventure_phase_broadcast 的 autoSyncPhases 分支
+    （FLAPPY_BIRD_START 等）無條件強制拉進觀戰，完全沒檢查接收端
+    自己當下在不在 PURCHASE_DECISION/SHOP_BROWSING/SHOP_CONFIRMING
+    這些忙碌狀態；已經在觀戰中收到廣播時鏡頭是瞬間硬切
+    （camera.position.copy），沒有過渡動畫。
+  - 修法：補忙碌狀態檢查，忙碌中用跟敘述排隊一樣的輪詢等結束才真正
+    進入；enterSpectatorMode_Internal 的鏡頭移動統一改用 gsap 補間，
+    已經在觀戰時給短一點的 0.6s（原本是 1.5s 或瞬間硬切兩種）。
+
+  #8（小鳥飛小遊戲鏡頭延遲幾乎沒辦法玩）：
+  - 確認 MediaPipe 重入鎖部分（#67）已經涵蓋這個小遊戲，不是漏掉。
+    但找到一個獨立根因：gameLoop() 完全沒有 delta-time，重力/位置/
+    管道速度都是假設固定 60fps 的每幀常數，主執行緒被 MediaPipe 推論
+    拖慢時物理會跟著變慢卡頓。
+  - 修法：新增 fbLastFrameTs，gameLoop() 開頭用 performance.now() 算
+    dt（夾在 3 以內防止背景分頁切回來時暴衝），三個常數都乘上 dt；
+    拍動衝量是離散的瞬間設定值，不乘 dt。
+
+  #11（玩家離線後卡在提示畫面、雙方狀態不一致）：
+  - 確認心跳跟斷線通知現在都是活的（舊「心跳從未被呼叫」的記憶已過時），
+    但兩個具體症狀確認還在：disconnect() 完全沒把斷線玩家從
+    active_rooms[room]['players'] 移除（殭屍殘留最多留到 60 分鐘閒置
+    回收）；前端收到通知後 showGameNotice(msg, 0) 永遠不會自動消失，
+    也沒有任何按鈕可以離開。
+  - 修法（採用者確認的方向：不自動強制雙方退回大廳，讓玩家自己決定）：
+    main.py 的 disconnect() 補上跟既有 /rooms/leave 一致的移除+房間
+    清空邏輯；game.html 的 opponent_disconnected 處理補一顆「返回大廳」
+    按鈕，新函式 leaveDisconnectedRoomAndGoLobby() 呼叫既有的
+    /rooms/leave（不用新增後端）後導回 lobby.html。
+
+  #33（遊戲有時候突然卡住）：沒有明確根因，只有合理推論（決定先後手
+  以外的同步點都沒有 timeout/強制推進）。先讓 #11 的修法跑一段時間
+  觀察，不在這次直接做全面的 timeout 機制——那是牽動多個 socket
+  handler 的架構性改動，不建議在沒有實測重現的情況下貿然大改。
+
+  #37（後台遊戲數據要接真實情況，範圍已跟使用者確認）：
+  - 確認 static/game_data.html 整頁 4 張統計卡、趨勢圖、LIVE 對局列表
+    100% 是寫死的假資料，全檔案沒有打過任何統計 API。
+  - 這次只接有現成資料來源的部分：main.py 新增 GET /admin/game_stats
+    （沿用 require_admin），回傳 User.is_online 計算的在線人數、
+    active_rooms 裡 status=='gaming' 的進行中對局數與 LIVE 列表、
+    GameAnswerLog 算的今日正確率。
+  - 「伺服器延遲」「24 小時趨勢圖」沒有任何現成資料來源（量測/時間
+    序列快照都是新的追蹤基礎設施），這次改成明確的「尚未支援」文字，
+    不再顯示假數字，也不在這次新增追蹤機制。
+  - game_data.html 新增 loadGameStats()，window.onload 載入一次，
+    用跟心跳同樣的 5 秒間隔定期刷新；LIVE 列表的 3 筆靜態假資料改成
+    JS 動態渲染容器。
+
+  驗證：
+  - main.py 用 py_compile，admin.html／game.html／game_data.html 用
+    Node vm.Script 語法檢查，全部通過。
+  - 把伺服器實際開起來，用 requests 驗證 GET /admin/game_stats（帶
+    admin token 成功、不帶 token 被 401 擋下、回傳格式/型別正確）。
+  - 用兩個 socketio.Client 模擬兩個玩家進同一間測試房，驗證斷線
+    清理：一人斷線後房間還在、players 正確少一個；雙方都斷線後房間
+    被自動刪除（GET /rooms/verify 回 404）。5/5 通過，測試房自動清空
+    不留殘留。
+  - #8 的 delta-time 算式另外用一個小 Node 腳本驗證邊界值：正常 60fps
+    dt≈1、掉到 30fps dt≈2、分頁背景很久（5000ms 間隔）正確被夾在 3。
+
+  ⚠️ 尚未做（需要實際開瀏覽器/兩台裝置測）：
+  (1) 後台點「編輯」確認能跳出角色選單並正確改權限。
+  (2) 兩人對局，一人在買地決策/商店瀏覽中，確認另一人觸發小鳥飛不會
+  立刻搶畫面；已在觀戰中收到廣播時鏡頭有平滑過渡。
+  (3) 實際玩小鳥飛小遊戲，感受卡頓是否改善。
+  (4) 兩人對局中一人關分頁模擬斷線，確認另一人看到帶按鈕的提示、按下
+  後正確回到大廳。
+  (5) 後台遊戲數據頁確認 4 張卡片跟 LIVE 列表顯示當下真實情況。
+========================================================================
+[2026-10-14] #87 復原 static/preview/ 並新增 7 個對局事件預覽頁
+
+  背景：static/preview/ 其實從沒被刪過——.gitignore 本來就排除這個
+  資料夾（個人開發工具，不進版控），之前在 Fan-map 分支建立的檔案
+  只存在那個 worktree 裡，換到 Fan-fix-issue-v2 自然看不到。這次先
+  從 Fan-map worktree 復原原本的 4 個檔案（game_board.html／
+  game_player.html／game_minimap.html／game_board_shapes.html +
+  README.md），再依照 README 既有政策（預覽要用的邏輯如果還留在來源
+  html 裡又讀全域變數，必須先抽成 static/js/ 共用模組、改成接參數，
+  不能直接複製）新增 8 個對局事件的預覽頁，7 個新共用模組：
+
+  Phase 1 收購/加蓋決策面板 → game_decision.html
+  - 新增 static/js/decision-ui.js：fillDecisionUI(data,
+    activePlayerName, landData, showNotice)，比原函式多兩個參數
+    （landData 由呼叫端自己查好傳入、showNotice 取代原本直接呼叫
+    的全域 showGameNotice，預設 no-op），內部邏輯原樣搬移。
+  - game.html 3 處呼叫點改傳新簽章。
+
+  Phase 2 過路費／監獄／道具偷竊動畫 → game_events.html
+  - 新增 static/js/spectator-animations.js：playTollAnimationCore／
+    playJailAnimationCore／playStealAnimationCore 統一改成接一個
+    ctx 物件（scene／camera／playerModels／allTileMeshes／mapBlocks／
+    playerCurrentIndex／landOwnership／panoSphere／myName／
+    isSpectating／getPlayerLandColor／setBoardVisibility／showNotice／
+    playSfx），createJailCage／createShovel／spawnCombatText 一併搬
+    移。game.html 新增 buildSpectatorAnimCtx() 每次呼叫前重新組裝
+    （isSpectating 等欄位會隨時間變化，不能快取），6 處呼叫點更新。
+
+  Phase 3 道具商店 → game_shop.html
+  - 新增 static/js/shop-ui.js：SHOP_ITEMS 常數、renderShopCards()、
+    createShopAvatarStage()、renderPlayerModelInShopStage()，取代
+    game.html 原本的 5 個全域變數（shopAvatarRenderer/Scene/Camera/
+    Model/AnimationId）改成單一 let shopAvatarStage。
+
+  Phase 4 小鳥飛小遊戲 → game_flappybird.html
+  - 新增 static/js/flappy-bird.js：createInitialFlappyBirdPipe／
+    flapFlappyBird／drawFlappyBirdScene（純繪製，不改狀態，觀戰端
+    安全）／stepAndDrawFlappyBird（WAITING 狀態的 bob 位移 + 呼叫
+    drawFlappyBirdScene + PLAYING 狀態物理，回傳 {collided,
+    pipesScoredCount} 讓呼叫端自己決定 game-over/得分/socket 廣播）。
+  - 順手發現並修掉一個既存重複：觀戰端 FLAPPY_SYNC 訊號處理原本
+    自己有一份約 45 行重複的畫鳥/畫水管程式碼，改成呼叫同一份
+    drawFlappyBirdScene()。
+
+  Phase 5 擲骰子（對局中移動骰） → game_dice.html【範圍縮小】
+  - 只抽出確定是純函式、本來就多處呼叫的 drawDiceFace(ctx, img, x,
+    y, isRollingEffect) 到 static/js/dice-roll.js。
+  - 原計畫想連手勢偵測/骰子order畫面一起抽，實際讀程式碼後發現
+    startRecognitionProcess() 牽動大量全域狀態（currentLandmarks／
+    isOrderDecided／myDicePoint／cameraInstance），風險/收益不成
+    比例，改為範圍縮小：預覽頁用「模擬擲出 N 點」按鈕取代真實攝影機
+    手勢偵測。
+  - 附帶發現（這次不修，已標在模組檔頭註解）：renderOrderFrame() 整
+    個檔案都沒有任何地方呼叫，是死碼。
+
+  Phase 6 冒險答題 → game_quiz.html【範圍縮小】
+  - 新增 static/js/quiz-ui.js：renderBasicQuizQuestion()（基礎手勢
+    題的題目/選項填入，含原本 2500ms 延遲才設定 questionShownAt 的
+    時序）、renderCodeQuizQuestion()（進階程式碼題的 DOM 填入）。
+  - 附帶發現（這次不修，已標在模組檔頭註解）：
+    startAdventureRecognition() 整個檔案被定義兩次（約 1572 行跟
+    1817 行），後面那份覆蓋前面，實際生效的是 1817 那份——這次抽取
+    來源以生效的那份為準，重複宣告本身建議之後另外清理。
+  - 「答對/答錯」判定本身連後端（手勢辨識 WS／/game/verify_code），
+    預覽頁的進階題用假批改（隨機成功/失敗）取代，基礎題用「模擬
+    選對/選錯」按鈕。
+
+  Phase 7 開合跳處罰小遊戲 → game_punish.html【範圍縮小】
+  - 只抽出不連 socket 的 play3DJumpAnimation(model) 到
+    static/js/punish-minigame.js；真正「算跳了幾次」連
+    /ws/vision/jumping 給後端姿勢辨識算，payToSkipJumping() 牽涉
+    金錢/回合推進，兩者都留在 game.html，預覽頁改用按鈕模擬。
+
+  收尾：static/preview/README.md 補上這次新增的 7 個預覽頁跟 7 個
+  共用模組的索引表格。
+
+  驗證：
+  - 所有新模組／game.html 改動處用 Node vm.Script 做語法檢查，通過。
+  - 把伺服器實際開起來，用 curl 確認 game.html 跟全部 11 個預覽頁
+    （4 復原 + 7 新增）都回 HTTP 200。
+
+  ⚠️ 尚未做（3D 渲染/實際手感沒辦法無瀏覽器代測）：
+  (1) 實際玩一輪對局，確認收購決策、過路費、監獄、偷竊、商店、
+  小鳥飛、骰子、答題、處罰這 9 個被抽過模組的事件，行為跟抽取前
+  完全一致（抽模組最大風險是漏傳某個隱藏的全域依賴）。
+  (2) 11 個預覽頁逐一開啟確認畫面/互動符合預期。
+  (3)（建議之後清理，非這次範圍）startAdventureRecognition() 重複
+  宣告、renderOrderFrame() 死碼，兩者都只是發現並標註，沒有動它們。
+========================================================================
+[2026-10-14] #88 新增 4 個預覽頁，快速複測 urgent 標籤修復（#36/#37/#9/#11）
+
+  背景：#87 做的是對局事件的視覺預覽頁，這次目的不同——要能不開一局、
+  不用兩台裝置、不用登入管理員，就快速驗證 #86 修的 urgent 標籤 issue
+  目前的修復行為對不對。#33 只是觀察沒有實際修法，沒有東西可以做成
+  預覽頁；#8 不需要新模組（修法早在 #87 就已經在 flappy-bird.js 裡），
+  只在既有 game_flappybird.html 加了卡頓模擬按鈕。
+
+  Phase A（#36 後台編輯使用者角色） → static/preview/admin_edit_role.html
+  - 新增 static/js/admin-role-modal.js：fillEditRoleModal(titleEl, msgEl,
+    footerEl, targetUser, currentRole, roles, onConfirm)，從 admin.html
+    的 openEditRoleModal() 抽出純填值邏輯，onConfirm(newRole) 取代原本
+    寫死呼叫 executeRoleChange() 的部分。
+  - admin.html 的 openEditRoleModal() 改成薄包裝呼叫這個模組；
+    executeRoleChange()／後端 PUT /admin/users/{user}/role 不動。
+  - 預覽頁：假 3 人名單，「編輯」按鈕跳出下拉選單，儲存只顯示模擬結果
+    不打真的 API，不需要 admin 帳號登入。
+
+  Phase B（#37 後台遊戲數據頁） → static/preview/game_data_stats.html
+  - 新增 static/js/admin-stats-ui.js：renderGameStats(els, data)，從
+    game_data.html 的 loadGameStats() 抽出 DOM 填值部分（fetch 留在
+    原處）。「伺服器延遲」卡/趨勢圖本來就是純靜態文字，不在處理範圍。
+  - 預覽頁：4 顆按鈕餵不同假 JSON（無資料/多人多場/正確率 0/邊界值），
+    不連真的 GET /admin/game_stats。
+
+  Phase C（#9 觀戰忙碌排隊＋鏡頭過渡） → static/preview/game_spectator_busy.html
+  - 新增 static/js/spectator-camera.js：isUiStateBusy(uiState,
+    busyStates)、computeSpectatorCameraTarget(phase, data,
+    playerModels)。
+  - 範圍縮小：enterSpectatorMode_Internal() 還包含敘述打字機效果、
+    處罰可見性強制、背景球載入，這些跟 #9 修的 bug 無關，這次只抽出
+    真正被改動到的忙碌判斷跟鏡頭目標計算兩段純函式，不搬整個函式；
+    gsap.to(camera.position, ...) 補間呼叫本身（有副作用）留在
+    game.html 原處。
+  - game.html 的 adventure_phase_broadcast 忙碌判斷改呼叫
+    isUiStateBusy()；enterSpectatorMode_Internal() 算鏡頭目標的部分
+    改呼叫 computeSpectatorCameraTarget()。
+  - 預覽頁：可切換 uiState（正常/買地決策中/商店瀏覽中/商店確認中）
+    跟是否已在觀戰，送出假廣播比較忙碌排隊行為跟 1.5s（isManual）/
+    0.6s（已在觀戰）補間速度差異。
+
+  Phase D（#8 小鳥飛 delta-time 穩定性） → 擴充既有 game_flappybird.html
+  - 不用新抽模組，#8 的修法早在 #87 就已經在 static/js/flappy-bird.js
+    的 stepAndDrawFlappyBird() 裡。只在預覽頁加「模擬下一幀卡頓」按鈕
+    （用 setTimeout 真的延後下一次 requestAnimationFrame，讓既有的
+    Math.min(dt, 3) 夾值邏輯吃到真實變大的時間差）跟即時 dt 數值顯示，
+    這是測試用控制，不是遊戲邏輯，不違反抽取政策。
+
+  Phase E（#11 對手斷線通知＋返回大廳按鈕） → static/preview/game_disconnect.html
+  - 新增 static/js/game-notice.js：showGameNoticeInto(contentEl, msg,
+    duration)（原樣搬移 showGameNotice()，含既存但這次不修的
+    noticeHideTimer 競態小 bug，只在檔頭註解標註）、
+    buildDisconnectNoticeHtml(username)（組斷線通知 HTML，含「返回
+    大廳」按鈕的 pointer-events:auto 關鍵樣式）。
+  - game.html 的 showGameNotice() 改成薄包裝；opponent_disconnected
+    handler 改呼叫 buildDisconnectNoticeHtml()。
+    leaveDisconnectedRoomAndGoLobby()／後端 disconnect()／
+    /rooms/leave 不動。
+  - 預覽頁：模擬對手斷線/決定先後手離線兩種通知，自己的
+    leaveDisconnectedRoomAndGoLobby() 只顯示模擬提示，不真的連後端/
+    跳轉，方便重複測試。
+
+  static/preview/README.md 補上這 4 個新預覽頁跟 4 個新模組的索引，
+  以及 game_flappybird.html 新增的卡頓模擬功能說明。
+
+  驗證：
+  - 所有新模組／game.html／admin.html／game_data.html 改動處用 Node
+    vm.Script 做語法檢查，全部通過。
+  - 把伺服器實際開起來，用 curl 確認 game.html／admin.html／
+    game_data.html 跟這次新增/擴充的 5 個預覽頁都回 HTTP 200。
+
+  ⚠️ 尚未做（需要實際登入/兩人對局才能代測）：
+  (1) admin.html 實際點「編輯」，確認下拉選單跟儲存流程跟抽取前行為
+  一致。
+  (2) game_data.html 用真實 admin 帳號開一次，確認畫面跟抽模組前一樣。
+  (3) 實際兩人對局製造「一人在買地/商店中、另一人觸發小鳥飛」情境，
+  確認忙碌輪詢跟鏡頭補間速度跟抽模組前一致。
+  (4) 實際玩小鳥飛，確認新增的卡頓模擬按鈕不影響正常遊玩手感。
+  (5) 兩人對局一人斷線，確認通知/按鈕行為跟抽模組前一致。
+========================================================================
+[2026-10-15] #89 修復 #40：learn.html 作答紀錄只顯示錯題、顯示寫死範本文字
+
+  背景：使用者懷疑根因在 _build_learn_stats，且猜測資料庫作答紀錄本身
+  可能有空值。用背景 agent 讀完 main.py／learn.html／models.py／寫入
+  路徑，並直接查詢正式資料庫 game_answer_logs，確認是三層疊加的問題：
+  154 筆紀錄裡有 61 筆（約 40%）question_id/category/question_text/
+  correct_answer 全部 NULL（橫跨對題錯題、橫跨 9/18~10/14 多個玩家，
+  不是測試沒玩完整局的偶發現象）；_build_learn_stats 本來就沒有「全部
+  逐題紀錄」這個欄位，只有給 AI 當脈絡、只挑錯題、上限 5 筆的
+  ai_context.recent_wrong；learn.html 把這個 AI 專用欄位誤用成「全部
+  作答紀錄」，答對的部分用寫死範本（CORRECT_QUESTIONS_TEMPLATE）硬塞。
+
+  根因（game.html 寫入端，兩個獨立 bug）：
+  1. 第 1418 行 `let currentAdventureQuestion = null;` 是頂層宣告，
+     JS 規格下會永久遮蔽 window.currentAdventureQuestion 這個同名
+     屬性——後面所有 window.currentAdventureQuestion = questionObj
+     的賦值完全沒用，裸讀永遠只看到這個從未被重新賦值過的 let 綁定
+     （已用 Node 實測驗證這個行為）。
+  2. startAdventureRecognition() 整個檔案被定義兩次（函式宣告會被
+     後面覆蓋，第一份其實是死碼），存活版本裡進階程式碼題分支有設
+     window.currentAdventureQuestion，但基礎手勢題分支完全沒設——
+     玩家答基礎題時這個變數是空殼，造成 logAnswerToServer() 送出
+     的 question_text/category/correct_answer 全部是 null。
+  附帶發現：handleCodeSuccess/handleCodeFail 把字面字串
+  "CODE_CORRECT"/"CODE_WRONG" 傳給語意是整數選項編號的 chosen_answer，
+  MariaDB 非嚴格模式下靜默轉型成 0（資料庫查詢證實有 2 筆）。
+
+  修法：
+  - game.html：刪掉死碼重複宣告（原 1572-1659 行）；刪掉會遮蔽
+    window 屬性的 let 宣告，所有讀寫統一用 window.currentAdventureQuestion；
+    補上基礎手勢題分支漏寫的賦值；handleCodeSuccess/handleCodeFail
+    改傳 null 取代字面字串（程式碼題本來就沒有「選了第幾個選項」這個
+    概念）。
+  - main.py：_build_learn_stats() 新增 answer_history 欄位，把該玩家
+    全部 GameAnswerLog（不限筆數、不限對錯）轉成逐題列表回傳；
+    ai_context.recent_wrong 維持原樣不動（它是給 AI 用的穩定契約）。
+    POST /game/answer_log 補一行防呆警告：category/question_text
+    都空時印警告 log，方便以後有新呼叫端漏傳欄位能第一時間發現。
+  - learn.html：loadStats() 改用 answer_history 當唯一資料來源，刪掉
+    死碼分支（data.questions，後端從未回傳過這個 key）、刪掉
+    CORRECT_QUESTIONS_TEMPLATE 寫死範本硬塞對題卡片的整段邏輯、刪掉
+    OPTION_FALLBACK_MAP 關鍵字猜測表（原本排在真資料前面查，會蓋掉
+    資料庫真內容）。新增程式碼題顯示分支（question 有內容但
+    chosen/correct 都是 null → 判定為 AI 批改的程式碼題，顯示對應
+    徽章，不印選項數字）；新增防禦性 fallback（question 本身是 null
+    時顯示「未記錄」，不再冒充假題目）。
+  - 一次性清理既有 61 筆壞資料（已跟使用者確認：直接刪除，無法回頭
+    還原內容，question_id 也是空的）：
+    DELETE FROM game_answer_logs WHERE question_text IS NULL;
+    執行後 154 筆剩 93 筆，壞資料歸零。
+
+  驗證：
+  - main.py 用 py_compile，game.html／learn.html 用 Node vm.Script
+    做語法檢查，全部通過。
+  - 清理腳本執行前後各查一次 COUNT(*)，確認從 61 變成 0。
+  - 把伺服器實際開起來，用 requests 模擬修好後 logAnswerToServer()
+    會送出的 payload：一筆基礎選擇題（有完整 category/question_text/
+    chosen/correct）+ 一筆程式碼題（question_text 有內容但
+    chosen/correct 是 null），兩筆都成功寫入；再打
+    GET /learn/stats?username=112213070 確認回應的 answer_history
+    裡這兩筆內容跟剛剛送出的完全一致，測試資料測完即清除不留殘留。
+
+  ⚠️ 尚未做（需要實際玩一局才能代測）：
+  (1) 實際玩一局（基礎題+進階題都要碰到），結束後開 learn.html，確認
+  「作答紀錄」顯示真正答過的題目內容，不會再出現「正解」或「【XX】
+  基礎觀念測驗」這種假文字。
+  (2)「只看對題」「只看錯題」兩個篩選分頁都能正確顯示，不會再只看到
+  錯題。
+========================================================================
+[2026-10-15] #90 補修 #89：作答紀錄的「當時選擇」/「正確答案」顯示選項實際內容
+
+  背景：#89 修完之後，使用者實測發現「當時選擇」/「正確答案」顯示的是
+  「選項 1」這種編號形式，不是選項的實際文字內容。根因：game_answer_logs
+  原本就只存 chosen_answer/correct_answer 兩個整數（1~4），從沒存過
+  選項文字本身；#89 移除的 OPTION_FALLBACK_MAP 猜測表雖然會蓋掉真資料
+  是對的決定，但拿掉之後沒有真正的選項文字可用，只能顯示編號。
+
+  跟 question_text/category 一樣的理由（questions.opt1~4 會被 seed_data
+  清空重建，事後用 question_id 回頭查會對不上），選項文字也必須在
+  答題當下存成快照，不能事後用 question_id 查回去。
+
+  修法：
+  - models.py：GameAnswerLog 新增 chosen_text／correct_text 兩個
+    nullable 欄位（VARCHAR(200)），已對正式資料庫執行
+    ALTER TABLE 新增這兩欄。
+  - game.html：logAnswerToServer() 新增從 window.currentAdventureQuestion
+    .options 陣列（跟題目畫面渲染用的是同一份，索引規則一致：第 idx 個
+    選項對應第 idx+1 號）取出 chosenText/correctText 一併送出；程式碼題
+    沒有 options，兩者自然是 null，不用額外判斷。
+  - main.py：POST /game/answer_log 存這兩個新欄位；_build_learn_stats()
+    的 answer_history 一併回傳。
+  - learn.html：formatChosenOrCorrect() 改成優先顯示 chosen_text/
+    correct_text 真內容，只有這個欄位上線前就寫入的舊紀錄（沒有文字
+    快照）才退回顯示「選項 N」，兩者都沒有才顯示「未記錄」。
+
+  驗證：
+  - main.py 用 py_compile，game.html／learn.html 用 Node vm.Script
+    做語法檢查，全部通過。
+  - 把伺服器實際開起來，用 requests 模擬送出帶 chosen_text/correct_text
+    的 payload，打 GET /learn/stats 確認回應裡的 answer_history 正確
+    帶出選項文字本身（例如「0, 1, 2」）而不是數字，測試資料測完即清除。
+
+  ⚠️ 尚未做（需要實際玩一局才能代測）：
+  實際玩一局基礎手勢題，結束後開 learn.html 確認「當時選擇」/「正確
+  答案」顯示的是選項文字本身。
+========================================================================
+[2026-10-15] #91 一次性回填既有作答紀錄的 chosen_text/correct_text
+
+  背景：#90 新增了 chosen_text/correct_text 欄位，但只有欄位上線後
+  新寫入的紀錄才會有值——#89 清理後留下的 93 筆舊紀錄（只有
+  chosen_answer/correct_answer 兩個整數）仍然只能顯示「選項 N」。
+  使用者要求把這些舊紀錄也補上真正的選項文字。
+
+  做法：寫一個一次性 Python 腳本，用 question_id 去 join 回
+  questions 表，但只在 question_text（答題當下的快照）跟
+  questions.content（目前題庫內容）完全一致時才回填——這樣能避免
+  seed_data 把題庫清空重建後 question_id 對應到完全不同題目、誤植
+  錯誤選項文字的風險（models.py 原本的註解就是為了這個理由才要求
+  question_text/category 要存快照，這次回填延續同一個判斷標準）。
+
+  結果：93 筆裡有 91 筆 question_id 對得上題庫內容（qtype=choice，
+  有 opt1~4 可用），成功回填 chosen_text/correct_text；剩下 2 筆
+  是手勢型「直接算出答案並比手勢」的題目（qtype 非 choice，結構上
+  沒有選項可言，answer 本身就是算出來的數字而不是選項編號），維持
+  chosen_text/correct_text 為 NULL，learn.html 顯示端會自動退回
+  顯示「選項 N」——這 2 筆的「選項」字樣其實語意上不完全貼切（該
+  數字是手勢比出來的計算結果，不是「第幾個選項」），但這是既有
+  手勢題型本身的呈現方式，不在這次回填任務範圍內，先不動。
+
+  驗證：
+  - 回填前後都查了 COUNT(*)，確認 91 筆成功補上、2 筆維持 NULL
+    （符合預期，不是漏填）。
+  - 抽樣檢查回填後的內容（例如「8」、「print('Hello')」、
+    「0,1,2」、「True」/「False」），確認是選項文字本身，不是編號。
+========================================================================
+[2026-10-15] #92 修復 4 個 polish 標籤 issue：#17/#19/#23/#38
+
+  背景：上一輪列出全部 9 個 polish 標籤 issue 並逐一查過根因/檔案/
+  改動幅度，確認其中 #17/#19/#23/#38 根因明確、改動小，可以直接動工。
+  寫計畫的過程中發現 origin/jiajiun-next 有新 commit（194651b
+  "bug17&23"）已經修過 #17/#23，但只在那個分支上、還沒進到這個
+  Fan-fix-issue-v2，GitHub 上這兩個 issue 也還是 open；另外組員已經
+  把 #25（平板第 2 回合後變延遲）在 GitHub 上關閉，這次不碰。
+  #17/#23 這次改成直接套用跟 jiajiun-next 一致的修法，避免之後合併
+  時兩邊各自修出不同版本互相打架。其餘 4 個（#26/#31/#30/#15）需要
+  使用者先給方向或自行驗證，這次不處理。
+
+  #17（後台下拉選單殘留「手勢比數字」題型）：
+  - static/question.html 篩選列的 gesture 選項改成 HTML 註解掉；
+    新增/編輯 modal 的 gesture 選項改成 hidden disabled，文字改成
+    「手勢比數字（舊題型，停止新增）」。
+  - 刻意不刪 blockGesture 區塊跟所有 qtype==='gesture' 的 JS 分支——
+    如果題庫裡還留著舊的手勢題資料，後台還能正常顯示/編輯既有資料，
+    只是不能再選這個題型去新增。跟 jiajiun-next commit 194651b 的
+    改法逐字一致。
+
+  #23（骰子辨識畫面第一次後會縮小）：
+  - 根因：virtualScreen 是整個場景共用的單一 Mesh，收購決策/商店/
+    處罰/答題等不同階段各自把它縮成不同比例（0.67/0.75/1.0/1.4），
+    但骰骰子移動這條路徑（startMainTurn）從沒把 scale reset 回去，
+    會沿用玩家上一次停留階段遺留的縮放值。
+  - 修法：在 startMainTurn 的 virtualScreen.position.copy(screenPos)
+    後面補一行 virtualScreen.scale.set(1, 1, 1)。跟 jiajiun-next
+    commit 194651b 的改法逐字一致。
+
+  #19（骰子比手勢流程的動畫/暫停體驗）：
+  - 確認「暫停 1~2 秒」是兩處寫死的 setTimeout(1500) 空等，不是等
+    動畫播完；棋子移動動畫（movePlayerSequence + spawnStepBubble）
+    其實已經做好，只是被這段延遲往後推。
+  - 修法（兩處都改）：主流程 socket.on('dice_game_status', ...) 跟
+    GESTURE 分支（visionSocket.onmessage 裡）都補上「即將前進 N 步」
+    提示文案，空等時間從 1500ms 縮短到 800ms（不整個拿掉是因為這段
+    還兼顧關閉攝影機/視訊軌道的清理工作）。
+
+  #38（房間列表刷新後瞬間顯示預設文字）：
+  - 根因：renderRooms() 成功路徑已經有「內容沒變就不重寫 DOM」的
+    防閃爍判斷，但 catch 區塊完全沒有這層保護，任何一次輪詢失敗
+    （網路小抖動/ngrok 警告頁）就無條件把列表覆蓋成錯誤訊息，下一輪
+    成功了才換回正常列表。
+  - 修法：加一個連續失敗計數器，只有連續失敗達到 2 次（至少 20 秒
+    都抓不到資料）才真的覆蓋畫面顯示錯誤；單次失敗只記 log，保留
+    畫面上原本的列表不動。
+
+  驗證：
+  - static/question.html／static/game.html／static/lobby.html 用
+    Node vm.Script 做語法檢查，全部通過。
+  - 把伺服器實際開起來，用 curl 確認三個頁面都回 HTTP 200。
+
+  ⚠️ 尚未做（需要實際開瀏覽器/平板才能代測）：
+  (1) question.html 新增題目，確認下拉選單只剩「四選一」「手打程式碼」
+  可選，舊的手勢題資料（如果題庫裡還有）仍能正常顯示/編輯。
+  (2) 骰骰子移動，確認畫面大小從第一次到之後都保持一致。
+  (3) 比完手勢後，確認提示文案顯示「即將前進 N 步」、暫停時間變短、
+  棋子移動動畫銜接是否順暢。
+  (4) 大廳開著畫面放一段時間（跨過幾次 10 秒輪詢），確認不會再瞬間
+  跳出「房間列表載入失敗」又消失。
+========================================================================
+[2026-10-26] #93 修復對局中虛擬人物臉部全黑（character.html 清除人臉後殘留失效網址）
+
+  背景：使用者回報在 character.html 清除人臉後，對局中虛擬人物臉部
+  （只有臉那一面）會整片全黑。查證後是三個問題疊加，不是單一 bug。
+
+  根因：
+  1. character.html 的人臉資料存在兩個 localStorage key：通用的
+     pypoly_char_face，跟 game.html 實際讀取的 pypoly_char_face_<username>。
+     clearFace()／clearFaceFeatures() 都只清了前者，從沒清過後者；
+     mirrorFaceToUserKey()（存檔時執行）在 pypoly_char_face 是空的
+     時候也什麼都不做，不會清掉後者的舊值。於是「清除人臉」整個流程
+     走完，per-user key 仍殘留清除前的舊網址——而 clearFace() 當下
+     已經呼叫 DELETE /auth/camera_face 把伺服器檔案真的刪了。
+  2. game.html 建立自己模型時（約第 3167-3176 行）直接信任這個殘留
+     網址，沒有像對手分支一樣「本機沒快取到才去問伺服器」的防呆。
+  3. static/js/player-model.js 的 createCustomBoxCharacter() 載入
+     人臉圖片時只處理 onload，完全沒有 onerror——網址 404 時材質
+     陣列已經先組好、貼圖永遠沒有真正的像素資料，WebGL 渲染出來
+     就是全黑，正好只有臉那一面（陣列 index 4）用到這個壞掉的材質。
+     game.html 的 updateMeshFaceTexture() 也有半成品防呆：
+     faceDataUrl 是 null 時直接 return，沒有把材質重設回純色，所以
+     就算之後 restoreCharacterFromServer() 正確問到伺服器「沒有相機
+     照片」，也沒辦法糾正畫面。
+
+  修法：
+  - character.html：clearFace()／clearFaceFeatures() 補上清除
+    pypoly_char_face_<username>；mirrorFaceToUserKey() 在
+    pypoly_char_face 是空的時候改成明確 removeItem 這個 per-user key，
+    不再略過不處理。
+  - static/js/player-model.js：createCustomBoxCharacter() 改成先用
+    單一純色材質建立 headMesh，有 faceDataUrl 時才非同步載入圖片，
+    onload 成功才把材質換成帶貼圖的陣列，onerror 時明確退回單一
+    純色材質，不會再卡在全黑的半成品狀態。
+  - game.html：updateMeshFaceTexture() 的 faceDataUrl 為 null 分支
+    改成明確把材質重設回單一純色，而不是直接 return 什麼都不做。
+
+  不在這次範圍：game.html 自己模型的面板缺少「本機沒快取到才去問
+  伺服器」防呆（跟對手分支不對稱）這點沒有額外補——上面四個修法已經
+  從根本堵住「清除後留下失效網址」跟「失效網址造成全黑」兩個環節，
+  這個不對稱純粹是設計一致性問題，不是這次全黑 bug 的必要條件，先
+  不擴大範圍。另外 updateMeshFaceTexture() 的圖片載入失敗（非
+  faceDataUrl 為 null，而是圖片本身 404）分支，退回的是 loadTextureSafe
+  內建的深色純色貼圖（#1e293b），不是真正的膚色——這是另一個較小的
+  顏色不一致，不影響「全黑」這次的主要症狀，先標註不處理。
+
+  驗證：
+  - static/game.html／static/character.html 用 Node vm.Script 做
+    語法檢查，static/js/player-model.js 用 node -e 直接編譯檢查，
+    全部通過。
+  - 把伺服器實際開起來，用 curl 確認三個檔案都回 HTTP 200。
+
+  ⚠️ 尚未做（需要實際開瀏覽器才能代測）：
+  (1) 實際在 character.html 設定相機人臉、存檔、進對局確認正常顯示；
+  清除人臉、存檔、再進對局確認臉部恢復成純色膚色，不會再全黑。
+  (2) 這次修的是「以後清除才會正確清乾淨」，使用者自己瀏覽器裡**現在
+  已經殘留**的 pypoly_char_face_<username> 舊值不會自動被清掉，需要
+  使用者在 character.html 重新按一次「清除人臉」（跑到新版
+  clearFace()）或自行清掉瀏覽器的 localStorage，新程式碼才會生效。
+========================================================================
+[2026-10-26] #94 收購決策觀戰視角：去除角色白底、位置改用跟遊玩玩家視角一致的公式
+
+  背景：組長要求「收購決策觀戰畫面和諧一點，背景看需不需要調整」，
+  使用者的想法是「人物位置跟遊玩玩家視角的虛擬人物位置相同，去掉
+  白色背景」。查過兩邊程式碼後確認：
+
+  遊玩玩家視角（決策當下）看到的是自己的真實攝影機畫面
+  （initCameraAndStartVision() 開 getUserMedia），畫在 virtualScreen
+  這個平面上——疊在主場景 panoSphere 全景照片前面，用
+  camera.position + forward/right 偏移算位置，完全沒有顯示自己的
+  3D 角色方塊。
+
+  觀戰視角（看不到決策者的真實攝影機串流）用
+  renderPlayerModelInActiveVisionFrame()（static/game.html 原第
+  2322-2476 行）生一個 3D 角色方塊頂替，但這個函式另開了一個完全
+  獨立的迷你 3D 舞台（自己的 window.spec3DScene/spec3DCamera/
+  spec3DRenderer），寫死 300×170px、白色背景、-35px 位移，直接把
+  .vision-frame-right 原本「大面積、靠下、透明背景」的版面蓋掉，
+  所以看起來像貼紙浮在全景照片上，位置也跟遊玩玩家視角的
+  virtualScreen 對不上。
+
+  附帶發現：window.spec3DModel 這個變數名稱被這個函式跟小鳥飛觀戰
+  專用的 renderFlappyBirdAvatarSpectator()（有自己獨立的
+  window.fbSpec3DScene 等）共用，兩邊各自想從不同的 scene 移除它，
+  會互相覆蓋、讓舊 clone 變孤兒物件殘留在錯的 scene 裡（小洩漏，
+  跟 changeLog #68/#93 同一類問題）。
+
+  修法：不再另開迷你 3D 舞台，renderPlayerModelInActiveVisionFrame()
+  改成直接把替身 clone 放進主場景 scene，位置用跟 virtualScreen
+  完全一樣的「相機位置 + forward/right 偏移」公式計算，角色因此自然
+  站在全景照片前面，不再需要白色背景，不需要自己的
+  renderer/動畫迴圈（進了主場景跟著主渲染迴圈一起畫）。改用全新的
+  window.specDecisionAvatarModel 取代 window.spec3DModel，附帶修掉
+  跟小鳥飛觀戰共用變數名稱造成的殘留洩漏；resetToGodViewState() 補
+  一行清理，離開觀戰/回到上帝視角時把這個替身從主場景移除。
+  renderFlappyBirdAvatarSpectator()／window.fbSpec3D*／FLAPPY_FLAP
+  事件處理完全沒有改動。
+
+  AVATAR_FORWARD(3.2)/AVATAR_RIGHT(0.5)/AVATAR_DOWN(1.0)/
+  AVATAR_SCALE(0.9) 這組位置/大小參數沒辦法不開瀏覽器就知道好不好
+  看，先抓一組起點值，實測後再微調。
+
+  QUIZ/QUIZ_CODE 兩個觀戰階段共用同一個函式，這次修完後一併受益，
+  觀戰別人答題時也會從白底浮貼圖變成融入全景照片的角色。
+
+  驗證：
+  - static/game.html 用 Node vm.Script 做語法檢查，通過。
+  - 把伺服器實際開起來，用 curl 確認頁面回 HTTP 200。
+  - 確認移除後的程式碼沒有留下會報錯的殘留呼叫：僅存的
+    'spectator-universal-3d-canvas' 查詢都有 if (specCanvas) 防呆，
+    不會因為這個元素不再被建立而出錯；window.spec3DModel/
+    window.fbSpec3DScene 確認只剩 renderFlappyBirdAvatarSpectator()
+    跟 FLAPPY_FLAP 處理在用，完全沒有被這次改動影響。
+
+  ⚠️ 尚未做（3D 定位/觀感沒辦法無瀏覽器代測，是這次任務本身的核心
+  風險）：
+  (1) 兩人對局，一人觸發收購決策，另一人用觀戰視角確認角色不再有
+  白色背景、位置/大小是否協調，AVATAR_FORWARD/RIGHT/DOWN/SCALE
+  這組初始值大機率需要微調。
+  (2) 答題（基礎手勢題/進階程式碼題）觀戰視角一併確認沒有跟著壞掉。
+  (3) 小鳥飛觀戰視角確認完全不受影響。
+  (4) 確認離開觀戰模式（按「回到上帝視角」）後，角色方塊不會殘留。
+========================================================================
+[2026-10-26] #95 修復虛擬人物跑到地圖正中央（經過健身格/商店格時出現）
+
+  背景：使用者回報經過健身格、商店格時，遊玩方或觀戰方其中一方的
+  虛擬人物會跑到地圖正中央。用 3 個背景 agent 分別查了一般移動的
+  位置同步機制、健身格（PUNISH）流程、商店格（SHOP）流程，三組
+  研究互相印證：健身格跟商店格本身的程式碼完全乾淨，從走到格子、
+  處理、到結束都沒有動過玩家模型本尊的 .position（商店格唯一會動
+  座標的是 .clone() 出來的獨立商店舞台替身，不影響本尊）。真正的
+  問題在更早的答題階段：
+
+  1. showAdventureCharacter()（第 1660-1684 行，QUIZ/QUIZ_CODE 答題
+     時呼叫）會把本尊 playerModels[myName] 直接搬到「攝影機前方
+     3.2、往下 1.6」這個跟棋盤座標完全無關的位置，讓玩家答題時
+     看得到自己的角色。
+  2. resetToGodViewState()（第 6470 行起，每次換人回合都會呼叫）
+     的註解宣稱會把人物歸位，但實際上只做 .lookAt()（改朝向）跟
+     .visible，從頭到尾沒有任何一行 .position.set()，根本沒有真的
+     歸位。玩家答完題、沒有在同一回合內再擲骰移動的話，本尊會一路
+     卡在答題時的座標，直到下一次 movePlayerSequence() 才會被動畫
+     帶走。
+  3. 為什麼看起來像地圖正中央：Three.js 的 THREE.Group（角色模型
+     本體）建構子預設 position 就是 (0,0,0)，而棋盤 26 格是以
+     (0,0,0) 為幾何中心排成一圈的環，沒有一格落在原點——loadPlayerModels()
+     （第 3156 行起）建立模型時直接讀 mapBlocks[0]/[1] 完全沒有
+     防呆（旁邊職責重疊的 repositionPlayerModelsToStart() 反而有
+     防呆），如果某個瀏覽器（常見於觀戰者/對手）執行到這裡時
+     mapBlocks 還是空的，會直接丟例外，模型就精準卡在 Three.js
+     預設的 (0,0,0)，從建立那一刻就沒離開過地圖正中央。
+
+  修法：
+  - resetToGodViewState()：補上真正的 .position.set()，用
+    playerCurrentIndex[pName] 對應的 mapBlocks 座標 + 跟
+    movePlayerSequence() 同一套 ±0.8 車道偏移、+0.8 高度慣例，不只
+    改朝向。
+  - loadPlayerModels()：建立模型時設定初始座標那段補上
+    mapBlocks.length >= 2 的防呆（比照 repositionPlayerModelsToStart()
+    既有寫法），mapBlocks 還沒就緒時不中斷整個迴圈，模型留在預設
+    位置，等地圖同步完成後交給已經存在的 repositionPlayerModelsToStart()
+    補上正確座標。
+  - movePlayerSequence()：研究時發現這個函式內部有多處沒有防呆的
+    查表/解析（mapBlocks[playerCurrentIndex[playerName]]、
+    JSON.parse(localStorage.getItem('pypoly_game_snapshot')).players），
+    一旦短暫讀到空值丟例外會讓 isMoving 永遠卡在 true、該玩家之後
+    所有移動指令都被擋掉——順手加固，整個函式主體包進
+    try/finally，保證 isMoving 一定會被重置，不改變正常移動的
+    行為。
+
+  不在這次範圍：playerCurrentIndex 完全沒有伺服器權威狀態、沒有
+  reconnect/resync 機制（兩邊各自重播 {user, steps} delta 自行
+  累加），這是更大的架構缺口，會造成「格子編號本身兩邊對不起來」
+  這個不同症狀，這次不處理；研究中額外發現的其他 5 處
+  JSON.parse(localStorage...).players 無防呆呼叫（不在
+  movePlayerSequence() 內）這次也不處理，留著之後一次性處理。
+
+  驗證：
+  - static/game.html 用 Node vm.Script 做語法檢查，通過。
+  - 把伺服器實際開起來，用 curl 確認頁面回 HTTP 200。
+
+  ⚠️ 尚未做（位置/動畫沒辦法無瀏覽器代測，是這次任務本身的核心
+  風險）：
+  (1) 兩人對局，一人答對一題進入收購決策或直接結束回合（不要緊接著
+  再擲骰），換手後確認自己的角色正確站在原本的格子上。
+  (2) 接著走到健身格、商店格，確認雙方視角（遊玩方+觀戰方）角色
+  位置都正常，不會出現在地圖正中央；特別測「答題→直接經過健身格/
+  商店格」這個最容易觸發的連續情境。
+  (3) 測一輪完整對局，確認 movePlayerSequence() 的 try/finally
+  加固沒有改變正常移動的動畫/行為。
+========================================================================
+[2026-10-26] #96 新增收購/加蓋土地動畫預覽頁，沿用既有開合跳預覽頁
+
+  背景：使用者反饋答對問題選擇收購土地時的動畫、以及開合跳處罰的
+  動畫看起來都有點問題，想各自獨立做成 preview 頁面調整。
+
+  1. 收購/加蓋土地動畫：比照本輪其他預覽頁的「先抽模組、不要複製」
+     慣例，把 game.html 原本寫死的 createHouse()／
+     runPurchaseAnimation() 抽到新檔 static/js/purchase-animation.js
+     （createHouse() 原樣搬移；runPurchaseAnimation() 改名
+     runPurchaseAnimationCore(ctx, ...)，改吃跟 buildSpectatorAnimCtx()
+     同一套 ctx 形狀）。game.html 三處呼叫點（land_bought_sync 兩個
+     分支 + executePurchase() 自己購買的分支）改呼叫
+     runPurchaseAnimationCore(buildSpectatorAnimCtx(), ...)，行為
+     完全不變。新增 static/preview/game_purchase.html：單一角色
+     Alice 站在測試地塊上，三顆按鈕——播放收購（空地蓋新房）、播放
+     加蓋（已有房子再加一層）、重設格子——方便反覆測試同一段動畫
+     調時間/位置。⚠️ 命名澄清：使用者說的「插旗」在程式碼裡實際是
+     鏟子挖地 + 蓋房子的動畫（grep 全專案沒有任何插旗相關程式碼），
+     已在預覽頁面上註明，避免誤會成功能缺失。
+
+  2. 開合跳動畫：檢查後發現 static/preview/game_punish.html **已經
+     存在**（抽對局事件模組那輪做的），已經有「模擬跳一次」按鈕可
+     直接重複觸發 play3DJumpAnimation()、搭配可自由旋轉的鏡頭，足以
+     滿足這次調整動畫的需求，直接沿用，沒有重做一份。
+
+  驗證：
+  - static/game.html、static/js/purchase-animation.js、
+    static/preview/game_purchase.html 都用 Node vm.Script 做語法
+    檢查，通過。
+  - 把伺服器實際開起來，用 curl 確認上述檔案加上
+    static/preview/game_punish.html 都回 HTTP 200。
+
+  ⚠️ 尚未做（3D 視覺效果的位置/時間/鏡頭角度好不好看，沒辦法無瀏覽器
+  代測，需要使用者自己開啟兩個預覽頁用眼睛判斷再調參數）：
+  (1) 開 static/preview/game_purchase.html，分別點兩顆播放按鈕，
+  觀察挖地動作、鏡頭運鏡、房子長出來的時機與位置是否符合預期。
+  (2) 開 static/preview/game_punish.html，重複點「模擬跳一次」，
+  觀察開合跳的動作幅度/節奏是否符合預期。
+========================================================================
+[2026-10-26] #97 預覽頁加上座標調整面板（手臂/鏟子）＋ 修復蓋房子後格子下沉
+
+  背景：使用者反饋上一輪新增的兩個動畫預覽頁裡，手臂、鏟子的擺放
+  看起來有點怪，但用文字描述 3D 旋轉/位移很難溝通，要求直接在預覽頁
+  上加一個可互動調整面板。同時使用者實測 game_purchase.html 時發現
+  蓋房子後格子似乎會下沉，懷疑是 bug，要求一併處理。
+
+  1. 蓋房子後格子下沉——確認是真 bug：
+     static/js/purchase-animation.js 的 runPurchaseAnimationCore()
+     收尾動畫把格子的 y 寫死成 gsap.to(targetTile.position, { y: 0.5,
+     ... })，但棋盤 26 格裡（static/js/board-layout.js 的
+     BOARD_HEIGHTS）只有 4 格原始高度天生是 0.5，其餘 22 格範圍
+     0~4，地形類型也完全不影響高度（查過 board-build.js／
+     board-terrain.js）。蓋房子時格子被拉去這個固定值，原始高度
+     不是 0.5 的格子蓋完房子後看起來就像下沉或上浮。改成
+     y: tilePos.y（函式一開頭已存好的格子原始高度），蓋完房子後維持
+     原高。改在共用模組裡，game.html 跟預覽頁一起吃到修正。
+
+  2. 新增共用模組 static/js/transform-gizmo.js：
+     createTransformGizmoPanel({ renderer, camera, pageName, targets })
+     ——純函式、不汙染全域，沿用 minimap.js/shop-ui.js 同一套模組
+     慣例。對每個指定的 Object3D 提供 position/rotation 數字輸入框
+     + 微調按鈕（滿足「可以旋轉、上下左右移動」），並在畫面上對應
+     物件旁邊放一個跟著物件世界座標投影位置走的浮動標籤（滿足
+     「加上座標並顯示在物件旁邊」）。「💾 儲存」按鈕把所有 target
+     當前的 position/rotation 存成 JSON——優先用瀏覽器的
+     showSaveFilePicker()（Chrome/Edge 可直接選到 static/preview/），
+     不支援則 fallback 成自動下載，面板上有提示字樣說明這種情況要
+     自己手動搬進 static/preview/。
+
+  3. static/preview/game_punish.html：接上調整面板，target 是
+     leftArm／rightArm（開合跳動畫唯一會動的兩個部位）。
+
+  4. static/preview/game_purchase.html：接上調整面板，target 是
+     leftArm／rightArm／鏟子。鏟子部分額外建了一個「調整用」的獨立
+     鏟子實例（跟真正動畫會臨時建立/移除的鏟子分開），播放收購/加蓋
+     動畫時暫時隱藏避免同框重疊，動畫播完恢復顯示繼續可調。
+
+  驗證：
+  - static/js/transform-gizmo.js、static/js/purchase-animation.js、
+    static/preview/game_purchase.html、static/preview/game_punish.html
+    都用 Node vm.Script 做語法檢查，通過。
+  - 把伺服器實際開起來，用 curl 確認上述 4 個檔案都回 HTTP 200。
+
+  ⚠️ 尚未做（面板好不好用、標籤位置準不準、拖拉手感如何，沒辦法無
+  瀏覽器代測，需要使用者自己開開看）：
+  (1) 開兩個預覽頁，確認調整面板出現、浮動標籤跟著物件移動。
+  (2) 用數字輸入框/微調按鈕調整手臂/鏟子，確認畫面物件跟著動、
+  標籤數字同步更新。
+  (3) 點「💾 儲存」，確認能存出 JSON（或至少觸發下載）。
+  (4) 在 game_purchase.html 重新測蓋房子/加蓋動畫，確認格子不再
+  下沉/上浮。
+
+  ⚠️ 不在這次範圍：這次只做調整工具跟存 JSON，不讀 JSON、不改
+  player-model.js／spectator-animations.js 裡手臂、鏟子的實際座標
+  ——等使用者調好存出 JSON 後，下一輪再讀那份 JSON 手動套用。套用
+  時要注意：leftArm/rightArm 的座標是全專案共用的角色模型本體
+  （player-model.js 的 createCustomBoxCharacter()），套用會影響整個
+  遊戲的角色姿勢，不只這兩個動畫；鏟子座標有兩個呼叫點（收購動畫、
+  搶奪動畫）目前數值剛好相同，套用收購頁調出來的 JSON 只會改收購
+  動畫那一處，不會動搶奪動畫。
+========================================================================
+[2026-10-26] #98 座標調整面板移到畫面右側
+
+  使用者反饋 #97 新增的座標調整面板（static/js/transform-gizmo.js）
+  擋在左下角不好看，要求移到右邊。原本是 left:16px; bottom:16px，
+  但兩個預覽頁的右下/右上角都已經有別的元件（game_purchase.html
+  右下角是 noticeLog 提示框，game_punish.html 右上角是跳躍次數
+  counter），直接放右下或右上都會疊到——改成 right:16px; top:50%;
+  transform: translateY(-50%)，貼右邊垂直置中，兩頁都不會跟既有元件
+  重疊。
+
+  驗證：static/js/transform-gizmo.js 用 Node vm.Script 做語法檢查，
+  通過。CSS 定位本身沒辦法無瀏覽器代測，需要使用者自己看一下位置。
+========================================================================
+[2026-10-26] #99 套用收購鏟子角度＋修正開合跳手臂的旋轉軸心與方向
+
+  背景：#97/#98 做的調整面板讓使用者可以在預覽頁實測。使用者先在
+  game_purchase.html 調好鏟子角度存成 JSON，又在 game_punish.html
+  實測開合跳動畫後回報：手臂旋轉目前以整條手臂的正中間為軸、依 RZ
+  正方向轉，應該是以手臂頂端（肩膀）為軸心、往 RZ 負方向轉。先在
+  兩個預覽頁裡各自用本地覆寫驗證過兩個修法都正確，使用者確認沒問題
+  後，這次正式套進共用模組。
+
+  1. static/js/purchase-animation.js：鏟子 `shovel.rotation.x =
+     Math.PI / 2;` 後面加一行 `shovel.rotation.z = Math.PI;`——套用
+     使用者用調整面板調出來、存在
+     static/preview/game_purchase_transform.json 的角度（該檔案是
+     預覽頁暫存記錄，套用完已刪除，不進版控）。只套這個收購動畫的
+     呼叫點，沒有動 static/js/spectator-animations.js 裡搶奪動畫的
+     鏟子（即使數值目前剛好相同，那是不同功能）。
+
+  2. static/js/player-model.js：`createCustomBoxCharacter()` 的
+     `leftArm`/`rightArm` 原本是直接掛在角色根節點下、用置中
+     BoxGeometry 的 Mesh，旋轉軸心在整條手臂的正中間。改成「肩膀
+     Group（沿用 leftArm/rightArm 這兩個名字，所有既有呼叫點用
+     getObjectByName 找這兩個名字完全不用改）＋ 裡面才是真正的手臂
+     Mesh（新名字 leftArmMesh/rightArmMesh，往下偏移半截手臂長度）」
+     兩層結構，靜止姿勢視覺位置跟原來完全一樣，只有旋轉軸心從手臂
+     中間移到肩膀。這是全專案共用的角色模型本體，除了開合跳，
+     game.html 裡另外兩處揮手動畫（觀戰收到 FLAPPY_FLAP 廣播的揮手、
+     經過起點的慶祝動畫）也會一起吃到肩膀軸心修正，但那兩處的揮動
+     方向/幅度這次沒有調整，維持原樣。
+
+  3. static/js/punish-minigame.js：`play3DJumpAnimation()` 裡
+     `leftArm`/`rightArm` 的 `rotation.z` 目標值正負號互換——原本的
+     方向會讓垂下的手臂往身體內側甩（跟開合跳張開的動作相反），改成
+     讓兩隻手臂同時往身體外側甩開。
+
+  4. static/preview/game_punish.html：拿掉上一輪為了先驗證而加的
+     本地 `rebuildArmPivots()`/`previewJumpAnimation()`
+     （player-model.js／punish-minigame.js 已經是正式修正過的版本，
+     繼續疊加本地覆寫會在已經有肩膀 pivot 的結構上再包一層，造成
+     命名衝突），「🏃 模擬跳一次」改回直接呼叫共用模組的
+     `play3DJumpAnimation(model)`。
+
+  驗證：
+  - static/js/player-model.js、static/js/punish-minigame.js、
+    static/js/purchase-animation.js、static/preview/game_purchase.html、
+    static/preview/game_punish.html、static/game.html 都用 Node
+    vm.Script 做語法檢查，通過。
+  - 把伺服器實際開起來，用 curl 確認上述 6 個檔案都回 HTTP 200。
+  - 使用者已經在改成本地覆寫版本的兩個預覽頁上實測過軸心/方向/角度
+    都沒問題，這次只是把同一套邏輯原樣套進共用模組，沒有改變驗證過
+    的效果。
+
+  ⚠️ 尚未做（沒辦法無瀏覽器代測，建議抽空看一次）：
+  (1) 重新開 game_punish.html／game_purchase.html，確認拿掉本地
+  覆寫、改呼叫共用模組之後，效果跟剛才驗證的本地版本一致。
+  (2) 找機會看一次真正對局裡「經過起點」的慶祝動畫跟觀戰時 flappy
+  bird 揮手動畫，確認肩膀軸心修正沒有讓這兩個也跑掉（這兩處的方向/
+  幅度這次沒有調整，只有軸心位置變了）。
+========================================================================
+[2026-10-26] #100 修復對局中對手人臉顯示全黑（#93 之後再次復發）
+
+  背景：#93 修過一次對局人臉全黑，使用者這次又遇到，而且觀察到更
+  精確的線索：雙方玩家看到的全黑角色都是「對方」，自己的臉都正常。
+  使用者自己的猜測：應該要「確定偵測到圖片才貼上去」，而且目前同步
+  機制太依賴 localStorage。查過之後確認兩個根因都成立。
+
+  根因 1（直接對應「黑臉」視覺症狀）：static/game.html 的
+  updateMeshFaceTexture() 把人臉貼圖載入包在 loadTextureSafe()——
+  那是給天空圖設計的「失敗就換一張替代圖，連替代圖都失敗才退純色」，
+  失敗時退的 makeSolidTexture() 預設是寫死的深藍黑色 #1e293b，
+  跟角色真正的膚色完全無關，而且不管成功失敗都走同一個 onLoad，
+  所以「貼圖載入失敗」跟「貼圖載入成功」用同一條路徑處理，失敗時
+  這塊錯誤替代色就被當成正常人臉貼上去——這才是玩家看到的「黑臉」。
+  static/js/player-model.js 的 createCustomBoxCharacter()（#93 修的
+  那處）本身的 onerror 寫得是對的，問題只在這個函式。
+
+  根因 2（使用者自己的猜測，確認屬實）：pypoly_char_face_<使用者
+  名字> 這個 localStorage key 跨對局永久保留、從來沒有人清過對手的，
+  loadPlayerModels() 建立對手模型時又把它當第一優先，比即時問伺服器
+  還優先。只要這個使用者名字之前在這個瀏覽器出現過一次，不管那次的
+  臉網址現在還有效沒有（尤其是相機照片，使用者去 character.html
+  清除人臉會把伺服器檔案真的刪掉），下一局照樣直接採信舊網址，
+  載入失敗後就踩進根因 1。broadcastMyAppearance() 廣播自己的臉時
+  一樣繞了一手 localStorage，而不是直接用剛問完伺服器、存在記憶體
+  裡的新鮮值——這解釋了「自己看到的自己正常，但對手看到的我可能是
+  黑的」這種不對稱：問題不只在接收端，發送端廣播的值也可能不新鮮。
+
+  修法：
+  1. updateMeshFaceTexture() 改成自己管理 THREE.TextureLoader 載入，
+     只有真的載入成功才貼上人臉材質，失敗（例如對手 localStorage
+     快取的舊相機照片網址已失效）直接退回純膚色，跟沒有 faceDataUrl
+     時一致，不會再貼出跟膚色無關的色塊。
+  2. 新增 window.netPlayerFaces（記憶體，跟既有的 netPlayerColors
+     同一個模式，只在這次連線期間有效）。user_appearance_broadcast
+     收到時寫入這個記憶體快取（同時仍寫一份進 localStorage，給
+     results.html 等其他頁面相容用，不受這次修改影響）。
+  3. loadPlayerModels() 判斷對手臉的優先順序改成：這次連線收到的
+     記憶體快取 → 即時問 /auth/character + /auth/camera_face →
+     localStorage（最後手段）。
+  4. restoreCharacterFromServer() 算出自己的臉之後，多存一份到
+     window.myCharacterRecipe.faceUrl（記憶體）；broadcastMyAppearance()
+     改成優先讀這個記憶體值，讀不到才退回原本的 localStorage 讀法
+     （相容頁面重整後記憶體被清空、但 localStorage 還在的情況）。
+
+  不在這次範圍：static/js/player-model.js 的 createCustomBoxCharacter()
+  （本身 onerror 已經是對的）；character.html／lobby.html／
+  profile.html／results.html 讀寫「自己的」pypoly_char_face 的邏輯
+  （跟這次對局中同步對手外觀是兩件事，沒有被動到）；/auth/camera_face
+  後端本身（沒發現問題）。
+
+  驗證：
+  - static/game.html 用 Node vm.Script 做語法檢查，通過。
+  - 把伺服器實際開起來，用 curl 確認 HTTP 200。
+
+  ⚠️ 尚未做（真正兩人連線對局才能驗證，沒辦法代測）：
+  (1) 兩個帳號連一局（至少一個是曾經玩過、這個瀏覽器 localStorage
+  裡有舊臉快取的使用者），確認雙方互相看到的對方人臉都正常，不再
+  出現黑臉。
+  (2) 刻意測「使用者 A 在 character.html 清除人臉之後」再跟 B 開
+  一局，確認 B 看到的 A 最多退回純膚色，不會是色塊。
+  (3) 確認 results.html 的贏家人臉顯示沒有被這次修改影響。
 ========================================================================

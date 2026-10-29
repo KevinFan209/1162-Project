@@ -696,98 +696,6 @@
     
     let conversationMessages = [];
 
-    // 💡 題目選項自動對照表
-    const OPTION_FALLBACK_MAP = [
-        {
-            keywords: ["x > 5", "if x", "會不會被執行", "條件判斷"],
-            options: {
-                1: "會執行",
-                2: "不會執行",
-                3: "產生錯誤",
-                4: "語法錯誤"
-            }
-        },
-        {
-            keywords: ["range(3)", "range"],
-            options: {
-                1: "1, 2, 3",
-                2: "0, 1, 2",
-                3: "0, 1, 2, 3",
-                4: "1, 2"
-            }
-        },
-        {
-            keywords: ["not True", "not "],
-            options: {
-                1: "True",
-                2: "False",
-                3: "None",
-                4: "語法錯誤 (SyntaxError)"
-            }
-        },
-        {
-            keywords: ["append"],
-            options: {
-                1: "3 (未更新)",
-                2: "4 (元素個數)",
-                3: "5",
-                4: "[1, 2, 3, 4] (回傳串列)"
-            }
-        },
-        {
-            keywords: ["len(\"Python\")", "Python"],
-            options: {
-                1: "5",
-                2: "6",
-                3: "7",
-                4: "Python"
-            }
-        },
-        {
-            keywords: ["lst[0]"],
-            options: {
-                1: "10",
-                2: "20",
-                3: "30",
-                4: "IndexError"
-            }
-        }
-    ];
-
-    // 🎯 答對維度的代表性題目庫對照表
-    const CORRECT_QUESTIONS_TEMPLATE = {
-        "字串": {
-            topic: "字串",
-            question: "執行 len(\"Python\") 的輸出結果為何？",
-            chosen_text: "6",
-            correct_text: "6"
-        },
-        "串列": {
-            topic: "串列",
-            question: "lst = [10, 20, 30]，存取 lst[0] 的值為何？",
-            chosen_text: "10",
-            correct_text: "10"
-        },
-        "布林": {
-            topic: "布林",
-            question: "運算式 5 > 3 的回傳結果是？",
-            chosen_text: "True",
-            correct_text: "True"
-        },
-        "迴圈": {
-            topic: "迴圈",
-            question: "for i in range(3) 會依序走訪哪些數值？",
-            chosen_text: "0, 1, 2",
-            correct_text: "0, 1, 2"
-        },
-        "條件判斷": {
-            topic: "條件判斷",
-            question: "在 Python 中，條件判斷結構主要是使用哪個關鍵字？",
-            chosen_text: "if / else",
-            correct_text: "if / else"
-        }
-    };
-
     function getAiInteractionCount() {
         const username = localStorage.getItem('username') || 'user';
         return parseInt(localStorage.getItem(`ai_ask_cnt_${username}`) || '0', 10);
@@ -808,44 +716,29 @@
         }
     }
 
-    function resolveOptionText(q, valKey, textKey) {
-        let val = q[valKey];
-        let textVal = q[textKey] ? String(q[textKey]).trim() : "";
+    // 🏆 修復 #40：原本這裡是 resolveOptionText()，排在「使用真資料」
+    // 前面先用關鍵字猜測表（OPTION_FALLBACK_MAP）去猜選項文字，猜到就
+    // 直接蓋掉資料庫的真內容。根因（game.html 寫入端的 bug）修好後，
+    // 新資料都會有真內容，猜測表只是在幫舊的壞資料撐場面，而且會蓋掉
+    // 真資料，判斷為得不償失，直接移除，缺真資料時單純顯示「未記錄」。
+    //
+    // qtype 判斷邏輯：answer_history 裡的程式碼題（AI 批改）結構上就
+    // 沒有 chosen/correct（兩者都是 null，見 game.html 的 #40 註解），
+    // 跟選擇題（chosen/correct 都是 1~4 的數字）用這個特徵互相區分，
+    // 不需要額外的資料庫欄位。
+    function isCodeTypeAnswer(q) {
+        return (q.chosen === null || q.chosen === undefined)
+            && (q.correct === null || q.correct === undefined)
+            && !!q.question;
+    }
 
-        const isPureNumber = /^[0-9]+$/.test(textVal);
-        const isOptionPlaceholder = textVal.startsWith("選項") || textVal.startsWith("Option") || textVal === "";
-
-        if (val === undefined && isPureNumber) {
-            val = parseInt(textVal, 10);
-        }
-
-        const qText = String(q.question || "");
-        for (const item of OPTION_FALLBACK_MAP) {
-            const hit = item.keywords.some(kw => qText.includes(kw));
-            if (hit && item.options[val] !== undefined) {
-                return item.options[val];
-            }
-        }
-
-        if (qText.includes("會不會") || qText.includes("是否")) {
-            if (val == 1) return "會執行";
-            if (val == 2) return "不會執行";
-            if (val == 3) return "產生錯誤";
-        }
-
-        if (Array.isArray(q.options) && q.options.length > 0) {
-            const num = Number(val);
-            if (!isNaN(num)) {
-                if (q.options[num] !== undefined) return String(q.options[num]);
-                if (q.options[num - 1] !== undefined) return String(q.options[num - 1]);
-            }
-        }
-
-        if (textVal && !isPureNumber && !isOptionPlaceholder) {
-            return textVal;
-        }
-
-        return val !== undefined ? `${val}` : "未記錄";
+    // 🏆 使用者回報：這裡應該顯示選項的實際內容，不是「選項 N」。真內容
+    // 存在 textVal（game.html 寫入時存的選項文字快照），優先用它；只有
+    // 修這個欄位之前就寫入的舊紀錄才會沒有 textVal，退回顯示「選項 N」，
+    // 兩者都沒有才顯示「未記錄」。
+    function formatChosenOrCorrect(textVal, idxVal) {
+        if (textVal) return textVal;
+        return (idxVal === null || idxVal === undefined) ? "未記錄" : `選項 ${idxVal}`;
     }
 
     function toggleMenu() {
@@ -935,55 +828,20 @@
             updateAiInteractionDisplay(getAiInteractionCount());
             renderDimensions(data.dimensions || [], gamesPlayedCount);
 
-            let extractedList = [];
-            const aiCtx = data.ai_context || {};
-            const wrongArr = aiCtx.recent_wrong || data.recent_wrong || [];
-
-            wrongArr.forEach(q => {
-                const chosenReal = resolveOptionText(q, 'chosen', 'chosen_text');
-                const correctReal = resolveOptionText(q, 'correct', 'correct_text');
-
-                extractedList.push({
-                    topic: q.topic || 'Python 概念',
-                    question: q.question || 'Python 語法題',
-                    chosen: q.chosen,
-                    chosen_text: chosenReal,
-                    correct: q.correct,
-                    correct_text: correctReal,
-                    is_correct: false
-                });
-            });
-
-            if (Array.isArray(data.questions) && data.questions.length > 0) {
-                extractedList = data.questions.map(q => {
-                    const isCorrect = q.is_correct !== undefined ? q.is_correct : (q.chosen === q.correct);
-                    return {
-                        topic: q.topic || 'Python 概念',
-                        question: q.question || 'Python 語法題',
-                        chosen: q.chosen,
-                        chosen_text: resolveOptionText(q, 'chosen', 'chosen_text'),
-                        correct: q.correct,
-                        correct_text: resolveOptionText(q, 'correct', 'correct_text'),
-                        is_correct: isCorrect
-                    };
-                });
-            } else if (s.correct > 0 && extractedList.length === wrongArr.length) {
-                (data.dimensions || []).filter(d => d.correct > 0).forEach(d => {
-                    const tmpl = CORRECT_QUESTIONS_TEMPLATE[d.topic] || {
-                        topic: d.topic,
-                        question: `【${d.topic}】基礎觀念測驗`,
-                        chosen_text: "正解",
-                        correct_text: "正解"
-                    };
-                    extractedList.push({
-                        topic: tmpl.topic,
-                        question: tmpl.question,
-                        chosen_text: tmpl.chosen_text,
-                        correct_text: tmpl.correct_text,
-                        is_correct: true
-                    });
-                });
-            }
+            // 🏆 修復 #40：原本這裡把 ai_context.recent_wrong（只給 AI
+            // 當脈絡、只挑錯題、上限 5 筆）誤用成「全部作答紀錄」，答對
+            // 的部分永遠湊不出真資料，只能用寫死範本（已移除）硬塞。
+            // 現在改用後端新增的 data.answer_history——這個人答過的
+            // 全部題目，對/錯都在裡面、都是資料庫真實內容。
+            const extractedList = (data.answer_history || []).map(q => ({
+                topic: q.topic || null,
+                question: q.question || null,
+                chosen: q.chosen,
+                correct: q.correct,
+                chosen_text: q.chosen_text || null,
+                correct_text: q.correct_text || null,
+                is_correct: !!q.is_correct,
+            }));
 
             allQuestionsData = extractedList;
             updateFilterCounts();
@@ -1060,24 +918,44 @@
 
         box.innerHTML = filtered.map((q) => {
             const isCorrect = isQuestionCorrect(q);
-            const statusBadge = isCorrect 
-                ? '<span class="q-badge correct">作答正確 ✅</span>' 
+            const statusBadge = isCorrect
+                ? '<span class="q-badge correct">作答正確 ✅</span>'
                 : '<span class="q-badge wrong">需要複習 ❌</span>';
-            
-            const chosenDisplay = q.chosen_text || (q.chosen !== undefined ? `${q.chosen}` : '未記錄');
-            const correctDisplay = q.correct_text || (q.correct !== undefined ? `${q.correct}` : '未記錄');
             const qIndex = allQuestionsData.indexOf(q);
+
+            // 🏆 修復 #40：question 是 null 代表這是修復前留下的壞資料
+            // （已請使用者從資料庫清除，這裡留著防禦性 fallback，避免
+            // 未來萬一又有呼叫端漏傳欄位時整頁爛掉），不再用假範本冒充
+            // 成一道看起來正常的題目。
+            if (!q.question) {
+                return `
+                    <div class="q-card ${isCorrect ? 'is-correct' : 'is-wrong'}">
+                        <div class="q-card-top">
+                            <span class="q-topic-tag">🏷️ ${escapeHtml(q.topic || '未分類')}</span>
+                            ${statusBadge}
+                        </div>
+                        <div class="q-text">⚠️ 未記錄（這筆紀錄缺少題目內容）</div>
+                    </div>
+                `;
+            }
+
+            const isCodeType = isCodeTypeAnswer(q);
+            const choicesInfo = isCodeType
+                ? `<div>這是一題 AI 批改的程式碼題，沒有選項可比對。</div>`
+                : `
+                    <div>當時選擇：<b style="color: ${isCorrect ? 'var(--pixel-green)' : 'var(--wrong-dark)'};">${escapeHtml(formatChosenOrCorrect(q.chosen_text, q.chosen))}</b></div>
+                    <div>正確答案：<b style="color: var(--pixel-green);">${escapeHtml(formatChosenOrCorrect(q.correct_text, q.correct))}</b></div>
+                `;
 
             return `
                 <div class="q-card ${isCorrect ? 'is-correct' : 'is-wrong'}">
                     <div class="q-card-top">
-                        <span class="q-topic-tag">🏷️ ${escapeHtml(q.topic || 'Python 概念')}</span>
+                        <span class="q-topic-tag">🏷️ ${escapeHtml(q.topic || '未分類')}</span>
                         ${statusBadge}
                     </div>
-                    <div class="q-text">${escapeHtml(q.question || '程式題')}</div>
+                    <div class="q-text">${escapeHtml(q.question)}</div>
                     <div class="q-choices-info">
-                        <div>當時選擇：<b style="color: ${isCorrect ? 'var(--pixel-green)' : 'var(--wrong-dark)'};">${escapeHtml(chosenDisplay)}</b></div>
-                        <div>正確答案：<b style="color: var(--pixel-green);">${escapeHtml(correctDisplay)}</b></div>
+                        ${choicesInfo}
                     </div>
                     <div class="q-card-bottom">
                         <button class="btn-ask-item" onclick="askQuestionTutor(${qIndex})">💡 詢問 AI 導師</button>
@@ -1114,10 +992,9 @@
         incrementAiInteractionCount();
 
         const isCorrect = isQuestionCorrect(q);
-        const chosenText = q.chosen_text || q.chosen;
-        const correctText = q.correct_text || q.correct;
-        
-        const questionPrompt = `老師，請幫我分析題目：「${q.question}」。我當時選了【${chosenText}】，正確答案是【${correctText}】（結果：${isCorrect ? '答對' : '答錯'}），解題思路是什麼？`;
+        const questionPrompt = isCodeTypeAnswer(q)
+            ? `老師，請幫我分析這道程式碼題：「${q.question}」。這題是 AI 批改的（結果：${isCorrect ? '通過' : '未通過'}），解題思路是什麼？`
+            : `老師，請幫我分析題目：「${q.question}」。我當時選了【${formatChosenOrCorrect(q.chosen_text, q.chosen)}】，正確答案是【${formatChosenOrCorrect(q.correct_text, q.correct)}】（結果：${isCorrect ? '答對' : '答錯'}），解題思路是什麼？`;
         
         appendMessage('user', questionPrompt);
         chatWithTutor(questionPrompt);

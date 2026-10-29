@@ -15,6 +15,16 @@
     <script src="js/board-props.js"></script>
     <script src="js/board-build.js"></script>
     <script src="js/minimap.js"></script>
+    <script src="js/decision-ui.js"></script>
+    <script src="js/spectator-animations.js"></script>
+    <script src="js/purchase-animation.js"></script>
+    <script src="js/spectator-camera.js"></script>
+    <script src="js/game-notice.js"></script>
+    <script src="js/shop-ui.js"></script>
+    <script src="js/flappy-bird.js"></script>
+    <script src="js/dice-roll.js"></script>
+    <script src="js/quiz-ui.js"></script>
+    <script src="js/punish-minigame.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
@@ -676,7 +686,7 @@
             🗺️ 查看戰術小地圖
         </button>
 		
-		<div id="debug-master-panel" style="background: rgba(15, 23, 42, 0.95); padding: 18px; border-radius: 20px; border: 2.5px solid #ffde59; margin-top: 10px; pointer-events: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+		<div id="debug-master-panel" style="display: none; background: rgba(15, 23, 42, 0.95); padding: 18px; border-radius: 20px; border: 2.5px solid #ffde59; margin-top: 10px; pointer-events: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
 			<h3 style="color: #ffde59; font-size: 1.1rem; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
 				<span>🛠️</span> 開發者控制台
 			</h3>
@@ -987,28 +997,28 @@ async function fetchMapConfig(mode, difficulty) {
     const myName = localStorage.getItem('username');
     const isHost = (activeRoom.hostId === myName);
     
-    // 🏆 修正 1：嘗試從緩存讀取已同步的地圖
+    // ⚠️ 這裡原本會先檢查 localStorage 是否已經有這個房號同步過的地圖、
+    // 有就直接用、不打網路——拿掉了。後端現在對同一個房號已經保證
+    // 回傳一致的快取結果（見 main.py 的 room_map_cache），本機快取不
+    // 再是同步保障的一部分，留著反而是風險：如果這個房號之前（例如
+    // 上一局測試）在這台裝置留下過地圖，會直接用那份舊資料，完全不會
+    // 再問伺服器一次，造成玩家一進房間虛擬人物就站在舊地圖的起點，
+    // 等房主的 SYNC_MAP 廣播到了才會「跳」到正確位置——這正是實測
+    // 回報過的現象。拿掉這段短路之後，每次都真的問一次伺服器，保證
+    // 拿到的就是這個房間當下真正的地圖。
     const storedMapKey = `pypoly_synced_map_${roomCode}`;
-    const storedMap = localStorage.getItem(storedMapKey);
-
-    if (storedMap) {
-        gameMap = JSON.parse(storedMap);
-        window.mapBlocks = gameMap.blocks || gameMap;
-        // 🏆 地圖到齊，要整個重蓋棋盤才會真的套用真實座標：
-        //    create3DBoard() 在 init3D() 執行時 gameMap 可能還是空的，
-        //    那時只用退回形狀蓋一次；單純呼叫 applyBoardAppearance()
-        //    只換貼圖，不會搬動格子位置，所以這裡要呼叫 create3DBoard()。
-        if (typeof create3DBoard === "function") create3DBoard();
-        console.log("✅ 從本地緩存讀取已同步之地圖");
-        return;
-    }
 
     try {
         // 🏆 測試模式：房間資料帶 testMode 時，向後端要一張含 BLANK 空白格的地圖，
         //    讓一局能快速跑完以驗證結算頁。由後端決定，雙方才會拿到同一張地圖。
         const testFlag = activeRoom.testMode ? '&test=1' : '';
+        // 🏆 帶上房號：後端現在會把同一個房間第一次生成的地圖快取起來，
+        // 之後不管誰、什麼時候呼叫，同一間房都會拿到完全一樣的地圖
+        // （形狀、題目、國家內容都一致）。沒帶房號的話後端等於每次都
+        // 重新 random，兩個裝置各自呼叫就會各自抽到不同結果——這正是
+        // 兩邊地圖形狀不同步的根因，不是前端渲染出問題。
         const response = await fetch(
-            `${API_URL}/game/map_config?mode=${mode}&difficulty=${difficulty}${testFlag}`);
+            `${API_URL}/game/map_config?mode=${mode}&difficulty=${difficulty}&room=${encodeURIComponent(roomCode)}${testFlag}`);
         gameMap = await response.json();
         window.mapBlocks = gameMap.blocks || gameMap;
         // 🏆 地圖到齊，要整個重蓋棋盤才會真的套用真實座標（理由同上）
@@ -1064,11 +1074,27 @@ socket.on('opponent_disconnected', (data) => {
     const myName = localStorage.getItem('username');
     if (!data || data.user === myName) return;
     console.warn(`🔌 對手 ${data.user} 已斷線`);
-    showGameNotice(
-        `🔌 ${data.user} 已離線<br>`
-        + `<span style="font-size:1.2rem;">對局無法繼續，請雙方回大廳重新開始</span>`,
-        0);
+    // 🏆 修復 #11：原本只顯示文字、duration=0 永遠不會自動消失，玩家
+    // 只能自己注意到側邊欄連結手動離開。補一顆按鈕讓玩家自己決定何時
+    // 離開（不自動強制雙方退回大廳，避免誤判短暫斷線重連的情況）。
+    // buildDisconnectNoticeHtml() 已抽至 static/js/game-notice.js。
+    showGameNotice(buildDisconnectNoticeHtml(data.user), 0);
 });
+
+// 🏆 修復 #11：對局中對手斷線時，留下的玩家按這顆按鈕才離開——呼叫
+// 既有的 /rooms/leave（跟大廳離開房間同一條路），不用新增後端。
+async function leaveDisconnectedRoomAndGoLobby() {
+    const myName = localStorage.getItem('username');
+    const roomCode = JSON.parse(localStorage.getItem('pypoly_active_room'))?.code || localStorage.getItem('room_code');
+    try {
+        if (roomCode) {
+            await fetch(`${API_URL}/rooms/leave/${roomCode}?username=${encodeURIComponent(myName)}`, { method: 'POST' });
+        }
+    } catch (err) {
+        console.warn('⚠️ 離開房間失敗', err);
+    }
+    window.location.href = 'lobby.html';
+}
 
 // 🏆 決定先後手階段對手斷線：後端會清掉他的點數並發這個事件。
 //    沒有它的話，剩下的人會永遠等不到 dice_order_final（湊不滿 2 人）——
@@ -1083,14 +1109,23 @@ socket.on('order_dice_aborted', (data) => {
         0);
 });
 	
-	window.netPlayerColors = {}; // 全域快照：存放連線收到的所有玩家外觀顏色
-    window.netPlayerFaces = {};  // 🏆 新增：存放連線收到的所有玩家人臉貼圖
+	window.netPlayerColors = {}; // 全域快照：存放連線收到的所有玩家外觀顏色（記憶體，非 localStorage）
+    window.netPlayerFaces = {};  // 存放連線收到的所有玩家人臉貼圖（圖片，仍走 localStorage，見下方說明）
+    window.myCharacterRecipe = { colors: null, features: null }; // 自己的 colors／features 配方，只存在記憶體
 
 // 🏆 4. 全域外觀發送器 (強化版)
-// 🏆 從資料庫還原角色外觀（換裝置或清快取後仍能顯示自己捏的角色）。
-//    資料庫只存「配方」（顏色 + 五官 ID），臉部貼圖在這裡用共用模組重新合成。
-//    合成後回寫 localStorage 快取，底下的 broadcastMyAppearance 完全不必改動。
-//    沒角色資料或請求失敗 → 直接沿用現有的 localStorage 行為。
+// 🏆 colors／features 一律從資料庫的 GET /auth/character 取得，只快取在
+//    記憶體（window.myCharacterRecipe），不再寫回 localStorage——重新整理
+//    這個頁面就會重新抓一次，資料庫才是唯一事實來源。
+//
+// ⚠️ 修正一個跟 character.html #81 一樣的 bug：自從五官預設值改成全
+// 'none'（EMPTY_FACE_FEATURES）之後，只要存過檔 character.features
+// 就永遠是物件、不會是 null——不能再用「features 存在與否」判斷這個人
+// 是不是用五官套裝。原本這裡無條件呼叫 buildFaceDataUrl(colors,
+// features) 合成臉，相機使用者的 features 也會是這組全 'none' 的
+// 物件，結果永遠合成出一張空白臉、蓋掉相機照片。改成先判斷
+// features 裡是不是真的有任何一項不是 'none'，不是的話才去問伺服器
+// 有沒有相機照片（/auth/camera_face，#79 新增的 API）。
 async function restoreCharacterFromServer() {
     const token = localStorage.getItem('token');
     const myName = localStorage.getItem('username');
@@ -1104,64 +1139,82 @@ async function restoreCharacterFromServer() {
 
         const data = await res.json();
         const char = data && data.character;
-        if (!char || !char.colors) { console.log('ℹ️ 伺服器尚無角色資料，沿用本機快取'); return; }
+        if (!char || !char.colors) { console.log('ℹ️ 伺服器尚無角色資料'); return; }
 
-        const colorsStr = JSON.stringify(char.colors);
-        localStorage.setItem('pypoly_char_colors', colorsStr);
-        localStorage.setItem(`pypoly_char_colors_${myName}`, colorsStr);
+        window.myCharacterRecipe = { colors: char.colors, features: char.features || {} };
 
-        if (typeof buildFaceDataUrl === 'function') {
-            const faceUrl = buildFaceDataUrl(char.colors, char.features || {});
+        const hasMeaningfulFeatures = char.features
+            && Object.values(char.features).some(v => v !== 'none');
+
+        let faceUrl = null;
+        if (hasMeaningfulFeatures && typeof buildFaceDataUrl === 'function') {
+            faceUrl = buildFaceDataUrl(char.colors, char.features);
+        } else {
+            try {
+                const camRes = await fetch(`${API_URL}/auth/camera_face`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (camRes.ok) {
+                    const camData = await camRes.json();
+                    if (camData.exists) faceUrl = camData.url;
+                }
+            } catch (err) {
+                console.warn('⚠️ 查詢伺服器相機人臉貼圖失敗', err);
+            }
+        }
+
+        if (faceUrl) {
             localStorage.setItem('pypoly_char_face', faceUrl);
             localStorage.setItem(`pypoly_char_face_${myName}`, faceUrl);
-            localStorage.setItem('pypoly_char_features', JSON.stringify(char.features || {}));
+        }
+        // 🏆 廣播自己外觀時改優先讀這裡（記憶體、這次連線最新鮮），不要
+        // 再繞一手 localStorage——見 broadcastMyAppearance()。
+        window.myCharacterRecipe.faceUrl = faceUrl;
+
+        // loadPlayerModels() 可能已經先用預設顏色建好自己的模型（跟這支
+        // 非同步還原流程誰先完成不保證），這裡補一次即時更新，確保畫面
+        // 最後一定會是資料庫裡真正的顏色/臉，不會卡在預設值。
+        if (typeof playerModels !== 'undefined' && playerModels[myName]) {
+            updateModelAppearance(playerModels[myName], char.colors, faceUrl);
         }
         console.log('🎨 已從伺服器還原角色外觀');
     } catch (err) {
-        console.warn('⚠️ 讀取角色失敗（沿用本機快取）', err);
+        console.warn('⚠️ 讀取角色失敗', err);
     }
 }
 
 function broadcastMyAppearance() {
     const myName = localStorage.getItem('username');
-    // 💡 嘗試讀取專屬顏色，如果沒有，就讀取通用的 (這通常發生在單機測試或舊資料)
-    let myLocalColors = localStorage.getItem(`pypoly_char_colors_${myName}`);
-    if (!myLocalColors) {
-        myLocalColors = localStorage.getItem('pypoly_char_colors');
-        // 如果通用有，順便幫忙寫入專屬，以防萬一
-        if (myLocalColors) localStorage.setItem(`pypoly_char_colors_${myName}`, myLocalColors);
+    const myColors = window.myCharacterRecipe && window.myCharacterRecipe.colors;
+
+    // 🏆 優先用記憶體裡 restoreCharacterFromServer() 剛問過伺服器算出來
+    // 的新鮮值（可能是 undefined，代表還沒 restore 完或沒有臉）；
+    // localStorage 只在記憶體沒有時當最後手段（例如重整過頁面、
+    // 記憶體被清空，但上次存過的值還在）。
+    let myLocalFace = window.myCharacterRecipe && window.myCharacterRecipe.faceUrl;
+    if (!myLocalFace) {
+        myLocalFace = localStorage.getItem(`pypoly_char_face_${myName}`);
     }
-    
-    let myLocalFace = localStorage.getItem(`pypoly_char_face_${myName}`);
     if (!myLocalFace) {
         myLocalFace = localStorage.getItem('pypoly_char_face');
         if (myLocalFace) localStorage.setItem(`pypoly_char_face_${myName}`, myLocalFace);
     }
-    
+
     const gameSnapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot') || '{}');
     const safeRoomCode = gameSnapshot.code || localStorage.getItem('room_code') || window.roomCode;
 
 	console.log(`🔎 [前端偵錯] 正在發送廣播，當前房間代碼為: "${safeRoomCode}"`);
 
-    if (myLocalColors && safeRoomCode) {
-        let parsedColors = null;
-        try {
-            // 防呆：確保存的是字串化的 JSON
-            parsedColors = typeof myLocalColors === 'string' ? JSON.parse(myLocalColors) : myLocalColors;
-        } catch (e) {
-            console.error("解析顏色資料失敗:", e);
-            return;
-        }
-
+    if (myColors && safeRoomCode) {
         socket.emit('sync_user_appearance', {
             room: safeRoomCode,
             user: myName,
-            colors: parsedColors,
-            face: myLocalFace 
+            colors: myColors,
+            face: myLocalFace
         });
         console.log(`📡 [外觀廣播] 成功向房間發送個人外觀設定包 (玩家: ${myName})...`);
     } else {
-        console.warn("⚠️ 無法廣播外觀：缺少顏色資料或房間代碼", {colors: !!myLocalColors, room: !!safeRoomCode});
+        console.warn("⚠️ 無法廣播外觀：缺少顏色資料或房間代碼", {colors: !!myColors, room: !!safeRoomCode});
     }
 }
 
@@ -1179,11 +1232,18 @@ socket.on('user_appearance_broadcast', (data) => {
         try { safeColors = JSON.parse(safeColors); } catch(e) {}
     }
 
-    // 寫入 LocalStorage 進行記憶
+    // 存進記憶體快照（不寫 localStorage——這是對手的配方，資料庫才是
+    // 事實來源，這份只是這個頁面這次連線期間的即時快取）
     if (safeColors) {
-        localStorage.setItem(`pypoly_char_colors_${data.user}`, JSON.stringify(safeColors));
+        window.netPlayerColors[data.user] = safeColors;
     }
     if (data.face) {
+        // 🏆 記憶體快取（跟 netPlayerColors 同一個模式，只在這次連線
+        // 期間有效）——loadPlayerModels() 判斷對手臉優先用這個，不要
+        // 再把 localStorage 當第一優先（那個 key 會跨對局永久保留，
+        // 可能是失效的舊相機照片網址）。這裡仍然也寫一份進
+        // localStorage，給 results.html 等其他頁面相容用。
+        window.netPlayerFaces[data.user] = data.face;
         localStorage.setItem(`pypoly_char_face_${data.user}`, data.face);
     }
     
@@ -1263,9 +1323,26 @@ socket.on('adventure_phase_broadcast', async (data) => {
     // 🏆 修正二：將小鳥飛 (FLAPPY_BIRD_START) 加入自動強制拉入名單，防止重新整理後卡在上帝視角
     const autoSyncPhases = ['PUNISH', 'PUNISH_SKIP', 'JAIL_ANIM', 'FLAPPY_BIRD_START'];
     if (autoSyncPhases.includes(data.phase)) {
-        if (godUI) godUI.style.display = 'none';
-        const needsFlyIn = !window.isSpectating; 
-        await enterSpectatorMode_Internal(data, needsFlyIn); 
+        // 🏆 修復 #9：isUiStateBusy() 已抽至 static/js/spectator-camera.js
+        // （預覽頁 static/preview/game_spectator_busy.html 也用同一份）。
+        // 原本這裡無條件強制拉進觀戰，完全沒檢查接收端自己當下在做什麼
+        // ——如果正在買地決策/商店瀏覽/確認中，畫面會被突然搶走。忙碌中
+        // 就用跟敘述排隊一樣的輪詢等它結束才真正進入。
+        const enterNow = async () => {
+            if (godUI) godUI.style.display = 'none';
+            const needsFlyIn = !window.isSpectating;
+            await enterSpectatorMode_Internal(data, needsFlyIn);
+        };
+        if (isUiStateBusy(window.uiState)) {
+            const waitBusy = setInterval(() => {
+                if (!isUiStateBusy(window.uiState)) {
+                    clearInterval(waitBusy);
+                    enterNow();
+                }
+            }, 500);
+        } else {
+            await enterNow();
+        }
         return;
     }
 
@@ -1355,7 +1432,13 @@ async function testAdventureView(countryName, scenario, skyboxUrl, questionObj) 
     });
 }
 
-let currentAdventureQuestion = null;
+// 🏆 修復 #40：這裡原本有 `let currentAdventureQuestion = null;`，是
+// 頂層宣告。JS 規格規定頂層 let/const 會進入獨立的全域宣告式環境記錄，
+// 永久遮蔽掉 window.currentAdventureQuestion 這個同名屬性——後面所有
+// `window.currentAdventureQuestion = questionObj` 的賦值因此完全沒用，
+// 裸讀 `currentAdventureQuestion` 永遠只會看到這個 let 綁定本身（從
+// 未被重新賦值過的 null）。改成統一用 window.currentAdventureQuestion
+// 讀寫，不要再宣告這個會造成遮蔽的同名 let 變數。
 
 // =========================================================
 // 🏆 送出答題結果
@@ -1374,7 +1457,7 @@ async function submitQuizAnswer(chosen) {
     const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
 
-    if (currentAdventureQuestion) markQuestionAsUsed(currentAdventureQuestion.content);
+    if (window.currentAdventureQuestion) markQuestionAsUsed(window.currentAdventureQuestion.content);
 
     if (chosen === correctAnswer) {
         socket.emit('sync_adventure_choice', { room: roomCode, choice: chosen });
@@ -1402,7 +1485,7 @@ async function submitQuizAnswer(chosen) {
                     panoSphere.position.copy(camera.position);
                 }
 
-                fillDecisionUI(analysisData, myName);
+                fillDecisionUI(analysisData, myName, window.landOwnership[playerCurrentIndex[myName]], showGameNotice);
 
                 const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
                 const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
@@ -1508,103 +1591,6 @@ async function submitCodeAnswer() {
     }
 }
 
-// --- 核心分流邏輯 ---
-function startAdventureRecognition(questionObj) {
-    const myName = localStorage.getItem('username');
-    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
-    const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
-
-    // 🏆 修正 1：終極精準判定，直接看後端撈出的題目類別，完全不依賴會遺失的 roomData
-    const qCategory = questionObj ? questionObj.category : 'basic';
-    const isAdvancedMode = (qCategory === 'advanced');
-
-    console.log("🎮 進入題目階段 - 判定為進階模式?", isAdvancedMode, "題目類別:", qCategory);
-
-    if (isAdvancedMode) {
-        // ==========================================
-        // 🟢 進階版流程 (程式碼編譯)
-        // ==========================================
-        socket.emit('sync_adventure_phase', { 
-            room: roomCode, 
-            user: myName, 
-            phase: 'QUIZ_CODE',
-            payload: { question: questionObj } 
-        });
-
-        // 確保基礎版相機介面關閉，並關閉視訊資源
-        const basicUI = document.getElementById('adventure-task-ui');
-        if (basicUI) basicUI.style.display = 'none';
-        stopAllVision(); 
-
-        const taskUI = document.getElementById('advanced-task-ui');
-        document.getElementById('adv-code-question').innerText = questionObj.content;
-        document.getElementById('adv-code-editor').value = ""; 
-        document.getElementById('adv-code-feedback').innerText = "💡 請在下方編譯器輸入程式碼，並點擊執行驗證";
-        document.getElementById('adv-code-feedback').style.color = "#00cdac";
-        
-        window.currentCodeAttempts = 3;
-        document.getElementById('adv-code-attempts').innerText = window.currentCodeAttempts;
-        
-        const submitBtn = document.getElementById('adv-code-submit-btn');
-        if(submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.style.opacity = "1";
-        }
-        
-        taskUI.style.display = 'block';
-        window.currentAdventureQuestion = questionObj;
-        window.uiState = "CODING"; 
-        window.questionShownAt = Date.now();
-
-        // 啟動 5 分鐘計時器
-        if (typeof startAdvCodeTimer === "function") startAdvCodeTimer(300);
-        showAdventureCharacter(); 
-
-    } else {
-        // ==========================================
-        // 🔵 基礎版流程 (手勢辨識)
-        // ==========================================
-        socket.emit('sync_adventure_phase', { 
-            room: roomCode, user: myName, phase: 'QUIZ', payload: { question: questionObj } 
-        });
-
-        const taskUI = document.getElementById('adventure-task-ui');
-        const questionText = document.getElementById('adv-question-text');
-        const optionsArea = document.getElementById('adv-options');
-
-        questionText.innerHTML = "✋ 請用手勢比出答案";
-        questionText.style.display = "block";
-        optionsArea.style.display = 'none'; 
-        taskUI.style.display = 'block';
-        window.currentAdventureQuestion = questionObj;
-
-        setTimeout(() => {
-            questionText.innerHTML = `【挑戰題目】${questionObj.content}`;
-            window.questionShownAt = Date.now(); 
-            optionsArea.innerHTML = questionObj.options.map((opt, idx) => 
-                `<div class="opt-pill">(${idx + 1}) ${opt}</div>`
-            ).join("");
-            optionsArea.style.display = 'flex';
-        }, 2500);
-
-        window.lockedDiceVal = parseInt(questionObj.answer); 
-        window.uiState = "GESTURE";
-        currentGameState.status = "READY";
-        
-        initCameraAndStartVision(); 
-        
-        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-        const screenPos = new THREE.Vector3().copy(camera.position).addScaledVector(forward, 2.8); 
-        virtualScreen.position.copy(screenPos);
-        virtualScreen.position.y -= 0.48;
-        virtualScreen.quaternion.copy(camera.quaternion);
-        virtualScreen.scale.set(1.0, 1.0, 1.0);
-        virtualScreen.visible = true;
-
-        showAdventureCharacter();
-    }
-}
-
 async function handleCodeSuccess() {
 
 	if (advCodeTimerInterval) { clearInterval(advCodeTimerInterval); advCodeTimerInterval = null; }
@@ -1614,8 +1600,13 @@ async function handleCodeSuccess() {
     const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
 
-    if (currentAdventureQuestion) markQuestionAsUsed(currentAdventureQuestion.content);
-    logAnswerToServer(true, "CODE_CORRECT"); 
+    if (window.currentAdventureQuestion) markQuestionAsUsed(window.currentAdventureQuestion.content);
+    // 🏆 修復 #40：chosen_answer 是整數欄位，語意是「選了第幾個選項」。
+    // 程式碼題沒有選項，原本塞字面字串 "CODE_CORRECT" 進去，MariaDB
+    // 非嚴格模式下會靜默轉型成 0（0 也不是有效選項編號），改傳 null
+    // 更誠實——learn.html 會用「question 有內容但 chosen/correct 都是
+    // null」判定這是一筆 AI 批改的程式碼題。
+    logAnswerToServer(true, null);
 
     setTimeout(async () => {
         try {
@@ -1637,7 +1628,7 @@ async function handleCodeSuccess() {
                 panoSphere.position.copy(camera.position);
             }
 
-            fillDecisionUI(analysisData, myName);
+            fillDecisionUI(analysisData, myName, window.landOwnership[playerCurrentIndex[myName]], showGameNotice);
 
             // 定位收購面板的螢幕
             const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
@@ -1670,7 +1661,8 @@ function handleCodeFail() {
     const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
 
-    logAnswerToServer(false, "CODE_WRONG");
+    // 🏆 修復 #40：同上，程式碼題沒有選項，改傳 null（見 handleCodeSuccess 的註解）。
+    logAnswerToServer(false, null);
     showGameNotice(`❌ 3次機會已用盡，挑戰失敗！`, 3500);
 
     socket.emit('broadcast_dice_event', {
@@ -1786,23 +1778,17 @@ function startAdventureRecognition(questionObj) {
 
         if (advancedUI) {
             advancedUI.style.display = 'block';
-            
-            document.getElementById('adv-code-question').innerText = questionObj.content;
-            document.getElementById('adv-code-editor').value = ""; 
-            
-            const feedbackEl = document.getElementById('adv-code-feedback');
-            if(feedbackEl) {
-                feedbackEl.innerText = "💡 請在下方編譯器輸入程式碼，並點擊執行驗證";
-                feedbackEl.style.color = "#00cdac";
-            }
-            
+
             window.currentCodeAttempts = 3;
-            const attemptsEl = document.getElementById('adv-code-attempts');
-            if(attemptsEl) attemptsEl.innerText = window.currentCodeAttempts;
-            
-            const submitBtn = document.getElementById('adv-code-submit-btn');
-            if(submitBtn) { submitBtn.disabled = false; submitBtn.style.opacity = "1"; }
-            
+            // 🏆 題目填入畫面已抽至 static/js/quiz-ui.js 的 renderCodeQuizQuestion()
+            renderCodeQuizQuestion({
+                questionEl: document.getElementById('adv-code-question'),
+                editorEl: document.getElementById('adv-code-editor'),
+                feedbackEl: document.getElementById('adv-code-feedback'),
+                attemptsEl: document.getElementById('adv-code-attempts'),
+                submitBtnEl: document.getElementById('adv-code-submit-btn'),
+            }, questionObj, window.currentCodeAttempts);
+
             window.currentAdventureQuestion = questionObj;
             window.uiState = "CODING"; 
             window.questionShownAt = Date.now();
@@ -1828,20 +1814,20 @@ function startAdventureRecognition(questionObj) {
 
         if (basicUI && questionText && optionsArea) {
             basicUI.style.display = 'block';
-            questionText.innerHTML = "✋ 準備辨識，請用手勢比出答案";
-            questionText.style.display = "block";
-            optionsArea.style.display = 'none'; 
+            // 🏆 題目填入畫面（含先顯示「準備辨識」再延遲揭示題目）已抽至
+            // static/js/quiz-ui.js 的 renderBasicQuizQuestion()，回傳的
+            // Promise 在題目真的揭示的那一刻 resolve，questionShownAt
+            // 要記的就是那個時間點，跟原本行為一致。
+            renderBasicQuizQuestion(questionText, optionsArea, questionObj, 2500).then(() => {
+                window.questionShownAt = Date.now();
+            });
 
-            setTimeout(() => {
-                questionText.innerHTML = `【挑戰題目】${questionObj.content}`;
-                window.questionShownAt = Date.now(); 
-                optionsArea.innerHTML = questionObj.options.map((opt, idx) => 
-                    `<div class="opt-pill">(${idx + 1}) ${opt}</div>`
-                ).join("");
-                optionsArea.style.display = 'flex';
-            }, 2500);
-
-            window.lockedDiceVal = parseInt(questionObj.answer); 
+            // 🏆 修復 #40：這行原本沒有，導致基礎手勢題送出答案時
+            // logAnswerToServer() 讀到的 window.currentAdventureQuestion
+            // 是空的／殘留上一題進階題的舊物件，造成 game_answer_logs
+            // 的 question_text/category/correct_answer 全部存成 NULL。
+            window.currentAdventureQuestion = questionObj;
+            window.lockedDiceVal = parseInt(questionObj.answer);
             window.uiState = "GESTURE";
             if(typeof currentGameState !== 'undefined') currentGameState.status = "READY";
             
@@ -1979,7 +1965,7 @@ async function triggerTask() {
             });
 
             // 2. 玩家自己播放 3D 鐵籠動畫
-            await playJailAnimationCore(myName, currentIndex);
+            await playJailAnimationCore(buildSpectatorAnimCtx(), myName, currentIndex);
 
             // 3. 動畫播完後，觸發換人回合 (這會自動讓大家回到上帝視角)
             const nextP = getNextPlayerName();
@@ -2017,12 +2003,8 @@ async function triggerTask() {
 }
 	
 	// ================== 道具系統資料與邏輯 ==================
-const SHOP_ITEMS = {
-    1: { id: "item_discount", name: "買房子折扣40%", price: 200, icon: "🏠", desc: "收購土地時可打6折" },
-    2: { id: "item_plus3", name: "骰到步數+3", price: 150, icon: "🎲", desc: "移動時步數額外加 3 點" },
-    3: { id: "item_notoll", name: "免收取過路費", price: 100, icon: "🛡️", desc: "踩到他人土地時免付過路費" },
-    4: { id: "item_steal", name: "向對方收取300金幣", price: 100, icon: "⚔️", desc: "立即發動，敲打對手奪取金幣" }
-};
+// 🏆 SHOP_ITEMS 已抽至 static/js/shop-ui.js
+// （預覽頁 static/preview/game_shop.html 也用同一份）
 
 // 取得玩家背包
 function getPlayerInventory(playerName) {
@@ -2081,9 +2063,11 @@ function getPlayerLandColor(playerName) {
     const p2 = gameSnapshot.players[1];
 
     function getBodyColor(pName) {
-        const exact = localStorage.getItem(`pypoly_char_colors_${pName}`);
-        if(exact) { try { return JSON.parse(exact).body; } catch(e){} }
-        return null;
+        const myName = localStorage.getItem('username');
+        const colors = (pName === myName)
+            ? (window.myCharacterRecipe && window.myCharacterRecipe.colors)
+            : (window.netPlayerColors && window.netPlayerColors[pName]);
+        return colors ? colors.body : null;
     }
 
     let c1 = getBodyColor(p1) || "#4facfe";
@@ -2125,6 +2109,23 @@ function setBoardVisibility(isVisible, specificIdx = -1) {
         const ground = scene.getObjectByName("ground_plane");
         if (ground) ground.visible = isVisible;
     }
+}
+
+// 🏆 組出 static/js/spectator-animations.js（過路費/監獄/偷竊動畫）
+// 需要的 ctx——每次呼叫都重新組，不要快取，因為 window.isSpectating
+// 等欄位在對局過程中會變動。
+function buildSpectatorAnimCtx() {
+    return {
+        scene, camera, playerModels, allTileMeshes, mapBlocks,
+        playerCurrentIndex, landOwnership: window.landOwnership,
+        panoSphere,
+        myName: localStorage.getItem('username'),
+        isSpectating: window.isSpectating,
+        getPlayerLandColor,
+        setBoardVisibility,
+        showNotice: showCustomNotice,
+        playSfx,
+    };
 }
 
 // 進入道具店視角
@@ -2169,19 +2170,9 @@ async function startShopView() {
 }
 
 function openShopUI() {
-    const container = document.getElementById('shop-items-container');
-    container.innerHTML = Object.keys(SHOP_ITEMS).map(key => {
-        const item = SHOP_ITEMS[key];
-        return `
-            <div class="shop-item-card" id="shop-card-${key}">
-                <div class="shop-item-id">${key}</div>
-                <div class="shop-item-icon">${item.icon}</div>
-                <div class="shop-item-name">${item.name}</div>
-                <div class="shop-item-desc">${item.desc}</div>
-                <div class="shop-item-price">$${item.price}</div>
-            </div>
-        `;
-    }).join("");
+    // 🏆 卡片渲染抽到 static/js/shop-ui.js 的 renderShopCards()，
+    // openShopUI() 本身牽涉的 socket/鏡頭/uiState 這些對局狀態留在這裡。
+    renderShopCards(document.getElementById('shop-items-container'), SHOP_ITEMS);
 
     document.getElementById('shop-ui').style.display = 'block';
     
@@ -2322,241 +2313,89 @@ function showShopConfirmUI(itemNum) {
 }
 
 
-function initShopAvatarStage() {
-    const canvas = document.getElementById('shop-avatar-canvas');
-    if (!canvas) return;
+// 🏆 createShopAvatarStage()／renderPlayerModelInShopStage() 已抽至
+// static/js/shop-ui.js（預覽頁 static/preview/game_shop.html 也用
+// 同一份）。這裡只保留「要渲染哪個玩家、什麼時候顯示」這段對局邏輯。
+let shopAvatarStage = null;
 
-    shopAvatarRenderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
-    shopAvatarRenderer.setSize(280, 320);
-    shopAvatarRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-
-    shopAvatarScene = new THREE.Scene();
-    
-    // 🏆 調整相機位置，將相機往後拉遠(z=4.5)，讓全身能入鏡
-    shopAvatarCamera = new THREE.PerspectiveCamera(40, 280 / 320, 0.1, 100);
-    shopAvatarCamera.position.set(0, 1.3, 4.5); 
-    shopAvatarCamera.lookAt(0, 1.1, 0); // 相機看著人物身體中心點
-
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
-    shopAvatarScene.add(ambientLight);
-    
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
-    dirLight.position.set(2, 4, 3);
-    shopAvatarScene.add(dirLight);
-}
-
-// 🏆 修正一：道具店 3D 渲染 (強制作為可見、拉高模型高度，解決不重進就白屏的 Bug)
 function renderPlayerModelInShop(playerName) {
     console.log(`[SHOP DEBUG] 準備透過 3D 共用材質渲染玩家 ${playerName} 的道具店替身...`);
-    
+
     const shopUI = document.getElementById('shop-ui');
     const shopViewport = document.getElementById('shop-spectator-avatar-viewport');
-    if (shopUI) shopUI.style.display = 'block'; 
+    if (shopUI) shopUI.style.display = 'block';
     if (shopViewport) shopViewport.style.display = 'block';
 
     requestAnimationFrame(() => {
-        if (!shopAvatarScene) initShopAvatarStage();
-        shopAvatarRenderer.setSize(280, 320);
-
-        if (shopAnimationId) {
-            cancelAnimationFrame(shopAnimationId);
-            shopAnimationId = null;
-        }
-        if (shopAvatarModel) shopAvatarScene.remove(shopAvatarModel);
-
-        const sourceModel = playerModels[playerName];
-        if (sourceModel) {
-            shopAvatarModel = sourceModel.clone();
-            
-            // 🏆 關鍵修正：必須強制將複製出來的模型設為可見！
-            // 防止因為主地圖呼叫了 setBoardVisibility(false) 導致複製出隱形人
-            shopAvatarModel.visible = true;
-            shopAvatarModel.traverse((child) => {
-                child.visible = true; // 強制所有骨架與網格皆可見
-                if (child.isMesh) {
-                    const srcChild = sourceModel.getObjectByName(child.name);
-                    if (srcChild) child.material = srcChild.material; 
-                }
-            });
-
-            // 🏆 調整位置：原本是 -0.6，往上移改成 -0.15，讓虛擬人物站高一點
-            shopAvatarModel.position.set(0, -0.15, 0); 
-            shopAvatarModel.scale.set(0.75, 0.75, 0.75); 
-            shopAvatarModel.rotation.set(0, 0, 0); // 正面朝前
-            
-            shopAvatarScene.add(shopAvatarModel);
-        } else {
-            console.error(`[SHOP DEBUG] 找不到玩家 ${playerName} 的地圖 3D 模型！`);
-        }
-
-        function animateShopAvatar() {
-            shopAnimationId = requestAnimationFrame(animateShopAvatar);
-            if (shopAvatarRenderer && shopAvatarScene && shopAvatarCamera) {
-                shopAvatarRenderer.render(shopAvatarScene, shopAvatarCamera);
-            }
-        }
-        animateShopAvatar();
+        if (!shopAvatarStage) shopAvatarStage = createShopAvatarStage(document.getElementById('shop-avatar-canvas'));
+        renderPlayerModelInShopStage(shopAvatarStage, playerModels[playerName]);
     });
 }
 
-// 🏆 全新宣告收購階段專用的 3D 舞台全域變率
-let decAvatarScene, decAvatarCamera, decAvatarRenderer, decAvatarModel, decAnimationId;
+// 🏆 修復觀戰視角收購決策角色白底貼圖：原本這裡另開一個完全獨立的
+// 迷你 3D 舞台（自己的 scene/camera/renderer），寫死 300×170px、白色
+// 背景、-35px 位移去蓋掉 .vision-frame-right 原本「大面積、靠下、
+// 透明背景」的版面（CSS 第 466-476 行），看起來像貼紙一樣浮在全景
+// 照片上，位置也跟遊玩玩家視角看自己攝影機畫面用的 virtualScreen
+// 完全對不上（virtualScreen 是疊在主場景 panoSphere 前面的平面，用
+// camera.position + forward/right 偏移算位置，見 submitQuizAnswer／
+// handleCodeSuccess 進入 PURCHASE_DECISION 那段）。
+//
+// 改成不另開場景，直接把替身 clone 放進主場景 scene，位置用跟
+// virtualScreen 同一套相機相對偏移公式計算——角色因此自然站在全景
+// 照片前面，不需要白色背景，也不用自己的 renderer/動畫迴圈（進了主
+// 場景會跟著主渲染迴圈一起畫）。
+//
+// ⚠️ window.spec3DModel 這個變數名稱原本被這個函式跟小鳥飛觀戰專用的
+// renderFlappyBirdAvatarSpectator()（各自想從不同的 scene 移除它）
+// 共用，會互相覆蓋、讓舊 clone 變孤兒物件殘留。這裡改用全新的
+// window.specDecisionAvatarModel，不再跟小鳥飛那邊衝突；
+// renderFlappyBirdAvatarSpectator() 本身完全沒有改動。
+//
+// AVATAR_FORWARD／AVATAR_RIGHT／AVATAR_DOWN／AVATAR_SCALE 這組數字
+// 沒辦法不開瀏覽器就知道好不好看，先抓一組起點值，實測後再微調。
+const AVATAR_FORWARD = 3.2; // 👈 角色離觀戰者相機多遠（沿 virtualScreen 用的 forward 方向）
+const AVATAR_RIGHT = 0.5;   // 👈 角色左右偏移（正數往右）
+const AVATAR_DOWN = 1.0;    // 👈 角色往下偏移多少，避免浮在視線正中央
+const AVATAR_SCALE = 0.9;   // 👈 角色大小
 
-// 🏆 終極通用 3D 鏡頭畫面渲染 (加入防覆蓋保護、新增畫布整體平移參數)
 function renderPlayerModelInActiveVisionFrame(playerName) {
-    // 🏆 修正一：加入 100ms 延遲保護，確保 fillTaskUI 已經把題目更新完畢，才不會把我們的畫布刷掉！
-    setTimeout(() => {
-        const canvasId = 'spectator-universal-3d-canvas';
-        
-        // =========================================================================
-        // 💡 【大師微調教學區】 你隨時可以坐在這裡改數字，調整畫布與人物大小位置！
-        // =========================================================================
-        const targetWidth = 300;   // 👈 1. 調整畫布寬度
-        const targetHeight = 170;  // 👈 2. 調整畫布高度
-        
-        const canvasMoveX = "-35px"; // 👈 🆕 3. 調整「整個白底畫布」左右移動！【負數往左，正數往右，例如 "-35px"】
+    if (!scene || !camera) return;
 
-        const modelX = -0.45;      // 👈 4. 調整人物在畫布內的左右！【正數往右，負數往左】
-        const modelY = -0.15;      // 👈 5. 調整人物在畫布內的上下！【正數往上，負數往下】
-        
-        const modelScale = 0.72;   // 👈 6. 調整人物模型大小！
-        const cameraZ = 3.5;       // 👈 7. 調整相機拉遠拉近！
-        // =========================================================================
+    if (window.specDecisionAvatarModel) {
+        // 只 remove，不 dispose——clone 出來的材質/幾何是跟真身共用的
+        // 參照，不是獨立複製品，dispose 會連真身一起壞掉。
+        scene.remove(window.specDecisionAvatarModel);
+        window.specDecisionAvatarModel = null;
+    }
 
-        const taskUI = document.getElementById('adventure-task-ui');
-        const decisionUI = document.getElementById('adventure-decision-ui');
-        
-        let activeContainer = null;
-        let targetUI = null;
+    const sourceModel = playerModels[playerName];
+    if (!sourceModel) return;
 
-        if (decisionUI && decisionUI.style.display !== 'none' && decisionUI.style.display !== '') {
-            targetUI = decisionUI;
-        } else if (taskUI && taskUI.style.display !== 'none' && taskUI.style.display !== '') {
-            targetUI = taskUI;
+    const model = sourceModel.clone();
+    model.visible = true;
+    model.traverse((child) => {
+        child.visible = true;
+        if (child.isMesh) {
+            const srcChild = sourceModel.getObjectByName(child.name);
+            if (srcChild) child.material = srcChild.material;
+            child.layers.set(0);
         }
+    });
 
-        if (targetUI) {
-            activeContainer = targetUI.querySelector('.vision-frame-right, .vision-frame-left, .vision-container, .vision-frame, .camera-wrapper');
-        }
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+    const pos = new THREE.Vector3().copy(camera.position)
+        .addScaledVector(forward, AVATAR_FORWARD)
+        .addScaledVector(right, AVATAR_RIGHT);
+    pos.y -= AVATAR_DOWN;
 
-        if (!activeContainer) {
-            const allPossibleFrames = document.querySelectorAll('.vision-frame-right, .vision-frame-left, .vision-container, .vision-frame, .camera-wrapper');
-            for (let frame of allPossibleFrames) {
-                if (frame.offsetWidth > 0 || frame.offsetHeight > 0 || window.getComputedStyle(frame).display !== 'none') {
-                    activeContainer = frame;
-                    break;
-                }
-            }
-        }
+    model.position.copy(pos);
+    model.scale.setScalar(AVATAR_SCALE);
+    model.lookAt(camera.position);
 
-        if (!activeContainer) {
-            activeContainer = document.querySelector('.vision-frame-right, .vision-frame-left, .vision-container, .vision-frame');
-        }
-
-        if (!activeContainer) {
-            console.warn(`[VISION DEBUG] 仍找不到相機容器，可能 UI 尚未完全展開。`);
-            return;
-        }
-
-        console.log(`[VISION DEBUG] 成功鎖定相機畫布容器：`, activeContainer);
-
-        // 隱藏原有的實體視訊畫面 (video 標籤等)
-        Array.from(activeContainer.children).forEach(child => {
-            if (child.id !== canvasId) child.style.display = 'none';
-        });
-
-        let canvas = document.getElementById(canvasId);
-        if (!canvas) {
-            canvas = document.createElement('canvas');
-            canvas.id = canvasId;
-            activeContainer.appendChild(canvas);
-        }
-        
-        // 🏆 修正二：加入 canvasMoveX 參數與圖層置頂 (zIndex)，解決畫布平移與被遮擋問題
-        activeContainer.style.display = 'flex';
-        activeContainer.style.justifyContent = 'center';
-        activeContainer.style.alignItems = 'center';
-        activeContainer.style.width = '100%';
-        activeContainer.style.maxWidth = `${targetWidth}px`;  
-        activeContainer.style.height = `${targetHeight}px`;   
-        activeContainer.style.backgroundColor = '#ffffff';
-        activeContainer.style.overflow = 'hidden';
-        activeContainer.style.margin = '0 auto';
-        
-        activeContainer.style.transform = `translateX(${canvasMoveX})`; // 執行畫布左右平移
-        activeContainer.style.position = 'relative';
-        activeContainer.style.zIndex = '9999'; // 確保畫布在最上層，不被題目 UI 蓋住！
-        activeContainer.style.opacity = '1';
-
-        canvas.style.display = 'block';
-        canvas.style.width = '100%';
-        canvas.style.height = '100%'; 
-        canvas.style.objectFit = 'contain';
-        canvas.style.borderRadius = '12px';
-        canvas.style.backgroundColor = '#ffffff';
-
-        // 初始化 3D 舞台
-        if (!window.spec3DScene) {
-            window.spec3DScene = new THREE.Scene();
-            window.spec3DScene.background = new THREE.Color(0xffffff); 
-            
-            window.spec3DCamera = new THREE.PerspectiveCamera(45, targetWidth / targetHeight, 0.1, 100);
-            window.spec3DCamera.position.set(0, 1.3, cameraZ); 
-            window.spec3DCamera.lookAt(0, 1.1, 0);
-
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.85); 
-            window.spec3DScene.add(ambientLight);
-            const dirLight = new THREE.DirectionalLight(0xffffff, 0.45);
-            dirLight.position.set(5, 10, 7);
-            window.spec3DScene.add(dirLight);
-
-            window.spec3DRenderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
-        }
-
-        const scene = window.spec3DScene;
-        const camera = window.spec3DCamera;
-        const renderer = window.spec3DRenderer;
-        
-        renderer.setSize(targetWidth, targetHeight);
-        camera.aspect = targetWidth / targetHeight;
-        camera.updateProjectionMatrix();
-
-        camera.position.z = cameraZ;
-
-        if (window.spec3DAnimId) {
-            cancelAnimationFrame(window.spec3DAnimId);
-            window.spec3DAnimId = null;
-        }
-        if (window.spec3DModel) scene.remove(window.spec3DModel);
-
-        const sourceModel = playerModels[playerName];
-        if (sourceModel) {
-            const model = sourceModel.clone();
-            window.spec3DModel = model;
-            
-            model.visible = true;
-            model.traverse((child) => {
-                child.visible = true;
-                if (child.isMesh) {
-                    const srcChild = sourceModel.getObjectByName(child.name);
-                    if (srcChild) child.material = srcChild.material; 
-                }
-            });
-
-            model.position.set(modelX, modelY, 0); 
-            model.scale.set(modelScale, modelScale, modelScale); 
-            model.rotation.set(0, 0, 0); 
-            scene.add(model);
-        }
-
-        function animate() {
-            window.spec3DAnimId = requestAnimationFrame(animate);
-            if (renderer && scene && camera) {
-                renderer.render(scene, camera);
-            }
-        }
-        animate();
-    }, 100); // 100ms 的延遲保護
+    scene.add(model);
+    window.specDecisionAvatarModel = model;
 }
 
 
@@ -2713,6 +2552,13 @@ socket.on('dice_event_sync', (data) => {
             //    可能已經用自己獨立抓到的地圖蓋過一次棋盤，收到房主這份
             //    才是兩邊真正該顯示的同一份，一定要重蓋而不是只換貼圖。
             if (typeof create3DBoard === "function") create3DBoard();
+            // 🏆 棋盤重蓋之後，create3DBoard() 只會更新「棋盤本身」的格子
+            // 位置（寫進 mapBlocks），不會動到已經放好的虛擬人物——這份
+            // SYNC_MAP 一定是在對局剛開始、大家還站在起點時才會發生
+            // （只會在 fetchMapConfig() 剛結束時廣播一次），所以直接把
+            // 已經建好的模型重新貼回新地圖的起點，不會錯誤搬動已經走到
+            // 別的格子的玩家。
+            repositionPlayerModelsToStart();
             const roomCode = JSON.parse(localStorage.getItem('pypoly_active_room'))?.code || localStorage.getItem('room_code');
             localStorage.setItem(`pypoly_synced_map_${roomCode}`, JSON.stringify(gameMap));
         }
@@ -2728,7 +2574,7 @@ socket.on('dice_event_sync', (data) => {
         else if (data.type === "FLAPPY_SYNC") {
             if (!window.isSpectating) return; // 只有觀戰者需要畫
             const pt = data.point;
-            
+
             const sb = document.getElementById('fb-status-bar');
             if (sb) {
                 sb.innerText = pt.statusText;
@@ -2738,55 +2584,13 @@ socket.on('dice_event_sync', (data) => {
             const fbCanvas = document.getElementById('fb-canvas');
             if (!fbCanvas) return;
             const fbCtx = fbCanvas.getContext('2d');
-            fbCtx.clearRect(0, 0, fbCanvas.width, fbCanvas.height);
 
-            // 1. 神同步水管
-            pt.pipes.forEach(p => {
-                fbCtx.fillStyle = 'rgba(0, 205, 172, 0.9)';
-                fbCtx.lineWidth = 3;
-                fbCtx.strokeStyle = '#005b4c';
-                fbCtx.fillRect(p.x, 0, 45, p.top);
-                fbCtx.strokeRect(p.x, 0, 45, p.top);
-                fbCtx.fillRect(p.x, p.top + p.gap, 45, fbCanvas.height - p.top - p.gap);
-                fbCtx.strokeRect(p.x, p.top + p.gap, 45, fbCanvas.height - p.top - p.gap);
-            });
-
-            // 2. 神同步小鳥動態
-            let birdX = fbCanvas.width * 0.25;
-            fbCtx.save();
-            fbCtx.translate(birdX, pt.birdY); 
-            
-            if (pt.state === 'PLAYING') {
-                let rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (pt.birdV * 0.08)));
-                fbCtx.rotate(rotation);
-            }
-
-            fbCtx.fillStyle = '#ffde59';
-            fbCtx.strokeStyle = '#d97706'; 
-            fbCtx.lineWidth = 2.5;
-            fbCtx.beginPath(); fbCtx.arc(0, 0, 15, 0, Math.PI * 2); fbCtx.fill(); fbCtx.stroke();
-            
-            fbCtx.fillStyle = '#ffb3b3';
-            fbCtx.beginPath(); fbCtx.arc(6, 4, 3.5, 0, Math.PI*2); fbCtx.fill();
-
-            fbCtx.fillStyle = '#ffffff'; 
-            fbCtx.beginPath(); fbCtx.arc(6, -4, 6, 0, Math.PI*2); fbCtx.fill(); fbCtx.stroke();
-            fbCtx.fillStyle = '#0f172a'; 
-            fbCtx.beginPath(); fbCtx.arc(8, -4, 2.5, 0, Math.PI*2); fbCtx.fill(); 
-            
-            fbCtx.fillStyle = '#f97316'; 
-            fbCtx.strokeStyle = '#c2410c';
-            fbCtx.lineWidth = 1.5;
-            fbCtx.beginPath(); fbCtx.moveTo(11, 2); fbCtx.lineTo(24, 5); fbCtx.lineTo(11, 9); fbCtx.closePath(); fbCtx.fill(); fbCtx.stroke();
-            
-            let wingY = (pt.state === 'PLAYING' && pt.birdV < 0) ? 3 : -2; 
-            if (pt.state === 'WAITING') wingY = Math.sin(Date.now() / 150) * 3;
-            fbCtx.fillStyle = '#ffffff'; 
-            fbCtx.strokeStyle = '#d97706';
-            fbCtx.lineWidth = 2;
-            fbCtx.beginPath(); fbCtx.ellipse(-5, wingY, 8, 5, 0, 0, Math.PI*2); fbCtx.fill(); fbCtx.stroke();
-
-            fbCtx.restore(); 
+            // 🏆 畫面繪製改呼叫 static/js/flappy-bird.js 的
+            // drawFlappyBirdScene()——原本這裡自己重寫一份跟 gameLoop()
+            // 幾乎一樣的繪製邏輯，是「沒抽成共用模組」的實例，這次順手
+            // 修掉。觀戰者直接用廣播收到的座標畫，不跑物理，所以傳的
+            // bird 是臨時物件，不是本地狀態。
+            drawFlappyBirdScene(fbCtx, fbCanvas, pt.state, { y: pt.birdY, v: pt.birdV }, pt.pipes);
         }
         // 🏆 接收跳躍廣播，觸發 3D 人物揮手動畫
         else if (data.type === "FLAPPY_FLAP") {
@@ -2885,8 +2689,8 @@ let showResultTime = 0; // 記錄骰子停止的時間點
 
 let isMoving = false;
 
-// 🏆 觀戰者專屬 3D 舞台變數
-let shopAvatarRenderer, shopAvatarScene, shopAvatarCamera, shopAvatarModel, shopAnimationId;
+// 🏆 觀戰者專屬 3D 舞台變數：shopAvatarStage 宣告在
+// renderPlayerModelInShop() 旁邊（搬去 static/js/shop-ui.js 之後）
 
 
 window.noticeHideTimer = null;
@@ -3012,7 +2816,7 @@ window.onload = async function() {
 
     // 步驟 C：這時候 mapBlocks 絕對有資料了，可以安全地生成並放置玩家積木人
     if (typeof loadPlayerModels === "function") {
-        loadPlayerModels();
+        await loadPlayerModels();
     }
 	
 	Object.keys(window.landOwnership).forEach(tileIdx => {
@@ -3067,6 +2871,28 @@ function create3DBoard() {
     const r = buildBoard(scene, gameMap);
     r.tiles.forEach(t => allTileMeshes.push(t));
     mapBlocks = r.positions;
+}
+
+// 🏆 SYNC_MAP 修正棋盤形狀之後，把已經建好的虛擬人物重新貼回新地圖的
+// 起點——邏輯跟 loadPlayerModels() 第一次擺放時完全一樣（起點 + 下一格
+// 算前進方向跟車道偏移），差別只是這裡重用模型已經記住的 laneOffset，
+// 不用重新判斷是第幾位玩家。只在剛收到 SYNC_MAP 時呼叫，這個時間點
+// 大家理論上都還站在起點，不會錯誤搬動已經走到別的格子的玩家。
+function repositionPlayerModelsToStart() {
+    if (typeof playerModels === 'undefined' || !mapBlocks || mapBlocks.length < 2) return;
+    const startPos = mapBlocks[0];
+    const nextPos = mapBlocks[1];
+    const dirForward = new THREE.Vector3().subVectors(nextPos, startPos).normalize();
+    const dirRight = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dirForward).normalize();
+
+    Object.values(playerModels).forEach(model => {
+        const laneOffset = model.userData.laneOffset || 0;
+        const finalStartPos = startPos.clone().addScaledVector(dirRight, laneOffset);
+        model.position.set(finalStartPos.x, finalStartPos.y + 0.5, finalStartPos.z);
+        const finalNextPos = nextPos.clone().addScaledVector(dirRight, laneOffset);
+        model.lookAt(finalNextPos.x, model.position.y, finalNextPos.z);
+    });
+    console.log("🧍 已將虛擬人物重新貼回同步後的地圖起點");
 }
 
 function applyBoardAppearance() {
@@ -3155,24 +2981,53 @@ function applyBoardAppearance() {
 
 // 🏆 2. 專門處理 3D 人臉異步載入與動態編織材質的黃金核心
 function updateMeshFaceTexture(mesh, faceDataUrl, skinColor) {
-    if (!mesh || !faceDataUrl) return;
+    if (!mesh) return;
 
-    // 人臉貼圖失敗時不該退回天空圖，第三參數傳 null 直接改用純色
-    loadTextureSafe(faceDataUrl, (texture) => {
-        texture.wrapS = THREE.ClampToEdgeWrapping;
-        texture.wrapT = THREE.ClampToEdgeWrapping;
-        texture.minFilter = THREE.LinearFilter;
-        
-        // 皮膚色材質
-        const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.6 });
-        // 人臉材質
-        const faceMat = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.5, transparent: true });
+    // 🏆 修復對局中人臉全黑：faceDataUrl 是 null（例如伺服器確認這個人
+    // 沒有相機人臉貼圖）時，原本這裡直接 return 什麼都不做，導致頭部
+    // 材質卡在建立模型當下的狀態，沒辦法被這次「問過伺服器」的結果糾正。
+    // 改成明確把材質重設回單一純色，跟 createCustomBoxCharacter() 沒有
+    // faceDataUrl 時的預設狀態一致。
+    const resetToPlainSkin = () => {
+        mesh.material = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.6 });
+    };
+    if (!faceDataUrl) {
+        resetToPlainSkin();
+        return;
+    }
 
-        // Three.js 立方體面索引：0:+X, 1:-X, 2:+Y, 3:-Y, 4:+Z, 5:-Z。 正前方是 +Z (Index 4)
-        mesh.material = [skinMat, skinMat, skinMat, skinMat, faceMat, skinMat];
-        mesh.material.forEach(m => m.needsUpdate = true);
-        console.log(`🎯 3D 角色面部貼圖渲染更新成功！`);
-    }, null);   // null = 不用天空圖當替身，失敗時退純色
+    // 🏆 修復對局中對手人臉全黑（第二輪）：原本借用 loadTextureSafe()，
+    // 那是給天空圖設計的「失敗就換一張替代圖，連替代圖都失敗才退純色」
+    // ——失敗時退的 makeSolidTexture() 預設是寫死的深藍黑色 #1e293b，
+    // 跟這裡的 skinColor 完全無關，而且不管成功失敗都走同一個
+    // onLoad，所以失敗時這塊「錯誤替代色」會被當成正常的人臉貼圖貼上
+    // 去——這就是玩家看到的「黑臉」。人臉貼圖這裡改成自己管理載入，
+    // 只有真的載入成功才貼上人臉材質，失敗（例如對手 localStorage
+    // 裡快取的舊相機照片網址已經失效）直接退回純膚色，跟沒有
+    // faceDataUrl 時一致，不會再貼出跟膚色無關的色塊。
+    new THREE.TextureLoader().load(
+        faceDataUrl,
+        (texture) => {
+            texture.wrapS = THREE.ClampToEdgeWrapping;
+            texture.wrapT = THREE.ClampToEdgeWrapping;
+            texture.minFilter = THREE.LinearFilter;
+
+            // 皮膚色材質
+            const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.6 });
+            // 人臉材質
+            const faceMat = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.5, transparent: true });
+
+            // Three.js 立方體面索引：0:+X, 1:-X, 2:+Y, 3:-Y, 4:+Z, 5:-Z。 正前方是 +Z (Index 4)
+            mesh.material = [skinMat, skinMat, skinMat, skinMat, faceMat, skinMat];
+            mesh.material.forEach(m => m.needsUpdate = true);
+            console.log(`🎯 3D 角色面部貼圖渲染更新成功！`);
+        },
+        undefined,
+        () => {
+            console.warn(`⚠️ 人臉貼圖載入失敗，退回純膚色：${faceDataUrl}`);
+            resetToPlainSkin();
+        }
+    );
 }
 
 // 🏆 3. 網絡收到對手廣播時，深度清洗全身顏色與臉部的函式
@@ -3242,23 +3097,7 @@ function updateModelColors(model, colors, faceDataUrl) {
 	
 	
 	
-// 🏆 新增：從 localStorage 取得玩家顏色，若無則回傳預設值
-function getPlayerColors(username) {
-    const raw = localStorage.getItem('pypoly_char_colors');
-    const defaults = {
-        head: '#f5c18a', arm: '#5cbaee', body: '#4a90d9',
-        legs: '#2c4a8c', feet: '#2c1f14'
-    };
-
-    if (!raw) return defaults;
-    try {
-        return JSON.parse(raw);
-    } catch (e) {
-        return defaults;
-    }
-}
-	
-function loadPlayerModels() {
+async function loadPlayerModels() {
     const gameSnapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot'));
     if (!gameSnapshot || !gameSnapshot.players) {
         console.error("🚨 找不到遊戲快照，載入失敗");
@@ -3275,21 +3114,77 @@ function loadPlayerModels() {
         activeCam.layers.enable(1);
     }
 
-    players.forEach((playerName, index) => {
-        const exactColors = localStorage.getItem(`pypoly_char_colors_${playerName}`);
+    for (let index = 0; index < players.length; index++) {
+        const playerName = players[index];
         const exactFace = localStorage.getItem(`pypoly_char_face_${playerName}`);
-        
+
         let activeColors = { head: '#f5c18a', body: '#4a90d9', arm: '#5cbaee', legs: '#2c4a8c', feet: '#2c1f14' };
         let activeFace = null;
 
         // 🏆 嚴格資料隔離：防止對手未同步前誤抓到自己的造型
         if (playerName === myName) {
-            const myColors = exactColors || localStorage.getItem('pypoly_char_colors');
-            if (myColors) { try { activeColors = JSON.parse(myColors); } catch(e) {} }
+            const myColors = window.myCharacterRecipe && window.myCharacterRecipe.colors;
+            if (myColors) activeColors = myColors;
             activeFace = exactFace || localStorage.getItem('pypoly_char_face');
         } else {
-            if (exactColors) { try { activeColors = JSON.parse(exactColors); } catch(e) {} }
-            activeFace = exactFace; // 對手如果網路還沒傳來，先維持預設，不混用自己的
+            let oppColors = window.netPlayerColors && window.netPlayerColors[playerName];
+            // 🏆 修復對局中對手人臉全黑：優先順序改成「這次連線收到的
+            // 廣播（記憶體，最新鮮）→ 即時問伺服器 → localStorage
+            // （跨對局永久保留，可能是失效的舊網址，只在前兩者都拿不到
+            // 時當最後手段）」。原本把 localStorage 當第一優先，對手
+            // 上次玩過的舊相機照片網址如果後來失效（例如去
+            // character.html 清除人臉），這裡會一直採信舊網址，載入
+            // 失敗後就會貼出黑臉。
+            activeFace = window.netPlayerFaces && window.netPlayerFaces[playerName];
+
+            if (!oppColors || !activeFace) {
+                // 對手還沒透過 Socket.IO 廣播傳來顏色/臉（例如晚進房間）：
+                // 這個 API 本來就支援查任何人、不需要帶 token，直接問資料庫，
+                // 不要顯示預設顏色。features 的判斷跟 restoreCharacterFromServer()
+                // 一樣：要真的有一項不是 'none' 才算有意義，不然可能是相機
+                // 使用者，要去問 /auth/camera_face 才拿得到真正的臉。
+                try {
+                    const res = await fetch(`${API_URL}/auth/character?username=${encodeURIComponent(playerName)}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        const oppChar = data.character;
+                        if (!oppColors && oppChar && oppChar.colors) {
+                            oppColors = oppChar.colors;
+                            window.netPlayerColors[playerName] = oppColors;
+                        }
+                        if (!activeFace && oppChar) {
+                            const oppHasMeaningfulFeatures = oppChar.features
+                                && Object.values(oppChar.features).some(v => v !== 'none');
+                            if (oppHasMeaningfulFeatures && typeof buildFaceDataUrl === 'function') {
+                                activeFace = buildFaceDataUrl(oppColors || activeColors, oppChar.features);
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.warn(`⚠️ 取得玩家 [${playerName}] 外觀資料失敗`, err);
+                }
+            }
+
+            if (oppColors) activeColors = oppColors;
+
+            if (!activeFace) {
+                try {
+                    const camRes = await fetch(`${API_URL}/auth/camera_face?username=${encodeURIComponent(playerName)}`);
+                    if (camRes.ok) {
+                        const camData = await camRes.json();
+                        if (camData.exists) activeFace = camData.url;
+                    }
+                } catch (err) {
+                    console.warn(`⚠️ 取得玩家 [${playerName}] 相機人臉貼圖失敗`, err);
+                }
+            }
+
+            if (!activeFace) {
+                // 最後手段：localStorage 裡上次見過這個使用者名字時
+                // 快取的臉——可能已經失效，但 updateMeshFaceTexture()
+                // 現在載入失敗會退回純膚色，不會再出現黑臉色塊。
+                activeFace = exactFace;
+            }
         }
 
         // 建立 3D 物件
@@ -3308,31 +3203,45 @@ function loadPlayerModels() {
             }
         });
 
-		const startPos = mapBlocks[0];
-        const nextPos = mapBlocks[1];
-        
-        // 取得前進方向，並利用外積算出「右邊方向」
-        const dirForward = new THREE.Vector3().subVectors(nextPos, startPos).normalize();
-        const dirRight = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dirForward).normalize();
-            
 		// 玩家一(0)分配左車道偏移 -1.2，玩家二(1)分配右車道偏移 1.2
-		const laneOffset = (index === 0) ? -1.2 : 1.2; 
-            
-		// 將車道記憶在模型上，供移動時讀取
-		model.userData.laneOffset = laneOffset; 
+		const laneOffset = (index === 0) ? -1.2 : 1.2;
 
-		// 乘上側向向量，達到肩並肩的效果
-		const finalStartPos = startPos.clone().addScaledVector(dirRight, laneOffset);
-		model.position.set(finalStartPos.x, finalStartPos.y + 0.5, finalStartPos.z);
-            
-		// 看向下一個格子的同一個車道位置
-		const finalNextPos = nextPos.clone().addScaledVector(dirRight, laneOffset);
-		model.lookAt(finalNextPos.x, model.position.y, finalNextPos.z);
+		// 將車道記憶在模型上，供移動時讀取
+		model.userData.laneOffset = laneOffset;
+
+		// 🏆 修復虛擬人物跑到地圖正中央：原本這裡直接讀 mapBlocks[0]／
+		// [1] 完全沒防呆，旁邊職責重疊的 repositionPlayerModelsToStart()
+		// 反而有防呆（mapBlocks.length < 2 就 return）。如果這個瀏覽器
+		// （常見於觀戰者/對手，地圖資料到位時機可能跟主玩家不同）執行
+		// 到這裡時 mapBlocks 還是空的，原本會直接丟例外，model.position
+		// 永遠不會被設定，模型就會卡在 Three.js 預設的 (0,0,0)——剛好
+		// 是棋盤 26 格環形排列的幾何中心，看起來就像「跑到地圖正中央」。
+		// 改成不中斷整個迴圈，模型留在預設位置，等地圖同步完成後交給
+		// 已經存在的 repositionPlayerModelsToStart() 補上正確座標。
+		if (mapBlocks && mapBlocks.length >= 2) {
+			const startPos = mapBlocks[0];
+			const nextPos = mapBlocks[1];
+
+			// 取得前進方向，並利用外積算出「右邊方向」
+			const dirForward = new THREE.Vector3().subVectors(nextPos, startPos).normalize();
+			const dirRight = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dirForward).normalize();
+
+			// 乘上側向向量，達到肩並肩的效果
+			const finalStartPos = startPos.clone().addScaledVector(dirRight, laneOffset);
+			model.position.set(finalStartPos.x, finalStartPos.y + 0.5, finalStartPos.z);
+
+			// 看向下一個格子的同一個車道位置
+			const finalNextPos = nextPos.clone().addScaledVector(dirRight, laneOffset);
+			model.lookAt(finalNextPos.x, model.position.y, finalNextPos.z);
+		} else {
+			console.warn(`⚠️ loadPlayerModels(): mapBlocks 尚未就緒（長度 ${mapBlocks ? mapBlocks.length : 0}），` +
+				`玩家 [${playerName}] 暫不設定初始座標，等地圖同步完成後由 repositionPlayerModelsToStart() 補上`);
+		}
 
         scene.add(model);
         playerModels[playerName] = model;
         console.log(`🤖 玩家 [${playerName}] 專屬自定義人物載入配置成功！`);
-    });
+    }
 }
 
 
@@ -3725,8 +3634,10 @@ async function initCameraAndStartVision() {
                         submitQuizAnswer(data.dice_val);
                         return;
                     } else {
-                        if (data.dice_val !== window.lockedDiceVal) return; 
-                        if (window.isPlus3Active) showGameNotice(`🎲 辨識成功！即將前進 ${window.lockedDiceVal} 步！`, 2000);
+                        if (data.dice_val !== window.lockedDiceVal) return;
+                        // 🏆 修復 #19：不管有沒有 +3 道具都顯示「將前進 N 步」，
+                        // 空等時間從 1500ms 縮短到 800ms。
+                        showGameNotice(`🎲 辨識成功！即將前進 ${window.lockedDiceVal} 步！`, 1000);
                         window.uiState = "FINISHED";
                         if (visionSocket) { visionSocket.close(); visionSocket = null; }
                         setTimeout(() => {
@@ -3735,7 +3646,7 @@ async function initCameraAndStartVision() {
                             const myName = localStorage.getItem('username');
                             const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
                             if (roomData) socket.emit('player_move_sync_request', { room: roomData.code, user: myName, steps: window.lockedDiceVal });
-                        }, 1500);
+                        }, 800);
                     }
                 } else if (window.uiState === "SHOP_CONFIRMING") {
                     if (data.dice_val === "LIKE" || data.dice_val === "DISLIKE") {
@@ -3830,7 +3741,7 @@ async function executeStealAnimation(attackerName) {
         payload: { victim: victimName } 
     });
 
-    await playStealAnimationCore(attackerName, victimName);
+    await playStealAnimationCore(buildSpectatorAnimCtx(), attackerName, victimName);
 
     // 2. 動畫結束後，扣除金錢並廣播
     updateMoneyUI(victimName, -300);
@@ -3857,236 +3768,11 @@ async function executeStealAnimation(attackerName) {
     }, 2000);
 }
 
-async function playStealAnimationCore(attackerName, victimName) {
-    const attackerModel = playerModels[attackerName];
-    const victimModel = playerModels[victimName];
-    if(!attackerModel || !victimModel) return;
+// 🏆 playStealAnimationCore()／spawnCombatText() 已抽至 static/js/spectator-animations.js
+// （預覽頁 static/preview/game_events.html 也用同一份）
 
-    // 確保背景明亮，絕不黑屏
-    scene.background = new THREE.Color(0xf1f5f9); 
-    if (panoSphere) { panoSphere.visible = false; panoSphere.material.opacity = 0; }
-    allTileMeshes.forEach(m => m.visible = true);
-
-    // 紀錄原本位置以便動畫後歸位
-    const origAttackerPos = attackerModel.position.clone();
-    const origAttackerRot = attackerModel.rotation.clone();
-    const origVictimPos = victimModel.position.clone();
-    const origVictimRot = victimModel.rotation.clone();
-
-    // 抓取一個中央格子
-    const centerIdx = playerCurrentIndex[attackerName] || 0;
-    const centerPos = mapBlocks[centerIdx].clone();
-
-    // 一左一右排好
-    attackerModel.position.set(centerPos.x - 1.5, centerPos.y, centerPos.z);
-    victimModel.position.set(centerPos.x + 1.5, centerPos.y, centerPos.z);
-    
-    // 預設先看著正前方的相機鏡頭 (+Z方向)
-    attackerModel.lookAt(attackerModel.position.x, attackerModel.position.y, attackerModel.position.z + 10);
-    victimModel.lookAt(victimModel.position.x, victimModel.position.y, victimModel.position.z + 10);
-
-    attackerModel.visible = true;
-    victimModel.visible = true;
-	
-	const attackerHead = attackerModel.getObjectByName("head");
-    const victimHead = victimModel.getObjectByName("head");
-    if (attackerHead) attackerHead.visible = true;
-    if (victimHead) victimHead.visible = true;
-
-    // 🏆 修正運鏡：相機拉高數值往上 (y+4.5)，往後退 (z+9)，向下俯視兩人
-    if (attackerName === localStorage.getItem('username') || window.isSpectating) {
-        camera.layers.enable(0);
-        camera.layers.enable(1); 
-        camera.position.set(centerPos.x, centerPos.y + 5.0, centerPos.z + 9);
-        camera.lookAt(centerPos.x, centerPos.y + 1.2, centerPos.z);
-    }
-
-    // 裝備鐵鍬
-    const shovel = createShovel();
-    attackerModel.add(shovel); 
-    shovel.position.set(0.6, 1.2, 0.6);
-    shovel.rotation.x = Math.PI / 2;
-
-    await new Promise(res => {
-        const tl = gsap.timeline({ onComplete: res });
-        
-        // 🏆 修正角度：轉 60 度 (Math.PI / 3) 即可，這樣既能看著對方，又能露出側臉給相機看
-        tl.to(attackerModel.rotation, { y: Math.PI / 3, duration: 0.5, ease: "back.out(1.5)" })
-          .to(victimModel.rotation, { y: -Math.PI / 3, duration: 0.3 }, "-=0.2")
-          .to({}, { duration: 0.2 }); 
-        
-        // 連敲三下噴錢
-        for(let i = 0; i < 6; i++) {
-            tl.to(attackerModel.rotation, { x: -0.6, duration: 0.25, ease: "power2.inOut" }) 
-              .to(attackerModel.rotation, { x: 0.7, duration: 0.12, ease: "none" }) 
-              .add(() => {
-                  playSfx('steal');
-
-                  gsap.to(victimModel.position, { x: victimModel.position.x + (i%2===0?0.15:-0.15), duration: 0.05, yoyo: true, repeat: 3 });
-                  // 🏆 呼叫專屬 2D 跳字特效 (紅色)
-                  spawnCombatText('right', "🪙 -$50", "#ff4757"); 
-              })
-              .to(attackerModel.rotation, { x: 0, duration: 0.2 }); 
-        }
-        
-        // 結尾大字 (綠色)
-        tl.add(() => {
-            spawnCombatText('left', "💰 總共 +$300", "#00cdac");
-        });
-        tl.to({}, { duration: 1.5 });
-    });
-
-    attackerModel.remove(shovel);
-    
-    // 歸位
-    attackerModel.position.copy(origAttackerPos);
-    attackerModel.rotation.copy(origAttackerRot);
-    victimModel.position.copy(origVictimPos);
-    victimModel.rotation.copy(origVictimRot);
-}
-
-// 🏆 新增：專為偷竊戰鬥設計的跳字特效 (乾淨、清晰、不破圖)
-function spawnCombatText(side, text, color) {
-    const el = document.createElement('div');
-    el.innerHTML = text;
-    
-    // 加入一點隨機偏移，讓連續敲擊時文字不會完全重疊，有「連擊」的快感
-    const offsetX = (Math.random() - 0.5) * 40;
-    const offsetY = (Math.random() - 0.5) * 40;
-
-    el.style.cssText = `
-        position: fixed;
-        top: calc(50% + ${offsetY}px);
-        left: calc(${side === 'left' ? '30%' : '70%'} + ${offsetX}px);
-        transform: translate(-50%, -50%) scale(0.5);
-        background: ${color};
-        color: white;
-        padding: 10px 25px;
-        border-radius: 50px;
-        border: 4px solid white;
-        font-size: 2.2rem;
-        font-weight: 900;
-        z-index: 100000;
-        opacity: 0;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-        pointer-events: none;
-    `;
-    document.body.appendChild(el);
-
-    // 彈出動畫
-    gsap.to(el, { opacity: 1, scale: 1.2, duration: 0.2, ease: "back.out(2)" });
-    // 往上飄並淡出
-    gsap.to(el, { top: "35%", opacity: 0, duration: 0.8, delay: 0.6, ease: "power1.in", onComplete: () => el.remove() });
-}
-
-// 🏆 修正版：支援「強制收購」與「地主加蓋升級」
-function fillDecisionUI(data, activePlayerName) {
-    window.isDiscountApplied = false;
-    window.discountedPrice = 0;
-    window.currentBuyoutTarget = null; 
-    window.currentBuyoutPrice = 0;     
-    window.isUpgrading = false; // 🏆 新增升級狀態
-    window.upgradePrice = 0;
-    window.newToll = 0;
-
-    if (!data) return;
-
-    const currentIdx = playerCurrentIndex[activePlayerName];
-    const landData = window.landOwnership[currentIdx];
-
-    const nameEl = document.getElementById('adv-ui-name');
-    if (nameEl) nameEl.innerText = (landData && landData.name) ? landData.name : (data.name || "未知土地");
-    
-    const basePrice = landData ? (landData.originalPrice || data.base_price) : data.base_price;
-    const currentToll = landData ? (landData.toll || data.toll) : data.toll;
-
-    const baseEl = document.getElementById('adv-ui-base');
-    if (baseEl) {
-        if (landData && landData.owner !== activePlayerName) {
-            baseEl.innerHTML = `$${basePrice}<br><span style="font-size: 0.75rem; color: #94a3b8; font-weight: 700;">(原地主購入價)</span>`;
-        } else {
-            baseEl.innerText = `$${basePrice}`;
-        }
-    }
-    
-    // ⛅ 即時天氣狀況（替換原人流計數）
-    const weatherEl = document.getElementById('adv-ui-weather-desc');
-    if (weatherEl) {
-        if (data.has_temp_event) {
-            weatherEl.innerText = `${data.weather || '晴'} (${data.temp_station}站)`;
-        } else {
-            weatherEl.innerText = '晴朗';
-        }
-    }
-    
-    // 🌡️ 即時氣溫與加成（替換原觀光加成）
-    const tempEl = document.getElementById('adv-ui-temp-desc');
-    if (tempEl) {
-    if (data.has_temp_event) {
-        tempEl.innerText = `${data.temp}°C (×${data.temp_multiplier})`;
-    } else {
-        tempEl.innerText = '適中 (×1.0)';
-    }
-}
-
-    const aqiTag = document.getElementById('adv-ui-aqi-notice');
-    const totalEl = document.getElementById('adv-ui-total');
-    const tollEl = document.getElementById('adv-ui-toll');
-
-    // 🏆 情境 A：自己是地主 -> 加蓋升級模式
-    if (landData && landData.owner === activePlayerName) {
-        if (aqiTag) {
-            aqiTag.innerText = `👑 您的領地 (可加蓋)`;
-            aqiTag.style.background = "#00cdac";
-            aqiTag.style.color = "white";
-            aqiTag.style.display = "block";
-        }
-        
-        window.upgradePrice = Math.floor(basePrice * 0.5);
-        window.newToll = Math.floor(currentToll * 2);
-        window.isUpgrading = true;
-
-        if (totalEl) totalEl.innerHTML = `<span style="font-size: 1.5rem; color: #94a3b8; margin-right:10px;">加蓋費用</span> <span style="color:#00cdac;">$${window.upgradePrice}</span>`;
-        if (tollEl) tollEl.innerHTML = `<span style="text-decoration: line-through; color: #94a3b8; font-size: 0.9rem;">$${currentToll}</span> <span style="color: #f08c00;">$${window.newToll}</span>`;
-
-        setTimeout(() => showGameNotice(`🏠 歡迎回來！加蓋一層樓只需 $${window.upgradePrice}，過路費將提升！`, 3500), 800);
-    } 
-    // 情境 B：別人是地主 -> 強制收購模式
-    else if (landData && landData.owner !== activePlayerName) {
-        if (aqiTag) {
-            aqiTag.innerText = `👑 原地主：${landData.owner}`;
-            aqiTag.style.background = "#ff4757";
-            aqiTag.style.color = "white";
-            aqiTag.style.display = "block";
-        }
-
-        const buyoutPrice = Math.floor(basePrice * 1.5);
-        if (totalEl) totalEl.innerHTML = `<span style="font-size: 2rem; text-decoration: line-through; color: #94a3b8; margin-right:10px;">$${basePrice}</span> <span style="color:#ff4757;">$${buyoutPrice}</span>`;
-        if (tollEl) tollEl.innerText = `$${currentToll}`;
-
-        window.currentBuyoutTarget = landData.owner;
-        window.currentBuyoutPrice = buyoutPrice;
-
-        setTimeout(() => showGameNotice(`👑 此地主為 ${landData.owner}！強制收購需加價 50%！`, 3500), 800);
-    } 
-    // 情境 C：空地 -> 一般收購（頂部只顯示 AQI 特殊事件）
-    else {
-        if (aqiTag) {
-            if (data.has_env_event) {
-                const em = data.env_multiplier;
-                aqiTag.innerText = `🍃 ${data.env_station}站 AQI ${data.aqi}（${data.env_status}，×${em}）`;
-                aqiTag.style.background = (em >= 1.0) ? "#00cdac" : "#ff7675";
-                aqiTag.style.color = "white";
-                aqiTag.style.padding = "6px 12px";
-                aqiTag.style.display = "block";
-            } else {
-                aqiTag.style.display = "none"; // 無 AQI 事件時隱藏頂部標籤
-            }
-        }
-        if (totalEl) totalEl.innerText = `$${data.total_price || 0}`;
-        if (tollEl) tollEl.innerText = `$${data.toll || 0}`;
-    }
-}
+// 🏆 fillDecisionUI() 已抽至 static/js/decision-ui.js
+// （預覽頁 static/preview/game_decision.html 也用同一份）
 
 
 // 🏆 修正 3：從 localStorage 恢復土地所有權記憶，防止重新整理後資料遺失！
@@ -4153,7 +3839,7 @@ async function handleTollPhase(myName, landName, questionObj) {
         payload: { owner: ownerName, amount: tollAmount, usedItem: false, landName: landName }
     });
 
-    await playTollAnimationCore(myName, ownerName, tollAmount, false, currentIdx);
+    await playTollAnimationCore(buildSpectatorAnimCtx(), myName, ownerName, tollAmount, false, currentIdx);
 
     updateMoneyUI(myName, -tollAmount);
     updateMoneyUI(ownerName, tollAmount);
@@ -4162,106 +3848,8 @@ async function handleTollPhase(myName, landName, questionObj) {
     startAdventureRecognition(questionObj);
 }
 
-// 🏆 修正：完美運鏡、只留一格、動畫結束人物消失
-async function playTollAnimationCore(payerName, ownerName, tollAmount, usedItem, tileIdx) {
-	const payerModel = playerModels[payerName];
-    const ownerModel = playerModels[ownerName];
-    if(!payerModel || !ownerModel) return;
-
-    // 🏆 修正三：在動畫開始前，強制刷新這格土地與房子的顏色，保證 100% 同步
-    const landData = window.landOwnership[tileIdx];
-    if (landData) {
-        const ownerColor = getPlayerLandColor(landData.owner);
-        if (allTileMeshes[tileIdx]) allTileMeshes[tileIdx].material.color.set(ownerColor);
-        const house = scene.getObjectByName("house_" + tileIdx);
-        if (house) {
-            house.children.forEach(c => {
-                if (c.geometry && c.geometry.type === 'ConeGeometry') {
-                    c.material.color.set(ownerColor);
-                    c.material.needsUpdate = true;
-                }
-            });
-        }
-    }
-
-    payerModel.visible = true;
-    ownerModel.visible = true;
-
-    // 強制顯示雙方的頭部 (解決無頭騎士問題)
-    const payerHead = payerModel.getObjectByName("head");
-    const ownerHead = ownerModel.getObjectByName("head");
-    if(payerHead) payerHead.visible = true;
-    if(ownerHead) ownerHead.visible = true;
-
-    const existingHouse = scene.getObjectByName("house_" + tileIdx);
-    if(existingHouse) existingHouse.visible = true;
-
-    // 1. 保持環景圖，移除純色背景
-    scene.background = null; 
-    if (panoSphere) { panoSphere.visible = true; panoSphere.material.opacity = 1; }
-    
-    // 🏆 修正三-A：移除舊的 allTileMeshes.forEach，改用 setBoardVisibility 確保其他房子被隱藏
-    setBoardVisibility(false, tileIdx);
-
-    // 🏆 修正三-B：在畫面下方顯示過路費收取提示
-    showCustomNotice("💸 支付/收取過路費中...", "bottom", 2500);
-
-    const origPayerPos = payerModel.position.clone();
-    const origPayerRot = payerModel.rotation.clone();
-    const origOwnerPos = ownerModel.position.clone();
-    const origOwnerRot = ownerModel.rotation.clone();
-
-    const centerPos = mapBlocks[tileIdx].clone();
-    payerModel.position.set(centerPos.x - 1.2, centerPos.y, centerPos.z);
-    ownerModel.position.set(centerPos.x + 1.2, centerPos.y, centerPos.z);
-    
-    // 3. 讓人物斜面對鏡頭 (看著前方的相機)
-    payerModel.lookAt(ownerModel.position.x, ownerModel.position.y, ownerModel.position.z + 5);
-    ownerModel.lookAt(payerModel.position.x, payerModel.position.y, payerModel.position.z + 5);
-
-    payerModel.visible = true;
-    ownerModel.visible = true;
-
-    if (payerName === localStorage.getItem('username') || window.isSpectating) {
-        camera.layers.enable(0); camera.layers.enable(1); 
-        camera.position.set(centerPos.x, centerPos.y + 5.0, centerPos.z + 9);
-        camera.lookAt(centerPos.x, centerPos.y + 1, centerPos.z);
-    }
-
-    await new Promise(res => {
-        const tl = gsap.timeline({ onComplete: res });
-        tl.to(payerModel.rotation, { x: 0.3, duration: 0.3, yoyo: true, repeat: 1 })
-          .add(() => {
-              if (usedItem) {
-                  spawnCombatText('left', "🛡️ 免疫", "#4facfe");
-                  spawnCombatText('right', "💢 沒收到錢", "#94a3b8");
-                  gsap.to(ownerModel.rotation, { z: 0.3, duration: 0.2, yoyo: true, repeat: 3 }); 
-              } else {
-                  spawnCombatText('left', `💸 -$${tollAmount}`, "#ff4757");
-                  spawnCombatText('right', `🤑 +$${tollAmount}`, "#00cdac");
-                  gsap.to(ownerModel.position, { y: ownerModel.position.y + 0.8, duration: 0.3, yoyo: true, repeat: 1 }); 
-              }
-          })
-          .to({}, { duration: 2.0 }); 
-    });
-	
-	// 🏆 動畫播完後，隱藏人物、格子與【房子】
-	payerModel.visible = false;
-    ownerModel.visible = false;
-    setBoardVisibility(false);
-    if (allTileMeshes[tileIdx]) allTileMeshes[tileIdx].visible = false;
-    if (existingHouse) existingHouse.visible = false; // 解決觀戰者殘留問題
-
-    // 恢復主角原本的無頭設定 (避免回到第一人稱時穿模)
-    if(payerName === localStorage.getItem('username') && !window.isSpectating) {
-        if(payerHead) payerHead.visible = false;
-    }
-
-    // 恢復人物原本的方向
-    payerModel.position.copy(origPayerPos); payerModel.rotation.copy(origPayerRot);
-    ownerModel.position.copy(origOwnerPos); ownerModel.rotation.copy(origOwnerRot);
-	
-}
+// 🏆 playTollAnimationCore() 已抽至 static/js/spectator-animations.js
+// （預覽頁 static/preview/game_events.html 也用同一份）
 
 socket.on('land_bought_sync', async (data) => {
     const myName = localStorage.getItem('username');
@@ -4319,10 +3907,10 @@ socket.on('land_bought_sync', async (data) => {
                 document.getElementById('adventure-decision-ui').style.display = 'none';
                 setBoardVisibility(true);
             }, 800);
-            await runPurchaseAnimation(data.user, data.tileIndex, correctColor, isActuallyUpgrade);
-            setTimeout(() => { autoSmoothExitToGodView(); }, 6000); 
+            await runPurchaseAnimationCore(buildSpectatorAnimCtx(), data.user, data.tileIndex, correctColor, isActuallyUpgrade);
+            setTimeout(() => { autoSmoothExitToGodView(); }, 6000);
         } else {
-            await runPurchaseAnimation(data.user, data.tileIndex, correctColor, isActuallyUpgrade);
+            await runPurchaseAnimationCore(buildSpectatorAnimCtx(), data.user, data.tileIndex, correctColor, isActuallyUpgrade);
         }
     }
 });
@@ -4395,7 +3983,7 @@ async function executePurchase(isBuying) {
             
             socket.emit('sync_adventure_choice', { room: roomCode, choice: 'LIKE' });
 
-            await runPurchaseAnimation(myName, currentIndex, myColor, window.isUpgrading);
+            await runPurchaseAnimationCore(buildSpectatorAnimCtx(), myName, currentIndex, myColor, window.isUpgrading);
             
             if (window.currentBuyoutTarget) showGameNotice(`🎉 成功以 $${finalPrice} 強制收購 ${landName}！`, 2500);
             else if (window.isUpgrading) showGameNotice(`🏢 加蓋成功！過路費升級為 $${finalToll}！`, 2500);
@@ -4870,25 +4458,8 @@ socket.on('update_pose_count_broadcast', (data) => {
 });
 
 // 🏆 虛擬人物 3D 跳躍動畫函式
-function play3DJumpAnimation(model) {
-    const origY = model.position.y;
-    // 身體往上跳
-    gsap.to(model.position, {
-        y: origY + 1.2,
-        duration: 0.25,
-        yoyo: true,
-        repeat: 1,
-        ease: "power1.out"
-    });
-
-    // 雙手揮動 (簡單的開合跳手臂動作)
-    const leftArm = model.getObjectByName("leftArm");
-    const rightArm = model.getObjectByName("rightArm");
-    if (leftArm && rightArm) {
-        gsap.to(leftArm.rotation, { z: Math.PI / 1.5, duration: 0.25, yoyo: true, repeat: 1 });
-        gsap.to(rightArm.rotation, { z: -Math.PI / 1.5, duration: 0.25, yoyo: true, repeat: 1 });
-    }
-}
+// 🏆 play3DJumpAnimation() 已抽至 static/js/punish-minigame.js
+// （預覽頁 static/preview/game_punish.html 也用同一份）
 
 // game.html 修正版
 let isProcessingDecision = false; // 🏆 新增：全域防重複鎖定
@@ -5157,175 +4728,8 @@ async function initPoseAndStartVision() {
 	activeCamera.start();
 }
 
-// 🛠️ 輔助函式：建立監獄鐵籠 (高度降低版，完美露出臉部且不撞頂)
-function createJailCage() {
-    const group = new THREE.Group();
-    const ironMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.9, roughness: 0.4 });
-
-    const baseGeo = new THREE.BoxGeometry(4.8, 0.4, 4.8);
-    const base = new THREE.Mesh(baseGeo, ironMat);
-    base.position.y = 0.2;
-    group.add(base);
-
-    // 🏆 降低頂部高度 (由 6.0 降至 4.5)，避免擋住上方 UI 或超出畫面
-    const top = new THREE.Mesh(baseGeo, ironMat);
-    top.position.y = 4.5; 
-    group.add(top);
-
-    // 🏆 配合降低的高度，把柱子縮短 (5.6 -> 4.3)，並調低位置 (3.2 -> 2.35)
-    const barGeo = new THREE.CylinderGeometry(0.18, 0.18, 4.3, 8);
-    
-    // 一樣保持正前方留空，不擋住虛擬人物的表情
-    const positions = [
-        [-2.2, -2.2], [-2.2, 0], [-2.2, 2.2],
-        [ 2.2, -2.2], [ 2.2, 0], [ 2.2, 2.2],
-        [ 0,   -2.2] 
-    ];
-    positions.forEach(pos => {
-        const bar = new THREE.Mesh(barGeo, ironMat);
-        bar.position.set(pos[0], 2.35, pos[1]);
-        group.add(bar);
-    });
-
-    return group;
-}
-
-// 🎬 核心動畫：播放監獄鐵籠從天而降
-async function playJailAnimationCore(playerName, tileIdx) {
-    const model = playerModels[playerName];
-    if (!model) return;
-    playSfx('jail'); // 🏆 需求⑥：監獄鐵籠砸下音效
-
-    // 1. 場景清理：顯示亮色背景，隱藏除了此格以外的物件
-    scene.background = new THREE.Color(0xf1f5f9); 
-    if (panoSphere) { panoSphere.visible = false; panoSphere.material.opacity = 0; }
-    setBoardVisibility(false, tileIdx);
-
-    model.visible = true;
-    const head = model.getObjectByName("head");
-    if (head) head.visible = true;
-
-    const existingHouse = scene.getObjectByName("house_" + tileIdx);
-    if(existingHouse) existingHouse.visible = true;
-
-    // 2. 紀錄原位，並讓人物走到格子「正中央」面對鏡頭受刑
-    const origPos = model.position.clone();
-    const origRot = model.rotation.clone();
-    const centerPos = mapBlocks[tileIdx].clone();
-	
-	const targetTile = allTileMeshes[tileIdx];
-    if (targetTile) {
-        // 🏆 動畫開始時，將監獄格子微微放大即可 (從 1.6 改為 1.3)
-        gsap.to(targetTile.scale, { x: 1.3, z: 1.3, duration: 0.5, ease: "back.out(1.5)" });
-    }
-    
-    model.position.set(centerPos.x, centerPos.y, centerPos.z);
-    model.lookAt(centerPos.x, centerPos.y, centerPos.z + 10);
-
-    // 3. 專屬運鏡：🏆 超近距離低視角，讓鐵籠看起來更高大！
-    // 3. 專屬運鏡：🏆 超近距離低視角，讓鐵籠看起來更高大！
-    let origCamPos = camera.position.clone();
-    let origCamQuat = camera.quaternion.clone(); // 🏆 修正二(A)：改為記錄相機原本的「旋轉角度」，因為主遊戲中沒有 controls！
-
-    if (playerName === localStorage.getItem('username') || window.isSpectating) {
-        camera.layers.enable(0); camera.layers.enable(1);
-        camera.position.set(centerPos.x, centerPos.y + 2.5, centerPos.z + 8.5); 
-        
-        camera.lookAt(centerPos.x, centerPos.y + 2.0, centerPos.z); // 直接使用相機的 lookAt 即可鎖定視角
-        origCamPos = camera.position.clone(); // 記下震動前的基準點
-    }
-
-    // 4. 生成鐵籠並放置於高空 (y+15)
-    const cage = createJailCage();
-    cage.position.set(centerPos.x, centerPos.y + 15, centerPos.z);
-    scene.add(cage);
-
-    const tearsGroup = new THREE.Group();
-    const tearGeo = new THREE.SphereGeometry(0.06, 6, 6);
-    const tearMat = new THREE.MeshBasicMaterial({ color: 0x4facfe, transparent: true, opacity: 0.8 });
-    for(let i=0; i<12; i++) {
-        const t = new THREE.Mesh(tearGeo, tearMat);
-        t.position.set((Math.random()-0.5)*0.6, 0, 0.45); // 分佈在臉頰前
-        tearsGroup.add(t);
-    }
-    tearsGroup.visible = false; // 砸下來才開始哭
-    if (head) head.add(tearsGroup);
-
-    showCustomNotice("⛓️ 慘遭逮捕！下回合禁賽", "bottom", 4500);
-
-    // 5. 震撼動畫開始 (🏆 放慢速度版)
-    await new Promise(res => {
-        const tl = gsap.timeline({ onComplete: res });
-        
-        // 放慢重力落下 (duration 0.35 -> 0.7)
-        tl.to(cage.position, { y: centerPos.y, duration: 0.7, ease: "power4.in" })
-          .add(() => {
-              // 鏡頭大地震
-              if (playerName === localStorage.getItem('username') || window.isSpectating) {
-                  const shakeObj = { val: 0 };
-                  gsap.to(shakeObj, {
-                      val: 1, duration: 0.4,
-                      onUpdate: () => {
-                          camera.position.y = origCamPos.y + (Math.random() - 0.5) * 1.5;
-                          camera.position.x = origCamPos.x + (Math.random() - 0.5) * 1.5;
-                      },
-                      onComplete: () => { camera.position.copy(origCamPos); }
-                  });
-              }
-              
-              // 放慢壓扁特效 (duration 0.05 -> 0.15)
-              gsap.to(model.scale, { y: 0.4, x: 2.4, z: 2.4, duration: 0.15, yoyo: true, repeat: 1 });
-              // 驚嚇旋轉放慢 (duration 1.0 -> 1.5)
-              gsap.to(model.rotation, { y: Math.PI * 6, duration: 1.5, ease: "power2.out", delay: 0.15 });
-
-              // 🏆 啟動狂噴眼淚特效
-              tearsGroup.visible = true;
-              tearsGroup.children.forEach(t => {
-                  gsap.to(t.position, {
-                      y: -1.0 - Math.random(), // 往下掉
-                      duration: 0.4 + Math.random()*0.3,
-                      repeat: -1,
-                      ease: "power1.in"
-                  });
-                  gsap.to(t.material, {
-                      opacity: 0,
-                      duration: 0.4 + Math.random()*0.3,
-                      repeat: -1,
-                      ease: "power1.in"
-                  });
-              });
-          })
-          // 放慢鐵籠微彈 (duration 0.08 -> 0.2)
-          .to(cage.position, { y: centerPos.y + 0.5, duration: 0.2, ease: "power1.out" })
-          .to(cage.position, { y: centerPos.y, duration: 0.15, ease: "power1.in" })
-          // 拉長圍觀時間 (duration 3.5 -> 4.5)
-          .to({}, { duration: 4.5 }); 
-    });
-	
-	// 6. 動畫播完後清理模型與狀態
-    if (head) head.remove(tearsGroup); 
-    scene.remove(cage);
-    model.position.copy(origPos);
-    model.rotation.copy(origRot);
-    model.scale.set(1.5, 1.5, 1.5); 
-    model.visible = false;
-    setBoardVisibility(false);
-    if(existingHouse) existingHouse.visible = false;
-	
-	if (targetTile) {
-        // 🏆 動畫結束後，將監獄格子縮回原狀
-        gsap.to(targetTile.scale, { x: 1, z: 1, duration: 0.5 });
-    }
-
-    // 🏆 關鍵修正：動畫結束後，將觀戰者與玩家的相機注視點恢復原狀，防止畫面卡住
-    if (playerName === localStorage.getItem('username') || window.isSpectating) {
-        camera.quaternion.copy(origCamQuat); 
-    }
-
-    if(playerName === localStorage.getItem('username') && !window.isSpectating) {
-        if(head) head.visible = false;
-    }
-}
+// 🏆 createJailCage()／playJailAnimationCore() 已抽至 static/js/spectator-animations.js
+// （預覽頁 static/preview/game_events.html 也用同一份）
 
 let birdData = { y: 240, pipes: [], coins: 0 };
 
@@ -5383,12 +4787,16 @@ async function startBirdGameView() {
 
 // 🏆 終極一體化小鳥飛引擎：加入高頻觀戰者同步機制、廣播 3D 揮手動作
 let fbAnimId = null;
-let fbState = 'WAITING'; 
+let fbState = 'WAITING';
 let fbScore = 0;
 let fbPipes = [];
 let fbBird = { y: 0, v: 0 };
 let fbLastHandY = 0;
-let fbHasMovedDown = false; 
+let fbHasMovedDown = false;
+// 🏆 修復 #8：gameLoop() 原本完全沒有 delta-time，重力/管道速度都是
+// 假設固定 60fps 的每幀常數——MediaPipe 推論拖慢主執行緒時物理會跟著
+// 變慢變卡頓。這個時間戳記用來算每幀真實經過的時間，見 gameLoop()。
+let fbLastFrameTs = null;
 
 async function startFlappyBirdMiniGame() {
     console.log("[FLAPPY DEBUG] 🐦 準備啟動小鳥飛遊戲...");
@@ -5398,9 +4806,10 @@ async function startFlappyBirdMiniGame() {
     fbState = 'WAITING';
     fbScore = 0;
     fbLastHandY = 0;
-    fbHasMovedDown = false; 
+    fbHasMovedDown = false;
     window.fbStartFlapCount = 0;
     fbPipes = [];
+    fbLastFrameTs = null; // 重新開始時 dt 計算從頭來，不沿用舊時間戳記
 
     const myName = localStorage.getItem('username');
     const roomCode = JSON.parse(localStorage.getItem('pypoly_active_room'))?.code || localStorage.getItem('room_code');
@@ -5535,96 +4944,38 @@ async function startFlappyBirdMiniGame() {
         outCanvas.height = 480;
     }
 
-    fbPipes = [{ x: fbCanvas.width * 0.7, top: fbCanvas.height * 0.3, gap: 160, passed: false }];
+    fbPipes = [createInitialFlappyBirdPipe(fbCanvas)];
 	
+    // 🏆 畫面繪製＋物理已抽至 static/js/flappy-bird.js 的
+    // stepAndDrawFlappyBird()（預覽頁 static/preview/game_flappybird.html
+    // 也用同一份）。這裡只留對局限定的部分：回合計分、碰撞後的勝負
+    // 判定、廣播給觀戰者。
     function gameLoop() {
         if (window.uiState !== 'FLAPPY_BIRD') return;
-        
-        fbCtx.clearRect(0, 0, fbCanvas.width, fbCanvas.height);
 
-        fbPipes.forEach(p => {
-            fbCtx.fillStyle = 'rgba(0, 205, 172, 0.9)';
-            fbCtx.lineWidth = 3;
-            fbCtx.strokeStyle = '#005b4c';
-            fbCtx.fillRect(p.x, 0, 45, p.top);
-            fbCtx.strokeRect(p.x, 0, 45, p.top);
-            fbCtx.fillRect(p.x, p.top + p.gap, 45, fbCanvas.height - p.top - p.gap);
-            fbCtx.strokeRect(p.x, p.top + p.gap, 45, fbCanvas.height - p.top - p.gap);
-        });
+        // 🏆 修復 #8：用真實經過的時間算 dt，取代假設固定 60fps 的做法。
+        // Math.min(..., 3) 防呆：分頁被瀏覽器丟到背景很久才切回來時，
+        // 不要讓物理一次性暴衝超過 3 倍格。
+        const fbNowTs = performance.now();
+        const dt = fbLastFrameTs ? Math.min((fbNowTs - fbLastFrameTs) / (1000 / 60), 3) : 1;
+        fbLastFrameTs = fbNowTs;
 
-        let birdX = fbCanvas.width * 0.25;
-        if (fbState === 'WAITING') fbBird.y = fbCanvas.height / 2 + Math.sin(Date.now() / 200) * 10;
-        
-        fbCtx.save();
-        fbCtx.translate(birdX, fbBird.y); 
-        
-        if (fbState === 'PLAYING') {
-            let rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (fbBird.v * 0.08)));
-            fbCtx.rotate(rotation);
-        }
-
-        fbCtx.fillStyle = '#ffde59';
-        fbCtx.strokeStyle = '#d97706'; 
-        fbCtx.lineWidth = 2.5;
-        fbCtx.beginPath(); fbCtx.arc(0, 0, 15, 0, Math.PI * 2); fbCtx.fill(); fbCtx.stroke();
-        
-        fbCtx.fillStyle = '#ffb3b3';
-        fbCtx.beginPath(); fbCtx.arc(6, 4, 3.5, 0, Math.PI*2); fbCtx.fill();
-
-        fbCtx.fillStyle = '#ffffff'; 
-        fbCtx.beginPath(); fbCtx.arc(6, -4, 6, 0, Math.PI*2); fbCtx.fill(); fbCtx.stroke();
-        fbCtx.fillStyle = '#0f172a'; 
-        fbCtx.beginPath(); fbCtx.arc(8, -4, 2.5, 0, Math.PI*2); fbCtx.fill(); 
-        
-        fbCtx.fillStyle = '#f97316'; 
-        fbCtx.strokeStyle = '#c2410c';
-        fbCtx.lineWidth = 1.5;
-        fbCtx.beginPath(); fbCtx.moveTo(11, 2); fbCtx.lineTo(24, 5); fbCtx.lineTo(11, 9); fbCtx.closePath(); fbCtx.fill(); fbCtx.stroke();
-        
-        let wingY = (fbState === 'PLAYING' && fbBird.v < 0) ? 3 : -2; 
-        if (fbState === 'WAITING') wingY = Math.sin(Date.now() / 150) * 3;
-        fbCtx.fillStyle = '#ffffff'; 
-        fbCtx.strokeStyle = '#d97706';
-        fbCtx.lineWidth = 2;
-        fbCtx.beginPath(); fbCtx.ellipse(-5, wingY, 8, 5, 0, 0, Math.PI*2); fbCtx.fill(); fbCtx.stroke();
-
-        fbCtx.restore(); 
+        const { collided, pipesScoredCount } = stepAndDrawFlappyBird(fbCtx, fbCanvas, fbState, fbBird, fbPipes, dt);
 
         if (fbState === 'PLAYING') {
-            fbBird.v += 0.5;   
-            if (fbBird.v > 10) fbBird.v = 10; 
-            fbBird.y += fbBird.v;
-
-            if (fbPipes[fbPipes.length - 1].x < fbCanvas.width - 200) {
-                let gap = 160; 
-                let topHeight = Math.random() * (fbCanvas.height - gap - 50) + 25;
-                fbPipes.push({ x: fbCanvas.width, top: topHeight, gap: gap, passed: false });
-            }
-
-            for (let i = fbPipes.length - 1; i >= 0; i--) {
-                let p = fbPipes[i];
-                p.x -= 3.5; 
-
-                if ((birdX + 16 > p.x && birdX - 16 < p.x + 45) && (fbBird.y - 14 < p.top || fbBird.y + 14 > p.top + p.gap)) {
-                    triggerGameOver();
+            if (pipesScoredCount > 0) {
+                fbScore += pipesScoredCount;
+                document.getElementById('fb-status-bar').innerText = `經過 ${fbScore} 水管，累積 ${fbScore * 100} 金幣 💰`;
+                if (fbScore >= 15) {
+                    triggerGameWin();
+                    return;
                 }
-
-                if (!p.passed && p.x + 45 < birdX) {
-                    p.passed = true;
-                    fbScore++;
-                    document.getElementById('fb-status-bar').innerText = `經過 ${fbScore} 水管，累積 ${fbScore * 100} 金幣 💰`;
-                    
-                    if (fbScore >= 15) {
-                        triggerGameWin();
-                        return; 
-                    }
-                }
-                if (p.x < -50) fbPipes.splice(i, 1);
             }
-            
-            if (fbBird.y > fbCanvas.height || fbBird.y < 0) triggerGameOver();
+            if (collided) {
+                triggerGameOver();
+            }
         }
-        
+
         // 🏆 修正二：每隔 33 毫秒 (約 30 FPS)，將畫面座標與 UI 狀態廣播給觀戰者！
         if (!window.lastFlappySync || Date.now() - window.lastFlappySync > 33) {
             window.lastFlappySync = Date.now();
@@ -5711,10 +5062,10 @@ async function startFlappyBirdMiniGame() {
                                 } else if (window.fbStartFlapCount >= 2) {
                                     fbState = 'PLAYING';
                                     document.getElementById('fb-status-bar').innerText = `經過 0 水管，累積 0 金幣 💰`;
-                                    fbBird.v = -8.0; 
+                                    flapFlappyBird(fbBird);
                                 }
                             } else if (fbState === 'PLAYING') {
-                                fbBird.v = -8.0; 
+                                flapFlappyBird(fbBird);
                             }
                         }
                     }
@@ -5998,17 +5349,8 @@ async function startRecognitionProcess() {
     }
 }
 	
-	function drawDiceFace(ctx, img, x, y, isRollingEffect) {
-		if (!img || !img.complete) return;
-		const size = 120; // 調整骰子大小
-		ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
-		
-		if (isRollingEffect) {
-			ctx.strokeStyle = "#ffde59";
-			ctx.lineWidth = 4;
-			ctx.strokeRect(x - size / 2 - 5, y - size / 2 - 5, size + 10, size + 10);
-		}
-	}
+	// 🏆 drawDiceFace() 已抽至 static/js/dice-roll.js
+	// （預覽頁 static/preview/game_dice.html 也用同一份）
 
 	function renderOrderFrame() {
 		if (isOrderDecided && !isRolling) {
@@ -6307,12 +5649,15 @@ socket.on('dice_game_status', (state) => {
 
     // 當後端回傳辨識成功 (SUCCESS)
     if (state.status === "SUCCESS") {
-        showCustomNotice(`手勢 ${state.dice_val} 辨識成功！`, "center", 2000);
-        
+        // 🏆 修復 #19：補上「將前進 N 步」提示，並把空等時間從 1500ms
+        // 縮短到 800ms（不整個拿掉是因為這段還兼顧關閉攝影機/視訊軌道
+        // 的清理工作，縮短而非移除比較保守）。
+        showCustomNotice(`🎲 辨識成功！即將前進 ${state.dice_val} 步！`, "center", 1000);
+
         setTimeout(() => {
             // 1. 關閉辨識螢幕
             if (virtualScreen) virtualScreen.visible = false;
-            
+
             // 2. 徹底關閉相機 (省電並滅燈)
             if (activeCamera) activeCamera.stop();
             if (video && video.srcObject) {
@@ -6322,8 +5667,8 @@ socket.on('dice_game_status', (state) => {
             // 3. 執行移動玩家棋子 (帶入骰出的點數)
             const myName = localStorage.getItem('username');
             movePlayerSequence(myName, state.dice_val);
-            
-        }, 1500);
+
+        }, 800);
     }
 });
 
@@ -6423,10 +5768,11 @@ function startMainTurn(isMyTurn, targetPlayerName = "對手") {
         screenPos.addScaledVector(forward, 4.5);
 
         virtualScreen.position.copy(screenPos);
-        virtualScreen.lookAt(camera.position); 
+        virtualScreen.scale.set(1, 1, 1); // 🏆 修復 #23：每次擲骰恢復原始大小，避免沿用上一階段（商店/答題/處罰）遺留的縮放值
+        virtualScreen.lookAt(camera.position);
         virtualScreen.visible = true;
 
-        initCameraAndStartVision(); 
+        initCameraAndStartVision();
     } else {
         // 🏆 修正點：使用 targetPlayerName 顯示「等待 玩家ID 擲骰中」
         showCustomNotice(`等待 ${targetPlayerName} 擲骰中... 🎲`, "center", 0);
@@ -6578,10 +5924,17 @@ async function playStartAnimation(playerName) {
 
 
 // game.html - 修正後的 movePlayerSequence (支援字卡自動隱藏與恢復)
+// 🏆 加固：原本函式內部有多處沒有防呆的查表／解析
+// （mapBlocks[playerCurrentIndex[playerName]]、JSON.parse(localStorage
+// .getItem('pypoly_game_snapshot')).players），一旦某個時間點短暫讀到
+// 空值而丟出例外，函式會中途中斷、isMoving 永遠卡在 true（下面
+// `if (isMoving) return;` 會擋掉這個玩家之後所有移動指令）。改用
+// try/finally 保證不管中途有沒有丟例外，isMoving 一定會被重置。
 async function movePlayerSequence(playerName, steps) {
-    if (isMoving) return; 
+    if (isMoving) return;
     isMoving = true;
 
+    try {
     const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
     const myName = localStorage.getItem('username');
@@ -6589,7 +5942,6 @@ async function movePlayerSequence(playerName, steps) {
 
     const model = playerModels[playerName];
     if (!model) {
-        isMoving = false;
         return;
     }
 
@@ -6604,11 +5956,20 @@ async function movePlayerSequence(playerName, steps) {
 
     if (playerCurrentIndex[playerName] === undefined) playerCurrentIndex[playerName] = 0;
 
+    // 🏆 修正：原本用 Object.keys(playerModels)[0]（物件屬性插入順序）判斷
+    // 誰該往左偏、誰該往右偏，但插入順序取決於兩個玩家的模型分別在什麼
+    // 時機被建立，兩邊瀏覽器不保證一致，模型重建（重新整理、換外觀）時
+    // 也可能跟著變——一旦兩邊算出同一個方向，虛擬人物就會疊在格子正
+    // 中央。改用 pypoly_game_snapshot.players（伺服器同步下來的加入
+    // 順序，兩邊看到的保證是同一份資料），讀不到時才退回原本的寫法。
+    const snapshotPlayers = JSON.parse(localStorage.getItem('pypoly_game_snapshot') || 'null')?.players;
+    const firstPlayer = (snapshotPlayers && snapshotPlayers[0]) || Object.keys(playerModels)[0];
+
     for (let i = 1; i <= steps; i++) {
         playerCurrentIndex[playerName] = (playerCurrentIndex[playerName] + 1) % mapBlocks.length;
         const targetPos = mapBlocks[playerCurrentIndex[playerName]];
-        const offset = (playerName === Object.keys(playerModels)[0] ? -0.8 : 0.8);
-        
+        const offset = (playerName === firstPlayer ? -0.8 : 0.8);
+
         const finalTargetX = targetPos.x + offset;
         const finalTargetZ = targetPos.z;
 
@@ -6687,7 +6048,9 @@ async function movePlayerSequence(playerName, steps) {
             triggerTask();
         }
     }
-    isMoving = false;
+    } finally {
+        isMoving = false;
+    }
 }
 
 // 🏆 修正一：預設位置改為 center，並確保絕對置中
@@ -6823,205 +6186,12 @@ function spawnStepBubble(parentModel, text) {
     }
 }
 	
-// 🛠️ 輔助函式：建立簡易鐵鍬
-function createShovel() {
-    const group = new THREE.Group();
-    // 鍬柄 (長木棍)
-    const handleGeo = new THREE.CylinderGeometry(0.05, 0.05, 1.2, 8);
-    const handleMat = new THREE.MeshStandardMaterial({ color: 0x8b4513 });
-    const handle = new THREE.Mesh(handleGeo, handleMat);
-    group.add(handle);
-    // 鍬頭 (鐵製部分)
-    const headGeo = new THREE.BoxGeometry(0.3, 0.4, 0.05);
-    const headMat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, metalness: 0.8 });
-    const head = new THREE.Mesh(headGeo, headMat);
-    head.position.y = -0.6;
-    group.add(head);
-    return group;
-}
+// 🏆 createShovel() 已抽至 static/js/spectator-animations.js
+// （預覽頁 static/preview/game_events.html 也用同一份）
 
 // 🛠️ 輔助函式：建立簡易房屋
-function createHouse(color) {
-    const house = new THREE.Group();
-    // 屋身
-    const bodyGeo = new THREE.BoxGeometry(2, 2, 2);
-    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-    const body = new THREE.Mesh(bodyGeo, bodyMat);
-    body.position.y = 1;
-    house.add(body);
-    // 屋頂
-    const roofGeo = new THREE.ConeGeometry(1.8, 1.5, 4);
-    const roofMat = new THREE.MeshStandardMaterial({ color: color });
-    const roof = new THREE.Mesh(roofGeo, roofMat);
-    roof.position.y = 2.75;
-    roof.rotation.y = Math.PI / 4;
-    house.add(roof);
-    return house;
-}
-
-async function runPurchaseAnimation(playerName, tileIndex, color, isUpgrade = false) {
-    const myName = localStorage.getItem('username');
-    const isMe = (playerName === myName);
-    const isSpectatingThis = (window.isSpectating && window.lastAdvData?.user === playerName);
-    
-    const model = playerModels[playerName];
-    const targetTile = allTileMeshes[tileIndex];
-    if (!model || !targetTile) return;
-
-    // 🏆 修正 1：確保人物與頭部絕對可見 (解決動畫時沒有頭的問題)
-    model.visible = true;
-    const head = model.getObjectByName("head");
-    if (head) head.visible = true;
-
-    const tilePos = targetTile.position.clone();
-    const origPos = model.position.clone();
-
-    model.rotation.set(0, 0, 0);
-    model.quaternion.set(0, 0, 0, 1);
-    model.up.set(0, 1, 0); 
-    model.scale.set(1.5, 1.5, 1.5); 
-
-    const nextIndex = (tileIndex + 1) % mapBlocks.length;
-    const nextTilePos = mapBlocks[nextIndex].clone();
-    const dirForward = new THREE.Vector3().subVectors(nextTilePos, tilePos).normalize();
-    const dirRight = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dirForward).normalize();
-
-    const charFinalPos = tilePos.clone().addScaledVector(dirRight, -1.8);
-    charFinalPos.y = tilePos.y + 0.6;
-    const houseBuildPos = tilePos.clone().addScaledVector(dirRight, 1.4);
-    
-    model.position.copy(charFinalPos);
-
-    // 🏆 修正 2：一開始就面對鏡頭 (直接看向前方的 dirForward)
-    model.lookAt(charFinalPos.x + dirForward.x * 10, charFinalPos.y, charFinalPos.z + dirForward.z * 10);
-    
-    model.rotation.x = 0; 
-    model.rotation.z = 0; 
-
-    if (isMe || window.isSpectating) {
-        camera.layers.enable(1);
-        const startCamPos = camera.position.clone();
-        const startLookDir = new THREE.Vector3();
-        camera.getWorldDirection(startLookDir);
-        const startLookTarget = startCamPos.clone().addScaledVector(startLookDir, 10);
-        
-        const finalCamPos = charFinalPos.clone().addScaledVector(dirForward, 7.7);
-        finalCamPos.y = tilePos.y + 3.2; 
-        finalCamPos.addScaledVector(dirRight, 1.8);  
-
-        const finalLookTarget = tilePos.clone();
-        finalLookTarget.y += 2.4; 
-
-        const midPoint = startCamPos.clone().lerp(finalCamPos, 0.5).addScaledVector(dirRight, 8.0);
-        midPoint.y += 3.5; 
-
-        const camProgress = { t: 0 };
-        gsap.to(camProgress, {
-            t: 1, duration: 3.2, ease: "sine.inOut",
-            onUpdate: () => {
-                const t = camProgress.t;
-                camera.position.set(
-                    Math.pow(1 - t, 2) * startCamPos.x + 2 * (1 - t) * t * midPoint.x + Math.pow(t, 2) * finalCamPos.x,
-                    Math.pow(1 - t, 2) * startCamPos.y + 2 * (1 - t) * t * midPoint.y + Math.pow(t, 2) * finalCamPos.y,
-                    Math.pow(1 - t, 2) * startCamPos.z + 2 * (1 - t) * t * midPoint.z + Math.pow(t, 2) * finalCamPos.z
-                );
-                camera.lookAt(new THREE.Vector3().lerpVectors(startLookTarget, finalLookTarget, t));
-            }
-        });
-    }
-
-    const shovel = createShovel();
-    model.add(shovel); 
-    shovel.position.set(0.6, 1.2, 0.6);
-    shovel.rotation.x = Math.PI / 2;
-
-    return new Promise(resolve => {
-        const buildTl = gsap.timeline();
-        for(let i=0; i<3; i++) {
-            buildTl.to(model.rotation, { x: 0.35, duration: 0.8, ease: "power1.inOut" })
-                   .to(model.rotation, { x: 0, duration: 0.3, ease: "back.out(2)" })
-                   .to({}, { duration: 0.4 });
-        }
-
-		const hasHouse = targetTile.userData.hasHouse;
-
-		buildTl.to({}, { duration: 0.6 }).add(() => {
-			model.remove(shovel);
-			
-			if (!hasHouse || isUpgrade) {
-                // 🏆 修正二：若為加蓋 (isUpgrade) 且原先已有房，執行加蓋；若無房則蓋新房
-                if (!hasHouse) {
-                    const house = createHouse(color);
-                    house.name = "house_" + tileIndex; 
-                    house.position.copy(houseBuildPos);
-                    house.scale.set(0, 0, 0); 
-                    scene.add(house);
-                    targetTile.userData.hasHouse = true;
-                    targetTile.userData.floorCount = 1;
-                    gsap.fromTo(house.scale, {x:0, y:0, z:0}, { x: 0.85, y: 0.85, z: 0.85, duration: 1.8, ease: "elastic.out(1, 0.3)" });
-                } else {
-                    const existingHouse = scene.getObjectByName("house_" + tileIndex);
-					console.log("🏠 scene houses =", scene.children.filter(x => x.name?.includes("house_")));
-                    if (existingHouse) {
-                        if (isUpgrade) {
-                            const floorCount = existingHouse.children.filter(c => c.geometry && c.geometry.type === 'BoxGeometry').length;
-                            const floorGeo = new THREE.BoxGeometry(2, 2, 2);
-                            const floorMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-                            const floor = new THREE.Mesh(floorGeo, floorMat);
-                            floor.position.y = 1 + (2 * floorCount);
-							floor.scale.set(1, 0, 1);
-                            existingHouse.add(floor);
-							gsap.to(floor.scale, {
-								y: 1,
-								duration: 0.8,
-								ease: "back.out(1.7)"
-							});
-                            
-                            existingHouse.children.forEach(c => {
-								 if(c.geometry && c.geometry.type === 'ConeGeometry') {
-									 gsap.to(c.position, {
-										 y: c.position.y + 2,
-										 duration: 0.8,
-										 ease: "back.out(1.7)"
-									 });
-								 }
-							});
-
-                            
-                            targetTile.userData.floorCount = floorCount + 1;
-							
-							if (window.landOwnership[tileIndex]) {
-                                window.landOwnership[tileIndex].floorCount = floorCount + 1;
-                                localStorage.setItem('pypoly_land_ownership', JSON.stringify(window.landOwnership));
-                            }
-							
-							console.log("🎬 執行加蓋動畫");
-							console.log("🎬 isUpgrade =", isUpgrade);
-							console.log("🎬 tileIndex =", tileIndex);
-							console.log("🎬 floorCount =", targetTile.userData.floorCount);
-							console.log("🎬 existingHouse =", existingHouse);
-                        } else {
-                            existingHouse.children.forEach(c => {
-                                 if(c.geometry && c.geometry.type === 'ConeGeometry') {
-                                     c.material.color.set(color);
-                                     c.material.needsUpdate = true;
-                                 }
-                            });
-                        }
-                        gsap.fromTo(existingHouse.scale, {x: 0.85, y: 0.85, z: 0.85}, { x: 1.0, y: 1.1, z: 1.0, duration: 0.3, yoyo: true, repeat: 1 });
-                    }
-                }
-            }
-			
-			targetTile.material.color.set(color);
-			
-			gsap.to(targetTile.position, { y: 0.5, duration: 1, onComplete: () => {
-        
-        resolve();
-            }});
-		});
-    });
-}
+// 🏆 createHouse()／runPurchaseAnimationCore() 已抽至
+// static/js/purchase-animation.js（預覽頁 static/preview/game_purchase.html 也用同一份）
 
 
 // 🏆 修正版：精準控制換人提示順序 [解決提示消失問題]
@@ -7206,9 +6376,18 @@ function resetToGodViewState() {
 
         const idx = playerCurrentIndex[pName] || 0;
         const nIdx = (idx + 1) % mapBlocks.length;
-        const offset = (pName === players[0] ? -1.5 : 1.5);
+        const laneOffset = (pName === players[0] ? -0.8 : 0.8); // 跟 movePlayerSequence() 同一套車道偏移
+        const lookOffset = (pName === players[0] ? -1.5 : 1.5);
+
+        // 🏆 修復虛擬人物跑到地圖正中央：原本這裡只有 lookAt（改朝向），
+        // 從沒真的把 .position 設回棋盤格——showAdventureCharacter()
+        // 答題時會把本尊搬到攝影機前方（跟棋盤座標無關），這裡原本的
+        // 「會把人物歸位」只是改朝向，不是真的歸位。
+        if (m && mapBlocks[idx]) {
+            m.position.set(mapBlocks[idx].x + laneOffset, mapBlocks[idx].y + 0.8, mapBlocks[idx].z);
+        }
         if (m && mapBlocks[nIdx]) {
-            m.lookAt(mapBlocks[nIdx].x + offset, m.position.y, mapBlocks[nIdx].z);
+            m.lookAt(mapBlocks[nIdx].x + lookOffset, m.position.y, mapBlocks[nIdx].z);
         }
         m.visible = true;
     });
@@ -7232,6 +6411,13 @@ function resetToGodViewState() {
     }
     const specUniversalCanvas = document.getElementById('spectator-universal-3d-canvas');
     if (specUniversalCanvas) specUniversalCanvas.style.display = 'none';
+
+    // 🏆 收購決策/答題觀戰替身（renderPlayerModelInActiveVisionFrame）
+    // 離開觀戰/回到上帝視角時一併從主場景移除，避免殘留。
+    if (window.specDecisionAvatarModel) {
+        scene.remove(window.specDecisionAvatarModel);
+        window.specDecisionAvatarModel = null;
+    }
 
     // 還原所有相機框的外觀與原有的實體相機視訊
     const frames = document.querySelectorAll('.vision-frame-right, .vision-frame-left, .vision-container, .vision-frame, .camera-wrapper');
@@ -7428,41 +6614,23 @@ async function enterSpectatorMode_Internal(data, isManual = false) {
         }
     }
 
-    let targetLook = new THREE.Vector3(0, 1.5, -10);
-    let targetCamPos = new THREE.Vector3(0, 1.5, 0);
+    // 🏆 computeSpectatorCameraTarget() 已抽至 static/js/spectator-camera.js
+    // （預覽頁 static/preview/game_spectator_busy.html 也用同一份）
+    const { targetCamPos, targetLook, skipCameraMove } =
+        computeSpectatorCameraTarget(data.phase, data, playerModels);
 
-    if (data.phase === 'PUNISH' || data.phase === 'PUNISH_SKIP') {
-        const targetModel = playerModels[data.user];
-        if (targetModel) {
-            // (模型與頭部顯隱已經交由 enforcePunishVisibility 統一處理)
-            const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(targetModel.quaternion); 
-            
-            targetCamPos = targetModel.position.clone()
-                .add(new THREE.Vector3(0, 2.5, 0)) 
-                .addScaledVector(forward, 4.9);
-                
-            targetLook = targetModel.position.clone()
-                .add(new THREE.Vector3(0, 2.1, 0)); 
-        }
-    }
-
-    // 🏆 關鍵修正：如果是播放全螢幕動畫的階段，讓專屬動畫函式自己接管相機，不要在這裡亂移鏡頭！
-    const skipCameraMove = ['JAIL_ANIM', 'ITEM_STEAL_ANIM', 'TOLL_ANIM'].includes(data.phase);
-    
     if (!skipCameraMove) {
-        if (isManual) {
-            gsap.to(camera.position, {
-                x: targetCamPos.x, y: targetCamPos.y, z: targetCamPos.z,
-                duration: 1.5,
-                ease: "power2.inOut",
-                onUpdate: () => camera.lookAt(targetLook),
-                onComplete: () => camera.layers.disable(1)
-            });
-        } else {
-            camera.position.copy(targetCamPos);
-            camera.lookAt(targetLook);
-            camera.layers.disable(1);
-        }
+        // 🏆 修復 #9：已經在觀戰中收到廣播（isManual=false）原本是
+        // camera.position.copy(...) 瞬間硬切、零過渡——這正是「畫面
+        // 突然跳出」的視覺成因。統一都用補間，只是已經在觀戰時給短一點
+        // 的時間（0.6s），不要再瞬間跳動。
+        gsap.to(camera.position, {
+            x: targetCamPos.x, y: targetCamPos.y, z: targetCamPos.z,
+            duration: isManual ? 1.5 : 0.6,
+            ease: "power2.inOut",
+            onUpdate: () => camera.lookAt(targetLook),
+            onComplete: () => camera.layers.disable(1)
+        });
     } else {
         console.log(`🎥 觀戰者相機已移交給專屬動畫 ${data.phase} 完美控制`);
     }
@@ -7512,7 +6680,10 @@ function exitSpectatorMode() {
     const shopViewport = document.getElementById('shop-spectator-avatar-viewport');
     if (shopViewport) {
         shopViewport.style.display = 'none';
-        if (shopAnimationId) { cancelAnimationFrame(shopAnimationId); shopAnimationId = null; }
+        if (shopAvatarStage && shopAvatarStage.animationId) {
+            cancelAnimationFrame(shopAvatarStage.animationId);
+            shopAvatarStage.animationId = null;
+        }
     }
 	
     // 🏆 修正三-B：使用 setBoardVisibility 確保格子跟「房子」都出現
@@ -7676,7 +6847,7 @@ function updateSpectatorUI(data) {
         decisionUI.style.display = 'flex';
         
         if (data.payload) {
-            fillDecisionUI(data.payload, data.user);
+            fillDecisionUI(data.payload, data.user, window.landOwnership[playerCurrentIndex[data.user]], showGameNotice);
         }
 
         if (virtualScreen) virtualScreen.visible = false;
@@ -7778,7 +6949,7 @@ function updateSpectatorUI(data) {
         if (panoSphere) { panoSphere.visible = false; panoSphere.material.opacity = 0; }
         
         // 觸發同步看動畫，結束後自動回到上帝視角
-        playStealAnimationCore(data.user, data.payload.victim).then(() => {
+        playStealAnimationCore(buildSpectatorAnimCtx(), data.user, data.payload.victim).then(() => {
             if (window.isSpectating) {
                 autoSmoothExitToGodView();
             }
@@ -7791,7 +6962,7 @@ function updateSpectatorUI(data) {
         if (panoSphere) { panoSphere.visible = false; panoSphere.material.opacity = 0; }
         
         // 觀戰者同步播放過路費動畫
-        playTollAnimationCore(data.user, data.payload.owner, data.payload.amount, data.payload.usedItem, playerCurrentIndex[data.user] || 0)
+        playTollAnimationCore(buildSpectatorAnimCtx(), data.user, data.payload.owner, data.payload.amount, data.payload.usedItem, playerCurrentIndex[data.user] || 0)
         .then(() => {
             // 動畫播完後不需要回到上帝視角，因為他還要繼續看對方答題！
             // 相機會留在該格子，等待下一個階段 (QUIZ) 傳來
@@ -7803,7 +6974,7 @@ function updateSpectatorUI(data) {
         if (panoSphere) { panoSphere.visible = false; panoSphere.material.opacity = 0; }
         
         // 🏆 觀戰者同步播放監獄落下動畫
-        playJailAnimationCore(data.user, data.payload.tileIdx)
+        playJailAnimationCore(buildSpectatorAnimCtx(), data.user, data.payload.tileIdx)
         .then(() => {
             // 動畫播完後，如果是觀戰者，自動平滑飛回上帝視角
             if (window.isSpectating) {
@@ -7949,8 +7120,17 @@ function logAnswerToServer(isCorrect, chosenVal) {
         const myName = localStorage.getItem('username');
         const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
         const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
-        const q = currentAdventureQuestion || {};
+        const q = window.currentAdventureQuestion || {};
         const answerSec = window.questionShownAt ? (Date.now() - window.questionShownAt) / 1000 : 0;
+        // 🏆 作答紀錄頁要顯示「選項實際內容」而不是「選項幾號」。選項文字
+        // 本來就在 q.options（第 idx 個選項顯示成第 idx+1 號，跟題目畫面
+        // 渲染時的編號規則一致），這裡存當下的文字快照，跟 question_text
+        // 一樣的理由——questions.opt1~4 會被 seed_data 清空重建，事後用
+        // question_id 回頭查會對不上。程式碼題沒有 options，兩者自然是 null。
+        const options = Array.isArray(q.options) ? q.options : null;
+        const correctIdx = parseInt(q.answer);
+        const chosenText = (options && chosenVal) ? options[chosenVal - 1] ?? null : null;
+        const correctText = (options && !isNaN(correctIdx)) ? options[correctIdx - 1] ?? null : null;
         fetch(`${API_URL}/game/answer_log`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -7962,6 +7142,8 @@ function logAnswerToServer(isCorrect, chosenVal) {
                 question_text: q.content || null,
                 chosen_answer: chosenVal,
                 correct_answer: parseInt(q.answer),
+                chosen_text: chosenText,
+                correct_text: correctText,
                 is_correct: !!isCorrect,
                 answer_sec: answerSec
             })
@@ -7991,50 +7173,10 @@ function updateMoneyUI(playerName, amount) {
 }
 
 
+// 🏆 showGameNoticeInto() 已抽至 static/js/game-notice.js
+// （預覽頁 static/preview/game_disconnect.html 也用同一份）
 function showGameNotice(msg, duration = 3000) {
-    const content = document.getElementById('flow-content');
-    if (!content) return;
-	
-	if (window.noticeHideTimer) clearTimeout(window.noticeHideTimer);
-    
-    // 🏆 先隱藏內容以利重置動畫
-    content.style.opacity = "0";
-    console.log("📢 準備顯示訊息:", msg);
-    
-	setTimeout(() => {
-        content.innerHTML = `
-            <div style="display: flex; justify-content: center; align-items: center; width: 100vw; height: 100vh; pointer-events: none; position: fixed; top: 0; left: 0; background: rgba(240, 249, 255, 0.3); backdrop-filter: blur(8px);">
-                <div style="
-                    background: rgba(255, 255, 255, 0.9); 
-                    padding: 40px 80px; 
-                    border-radius: 40px; 
-                    border: 2px solid #ffffff;
-                    box-shadow: 0 15px 40px rgba(0,0,0,0.06);
-                    animation: noticePopIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-                ">
-                    <h2 style="
-                        font-size: 3.2rem; 
-                        color: #1e293b; 
-                        font-weight: 900; 
-                        margin: 0;
-                        text-align: center;
-                        letter-spacing: -1px;
-                        display: block !important;
-                    ">
-                        ${msg}
-                    </h2>
-                </div>
-            </div>
-        `;
-        content.style.opacity = "1";
-    }, 100);
-
-    if (duration > 0) {
-        setTimeout(() => { 
-            content.style.opacity = "0"; 
-            setTimeout(() => { if(content.style.opacity === "0") content.innerHTML = ""; }, 800);
-        }, duration);
-    }
+    showGameNoticeInto(document.getElementById('flow-content'), msg, duration);
 }
 
 	function startSyncLoop(username, token) {
