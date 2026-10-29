@@ -142,6 +142,7 @@
         }
         .menu-item:hover { background: var(--bee-yellow); }
         .menu-item:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+        .menu-item.danger { margin-top: auto; color: white; background: var(--pixel-red); }
 
         /* 設定主區域 */
         .settings-main {
@@ -280,11 +281,14 @@
 
 <div class="side-menu" id="sideMenu">
     <a href="profile.html" class="menu-item"><span>👤</span> 個人主頁</a>
+    <a href="handbook.html" class="menu-item"><span>📚</span> 學習手冊</a>
+    <a href="lobby.html?openJoinClass=1" class="menu-item"><span>🏫</span> 加入班級</a>
+    <a href="teacher_apply.html" class="menu-item"><span>🧑‍🏫</span> 教師資格</a>
     <a href="guide.html" class="menu-item"><span>📖</span> 遊戲說明</a>
     <a href="learn.html" class="menu-item"><span>📊</span> 學習統計</a>
     <a href="settings.html" class="menu-item"><span>⚙️</span> 遊戲設定</a>
     <a href="lobby.html" class="menu-item"><span>🏠</span> 返回大廳</a>
-    <a href="login.html" class="menu-item" style="margin-top:auto; color:white; background:var(--pixel-red);"><span>🚪</span> 登出遊戲</a>
+    <a href="javascript:void(0)" onclick="logout()" class="menu-item danger"><span>🚪</span> 登出遊戲</a>
 </div>
 
 <header>
@@ -336,6 +340,7 @@
 </div>
 
 <script>
+    const API_URL = location.origin;
     const BGM_SETTING_KEY = 'beerich_bgm_enabled';
     const bgmToggle = document.getElementById('bgm-toggle');
 
@@ -352,6 +357,26 @@
     function toggleMenu() {
         document.getElementById('sideMenu').classList.toggle('open');
         document.getElementById('overlay').classList.toggle('open');
+    }
+
+    // 🏆 統一側邊選單：原本這裡的「登出遊戲」是一個沒有呼叫 logout()
+    // 的死連結，直接跳 login.html，沒有通知後端、沒有清 localStorage，
+    // 帳號會停留在 is_online=1。補上跟其他頁面一致的 logout()。
+    async function logout() {
+        const username = localStorage.getItem('username');
+        if (!username) return;
+
+        const url = `${API_URL}/auth/logout?username=${encodeURIComponent(username)}&confirm=true`;
+        try {
+            const response = await fetch(url, { method: 'POST' });
+            const result = await response.json();
+            console.log("後端回應：", result.message);
+        } catch (err) {
+            console.error("登出連線失敗", err);
+        }
+
+        localStorage.clear();
+        window.location.href = 'login.html';
     }
 </script>
 </body>

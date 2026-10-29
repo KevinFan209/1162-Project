@@ -4708,3 +4708,53 @@ PyPoly 變更紀錄 (changeLog)
   (6) jiajiun-next 原本修的房間列表標題、刷新閃爍、#17/#23 等
   bug 確認還是修好的狀態。
 ========================================================================
+[2026-10-29] 統一側邊選單（side menu）顯示，補齊其他頁面漏掉的項目
+
+  背景：使用者反饋 lobby.html 的側邊選單跟其他頁面沒有同步。查過整個
+  static/ 發現 lobby.html 在 hsuan_teacher 合併之後多了 3 個教師功能
+  相關的選單項目（學習手冊／加入班級／教師資格），但 game.html／
+  guide.html／learn.html／profile.html／settings.html／
+  WaitingRoom.html／character.html 這 7 個頁面的選單還停留在舊版
+  （只有 6 項），沒有一起更新。
+
+  另外查到 basic.html／camera.html／game_data.html／hard.html／
+  modal.html 這 5 個頁面雖然也有 toggleMenu() 函式，但整份檔案裡沒有
+  任何 #sideMenu 元素、沒有觸發用的選單按鈕——是完全沒有畫面效果的
+  死程式碼，不是「選單沒同步」，這次沒有動。
+
+  修法：
+  1. 在 game.html／guide.html／learn.html／profile.html／
+     settings.html／WaitingRoom.html／character.html 這 7 個頁面的
+     選單裡，補上跟 lobby.html 一樣的 3 個項目（學習手冊／加入班級／
+     教師資格），插入位置、圖示、文字都跟 lobby.html 一致。
+  2. 「加入班級」在 lobby.html 本身是跳出一個 modal（`openJoinClassModal()`），
+     這個 modal 連同它的 JS（`submitJoinClass()` 等）只在 lobby.html
+     有實作。為了不要在 7 個頁面各複製一份一樣的 modal/JS（遲早變成
+     多處不同步），其他頁面的「加入班級」改成連到
+     `lobby.html?openJoinClass=1`，lobby.html 的 `window.onload` 補上
+     檢查這個參數、自動彈出 modal 的邏輯——使用者體感上還是一樣點一下
+     就能加入班級，只是多一次頁面跳轉。
+  3. 順便修掉 settings.html 的「登出遊戲」：原本是
+     `<a href="login.html">`，完全沒呼叫 `logout()`，不會通知後端、
+     不會清 localStorage，帳號會一直卡在 `is_online=1`——是 7 個
+     頁面裡唯一沒有自己的 `logout()` 函式的。補上跟其他頁面一致的
+     `API_URL`／`logout()` 實作，選單項目也改成跟其他頁面一樣的
+     `onclick="logout()"` + `class="menu-item danger"` 寫法，同時補上
+     原本缺的 `.menu-item.danger` CSS 規則。
+  4. `WaitingRoom.html` 的「返回大廳」刻意維持原本的
+     `onclick="handleLobbyReturn()"`（離開房間前需要先做清理），沒有
+     改成跟其他頁面一樣的純連結，避免破壞它原本的特殊處理。
+
+  驗證：
+  - 8 個改到的頁面都用 Node vm.Script 做語法檢查，通過。
+  - 伺服器開起來，curl 確認全部回 HTTP 200。
+  - 逐一比對 8 個頁面的選單項目列表，確認現在完全一致（lobby.html
+    少一項「返回大廳」是刻意的，它本身就是大廳）。
+
+  ⚠️ 尚未做（選單展開的視覺效果、動畫、手感沒辦法無瀏覽器代測）：
+  (1) 打開每個頁面，確認選單展開/收合動畫跟 lobby.html 一致。
+  (2) 從非 lobby 頁面點「加入班級」，確認會先跳轉到 lobby.html 再
+  自動彈出加入班級視窗。
+  (3) 在 settings.html 點「登出遊戲」，確認帳號真的被登出（is_online
+  變回 0），不再是直接跳轉卻沒登出的狀態。
+========================================================================

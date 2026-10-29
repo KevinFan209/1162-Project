@@ -515,7 +515,15 @@
             window.location.href = 'login.html';
             return;
         }
-        
+
+        // 🏆 其他頁面的側邊選單「加入班級」連到這裡時帶這個參數，一進
+        // lobby 就直接彈出加入班級視窗，不用使用者自己再點一次——
+        // 這個 modal 只在 lobby.html 實作一份，不想在 7 個頁面各複製
+        // 一份一樣的 modal/JS。
+        if (new URLSearchParams(window.location.search).get('openJoinClass') === '1') {
+            openJoinClassModal();
+        }
+
         // 🏆 左側角色縮圖改成每次載入頁面時直接問資料庫要 colors/features，
         // 現場渲染出縮圖——不再依賴 character.html 寫入的 pypoly_char_preview
         // 快取，換裝置、清過 localStorage 也能正確顯示。
