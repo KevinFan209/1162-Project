@@ -6,7 +6,9 @@
     <title>BeeRich - Admin Question Editor</title>
     <!-- 引入與全站一致的精選像素與高質感字型 -->
     <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
-    <style>
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+	<link rel="icon" href="/favicon.ico" type="image/jpeg">
+	<style>
         :root {
             --pixel-border: #1e272e;
             --bee-gold: #ffc048;
@@ -354,8 +356,7 @@
         .list-state { text-align: center; padding: 60px 20px; color: var(--text-gray); font-weight: 800; }
         .list-state.error { color: var(--danger-red); }
 
-        /* 🏆 新增／編輯視窗——sandyai 分支沒有這個功能（題庫接資料庫是
-           之後才加的），這塊維持 main 原本的樣式，不隨這次 UI 改版調整 */
+        /* 新增／編輯視窗 */
         .modal-mask {
             position: fixed; inset: 0; background: rgba(15, 23, 42, 0.55);
             display: none; justify-content: center; align-items: center; z-index: 500; padding: 20px;
@@ -384,6 +385,32 @@
         .btn-cancel { padding: 12px 25px; background: #e2e8f0; color: var(--text-dark); border: none; border-radius: 12px; font-weight: 900; cursor: pointer; }
         .answer-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
         .answer-row label { font-weight: 800; display: flex; align-items: center; gap: 5px; }
+
+        /* 🏆 像素對話彈窗 (刪除確認用) */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.65);
+            display: none; justify-content: center; align-items: center; z-index: 3000;
+        }
+        .modal-content-status {
+            background: white; padding: 32px 30px;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 8px 8px 0px #000000;
+            width: 420px; max-width: 90vw; text-align: center;
+            animation: modalPop 0.15s ease-out;
+        }
+        .modal-content-status h2 { font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif; font-weight: 900; font-size: 1.5rem; margin-bottom: 12px; color: var(--text-dark); border: none; padding-bottom: 0; }
+        .modal-content-status p { font-weight: 900; color: var(--text-dark); margin-bottom: 24px; line-height: 1.6; font-size: 1rem; white-space: pre-wrap; }
+        .modal-footer-status { display: flex; justify-content: center; gap: 12px; margin-top: 0; }
+        .btn-3d {
+            padding: 12px 26px; border: 3px solid var(--pixel-border);
+            font-weight: 900; font-size: 1rem; cursor: pointer;
+            transition: 0.06s ease; color: var(--text-dark);
+            background: var(--bee-yellow); box-shadow: 0 4px 0 #000; user-select: none; border-radius: 0;
+        }
+        .btn-3d:active { transform: translate(2px, 2px); box-shadow: 0 0 0 #000; }
+        @keyframes modalPop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
     </style>
 </head>
 <body>
@@ -401,6 +428,7 @@
             <h2><span>📋</span> 後台選單</h2>
             <a href="admin.html" class="nav-link"><span>👥</span> 用戶權限管理</a>
             <a href="question.html" class="nav-link active"><span>❓</span> 考題庫編輯</a>
+            <a href="handbook_admin.html" class="nav-link"><span>📖</span> 學習手冊管理</a>
             <a href="camera.html" class="nav-link"><span>📷</span> 影像辨識偵錯</a>
             <a href="game_data.html" class="nav-link"><span>📈</span> 遊戲數據監控</a>
             <a href="Login.html" class="nav-link" style="margin-top: auto; color: white; background: var(--pixel-red);"><span>🚪</span> 登出系統</a>
@@ -554,7 +582,18 @@
 
         <div class="modal-actions">
             <button class="btn-cancel" id="btnCancel">取消</button>
-            <button class="btn-add" id="btnSave">儲存</button>
+			<button class="btn-add" id="btnSave" style="border-radius: 12px; box-shadow: none;">儲存</button>
+        </div>
+    </div>
+</div>
+
+<!-- 🏆 刪除確認彈窗 -->
+<div id="statusModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content-status">
+        <h2 id="statusModalTitle">標題</h2>
+        <p id="statusModalMsg">內容訊息</p>
+        <div class="modal-footer-status" id="statusModalFooter">
+            <button class="btn-3d" onclick="closeStatusModal()">確定</button>
         </div>
     </div>
 </div>
@@ -645,9 +684,6 @@
         return h;
     }
 
-    // 後端錯誤一律轉成看得懂的訊息。
-    // ⚠️ 走 ngrok 時 res.ok 可能是 true 但內容是警告頁，res.json() 會直接拋，
-    //    所以這裡一定要把失敗顯示在畫面上，不能只 console.error。
     async function readError(res) {
         try {
             const d = await res.json();
@@ -719,13 +755,13 @@
                 const opts = [q.opt1, q.opt2, q.opt3, q.opt4];
                 body = `<p class="q-meta">${opts.map((o, i) =>
                     `(${'ABCD'[i]}) ${escapeHtml(o || '')}`).join(' ')}
-                    　<strong>正解：${'ABCD'[(q.answer || 1) - 1] || '?'}</strong></p>`;
+                     <strong>正解：${'ABCD'[(q.answer || 1) - 1] || '?'}</strong></p>`;
             } else if (qtype === 'gesture') {
                 body = `<p class="q-meta">答案（要比出的手勢）：<strong>${q.answer ?? '?'}</strong></p>`;
             } else {
                 body = `<div class="q-code">${escapeHtml(q.reference_solution || '（未填參考解答）')}</div>
                         <p class="q-meta">預期輸出：<strong>${escapeHtml(q.expected_output || '（未填）')}</strong>
-                        　時限 ${q.time_limit_sec ?? '—'} 秒　可驗證 ${q.max_attempts ?? '—'} 次</p>`;
+                         時限 ${q.time_limit_sec ?? '—'} 秒 可驗證 ${q.max_attempts ?? '—'} 次</p>`;
             }
             return `
                 <div class="q-item">
@@ -786,8 +822,6 @@
             `<label><input type="radio" name="answerChoice" value="${n}"> 選項 ${n}</label>`).join('');
     }
 
-    // 題型決定哪些欄位有意義，也決定遊戲模式——三種題型的欄位需求互斥，
-    // 全部同時顯示只會讓出題者填到不該填的格子。
     function onQtypeChange() {
         const t = document.getElementById('fQtype').value;
         document.getElementById('blockChoice').style.display = t === 'choice' ? '' : 'none';
@@ -879,7 +913,6 @@
         return p;
     }
 
-    // 前端先擋一次，錯誤直接標在欄位上；後端還是會再驗一次（那才是真正的防線）
     function validateLocal(p) {
         clearFieldErrors();
         let ok = true;
@@ -937,24 +970,43 @@
         }
     }
 
-    async function deleteQuestion(id) {
+    // 🏆 彈出專屬的刪除確認視窗
+    function deleteQuestion(id) {
         const q = allQuestions.find(x => x.id === id);
         const preview = q ? (q.content || '').slice(0, 60) : '';
-        if (!confirm(`確定要刪除這一題嗎？此動作無法復原。\n\n#${id}　${preview}`)) return;
 
-        try {
-            const res = await fetch(`${API_URL}/admin/questions/${id}`, {
-                method: 'DELETE',
-                headers: authHeaders()
-            });
-            if (!res.ok) {
-                alert('刪除失敗：' + await readError(res));
-                return;
+        const modal = document.getElementById('statusModal');
+        document.getElementById('statusModalTitle').innerText = '⚠️ 刪除確認';
+        document.getElementById('statusModalTitle').style.color = 'var(--pixel-red)';
+        document.getElementById('statusModalMsg').innerText = `確定要刪除這一題嗎？此動作無法復原。\n\n#${id} ${preview}`;
+
+        document.getElementById('statusModalFooter').innerHTML = `
+            <button class="btn-3d" style="background: var(--pixel-red); color: white; margin-right: 10px;" id="confirmDelBtn">確定</button>
+            <button class="btn-3d" style="background: #dfe4ea; color: var(--text-dark);" onclick="closeStatusModal()">取消</button>
+        `;
+
+        document.getElementById('confirmDelBtn').onclick = async () => {
+            closeStatusModal();
+            try {
+                const res = await fetch(`${API_URL}/admin/questions/${id}`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                if (!res.ok) {
+                    alert('刪除失敗：' + await readError(res));
+                    return;
+                }
+                await fetchQuestions();
+            } catch (err) {
+                alert('刪除失敗：' + (err.message || String(err)));
             }
-            await fetchQuestions();
-        } catch (err) {
-            alert('刪除失敗：' + (err.message || String(err)));
-        }
+        };
+        
+        modal.style.display = 'flex';
+    }
+
+    function closeStatusModal() {
+        document.getElementById('statusModal').style.display = 'none';
     }
 </script>
 

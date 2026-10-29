@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BeeRich - 教師班級與學生管理後台</title>
+    <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/favicon.ico" type="image/jpeg">
+    <style>
+        :root {
+            --pixel-border: #1e272e;
+            --bee-gold: #ffc048;
+            --bee-yellow: #ffdd59;
+            --bee-dark: #2f3542;
+            --pixel-green: #05c46b;
+            --pixel-blue: #0fbcf9;
+            --pixel-red: #ff3f34;
+            --bg-grid: #d2dae2;
+            --card-bg: #ffffff;
+            --text-dark: #1e272e;
+            --text-gray: #747d8c;
+        }
+
+        html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            image-rendering: pixelated;
+        }
+
+        body {
+            background-color: var(--bg-grid);
+            background-image: 
+                linear-gradient(rgba(0, 0, 0, 0.05) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.05) 2px, transparent 2px);
+            background-size: 28px 28px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        header {
+            width: 100%;
+            background: white;
+            padding: 0 35px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 80px;
+            border-bottom: 4px solid var(--pixel-border);
+            flex-shrink: 0;
+        }
+
+        .header-left h1 {
+            font-family: 'VT323', monospace;
+            font-size: 3.2rem;
+            line-height: 1;
+            color: var(--bee-gold);
+            text-shadow: 
+                2px 2px 0 var(--pixel-border),
+                -1.5px -1.5px 0 var(--pixel-border),
+                2px -1.5px 0 var(--pixel-border),
+                -1.5px 2px 0 var(--pixel-border),
+                4px 4px 0 var(--bee-dark);
+            letter-spacing: 2px;
+            cursor: pointer;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .page-tag {
+            background: #e0f2fe;
+            border: 3px solid var(--pixel-border);
+            padding: 6px 16px;
+            border-radius: 4px;
+            font-weight: 900;
+            font-size: 1rem;
+            color: var(--text-dark);
+            box-shadow: 3px 3px 0 #000;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .admin-main {
+            height: calc(100vh - 80px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            overflow: hidden;
+        }
+
+        .admin-container {
+            display: flex;
+            gap: 25px;
+            width: 95%;
+            max-width: 1280px;
+            height: 100%;
+            align-items: stretch;
+        }
+
+        .admin-nav {
+            width: 280px;
+            background: white;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0px #000;
+            padding: 24px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+
+        .admin-nav h2 {
+            font-weight: 900;
+            font-size: 1.35rem;
+            margin-bottom: 10px;
+            padding-left: 6px;
+            color: var(--text-dark);
+            border-bottom: 3px solid var(--pixel-border);
+            padding-bottom: 8px;
+        }
+
+        .nav-link { 
+            width: 100%;
+            padding: 13px 16px;
+            border: 3px solid var(--pixel-border);
+            font-size: 0.95rem;
+            font-weight: 900;
+            cursor: pointer;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #f8fafc;
+            color: var(--text-dark);
+            transition: all 0.06s ease;
+            text-decoration: none;
+            box-shadow: 3px 3px 0 #000;
+        }
+
+        .nav-link:hover:not(.active) {
+            background: #fffdf2;
+            transform: translate(-1px, -1px);
+            box-shadow: 4px 4px 0 #000;
+        }
+
+        .nav-link.active {
+            background: var(--bee-yellow);
+            color: var(--text-dark);
+            transform: translate(2px, 2px);
+            box-shadow: 1px 1px 0 #000;
+        }
+
+        .admin-board {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            overflow: hidden;
+            height: 100%;
+        }
+
+        .board-header { 
+            background: white;
+            padding: 16px 24px;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0 #000;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .class-info-banner {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .class-badge-box {
+            background: var(--bee-yellow);
+            border: 3px solid var(--pixel-border);
+            box-shadow: 3px 3px 0 #000;
+            padding: 6px 14px;
+            font-weight: 900;
+            font-size: 1.05rem;
+        }
+
+        .code-badge-box {
+            background: #ebfffa;
+            border: 3px solid var(--pixel-border);
+            box-shadow: 3px 3px 0 #000;
+            padding: 6px 14px;
+            font-weight: 900;
+            font-size: 1rem;
+            color: #047857;
+        }
+
+        .search-input {
+            padding: 9px 14px;
+            border: 3px solid var(--pixel-border);
+            background: #fffdf5;
+            width: 210px;
+            font-weight: 900;
+            font-size: 0.9rem;
+            color: var(--text-dark);
+            outline: none;
+        }
+
+        .btn-pixel-sm {
+            padding: 9px 16px;
+            border: 3px solid var(--pixel-border);
+            box-shadow: 3px 3px 0 #000;
+            font-weight: 900;
+            font-size: 0.9rem;
+            cursor: pointer;
+            background: var(--pixel-green);
+            color: white;
+            transition: 0.06s;
+        }
+        .btn-pixel-sm:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+
+        .user-list-container { 
+            background: white;
+            flex: 1;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0 #000;
+            padding: 24px 28px; 
+            overflow-y: auto;
+        }
+
+        .table-header {
+            display: grid;
+            grid-template-columns: 70px 1fr 1fr 120px 230px;
+            padding: 0 24px 12px;
+            font-weight: 900;
+            color: var(--text-dark);
+            font-size: 0.9rem;
+            border-bottom: 3px solid var(--pixel-border);
+            margin-bottom: 14px;
+        }
+
+        .user-row {
+            background: #f8fafc;
+            padding: 14px 24px;
+            border: 3px solid var(--pixel-border);
+            box-shadow: 4px 4px 0 #000;
+            display: grid;
+            grid-template-columns: 70px 1fr 1fr 120px 230px;
+            align-items: center;
+            margin-bottom: 12px;
+            transition: all 0.08s ease;
+        }
+        .user-row:hover {
+            background: #fffdf5;
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 #000;
+        }
+
+        .user-avatar {
+            width: 44px;
+            height: 44px;
+            background: white;
+            border: 2px solid var(--pixel-border);
+            box-shadow: 2px 2px 0 #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.3rem;
+        }
+        .user-id { font-weight: 900; font-size: 1.05rem; color: var(--text-dark); }
+        .user-email { color: var(--text-gray); font-weight: 900; font-size: 0.9rem; }
+
+        .user-status {
+            display: inline-block;
+            padding: 4px 10px;
+            border: 2px solid var(--pixel-border);
+            box-shadow: 2px 2px 0 #000;
+            font-size: 0.8rem;
+            font-weight: 900;
+        }
+        .status-online { background: #ebfffa; color: var(--pixel-green); }
+        .status-offline { background: #dfe4ea; color: var(--text-dark); }
+
+        .action-btns { display: flex; gap: 8px; justify-content: flex-end; }
+        .btn-icon {
+            padding: 8px 14px;
+            border: 2px solid var(--pixel-border);
+            box-shadow: 3px 3px 0 #000;
+            cursor: pointer;
+            font-weight: 900;
+            font-size: 0.85rem;
+            transition: 0.06s ease;
+        }
+        .btn-icon:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+        .btn-stats { background: var(--bee-yellow); color: var(--text-dark); }
+        .btn-stats:hover { background: var(--bee-gold); }
+        .btn-ban { background: #fff5f5; color: var(--pixel-red); }
+        .btn-ban:hover { background: #ffe0e0; }
+
+        /* 📊 學生學習狀況分析專屬版面 */
+        .stats-kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 18px;
+            margin-bottom: 24px;
+        }
+
+        .kpi-card {
+            background: #fffdf5;
+            border: 3px solid var(--pixel-border);
+            box-shadow: 4px 4px 0 #000;
+            padding: 18px 20px;
+            text-align: center;
+        }
+        .kpi-label { font-size: 0.9rem; font-weight: 900; color: var(--text-gray); margin-bottom: 6px; }
+        .kpi-value { font-size: 2.2rem; font-weight: 900; color: var(--text-dark); font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif; }
+		.kpi-sub { font-size: 0.82rem; font-weight: 800; color: var(--text-gray); margin-top: 4px; }
+
+        /* 長條圖區塊 */
+        .chart-section {
+            background: #f8fafc;
+            border: 3px solid var(--pixel-border);
+            box-shadow: 4px 4px 0 #000;
+            padding: 22px 24px;
+        }
+        .chart-title {
+            font-size: 1.15rem;
+            font-weight: 900;
+            margin-bottom: 18px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid var(--pixel-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .bar-row { margin-bottom: 16px; }
+        .bar-header {
+            display: flex;
+            justify-content: space-between;
+            font-weight: 900;
+            font-size: 0.95rem;
+            margin-bottom: 6px;
+        }
+        .bar-track {
+            width: 100%;
+            height: 26px;
+            background: #e2e8f0;
+            border: 2px solid var(--pixel-border);
+            box-shadow: inset 2px 2px 0 rgba(0,0,0,0.08);
+            position: relative;
+            overflow: hidden;
+        }
+        .bar-fill {
+            height: 100%;
+            background: var(--pixel-blue);
+            border-right: 2px solid var(--pixel-border);
+            transition: width 0.4s ease;
+            display: flex;
+            align-items: center;
+            padding-left: 10px;
+            font-size: 0.8rem;
+            font-weight: 900;
+            color: var(--text-dark);
+            white-space: nowrap;
+        }
+
+        /* 👤 教師個人資料設定表單 */
+        .profile-form-card {
+            max-width: 620px;
+            margin: 0 auto;
+            background: #f8fafc;
+            border: 3px solid var(--pixel-border);
+            box-shadow: 5px 5px 0 #000;
+            padding: 28px 32px;
+        }
+        .profile-group {
+            margin-bottom: 18px;
+        }
+        .profile-group label {
+            display: block;
+            font-weight: 900;
+            font-size: 0.92rem;
+            color: var(--text-dark);
+            margin-bottom: 6px;
+        }
+        .profile-input {
+            width: 100%;
+            padding: 11px 14px;
+            border: 3px solid var(--pixel-border);
+            background: #ffffff;
+            font-weight: 800;
+            font-size: 0.95rem;
+            color: var(--text-dark);
+            outline: none;
+        }
+        .profile-input:focus {
+            background: #fffdf2;
+        }
+
+        /* 像素對話彈窗 */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.65);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 32px 30px;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 8px 8px 0px #000000;
+            width: 420px;
+            max-width: 90vw;
+            text-align: center;
+        }
+        .modal-content h2 { font-weight: 900; font-size: 1.5rem; margin-bottom: 12px; color: var(--text-dark); }
+        .modal-content p { font-weight: 900; color: var(--text-dark); margin-bottom: 20px; line-height: 1.6; }
+        .modal-footer { display: flex; justify-content: center; gap: 12px; }
+
+        .btn-3d {
+            padding: 12px 26px;
+            border: 3px solid var(--pixel-border);
+            font-weight: 900;
+            font-size: 1rem;
+            cursor: pointer;
+            color: var(--text-dark);
+            background: var(--bee-yellow);
+            box-shadow: 0 4px 0 #000;
+        }
+        .btn-3d:active { transform: translate(2px, 2px); box-shadow: 0 0 0 #000; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="header-left"><h1 onclick="location.href='teacher.html'">BeeRich</h1></div>
+    <div class="header-right">
+        <div class="page-tag">
+            <span id="topActiveClassBadge" style="display: none; background: var(--bee-yellow); border: 2px solid var(--pixel-border); padding: 2px 8px; font-size: 0.85rem; box-shadow: 2px 2px 0 #000; margin-right: 4px;"></span>
+            <span id="topTeacherName">🧑‍🏫 教師管理後台</span>
+        </div>
+    </div>
+</header>
+
+<div class="admin-main">
+    <div class="admin-container">
+        <aside class="admin-nav">
+            <h2><span>📋</span> 教師選單</h2>
+            <a href="javascript:void(0);" id="navStudents" class="nav-link active" onclick="switchTab('students')"><span>🎓</span> 學生管理</a>
+            <a href="teacher_question.html" class="nav-link"><span>❓</span> 考題庫管理</a>
+            <a href="teacher_handbook.html" class="nav-link"><span>📖</span> 學習手冊</a>
+            <a href="javascript:void(0);" id="navProfile" class="nav-link" onclick="switchTab('profile')"><span>👤</span> 個人資料設定</a>
+            <a href="lobby.html" class="nav-link"><span>🎮</span> 前往遊戲大廳</a>
+            <a href="javascript:void(0);" class="nav-link" onclick="logout();" style="margin-top: auto; color: white; background: var(--pixel-red);"><span>🚪</span> 登出系統</a>
+        </aside>
+
+        <!-- 📋 畫面一：學生管理列表 -->
+        <main class="admin-board" id="studentListView">
+            <div class="board-header">
+                <div class="class-info-banner" id="classInfoBanner">
+                    <select id="classSelectDropdown" class="class-badge-box" style="cursor: pointer; outline: none; display: none;" onchange="onSwitchClass(this.value)"></select>
+                    <span class="class-badge-box" id="noClassBadge">🏫 尚未建立班級</span>
+                    <span class="code-badge-box" id="displayInviteCode" style="display: none;">邀請碼：------</span>
+                    <button class="btn-pixel-sm" style="background: var(--bee-yellow); color: var(--text-dark);" onclick="openClassModal('create')">➕ 新增班級</button>
+                    <button class="btn-pixel-sm" id="btnRenameClass" style="background: #dfe4ea; color: var(--text-dark); display: none;" onclick="openClassModal('rename')">✏️ 班級改名</button>
+                    <button class="btn-pixel-sm" id="btnDeleteClass" style="background: #fff5f5; color: var(--pixel-red); display: none;" onclick="confirmDeleteClass()">🗑️ 刪除班級</button>
+                </div>
+
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <input type="text" id="addStudentInput" name=" manual_add_student_box" autocomplete="off" class="search-input" placeholder="輸入學生帳號手動加入...">
+					<button class="btn-pixel-sm" onclick="manualAddStudent()">➕ 加入學生</button>
+					<input type="search" id="searchStudentInput" name="student_search_filter_box" autocomplete="off" readonly onfocus="this.removeAttribute('readonly');" class="search-input" placeholder="🔍 搜尋班級學生..." oninput="renderStudents()">
+                </div>
+            </div>
+
+            <div class="user-list-container">
+                <div class="table-header">
+                    <span>頭像</span>
+                    <span>學生帳號名稱</span>
+                    <span>電子信箱</span>
+                    <span>在線狀態</span>
+                    <span style="text-align: right;">操作項目</span>
+                </div>
+                <div id="studentTableBody"></div>
+            </div>
+        </main>
+
+        <!-- 📊 畫面二：單一學生學習狀況分析頁面 -->
+        <main class="admin-board" id="studentStatsView" style="display: none;">
+            <div class="board-header">
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <button class="btn-pixel-sm" style="background: #dfe4ea; color: var(--text-dark);" onclick="backToStudentList()">🔙 返回學生管理</button>
+                    <h2 id="statsStudentTitle" style="font-weight: 900; font-size: 1.35rem;">📊 學生學習狀況</h2>
+                </div>
+            </div>
+
+            <div class="user-list-container">
+                <div class="stats-kpi-grid">
+                    <div class="kpi-card">
+                        <div class="kpi-label">🎮 遊玩總次數</div>
+                        <div class="kpi-value" id="kpiGamesPlayed">0 場</div>
+                        <div class="kpi-sub" id="kpiWinsSub">累積獲勝 0 場</div>
+                    </div>
+                    <div class="kpi-card" style="background: #ebfffa;">
+                        <div class="kpi-label">🎯 整體正確率</div>
+                        <div class="kpi-value" style="color: var(--pixel-green);" id="kpiAccuracy">0%</div>
+                        <div class="kpi-sub" id="kpiCorrectRatio">答對 0 題 / 共回答 0 題</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">⏱️ 平均作答速度</div>
+                        <div class="kpi-value" id="kpiAvgSec">0 秒</div>
+                        <div class="kpi-sub">每題平均思考用時</div>
+                    </div>
+                </div>
+
+                <div class="chart-section">
+                    <div class="chart-title">
+                        <span>📈 練習題目類別分佈與正確率（長條圖）</span>
+                        <span style="font-size: 0.85rem; color: var(--text-gray);">長度代表練習題數，標籤顯示答對率</span>
+                    </div>
+                    <div id="categoryBarChart"></div>
+                </div>
+            </div>
+        </main>
+
+        <!-- 👤 畫面三：教師個人資料設定 -->
+        <main class="admin-board" id="teacherProfileView" style="display: none;">
+            <div class="board-header">
+                <h2 style="font-weight: 900; font-size: 1.3rem;">👤 教師個人資料與帳號設定</h2>
+            </div>
+
+            <div class="user-list-container">
+                <div class="profile-form-card">
+                    <div class="profile-group">
+						<label>🔑 目前密碼（若不修改密碼可留空）</label>
+						<input type="password" id="profOldPassword" autocomplete="new-password" class="profile-input" placeholder="欲修改密碼請先輸入目前密碼">
+					</div>
+
+					<div class="profile-group">
+						<label>🔒 新密碼（若不修改密碼可留空）</label>
+						<input type="password" id="profNewPassword" autocomplete="new-password" class="profile-input" placeholder="輸入新密碼">
+					</div>
+
+                    <div class="profile-group">
+                        <label>🔢 信箱驗證碼（若未修改信箱可留空）</label>
+                        <input type="text" id="profEmailOtp" class="profile-input" placeholder="若更換信箱，請輸入收到的 6 位數驗證碼">
+                    </div>
+
+                    <hr style="border: none; border-top: 3px dashed var(--pixel-border); margin: 22px 0;">
+
+                    <div class="profile-group">
+                        <label>🔑 目前密碼（若不修改密碼可留空）</label>
+                        <input type="password" id="profOldPassword" class="profile-input" placeholder="欲修改密碼請先輸入目前密碼">
+                    </div>
+
+                    <div class="profile-group">
+                        <label>🔒 新密碼（若不修改密碼可留空）</label>
+                        <input type="password" id="profNewPassword" class="profile-input" placeholder="輸入新密碼">
+                    </div>
+
+                    <div style="display: flex; justify-content: flex-end; margin-top: 24px;">
+                        <button type="button" class="btn-3d" style="background: var(--pixel-green); color: white;" onclick="saveTeacherProfile()">💾 儲存個人資料</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- 像素彈窗 -->
+<div id="statusModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+        <h2 id="modalTitle">標題</h2>
+        <div id="modalBody"><p id="modalMsg">內容訊息</p></div>
+        <div class="modal-footer" id="modalFooter">
+            <button class="btn-3d" onclick="closeModal()">確定</button>
+        </div>
+    </div>
+</div>
+
+<script src="js/ngrok-fetch.js"></script>
+<script>
+    const API_URL = location.origin;
+    let syncTimer = null;
+    let currentClassData = null;
+    let studentsCache = [];
+    let currentTeacherEmail = "";
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        const token = localStorage.getItem('token');
+        const role = localStorage.getItem('role');
+        const username = localStorage.getItem('username');
+
+        if (!token || (role !== 'teacher' && role !== 'admin') || !username) {
+            window.location.href = 'login.html';
+            return;
+        }
+
+        document.getElementById('topTeacherName').innerText = `🧑‍🏫 ${username} 老師`;
+		
+		fetchMyClass();
+        loadTeacherMe();
+        startTeacherLoop();
+
+        try {
+            await fetch(`${API_URL}/auth/verify_and_refresh?username=${encodeURIComponent(username)}`, {
+                method: "POST",
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            await loadTeacherMe();
+            await fetchMyClass();
+            startTeacherLoop();
+        } catch (err) {
+            console.error(err);
+        }
+    });
+
+    function startTeacherLoop() {
+        if (syncTimer) clearInterval(syncTimer);
+        syncTimer = setInterval(async () => {
+            const username = localStorage.getItem('username');
+            const token = localStorage.getItem('token');
+            if (!username || !token) return;
+            try {
+                fetch(`${API_URL}/auth/heartbeat?username=${encodeURIComponent(username)}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                // 🏆 修正：只有在「學生列表顯示中」且「沒有打開任何彈窗」時才刷新列表，防止點擊按鈕失效
+                const modalOpen = document.getElementById('statusModal').style.display === 'flex';
+                if (document.getElementById('studentListView').style.display !== 'none' && !modalOpen) {
+                    fetchMyClass(true);
+                }
+            } catch (e) {}
+        }, 5000);
+    }
+
+    function authHeaders(json = false) {
+        const h = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
+        if (json) h['Content-Type'] = 'application/json';
+        return h;
+    }
+
+    // 切換左側分頁（學生管理 vs 個人資料設定）
+    function switchTab(tab) {
+        document.getElementById('navStudents').classList.toggle('active', tab === 'students');
+        document.getElementById('navProfile').classList.toggle('active', tab === 'profile');
+
+        document.getElementById('studentListView').style.display = tab === 'students' ? 'flex' : 'none';
+        document.getElementById('studentStatsView').style.display = 'none';
+        document.getElementById('teacherProfileView').style.display = tab === 'profile' ? 'flex' : 'none';
+
+        if (tab === 'profile') {
+            loadTeacherMe();
+        }
+    }
+
+    async function loadTeacherMe() {
+        const username = localStorage.getItem('username');
+        const res = await fetch(`${API_URL}/auth/me?username=${encodeURIComponent(username)}`, {
+            headers: authHeaders()
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        currentTeacherEmail = data.email || '';
+        document.getElementById('profUsername').value = data.username || '';
+        document.getElementById('profEmail').value = data.email || '';
+        document.getElementById('profEmailOtp').value = '';
+        document.getElementById('profOldPassword').value = '';
+        document.getElementById('profNewPassword').value = '';
+    }
+
+    async function sendTeacherEmailOtp() {
+        const newEmail = document.getElementById('profEmail').value.trim();
+        if (!newEmail) {
+            showModal('⚠️ 提示', '請先輸入新的電子信箱！', false);
+            return;
+        }
+        if (newEmail === currentTeacherEmail) {
+            showModal('⚠️ 提示', '此信箱與您目前的信箱相同，無需發送驗證碼。', false);
+            return;
+        }
+        try {
+            const res = await fetch(`${API_URL}/auth/send-otp-new-email`, {
+                method: 'POST',
+                headers: authHeaders(true),
+                body: JSON.stringify({ email: newEmail })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                showModal('📧 驗證碼已寄出', `已將 6 位數驗證碼寄至「${newEmail}」，請查收信箱並填入下方欄位！`, true);
+            } else {
+                showModal('❌ 寄送失敗', data.detail || '無法寄送驗證碼', false);
+            }
+        } catch (err) {
+            showModal('❌ 連線錯誤', '無法連線至伺服器', false);
+        }
+    }
+
+    async function saveTeacherProfile() {
+        const new_username = document.getElementById('profUsername').value.trim();
+        const new_email = document.getElementById('profEmail').value.trim();
+        const email_otp = document.getElementById('profEmailOtp').value.trim();
+        const old_password = document.getElementById('profOldPassword').value;
+        const new_password = document.getElementById('profNewPassword').value;
+
+        if (!new_username) {
+            showModal('⚠️ 提示', '教師名稱 / ID 不能為空！', false);
+            return;
+        }
+
+        try {
+            const res = await fetch(`${API_URL}/auth/update-profile`, {
+                method: 'PUT',
+                headers: authHeaders(true),
+                body: JSON.stringify({
+                    new_username,
+                    new_email,
+                    email_otp: email_otp || null,
+                    old_password: old_password || null,
+                    new_password: new_password || null
+                })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                localStorage.setItem('token', data.access_token);
+                localStorage.setItem('username', data.username);
+                document.getElementById('topTeacherName').innerText = `🧑‍🏫 ${data.username} 老師`;
+                await loadTeacherMe();
+                showModal('✅ 更新成功', '您的教師個人資料已成功更新！', true);
+            } else {
+                showModal('❌ 更新失敗', data.detail || '請確認欄位與驗證碼是否正確', false);
+            }
+        } catch (err) {
+            showModal('❌ 連線錯誤', '伺服器連線失敗', false);
+        }
+    }
+
+    // 🏆 切換目前管理的班級
+    function onSwitchClass(newClassId) {
+        localStorage.setItem('teacher_active_class_id', String(newClassId));
+        fetchMyClass(true);
+    }
+
+	// 🏆 更新右上角目前所在的班級徽章
+    function updateTopClassBadge(className) {
+        const badge = document.getElementById('topActiveClassBadge');
+        if (!badge) return;
+        if (className) {
+            badge.style.display = 'inline-block';
+            badge.innerText = `🏫 ${className}`;
+            localStorage.setItem('teacher_active_class_name', className);
+        } else {
+            badge.style.display = 'none';
+            badge.innerText = '';
+            localStorage.removeItem('teacher_active_class_name');
+        }
+    }
+
+    async function fetchMyClass(silent = false) {
+        try {
+            const savedClassId = localStorage.getItem('teacher_active_class_id');
+            const qParam = savedClassId ? `?class_id=${encodeURIComponent(savedClassId)}` : '';
+            const res = await fetch(`${API_URL}/teacher/my_class${qParam}`, { headers: authHeaders() });
+            if (!res.ok) return;
+            const data = await res.json();
+            currentClassData = data;
+
+            const dropdown = document.getElementById('classSelectDropdown');
+            const noClassBadge = document.getElementById('noClassBadge');
+            const codeBadge = document.getElementById('displayInviteCode');
+            const btnRename = document.getElementById('btnRenameClass');
+            const btnDelete = document.getElementById('btnDeleteClass');
+
+            if (!data.has_class) {
+                dropdown.style.display = 'none';
+                noClassBadge.style.display = 'inline-block';
+                codeBadge.style.display = 'none';
+                btnRename.style.display = 'none';
+                if (btnDelete) btnDelete.style.display = 'none';
+                localStorage.removeItem('teacher_active_class_id');
+                updateTopClassBadge(null);
+                studentsCache = [];
+                renderStudents();
+                if (!silent) openClassModal('create', true);
+            } else {
+                localStorage.setItem('teacher_active_class_id', String(data.class_id));
+                updateTopClassBadge(data.class_name);
+
+                noClassBadge.style.display = 'none';
+                dropdown.style.display = 'inline-block';
+                btnRename.style.display = 'inline-block';
+                if (btnDelete) btnDelete.style.display = 'inline-block';
+                codeBadge.style.display = 'inline-block';
+                codeBadge.innerText = `🔑 班級邀請碼：${data.invite_code}`;
+
+                dropdown.innerHTML = (data.classes || []).map(c =>
+                    `<option value="${c.id}" ${c.id === data.class_id ? 'selected' : ''}>🏫 班級：${c.name}</option>`
+                ).join('');
+
+                studentsCache = data.students || [];
+                renderStudents();
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    // 🗑️ 刪除班級確認彈窗
+    function confirmDeleteClass() {
+        if (!currentClassData || !currentClassData.has_class) return;
+        const targetId = currentClassData.class_id;
+        const targetName = currentClassData.class_name;
+
+        const modal = document.getElementById('statusModal');
+        document.getElementById('modalTitle').innerText = '⚠️ 刪除班級確認';
+        document.getElementById('modalTitle').style.color = 'var(--pixel-red)';
+        document.getElementById('modalBody').innerHTML = `
+            <p style="font-weight: 900; color: var(--text-dark); margin-bottom: 18px; line-height: 1.6;">
+                確定要刪除班級「<b style="color:var(--pixel-red);">${targetName}</b>」嗎？<br>
+                <span style="font-size: 0.9rem; color: var(--text-gray);">
+                    • 班級內的學生將自動轉回<b>一般玩家</b>（所有遊戲紀錄與數據皆會保留）<br>
+                    • 該班級專屬的考題與學習手冊字卡將會一併清除
+                </span>
+            </p>
+        `;
+        document.getElementById('modalFooter').innerHTML = `
+            <button type="button" class="btn-3d" style="background: var(--pixel-red); color: white;" id="confirmDelClassBtn">確定刪除</button>
+            <button type="button" class="btn-3d" style="background: #dfe4ea; color: var(--text-dark);" onclick="closeModal()">取消</button>
+        `;
+        modal.style.display = 'flex';
+
+        document.getElementById('confirmDelClassBtn').onclick = async () => {
+            try {
+                const res = await fetch(`${API_URL}/teacher/classes/${targetId}`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok) {
+                    localStorage.removeItem('teacher_active_class_id');
+                    localStorage.removeItem('teacher_active_class_name');
+                    await fetchMyClass(true);
+                    showModal('✅ 班級已刪除', `班級「<b>${targetName}</b>」已成功刪除，原班級學生已全數轉回一般玩家！`, true);
+                } else {
+                    showModal('❌ 刪除失敗', data.detail || '無法刪除班級', false);
+                }
+            } catch (err) {
+                showModal('❌ 連線錯誤', '無法連線至伺服器', false);
+            }
+        };
+    }
+
+    function renderStudents() {
+        const tbody = document.getElementById('studentTableBody');
+        if (!currentClassData || !currentClassData.has_class) {
+            tbody.innerHTML = `<div style="padding: 40px; text-align: center; font-weight: 900; color: var(--text-gray);">請先點擊左上角「✏️ 設定班級名稱」建立您的專屬班級！</div>`;
+            return;
+        }
+
+        const q = (document.getElementById('searchStudentInput')?.value || '').trim().toLowerCase();
+        const filtered = studentsCache.filter(s => !q || s.username.toLowerCase().includes(q) || (s.email && s.email.toLowerCase().includes(q)));
+
+        if (!filtered.length) {
+            tbody.innerHTML = `<div style="padding: 40px; text-align: center; font-weight: 900; color: var(--text-gray);">目前班級內還沒有學生。<br>請將邀請碼「<b style="color:var(--pixel-green);">${currentClassData.invite_code}</b>」提供給學生，或在上方手動輸入學生帳號加入！</div>`;
+            return;
+        }
+
+        tbody.innerHTML = filtered.map(s => {
+            const online = s.is_online === 1;
+            return `
+                <div class="user-row">
+                    <div class="user-avatar">🎓</div>
+                    <div class="user-id">${s.username}</div>
+                    <div class="user-email">${s.email || '—'}</div>
+                    <div>
+                        <span class="user-status ${online ? 'status-online' : 'status-offline'}">
+                            ${online ? '● 在線中' : '○ 離線'}
+                        </span>
+                    </div>
+                    <div class="action-btns">
+                        <button type="button" class="btn-icon btn-stats" data-user="${s.username.replace(/"/g, '&quot;')}" onclick="openStudentStats(this.dataset.user)">📊 學習狀況</button>
+                        <button type="button" class="btn-icon btn-ban" data-user="${s.username.replace(/"/g, '&quot;')}" onclick="confirmKickStudent(this.dataset.user)">剔除</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    let classModalMode = 'create'; // 'create' 或 'rename'
+
+    function openClassModal(mode = 'create', isFirst = false) {
+        classModalMode = mode;
+        const modal = document.getElementById('statusModal');
+        const isRename = (mode === 'rename' && currentClassData && currentClassData.has_class);
+
+        document.getElementById('modalTitle').innerText = isFirst
+            ? '🏫 歡迎！請先建立您的第一個班級'
+            : (isRename ? '✏️ 修改目前班級名稱' : '➕ 建立新班級');
+        document.getElementById('modalTitle').style.color = 'var(--text-dark)';
+
+        const defaultVal = isRename ? currentClassData.class_name : '';
+
+        document.getElementById('modalBody').innerHTML = `
+            <p style="margin-bottom: 12px;">${isRename ? '請輸入新的班級名稱：' : '每位老師可建立多個班級，系統將為新班級產生獨立的 6 位數邀請碼：'}</p>
+            <input type="text" id="classNameInput" autocomplete="off" value="${defaultVal}" placeholder="例如：五年一班、Python 進階班"
+                   style="width: 100%; padding: 12px; border: 3px solid var(--pixel-border); font-weight: 900; font-size: 1rem; background: #fffdf5; margin-bottom: 16px; outline: none;">
+        `;
+        document.getElementById('modalFooter').innerHTML = `
+            <button type="button" class="btn-3d" style="background: var(--pixel-green); color: white;" onclick="saveClassName()">確認儲存</button>
+            <button type="button" class="btn-3d" style="background: #dfe4ea;" onclick="closeModal()">取消</button>
+        `;
+        modal.style.display = 'flex';
+    }
+
+    async function saveClassName() {
+        const nameInput = document.getElementById('classNameInput');
+        const name = nameInput ? nameInput.value.trim() : '';
+        if (!name) {
+            alert('請輸入班級名稱！');
+            return;
+        }
+        const payload = { name };
+        if (classModalMode === 'rename' && currentClassData && currentClassData.class_id) {
+            payload.class_id = currentClassData.class_id;
+        }
+
+        try {
+            const res = await fetch(`${API_URL}/teacher/create_class`, {
+                method: 'POST',
+                headers: authHeaders(true),
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                closeModal();
+                // 若是新建班級，自動切換到剛建好的新班級！
+                if (data.class_id) {
+                    localStorage.setItem('teacher_active_class_id', String(data.class_id));
+                }
+                await fetchMyClass(true);
+            } else {
+                showModal('❌ 儲存失敗', data.detail || `伺服器回應錯誤 (${res.status})`, false);
+            }
+        } catch (err) {
+            showModal('❌ 連線失敗', '無法連線至後端伺服器', false);
+        }
+    }
+
+    async function manualAddStudent() {
+        const input = document.getElementById('addStudentInput');
+        const student_username = input.value.trim();
+        if (!student_username) return;
+
+        const activeClassId = currentClassData?.class_id || Number(localStorage.getItem('teacher_active_class_id')) || null;
+
+        const res = await fetch(`${API_URL}/teacher/add_student`, {
+            method: 'POST',
+            headers: authHeaders(true),
+            body: JSON.stringify({ student_username, class_id: activeClassId })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+            input.value = '';
+            showModal('✅ 加入成功', `已將學生「${data.username}」加入「${data.class_name}」！`, true);
+            fetchMyClass(true);
+        } else {
+            showModal('❌ 加入失敗', data.detail || '請確認學生帳號是否正確', false);
+        }
+    }
+
+    function confirmKickStudent(studentUsername) {
+        const modal = document.getElementById('statusModal');
+        const titleEl = document.getElementById('modalTitle');
+        const bodyEl = document.getElementById('modalBody');
+        const footerEl = document.getElementById('modalFooter');
+
+        titleEl.innerText = '⚠️ 剔除學生確認';
+        titleEl.style.color = 'var(--pixel-red)';
+        bodyEl.innerHTML = `<p style="font-weight: 900; color: var(--text-dark); margin-bottom: 20px; line-height: 1.6;">確定要將學生「<b>${studentUsername}</b>」從班級中剔除嗎？<br><span style="font-size: 0.9rem; color: var(--text-gray);">（剔除後該帳號將變回一般玩家）</span></p>`;
+        footerEl.innerHTML = `
+            <button type="button" class="btn-3d" style="background: var(--pixel-red); color: white;" id="confirmKickBtn">確定剔除</button>
+            <button type="button" class="btn-3d" style="background: #dfe4ea; color: var(--text-dark);" onclick="closeModal()">取消</button>
+        `;
+
+        modal.style.display = 'flex';
+
+        document.getElementById('confirmKickBtn').onclick = async () => {
+            try {
+                const res = await fetch(`${API_URL}/teacher/students/${encodeURIComponent(studentUsername)}`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                if (res.ok) {
+                    await fetchMyClass(true);
+                    showModal('✅ 剔除成功', `已將學生「<b>${studentUsername}</b>」移出班級！`, true);
+                } else {
+                    const errData = await res.json().catch(() => ({}));
+                    showModal('❌ 剔除失敗', errData.detail || '無法剔除該名學生', false);
+                }
+            } catch (err) {
+                showModal('❌ 連線錯誤', '無法連線至伺服器', false);
+            }
+        };
+    }
+
+    async function openStudentStats(studentUsername) {
+        const res = await fetch(`${API_URL}/teacher/student_stats/${encodeURIComponent(studentUsername)}`, {
+            headers: authHeaders()
+        });
+        if (!res.ok) {
+            showModal('❌ 載入失敗', '無法取得該名學生的學習紀錄', false);
+            return;
+        }
+        const stats = await res.json();
+
+        document.getElementById('studentListView').style.display = 'none';
+        document.getElementById('teacherProfileView').style.display = 'none';
+        document.getElementById('studentStatsView').style.display = 'flex';
+
+        document.getElementById('statsStudentTitle').innerText = `📊 學生學習狀況分析 — ${stats.username}`;
+        document.getElementById('kpiGamesPlayed').innerText = `${stats.games_played || 0} 場`;
+        document.getElementById('kpiWinsSub').innerText = `累積獲勝 ${stats.summary?.wins || 0} 場`;
+
+        const acc = stats.summary?.accuracy || 0;
+        const correct = stats.summary?.correct || 0;
+        const totalQ = stats.summary?.total_questions || 0;
+        document.getElementById('kpiAccuracy').innerText = `${acc}%`;
+        document.getElementById('kpiCorrectRatio').innerText = `答對 ${correct} 題 / 共回答 ${totalQ} 題`;
+        document.getElementById('kpiAvgSec').innerText = `${stats.summary?.avg_answer_sec || 0} 秒`;
+
+        const chartBox = document.getElementById('categoryBarChart');
+        const dims = stats.dimensions || [];
+        if (!dims.length) {
+            chartBox.innerHTML = `<div style="padding: 30px; text-align: center; font-weight: 900; color: var(--text-gray);">該名學生目前尚無任何題目練習紀錄。</div>`;
+            return;
+        }
+
+        const maxTotal = Math.max(...dims.map(d => d.total), 1);
+        chartBox.innerHTML = dims.map(d => {
+            const widthPct = Math.max(Math.round((d.total / maxTotal) * 100), 8);
+            const barColor = d.accuracy >= 80 ? 'var(--pixel-green)' : (d.accuracy >= 60 ? 'var(--bee-yellow)' : '#ff7675');
+            return `
+                <div class="bar-row">
+                    <div class="bar-header">
+                        <span>📌 ${d.topic}</span>
+                        <span>練習 <b>${d.total}</b> 題（答對 ${d.correct} 題 ｜ 正確率 <b>${d.accuracy}%</b>）</span>
+                    </div>
+                    <div class="bar-track">
+                        <div class="bar-fill" style="width: ${widthPct}%; background: ${barColor};">
+                            ${d.total} 題 (${d.accuracy}%)
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function backToStudentList() {
+        document.getElementById('studentStatsView').style.display = 'none';
+        document.getElementById('studentListView').style.display = 'flex';
+        fetchMyClass(true);
+    }
+
+    function showModal(title, msg, ok = true) {
+        const modal = document.getElementById('statusModal');
+        document.getElementById('modalTitle').innerText = title;
+        document.getElementById('modalTitle').style.color = ok ? 'var(--pixel-green)' : 'var(--pixel-red)';
+        document.getElementById('modalBody').innerHTML = `<p>${msg}</p>`;
+        document.getElementById('modalFooter').innerHTML = `<button class="btn-3d" onclick="closeModal()">確定</button>`;
+        modal.style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('statusModal').style.display = 'none';
+    }
+
+    async function logout() {
+        if (syncTimer) clearInterval(syncTimer);
+        const username = localStorage.getItem('username');
+        if (username) {
+            try {
+                await fetch(`${API_URL}/auth/logout?username=${encodeURIComponent(username)}&confirm=true`, { method: 'POST' });
+            } catch (e) {}
+        }
+        localStorage.clear();
+        window.location.href = 'login.html';
+    }
+</script>
+</body>
+</html>

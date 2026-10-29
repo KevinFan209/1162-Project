@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BeeRich - 教材管理後台</title>
+    <!-- 引入與全站一致的精選像素與高質感字型 -->
+    <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/favicon.ico" type="image/jpeg">
+    <style>
+        :root {
+            --pixel-border: #1e272e;
+            --bee-gold: #ffc048;
+            --bee-yellow: #ffdd59;
+            --bee-dark: #2f3542;
+            --pixel-green: #05c46b;
+            --pixel-blue: #0fbcf9;
+            --pixel-red: #ff3f34;
+            --bg-grid: #d2dae2;
+            --card-bg: #ffffff;
+            --text-dark: #1e272e;
+            --text-gray: #747d8c;
+            --sidebar-dark: #2f3542;
+            --sidebar-dark-shadow: #1e272e;
+            --border-light: #1e272e;
+            --danger-red: #ff3f34;
+        }
+
+        html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            outline: none !important;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            image-rendering: pixelated;
+        }
+
+        body {
+            background-color: var(--bg-grid);
+            background-image: 
+                linear-gradient(rgba(0, 0, 0, 0.05) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.05) 2px, transparent 2px);
+            background-size: 28px 28px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        header {
+            margin: 0 !important;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: white;
+            padding: 0 35px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 80px;
+            z-index: 100;
+            border: none;
+            border-bottom: 4px solid var(--pixel-border);
+            box-shadow: none !important;
+            flex-shrink: 0;
+        }
+
+        .header-left h1 {
+            font-family: 'VT323', monospace;
+            font-size: 3.2rem;
+            line-height: 1;
+            color: var(--bee-gold);
+            text-shadow: 
+                2px 2px 0 var(--pixel-border),
+                -1.5px -1.5px 0 var(--pixel-border),
+                2px -1.5px 0 var(--pixel-border),
+                -1.5px 2px 0 var(--pixel-border),
+                4px 4px 0 var(--bee-dark);
+            letter-spacing: 2px;
+            user-select: none;
+            cursor: pointer;
+        }
+
+        .header-right { display: flex; align-items: center; gap: 18px; }
+
+        .page-tag {
+            background: #fffdf2;
+            border: 3px solid var(--pixel-border);
+            padding: 6px 16px;
+            border-radius: 4px;
+            font-weight: 900;
+            font-size: 1rem;
+            color: var(--text-dark);
+            box-shadow: 3px 3px 0 #000;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .admin-main {
+            height: calc(100vh - 80px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            overflow: hidden;
+        }
+
+        .admin-container {
+            display: flex;
+            gap: 25px;
+            width: 95%;
+            max-width: 1280px;
+            height: 100%;
+            align-items: stretch;
+        }
+
+        .admin-nav {
+            width: 280px;
+            background: white;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0px #000;
+            padding: 24px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+
+        .admin-nav h2 {
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            font-weight: 900;
+            font-size: 1.35rem;
+            margin-bottom: 10px;
+            padding-left: 6px;
+            color: var(--text-dark);
+            border-bottom: 3px solid var(--pixel-border);
+            padding-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+
+        .nav-link { 
+            width: 100%;
+            padding: 13px 16px;
+            border: 3px solid var(--pixel-border);
+            font-size: 0.95rem;
+            font-weight: 900;
+            cursor: pointer;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #f8fafc;
+            color: var(--text-dark);
+            transition: all 0.06s ease;
+            text-decoration: none;
+            box-shadow: 3px 3px 0 #000;
+            user-select: none;
+        }
+
+        .nav-link:hover:not(.active) {
+            background: #fffdf2;
+            transform: translate(-1px, -1px);
+            box-shadow: 4px 4px 0 #000;
+        }
+
+        .nav-link.active {
+            background: var(--bee-yellow);
+            color: var(--text-dark);
+            transform: translate(2px, 2px);
+            box-shadow: 1px 1px 0 #000;
+        }
+
+        .nav-link:active {
+            transform: translate(3px, 3px);
+            box-shadow: 0 0 0 #000;
+        }
+
+        .admin-board {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            overflow: hidden;
+            height: 100%;
+        }
+
+        .board-header { 
+            background: white;
+            padding: 16px 24px;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0 #000;
+            display: flex;
+            justify-content: space-between;
+            align-items: center; 
+        }
+
+        .filter-group { display: flex; gap: 12px; align-items: center; }
+        
+        .select-filter { 
+            padding: 9px 16px;
+            border: 3px solid var(--pixel-border);
+            border-radius: 0;
+            font-weight: 900;
+            font-size: 0.9rem;
+            background: #fffdf5;
+            color: var(--text-dark);
+            outline: none;
+            box-shadow: 2px 2px 0 #000;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%231e272e' stroke-width='3' stroke-linecap='square' stroke-linejoin='miter'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            background-size: 12px;
+            padding-right: 32px;
+        }
+        .select-filter:focus { background-color: #feffea; border-color: #000; }
+
+        .search-input {
+            padding: 10px 16px;
+            border: 3px solid var(--pixel-border);
+            background: #fffdf5;
+            width: 250px;
+            font-weight: 900;
+            font-size: 0.95rem;
+            color: var(--text-dark);
+            outline: none;
+            box-shadow: inset 2px 2px 0 rgba(0,0,0,0.06);
+        }
+        .search-input:focus {
+            background: #feffea;
+            border-color: #000;
+        }
+
+        .btn-add { 
+            padding: 11px 22px;
+            background: var(--bee-yellow);
+            color: var(--text-dark);
+            border: 3px solid var(--pixel-border);
+            border-radius: 0;
+            font-weight: 900;
+            font-size: 0.95rem;
+            cursor: pointer;
+            box-shadow: 0 5px 0 #000;
+            transition: 0.06s ease;
+            user-select: none;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+        .btn-add:hover { filter: brightness(1.05); }
+        .btn-add:active { transform: translateY(4px); box-shadow: 0 1px 0 #000; }
+
+        .user-list-container { 
+            background: white;
+            flex: 1;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0 #000;
+            padding: 24px 28px; 
+            overflow-y: auto;
+        }
+
+        .table-header {
+            display: grid;
+            grid-template-columns: 80px 140px 1fr 140px 160px;
+            padding: 0 24px 12px;
+            font-weight: 900;
+            color: var(--text-dark);
+            font-size: 0.95rem;
+            border-bottom: 3px solid var(--pixel-border);
+            margin-bottom: 14px;
+            align-items: center;
+        }
+
+        .user-row {
+            background: #f8fafc;
+            padding: 14px 24px;
+            border: 3px solid var(--pixel-border);
+            box-shadow: 4px 4px 0 #000;
+            display: grid;
+            grid-template-columns: 80px 140px 1fr 140px 160px;
+            align-items: center;
+            margin-bottom: 12px;
+            transition: all 0.08s ease;
+        }
+        .user-row:hover {
+            background: #fffdf5;
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 #000;
+        }
+        
+        .user-avatar {
+            width: 44px;
+            height: 44px;
+            background: white;
+            border: 2px solid var(--pixel-border);
+            box-shadow: 2px 2px 0 #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.2rem;
+            font-weight: 900;
+            color: var(--text-gray);
+            margin: 0 auto;
+        }
+        
+        .user-id { font-weight: 900; font-size: 1.05rem; color: var(--text-dark); padding-left: 10px; }
+        .user-email { color: var(--text-gray); font-weight: 900; font-size: 0.9rem; }
+        
+        .user-status {
+            display: inline-block;
+            padding: 4px 10px;
+            border: 2px solid var(--pixel-border);
+            box-shadow: 2px 2px 0 #000;
+            font-size: 0.8rem;
+            font-weight: 900;
+            background: #fffdf2;
+            color: var(--text-dark);
+            text-align: center;
+        }
+
+        .action-btns { display: flex; gap: 8px; justify-content: center; }
+        .btn-icon {
+            padding: 8px 14px;
+            border: 2px solid var(--pixel-border);
+            box-shadow: 3px 3px 0 #000;
+            cursor: pointer;
+            font-weight: 900;
+            font-size: 0.85rem;
+            transition: 0.06s ease;
+            user-select: none;
+        }
+        .btn-icon:active {
+            transform: translate(2px, 2px);
+            box-shadow: 1px 1px 0 #000;
+        }
+        .btn-edit { background: #dfe4ea; color: var(--text-dark); }
+        .btn-edit:hover { background: #ced6e0; }
+        .btn-ban { background: #fff5f5; color: var(--pixel-red); }
+        .btn-ban:hover { background: #ffe0e0; }
+
+        /* 編輯彈窗樣式 */
+        .modal-mask {
+            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.55);
+            display: none; justify-content: center; align-items: center; z-index: 500; padding: 20px;
+        }
+        .modal-mask.open { display: flex; }
+        .modal-card {
+            background: white; border-radius: 30px; padding: 30px 35px;
+            width: 100%; max-width: 720px; max-height: 88vh; overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+        }
+        .modal-card h2 { font-weight: 900; font-size: 1.6rem; margin-bottom: 20px; color: var(--text-dark); border-bottom: 3px solid var(--pixel-border); padding-bottom: 12px; }
+        .form-row { display: flex; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+        .field { flex: 1; min-width: 150px; display: flex; flex-direction: column; gap: 6px; }
+        .field label { font-weight: 900; font-size: 0.85rem; color: var(--text-gray); }
+        .field input, .field select, .field textarea {
+            padding: 11px 14px; border-radius: 12px; border: 1.5px solid var(--border-light);
+            font-weight: 700; background: #f8fafc; font-family: inherit; font-size: 0.95rem; outline: none;
+        }
+        .field input:focus, .field select:focus, .field textarea:focus { border-color: #000; background: #fff; }
+        .field textarea { resize: vertical; min-height: 70px; }
+        .field textarea.mono { font-family: 'Consolas', monospace; background: #0f172a; color: #7dd3fc; min-height: 110px; }
+        .field.invalid input, .field.invalid select, .field.invalid textarea { border-color: var(--danger-red); background: #fff5f5; }
+        .field .err { color: var(--danger-red); font-weight: 800; font-size: 0.78rem; min-height: 1em; }
+        .modal-err { color: var(--danger-red); font-weight: 800; margin-bottom: 12px; min-height: 1.2em; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; }
+        .btn-cancel { padding: 12px 25px; background: #e2e8f0; color: var(--text-dark); border: none; border-radius: 12px; font-weight: 900; cursor: pointer; }
+
+        /* 🏆 像素對話彈窗 (刪除確認用) */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.65);
+            display: none; justify-content: center; align-items: center; z-index: 3000;
+        }
+        .modal-content-status {
+            background: white; padding: 32px 30px;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 8px 8px 0px #000000;
+            width: 420px; max-width: 90vw; text-align: center;
+            animation: modalPop 0.15s ease-out;
+        }
+        .modal-content-status h2 { font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif; font-weight: 900; font-size: 1.5rem; margin-bottom: 12px; color: var(--text-dark); border: none; padding-bottom: 0; }
+        .modal-content-status p { font-weight: 900; color: var(--text-dark); margin-bottom: 24px; line-height: 1.6; font-size: 1rem; white-space: pre-wrap; }
+        .modal-footer-status { display: flex; justify-content: center; gap: 12px; margin-top: 0; }
+        .btn-3d {
+            padding: 12px 26px; border: 3px solid var(--pixel-border);
+            font-weight: 900; font-size: 1rem; cursor: pointer;
+            transition: 0.06s ease; color: var(--text-dark);
+            background: var(--bee-yellow); box-shadow: 0 4px 0 #000; user-select: none; border-radius: 0;
+        }
+        .btn-3d:active { transform: translate(2px, 2px); box-shadow: 0 0 0 #000; }
+        @keyframes modalPop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        /* 滾動條樣式 */
+        .user-list-container::-webkit-scrollbar, .modal-card::-webkit-scrollbar { width: 8px; }
+        .user-list-container::-webkit-scrollbar-track, .modal-card::-webkit-scrollbar-track { background: #dfe4ea; border-radius: 10px; }
+        .user-list-container::-webkit-scrollbar-thumb, .modal-card::-webkit-scrollbar-thumb { background: var(--text-gray); border-radius: 10px; border: 2px solid #dfe4ea; }
+        select { cursor: pointer; }
+
+        @media (max-width: 900px) {
+            header { padding: 0 20px; }
+            .admin-container { flex-direction: column; height: auto; }
+            .admin-nav { width: 100%; }
+            .filter-group { flex-wrap: wrap; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="header-left"><h1 onclick="location.href='admin.html'">BeeRich</h1></div>
+    <div class="header-right">
+        <div class="page-tag"><span>📖</span> 學習手冊管理</div>
+    </div>
+</header>
+
+<div class="admin-main">
+    <div class="admin-container">
+        <!-- 左側選單 -->
+        <aside class="admin-nav">
+            <h2><span>📋</span> 後台選單</h2>
+            <a href="admin.html" class="nav-link"><span>👥</span> 用戶權限管理</a>
+            <a href="question.html" class="nav-link"><span>❓</span> 考題庫編輯</a>
+            <a href="handbook_admin.html" class="nav-link active"><span>📖</span> 學習手冊管理</a>
+            <a href="camera.html" class="nav-link"><span>📷</span> 影像辨識偵錯</a>
+            <a href="game_data.html" class="nav-link"><span>📈</span> 遊戲數據監控</a>
+            <a href="javascript:void(0);" class="nav-link" onclick="logout();" style="margin-top: auto; color: white; background: var(--pixel-red);"><span>🚪</span> 登出系統</a>
+        </aside>
+
+        <!-- 右側主區域 -->
+        <main class="admin-board">
+            <div class="board-header">
+                <div class="filter-group">
+                    <select class="select-filter" id="filterLevel" onchange="filterTable()">
+                        <option value="">所有難度</option>
+                        <option value="★☆☆ 啟蒙">★☆☆ 啟蒙</option>
+                        <option value="★☆☆ 必備">★☆☆ 必備</option>
+                        <option value="★★☆ 核心">★★☆ 核心</option>
+                        <option value="★★☆ 易錯">★★☆ 易錯</option>
+                        <option value="★★★ 進階">★★★ 進階</option>
+                        <option value="★★★ 必讀">★★★ 必讀</option>
+                    </select>
+                    <select class="select-filter" id="filterCategory" onchange="filterTable()">
+                        <option value="">所有分類</option>
+                        <option value="intro">基礎啟蒙</option>
+                        <option value="basic">輸入輸出</option>
+                        <option value="data">變數型態</option>
+                        <option value="cond">條件判斷</option>
+                        <option value="loop">迴圈控制</option>
+                        <option value="list">串列字典</option>
+                        <option value="func">自訂函式</option>
+                        <option value="bug">除錯急救包</option>
+                    </select>
+                    <input type="text" id="searchInput" class="search-input" placeholder="🔍 搜尋標題或標籤..." oninput="filterTable()">
+                </div>
+                <button class="btn-add" onclick="openModal()">+ 新增教材</button>
+            </div>
+
+            <div class="user-list-container">
+                <div class="table-header">
+                    <span style="text-align: center;">排序</span>
+                    <span style="text-align: center;">分類標籤</span>
+                    <span style="padding-left: 10px;">教材標題</span>
+                    <span style="text-align: center;">難度級別</span>
+                    <span style="text-align: center;">操作項目</span>
+                </div>
+                <div id="tableBody">
+                    <div style="padding: 20px; font-weight: 900; color: #747d8c; text-align: center;">載入中...</div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- 新增/編輯彈窗 -->
+<div class="modal-mask" id="cardModal">
+    <div class="modal-card">
+        <h2 id="modalTitle">新增學習卡片</h2>
+        <div class="modal-err" id="modalErr"></div>
+        <input type="hidden" id="cardId">
+        
+        <div class="form-row">
+            <div class="field">
+                <label>排序權重 (數字越小越前)</label>
+                <input type="number" id="orderIndex" value="10">
+                <div class="err"></div>
+            </div>
+            <div class="field">
+                <label>難度級別</label>
+                <select id="level">
+                    <option value="★☆☆ 啟蒙">★☆☆ 啟蒙</option>
+                    <option value="★☆☆ 必備">★☆☆ 必備</option>
+                    <option value="★★☆ 核心">★★☆ 核心</option>
+                    <option value="★★☆ 易錯">★★☆ 易錯</option>
+                    <option value="★★★ 進階">★★★ 進階</option>
+                    <option value="★★★ 必讀">★★★ 必讀</option>
+                </select>
+                <div class="err"></div>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="field">
+                <label>系統分類</label>
+                <select id="category">
+                    <option value="intro">intro (基礎啟蒙)</option>
+                    <option value="basic">basic (輸入輸出)</option>
+                    <option value="data">data (變數型態)</option>
+                    <option value="cond">cond (條件判斷)</option>
+                    <option value="loop">loop (迴圈控制)</option>
+                    <option value="list">list (串列字典)</option>
+                    <option value="func">func (自訂函式)</option>
+                    <option value="bug">bug (除錯急救包)</option>
+                </select>
+                <div class="err"></div>
+            </div>
+            <div class="field">
+                <label>顯示標籤 (如: 變數型態)</label>
+                <input type="text" id="catName" placeholder="例如：迴圈控制">
+                <div class="err"></div>
+            </div>
+            <div class="field">
+                <label>標籤顏色</label>
+                <select id="catClass">
+                    <option value="cat-basic">黃色 (基礎)</option>
+                    <option value="cat-cond">藍色 (判斷)</option>
+                    <option value="cat-loop">綠色 (迴圈)</option>
+                    <option value="cat-data">橘色 (資料)</option>
+                    <option value="cat-func">紫色 (進階)</option>
+                </select>
+                <div class="err"></div>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="field" style="min-width: 100%;">
+                <label>卡片標題</label>
+                <input type="text" id="title" placeholder="例如：什麼是變數？">
+                <div class="err"></div>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="field" style="min-width: 100%;">
+                <label>白話原理解說</label>
+                <textarea id="description" placeholder="請用最簡單的話解釋給小朋友聽..."></textarea>
+                <div class="err"></div>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="field" style="min-width: 100%;">
+                <label>程式碼範例 (選填)</label>
+                <textarea id="codeExample" class="mono" spellcheck="false" placeholder="print('Hello') 等程式碼..."></textarea>
+                <div class="err"></div>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="field" style="min-width: 100%;">
+                <label>💡 避坑小提示 (選填)</label>
+                <textarea id="tip" placeholder="初學者常犯的錯誤或小技巧..."></textarea>
+                <div class="err"></div>
+            </div>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="closeModal()">取消</button>
+            <button class="btn-add" style="border-radius: 12px; box-shadow: none;" onclick="saveCard()">儲存教材</button>
+        </div>
+    </div>
+</div>
+
+<!-- 🏆 刪除確認彈窗 -->
+<div id="statusModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content-status">
+        <h2 id="statusModalTitle">標題</h2>
+        <p id="statusModalMsg">內容訊息</p>
+        <div class="modal-footer-status" id="statusModalFooter">
+            <button class="btn-3d" onclick="closeStatusModal()">確定</button>
+        </div>
+    </div>
+</div>
+
+<script src="js/ngrok-fetch.js"></script>
+<script>
+    const API_URL = location.origin;
+    let syncTimer = null; 
+    let allCards = [];
+
+    window.addEventListener('storage', (e) => {
+        if (e.key === 'token' && !e.newValue) window.location.href = 'login.html';
+    });
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        const token = localStorage.getItem('token');
+        const role = localStorage.getItem('role');
+        const username = localStorage.getItem('username');
+
+        if (!token || role !== 'admin' || !username) {
+            window.location.href = 'login.html';
+            return;
+        }
+
+        document.getElementById('cardModal').addEventListener('click', (e) => {
+            if (e.target.id === 'cardModal') closeModal();
+        });
+
+        try {
+            const verifyRes = await fetch(`${API_URL}/auth/verify_and_refresh?username=${encodeURIComponent(username)}`, {
+                method: "POST", headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const verifyData = await verifyRes.json();
+
+            if (verifyData.status !== "success") {
+                localStorage.clear();
+                window.location.href = "login.html";
+                return;
+            }
+
+            await fetch(`${API_URL}/auth/heartbeat?username=${encodeURIComponent(username)}`, {
+                method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            startAdminLoop(username, token);
+            fetchCards();
+
+        } catch (err) {
+            window.location.href = 'login.html';
+        }
+    });
+
+    function startAdminLoop(username, token) {
+        if (syncTimer) clearInterval(syncTimer);
+        syncTimer = setInterval(async () => {
+            try {
+                fetch(`${API_URL}/auth/heartbeat?username=${encodeURIComponent(username)}`, {
+                    method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                const res = await fetch(`${API_URL}/auth/me?username=${encodeURIComponent(username)}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.is_online === 0 || data.role === 'banned') {
+                        clearInterval(syncTimer);
+                        localStorage.clear();
+                        window.location.href = 'login.html';
+                    }
+                }
+            } catch (err) {}
+        }, 5000); 
+    }
+
+    async function fetchCards() {
+        try {
+            const res = await fetch(`${API_URL}/handbook/list`);
+            if (res.ok) {
+                allCards = await res.json();
+                renderTable(allCards);
+            }
+        } catch (err) { console.error(err); }
+    }
+
+    function renderTable(list) {
+        const tbody = document.getElementById('tableBody');
+        if (list.length === 0) {
+            tbody.innerHTML = `<div style="padding:20px;text-align:center;font-weight:900;color:#747d8c;">目前沒有符合條件的教材</div>`;
+            return;
+        }
+
+        tbody.innerHTML = list.map(c => `
+            <div class="user-row">
+                <div class="user-avatar">${c.order_index}</div>
+                <div style="text-align: center;"><span class="user-status">${escapeHtml(c.cat_name)}</span></div>
+                <div class="user-id">${escapeHtml(c.title)}</div>
+                <div class="user-email" style="text-align: center;">${escapeHtml(c.level)}</div>
+                <div class="action-btns">
+                    <button class="btn-icon btn-edit" onclick='openModal(${JSON.stringify(c).replace(/'/g, "&#39;")})'>編輯</button>
+                    <button class="btn-icon btn-ban" onclick="deleteCard(${c.id}, '${escapeHtml(c.title)}')">刪除</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function filterTable() {
+        const q = document.getElementById('searchInput').value.toLowerCase();
+        const levelFilter = document.getElementById('filterLevel').value;
+        const categoryFilter = document.getElementById('filterCategory').value;
+
+        const filtered = allCards.filter(c => {
+            const matchKeyword = c.title.toLowerCase().includes(q) || c.cat_name.toLowerCase().includes(q);
+            const matchLevel = levelFilter === "" || (c.level && c.level.includes(levelFilter));
+            const matchCategory = categoryFilter === "" || c.category === categoryFilter;
+            return matchKeyword && matchLevel && matchCategory;
+        });
+
+        renderTable(filtered);
+    }
+
+    function openModal(card = null) {
+        document.getElementById('cardModal').classList.add('open');
+        document.getElementById('modalErr').textContent = '';
+
+        if (card) {
+            document.getElementById('modalTitle').innerText = '編輯學習卡片';
+            document.getElementById('cardId').value = card.id;
+            document.getElementById('orderIndex').value = card.order_index;
+            document.getElementById('level').value = card.level;
+            document.getElementById('category').value = card.category;
+            document.getElementById('catName').value = card.cat_name;
+            document.getElementById('catClass').value = card.cat_class;
+            document.getElementById('title').value = card.title;
+            document.getElementById('description').value = card.description;
+            document.getElementById('codeExample').value = card.code_example || '';
+            document.getElementById('tip').value = card.tip || '';
+        } else {
+            document.getElementById('modalTitle').innerText = '新增學習卡片';
+            document.getElementById('cardId').value = '';
+            document.getElementById('title').value = '';
+            document.getElementById('description').value = '';
+            document.getElementById('codeExample').value = '';
+            document.getElementById('tip').value = '';
+        }
+    }
+
+    function closeModal() { 
+        document.getElementById('cardModal').classList.remove('open'); 
+    }
+
+    async function saveCard() {
+        const id = document.getElementById('cardId').value;
+        const errBox = document.getElementById('modalErr');
+        const payload = {
+            order_index: parseInt(document.getElementById('orderIndex').value) || 0,
+            level: document.getElementById('level').value,
+            category: document.getElementById('category').value,
+            cat_name: document.getElementById('catName').value,
+            cat_class: document.getElementById('catClass').value,
+            title: document.getElementById('title').value.trim(),
+            description: document.getElementById('description').value.trim(),
+            code_example: document.getElementById('codeExample').value,
+            tip: document.getElementById('tip').value
+        };
+
+        if (!payload.title || !payload.description) {
+            errBox.textContent = "⚠️ 標題與白話解說為必填欄位！";
+            return;
+        }
+
+        errBox.textContent = '';
+        const url = id ? `${API_URL}/admin/handbook/${id}` : `${API_URL}/admin/handbook/add`;
+        try {
+            const res = await fetch(url, {
+                method: id ? 'PUT' : 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) { 
+                closeModal(); 
+                fetchCards(); 
+            } else {
+                errBox.textContent = "儲存失敗，請稍後再試！";
+            }
+        } catch (err) { 
+            errBox.textContent = "伺服器連線錯誤！"; 
+        }
+    }
+
+    // 🏆 彈出專屬的刪除確認視窗
+    function deleteCard(id, title) {
+        const modal = document.getElementById('statusModal');
+        document.getElementById('statusModalTitle').innerText = '⚠️ 刪除確認';
+        document.getElementById('statusModalTitle').style.color = 'var(--pixel-red)';
+        document.getElementById('statusModalMsg').innerText = `確定要刪除「${title}」嗎？這將無法復原。`;
+
+        document.getElementById('statusModalFooter').innerHTML = `
+            <button class="btn-3d" style="background: var(--pixel-red); color: white; margin-right: 10px;" id="confirmDelBtn">確定</button>
+            <button class="btn-3d" style="background: #dfe4ea; color: var(--text-dark);" onclick="closeStatusModal()">取消</button>
+        `;
+
+        document.getElementById('confirmDelBtn').onclick = async () => {
+            closeStatusModal();
+            try {
+                const res = await fetch(`${API_URL}/admin/handbook/${id}`, {
+                    method: 'DELETE', headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                });
+                if (res.ok) fetchCards(); else alert("刪除失敗");
+            } catch (err) { console.error(err); }
+        };
+        
+        modal.style.display = 'flex';
+    }
+
+    function closeStatusModal() {
+        document.getElementById('statusModal').style.display = 'none';
+    }
+
+    function escapeHtml(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    async function logout() {
+        if (syncTimer) clearInterval(syncTimer);
+        const username = localStorage.getItem('username');
+        await fetch(`${API_URL}/auth/logout?username=${encodeURIComponent(username)}&confirm=true`, { method: 'POST' });
+        localStorage.clear();
+        window.location.href = 'login.html';
+    }
+</script>
+</body>
+</html>

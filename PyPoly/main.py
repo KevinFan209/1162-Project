@@ -6,7 +6,7 @@ for _stream in (sys.stdout, sys.stderr):
     except Exception:
         pass
 
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect, Header
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect, Header, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -23,7 +23,7 @@ import numpy as np
 from email.mime.text import MIMEText
 from typing import Dict, Optional, List
 from datetime import datetime, timedelta
-from sqlalchemy import case
+from sqlalchemy import case, text
 from game_start import GestureDetector
 import asyncio
 import socketio
@@ -43,6 +43,8 @@ import io
 from dotenv import load_dotenv
 from fastapi import Request
 from openai import AsyncOpenAI
+from fastapi.responses import FileResponse
+import seed_handbook
 
 # 🏆 讀取 PyPoly/.env（機敏設定：SENDER_EMAIL / SENDER_PASSWORD / SECRET_KEY 等）
 load_dotenv()
@@ -76,6 +78,12 @@ os.makedirs(CAMERA_FACE_DIR, exist_ok=True)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/models", StaticFiles(directory="models"), name="models")
+
+# 🏆 終極 Favicon 強制路由：只要瀏覽器要圖示，一律塞這張給它！
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    # 請確保你的蜜蜂圖片真的是放在 static 資料夾底下，且檔名叫 logo.jpg
+    return FileResponse("static/favicon.jpg")
 
 
 # 🏆 靜態檔一律要求瀏覽器重新驗證。
@@ -299,8 +307,9 @@ ADMIN_EMAILS = ["admin@gmail.com"]
 
 # 📧 Gmail SMTP 設定（改由環境變數提供；請於 PyPoly/.env 填入，切勿寫死於程式碼）
 #    ⚠️ 原先寫死的應用程式密碼已移除，請至 Google 帳戶撤銷該密碼並重新產生。
-SENDER_EMAIL = os.getenv("SENDER_EMAIL", "")
-SENDER_PASSWORD = os.getenv("SENDER_PASSWORD", "")
+# 檔案上方確認有執行 load_dotenv()
+SENDER_EMAIL = os.getenv("SENDER_EMAIL")
+SENDER_PASSWORD = os.getenv("SENDER_PASSWORD")
 
 # 暫存驗證碼
 otp_storage: Dict[str, str] = {}
@@ -425,11 +434,21 @@ def get_me(username: str, background_tasks: BackgroundTasks, db: Session = Depen
     user = db.query(models.User).filter(models.User.username == username).first()
     if not user:
         raise HTTPException(status_code=404, detail="找不到使用者")
+    
+    # 🏆 查詢該玩家是否有加入班級
+    class_name = None
+    if user.class_id:
+        classroom = db.query(models.Classroom).filter(models.Classroom.id == user.class_id).first()
+        if classroom:
+            class_name = classroom.name
+
     return {
         "username": user.username, 
         "is_online": user.is_online,
         "role": user.role,
-        "email": user.email
+        "email": user.email,
+        "class_id": user.class_id,
+        "class_name": class_name
     }
 
 # 5. 登出
@@ -472,28 +491,36 @@ def require_admin(authorization: str = Header(None), db: Session = Depends(datab
     return user
 
 # 6. 管理員：獲取所有用戶 (加權排序)
+# 6. 管理員：獲取所有用戶 (加權排序 + 班級資訊)
 @app.get("/admin/users")
 def get_all_users(db: Session = Depends(database.get_db), admin: models.User = Depends(require_admin)):
     perform_auto_cleanup(db)
     
-    # 🏆 admin 優先級高，排最前
-    admin_priority = case(
-        (models.User.role == 'admin', 1),
+    # 🏆 排序優先級：admin > teacher > player
+    role_priority = case(
+        (models.User.role == 'admin', 2),
+        (models.User.role == 'teacher', 1),
         else_=0
     )
     
     users = db.query(models.User).order_by(
-        admin_priority.desc(),
+        role_priority.desc(),
         models.User.is_online.desc(),
         models.User.username.asc()
     ).all()
+
+    # 撈出所有班級名稱對照表
+    classrooms = db.query(models.Classroom).all()
+    class_map = {c.id: c.name for c in classrooms}
     
     return [
         {
             "username": u.username, 
             "email": u.email, 
             "role": u.role, 
-            "is_online": u.is_online
+            "is_online": u.is_online,
+            "class_id": u.class_id,
+            "class_name": class_map.get(u.class_id) if u.class_id else None
         } for u in users
     ]
 
@@ -665,7 +692,7 @@ def validate_question(q: QuestionPayload) -> dict:
 
 
 def question_to_dict(q: models.Question) -> dict:
-    """後台用的完整表示。含答案欄位，所以只給掛了 require_admin 的端點用。"""
+    """後台用的完整表示。"""
     return {
         "id": q.id,
         "category": q.category,
@@ -680,6 +707,8 @@ def question_to_dict(q: models.Question) -> dict:
         "reference_solution": q.reference_solution,
         "time_limit_sec": q.time_limit_sec,
         "max_attempts": q.max_attempts,
+        "class_id": getattr(q, "class_id", None),
+        "created_by": getattr(q, "created_by", None),
     }
 
 
@@ -908,9 +937,12 @@ def update_profile(
     if not new_username:
         raise HTTPException(status_code=400, detail="使用者 ID 不能為空")
 
+    # ---- 驗證全過，才實際寫入 ----
     if username_changed:
-        if db.query(models.User).filter(models.User.username == new_username).first():
-            raise HTTPException(status_code=400, detail="此 ID 已被使用")
+        # 🏆 新增這兩行：如果老師改了名字(ID)，一併更新他名下班級與通知紀錄的老師名稱
+        db.query(models.Classroom).filter(models.Classroom.teacher_username == current_username).update({"teacher_username": new_username})
+        db.query(models.TeacherAuditLog).filter(models.TeacherAuditLog.teacher_username == current_username).update({"teacher_username": new_username})
+        user.username = new_username
 
     if email_changed:
         if db.query(models.User).filter(models.User.email == new_email).first():
@@ -1641,6 +1673,7 @@ async def get_map_config(
     room: str,
     test: bool = False,
     qtype: str = None,
+    username: Optional[str] = None,
     db: Session = Depends(database.get_db),
 ):
     """組出 26 格地圖。
@@ -1654,26 +1687,48 @@ async def get_map_config(
     每個人拿到的地圖完全一致。地圖由後端產生這件事本身不會自動保證
     一致，一致性是靠這層快取保證的；之前沒有這層快取，純粹由後端產生
     不代表兩人會拿到同一張（每次呼叫都各自重新 random 一次）。
+
+    🏆 合併 hsuan_teacher 分支時補上：題目池改用「依班級過濾」查詢
+    （下面 user_class_id/q_filter 那段）——一般玩家只抽官方題庫
+    （class_id IS NULL），班級學生額外抽得到自己老師新增的題庫。這段
+    邏輯本身不影響上面的房間快取機制，快取的是「過濾完的最終結果」，
+    同一房間第一次呼叫時就已經把正確的班級題庫定案了。
     """
     room_key = room.strip().upper()
     if room_key in room_map_cache:
         return room_map_cache[room_key]
 
     try:
-        # 修正中文模式轉為資料庫 Key
+        from sqlalchemy import or_
         db_mode = "basic" if "基礎" in mode else "advanced"
-
-        # 🏆 進階模式底下同時存在兩種題型（gesture 手勢比數字 / code 手打程式碼），
-        #    只依 category 撈會兩種混著出現，玩家上一格比手勢、下一格要寫程式。
-        #    不指定時：基礎 -> choice、進階 -> code（進階模式的現行走向）。
-        #    要跑舊的手勢題請明確帶 ?qtype=gesture。
         db_qtype = qtype or ("choice" if db_mode == "basic" else "code")
-        
-        # 🏆 修正點：直接使用 func.random()，不要透過 models.database
+
+        # 🏆 判斷遊玩者所屬班級：優先從參數 username 找，若無則從目前活躍房間內的玩家找
+        user_class_id = None
+        if username:
+            u = db.query(models.User).filter(models.User.username == username).first()
+            if u and u.class_id:
+                user_class_id = u.class_id
+        else:
+            for r in active_rooms.values():
+                for p_name in r.get("players", []):
+                    u = db.query(models.User).filter(models.User.username == p_name).first()
+                    if u and u.class_id:
+                        user_class_id = u.class_id
+                        break
+                if user_class_id:
+                    break
+
+        # 🏆 一般玩家只抽官方題庫 (class_id IS NULL)；班級學生抽「官方 ＋ 該班級老師新增的題庫」
+        q_filter = models.Question.class_id.is_(None)
+        if user_class_id:
+            q_filter = or_(models.Question.class_id.is_(None), models.Question.class_id == user_class_id)
+
         questions = db.query(models.Question).filter(
             models.Question.category == db_mode,
             models.Question.qtype == db_qtype,
-            models.Question.difficulty == difficulty
+            models.Question.difficulty == difficulty,
+            q_filter
         ).order_by(func.random()).limit(20).all()
         
         countries = db.query(models.CountryScenario).order_by(func.random()).limit(20).all()
@@ -2384,3 +2439,975 @@ def get_user_answer_logs(room: str, user: str, db: Session = Depends(database.ge
         "is_correct": l.is_correct,
         "category": l.category
     } for l in logs]
+
+# Pydantic 驗證格式
+class HandbookCreate(BaseModel):
+    title: str
+    category: str
+    cat_name: str
+    cat_class: Optional[str] = "cat-basic"
+    level: Optional[str] = "★☆☆ 啟蒙"
+    order_index: Optional[int] = 0
+    description: str
+    code_example: Optional[str] = ""
+    tip: Optional[str] = ""
+
+# 📖 1. 前台獲取所有學習手冊卡片 (依 order_index 排序)
+@app.get("/handbook/list")
+def get_handbook_cards(username: Optional[str] = None, db: Session = Depends(database.get_db)):
+    # 先確認有沒有官方基底教材，沒有就初始化
+    base_count = db.query(models.HandbookCard).filter(models.HandbookCard.class_id.is_(None)).count()
+    if base_count == 0:
+        seed_handbook.seed_handbook_data(db)
+
+    # 查詢玩家是否有加入班級
+    user_class_id = None
+    if username:
+        u = db.query(models.User).filter(models.User.username == username).first()
+        if u and u.class_id:
+            user_class_id = u.class_id
+
+    # 🏆 核心邏輯：抓取「官方全域教材 (class_id IS NULL)」＋「該生所屬班級教材」
+    from sqlalchemy import or_
+    if user_class_id:
+        cards = db.query(models.HandbookCard).filter(
+            or_(models.HandbookCard.class_id.is_(None), models.HandbookCard.class_id == user_class_id)
+        ).order_by(models.HandbookCard.order_index.asc(), models.HandbookCard.id.asc()).all()
+    else:
+        cards = db.query(models.HandbookCard).filter(
+            models.HandbookCard.class_id.is_(None)
+        ).order_by(models.HandbookCard.order_index.asc(), models.HandbookCard.id.asc()).all()
+
+    return cards
+
+# 📖 2. 後台管理員新增卡片
+@app.post("/admin/handbook/add")
+def add_handbook_card(card: HandbookCreate, db: Session = Depends(database.get_db)):
+    new_card = models.HandbookCard(**card.dict())
+    db.add(new_card)
+    db.commit()
+    db.refresh(new_card)
+    return {"status": "success", "card_id": new_card.id}
+
+# 📖 3. 後台管理員編輯卡片
+@app.put("/admin/handbook/{card_id}")
+def update_handbook_card(card_id: int, card: HandbookCreate, db: Session = Depends(database.get_db)):
+    target = db.query(models.HandbookCard).filter(models.HandbookCard.id == card_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="找不到此知識卡片")
+    for key, value in card.dict().items():
+        setattr(target, key, value)
+    db.commit()
+    return {"status": "success", "msg": "教材已更新"}
+
+# 📖 4. 後台管理員刪除卡片
+@app.delete("/admin/handbook/{card_id}")
+def delete_handbook_card(card_id: int, db: Session = Depends(database.get_db)):
+    target = db.query(models.HandbookCard).filter(models.HandbookCard.id == card_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="找不到此知識卡片")
+    db.delete(target)
+    db.commit()
+    return {"status": "success", "msg": "教材已刪除"}
+
+# ==========================================================
+# 🏆 教育版：自動補齊舊資料表欄位 & 玩家加入班級 API
+# ==========================================================
+
+def ensure_education_columns():
+    """啟動時自動為舊資料表補上 class_id 與 created_by 欄位，免除手動改 DB 的麻煩"""
+    alter_stmts = [
+        "ALTER TABLE users ADD COLUMN class_id INT NULL",
+        "ALTER TABLE questions ADD COLUMN class_id INT NULL",
+        "ALTER TABLE questions ADD COLUMN created_by VARCHAR(50) NULL",
+        "ALTER TABLE handbook_cards ADD COLUMN class_id INT NULL",
+        "ALTER TABLE handbook_cards ADD COLUMN created_by VARCHAR(50) NULL",
+    ]
+    with database.engine.connect() as conn:
+        for stmt in alter_stmts:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+            except Exception:
+                # 欄位若已存在會報錯，直接安全略過即可
+                pass
+
+# 啟動時執行一次欄位檢查
+ensure_education_columns()
+
+
+class JoinClassRequest(BaseModel):
+    username: str
+    invite_code: str
+
+
+@app.post("/classes/join")
+def student_join_class(req: JoinClassRequest, db: Session = Depends(database.get_db)):
+    code = req.invite_code.strip().upper()
+    if not code:
+        raise HTTPException(status_code=400, detail="請輸入班級邀請碼")
+
+    classroom = db.query(models.Classroom).filter(models.Classroom.invite_code == code).first()
+    if not classroom:
+        raise HTTPException(status_code=404, detail="找不到此邀請碼對應的班級，請向老師確認！")
+
+    user = db.query(models.User).filter(models.User.username == req.username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="找不到玩家帳號")
+
+    user.class_id = classroom.id
+    db.commit()
+    return {
+        "status": "success",
+        "class_id": classroom.id,
+        "class_name": classroom.name,
+        "teacher": classroom.teacher_username
+    }
+
+
+@app.post("/classes/leave")
+def student_leave_class(username: str, db: Session = Depends(database.get_db)):
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="找不到玩家帳號")
+    user.class_id = None
+    db.commit()
+    return {"status": "success"}
+
+
+# ==========================================================
+# 🏆 第二階段：管理員監控 (班級列表/教師通知) & 教師端後台 API
+# ==========================================================
+
+def require_teacher(authorization: str = Header(None), db: Session = Depends(database.get_db)):
+    """教師權限守衛：允許 role 為 teacher 或 admin 的帳號通行"""
+    username = auth_utils.get_current_user(authorization)
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user or user.role not in ("teacher", "admin"):
+        raise HTTPException(status_code=403, detail="需要老師或管理員權限")
+    return user
+
+
+# --- 管理員專用：查看所有老師建立的班級 ---
+@app.get("/admin/classes")
+def admin_list_classes(db: Session = Depends(database.get_db), admin: models.User = Depends(require_admin)):
+    classes = db.query(models.Classroom).order_by(models.Classroom.id.desc()).all()
+    result = []
+    for c in classes:
+        student_count = db.query(models.User).filter(models.User.class_id == c.id).count()
+        result.append({
+            "id": c.id,
+            "name": c.name,
+            "teacher_username": c.teacher_username,
+            "invite_code": c.invite_code,
+            "student_count": student_count,
+            "created_at": c.created_at
+        })
+    return result
+
+
+# --- 管理員專用：查看老師對題庫/手冊的更動提示 ---
+@app.get("/admin/audit_logs")
+def admin_get_audit_logs(db: Session = Depends(database.get_db), admin: models.User = Depends(require_admin)):
+    logs = db.query(models.TeacherAuditLog).order_by(models.TeacherAuditLog.id.desc()).limit(50).all()
+    unread_count = db.query(models.TeacherAuditLog).filter(models.TeacherAuditLog.is_read == False).count()
+    return {
+        "unread_count": unread_count,
+        "items": [
+            {
+                "id": l.id,
+                "teacher_username": l.teacher_username,
+                "class_name": l.class_name,
+                "action": l.action,
+                "target_type": l.target_type,
+                "detail": l.detail,
+                "is_read": l.is_read,
+                "created_at": l.created_at
+            } for l in logs
+        ]
+    }
+
+
+@app.post("/admin/audit_logs/read_all")
+def admin_mark_logs_read(db: Session = Depends(database.get_db), admin: models.User = Depends(require_admin)):
+    db.query(models.TeacherAuditLog).filter(models.TeacherAuditLog.is_read == False).update({"is_read": True})
+    db.commit()
+    return {"status": "success"}
+
+
+# --- 教師專用：取得自己名下的所有班級 + 當前選定班級的學生名單 ---
+@app.get("/teacher/my_class")
+def teacher_get_my_class(
+    class_id: Optional[int] = None,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
+    perform_auto_cleanup(db)
+
+    # 自動修復因改名而斷開連結的孤兒班級
+    all_db_classes = db.query(models.Classroom).all()
+    for c in all_db_classes:
+        owner_exists = db.query(models.User).filter(models.User.username == c.teacher_username).first()
+        if not owner_exists:
+            c.teacher_username = teacher.username
+            db.commit()
+
+    # 撈出該名老師名下的「所有班級」
+    my_classes = db.query(models.Classroom).filter(
+        models.Classroom.teacher_username == teacher.username
+    ).order_by(models.Classroom.id.asc()).all()
+
+    if not my_classes:
+        return {"has_class": False, "classes": []}
+
+    # 決定目前選中的是哪一個班級（若前端有傳 class_id 且屬於該老師就用它，否則預設選第一個）
+    active_class = None
+    if class_id:
+        active_class = next((c for c in my_classes if c.id == class_id), None)
+    if not active_class:
+        active_class = my_classes[0]
+
+    students = db.query(models.User).filter(
+        models.User.class_id == active_class.id
+    ).order_by(models.User.is_online.desc(), models.User.username.asc()).all()
+
+    return {
+        "has_class": True,
+        "class_id": active_class.id,
+        "class_name": active_class.name,
+        "invite_code": active_class.invite_code,
+        "classes": [
+            {
+                "id": c.id,
+                "name": c.name,
+                "invite_code": c.invite_code
+            } for c in my_classes
+        ],
+        "students": [
+            {
+                "username": s.username,
+                "email": s.email,
+                "is_online": s.is_online
+            } for s in students
+        ]
+    }
+
+
+# --- 教師專用：新增班級 或 修改既有班級名稱 ---
+class CreateClassRequest(BaseModel):
+    name: str
+    class_id: Optional[int] = None  # 若有傳 class_id 代表「修改該班級名稱」；若為 None 代表「建立一個新班級」
+
+@app.post("/teacher/create_class")
+def teacher_create_or_update_class(
+    req: CreateClassRequest,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
+    name = req.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="班級名稱不能為空")
+
+    # 模式 A：修改既有班級名稱
+    if req.class_id:
+        classroom = db.query(models.Classroom).filter(
+            models.Classroom.id == req.class_id,
+            models.Classroom.teacher_username == teacher.username
+        ).first()
+        if not classroom:
+            raise HTTPException(status_code=404, detail="找不到要修改的班級")
+        classroom.name = name
+        db.commit()
+        return {
+            "status": "updated",
+            "class_id": classroom.id,
+            "class_name": classroom.name,
+            "invite_code": classroom.invite_code
+        }
+
+    # 模式 B：新增一個全新班級（先檢查同老師是否已有同名班級）
+    duplicate = db.query(models.Classroom).filter(
+        models.Classroom.teacher_username == teacher.username,
+        models.Classroom.name == name
+    ).first()
+    if duplicate:
+        raise HTTPException(status_code=400, detail=f"您已經建立過名為「{name}」的班級囉！")
+
+    # 產生不重複的 6 位數邀請碼
+    chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    invite_code = ""
+    for _ in range(20):
+        candidate = "".join(random.choices(chars, k=6))
+        if not db.query(models.Classroom).filter(models.Classroom.invite_code == candidate).first():
+            invite_code = candidate
+            break
+    if not invite_code:
+        invite_code = f"C{random.randint(10000, 99999)}"
+
+    new_class = models.Classroom(
+        name=name,
+        teacher_username=teacher.username,
+        invite_code=invite_code
+    )
+    db.add(new_class)
+    db.commit()
+    db.refresh(new_class)
+    return {
+        "status": "created",
+        "class_id": new_class.id,
+        "class_name": new_class.name,
+        "invite_code": new_class.invite_code
+    }
+
+# --- 教師專用：刪除（解散）班級 ---
+@app.delete("/teacher/classes/{class_id}")
+def teacher_delete_class(
+    class_id: int,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
+    classroom = db.query(models.Classroom).filter(
+        models.Classroom.id == class_id,
+        models.Classroom.teacher_username == teacher.username
+    ).first()
+    if not classroom:
+        raise HTTPException(status_code=404, detail="找不到該班級或您無權限刪除此班級")
+
+    deleted_name = classroom.name
+
+    # 1. 將該班級所有學生的 class_id 設為 None（變回一般玩家，保留所有遊戲與答題紀錄）
+    db.query(models.User).filter(models.User.class_id == class_id).update(
+        {"class_id": None}, synchronize_session=False
+    )
+
+    # 2. 刪除該班級專屬的考題與學習手冊字卡（不影響官方基底題庫）
+    db.query(models.Question).filter(models.Question.class_id == class_id).delete(synchronize_session=False)
+    db.query(models.HandbookCard).filter(models.HandbookCard.class_id == class_id).delete(synchronize_session=False)
+
+    # 3. 記錄一筆通知給管理員，並刪除該班級資料列
+    _log_teacher_action(db, teacher, classroom, "刪除", "班級", f"已解散班級：{deleted_name}")
+    db.delete(classroom)
+    db.commit()
+
+    return {"status": "success", "deleted_class_id": class_id, "deleted_class_name": deleted_name}
+
+
+# --- 教師專用：手動將學生加入「當前選定的班級」 ---
+class AddStudentRequest(BaseModel):
+    student_username: str
+    class_id: Optional[int] = None
+
+@app.post("/teacher/add_student")
+def teacher_add_student(
+    req: AddStudentRequest,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
+    classroom = _get_teacher_classroom(db, teacher, req.class_id)
+
+    target_username = req.student_username.strip()
+    student = db.query(models.User).filter(models.User.username == target_username).first()
+    if not student:
+        raise HTTPException(status_code=404, detail=f"找不到帳號為「{target_username}」的玩家")
+    if student.role in ("admin", "teacher"):
+        raise HTTPException(status_code=400, detail="無法將管理員或其他老師加入班級")
+
+    student.class_id = classroom.id
+    db.commit()
+    return {"status": "success", "username": student.username, "class_name": classroom.name}
+
+
+# --- 教師專用：將學生從班級中剔除 ---
+@app.delete("/teacher/students/{student_username}")
+def teacher_kick_student(
+    student_username: str,
+    class_id: Optional[int] = None,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
+    my_class_ids = [c.id for c in db.query(models.Classroom).filter(
+        models.Classroom.teacher_username == teacher.username
+    ).all()]
+    if not my_class_ids:
+        raise HTTPException(status_code=404, detail="找不到班級")
+
+    student = db.query(models.User).filter(
+        models.User.username == student_username,
+        models.User.class_id.in_(my_class_ids)
+    ).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="該名學生不在您的班級中")
+
+    student.class_id = None
+    db.commit()
+    return {"status": "success"}
+
+
+# --- 教師專用：查看單一學生的學習狀況與類別統計 ---
+@app.get("/teacher/student_stats/{student_username}")
+def teacher_get_student_stats(
+    student_username: str,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
+    my_class_ids = [c.id for c in db.query(models.Classroom).filter(
+        models.Classroom.teacher_username == teacher.username
+    ).all()]
+    student = db.query(models.User).filter(models.User.username == student_username).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="找不到該名學生")
+    if teacher.role != "admin" and student.class_id not in my_class_ids:
+        raise HTTPException(status_code=403, detail="該名學生不在您的班級中")
+
+    stats = _build_learn_stats(student_username, db)
+    logs_total = sum(d["total"] for d in stats["dimensions"])
+    logs_correct = sum(d["correct"] for d in stats["dimensions"])
+    if logs_total > stats["summary"]["total_questions"]:
+        stats["summary"]["total_questions"] = logs_total
+        stats["summary"]["correct"] = logs_correct
+        stats["summary"]["accuracy"] = round(logs_correct / logs_total * 100) if logs_total else 0
+
+    return stats
+
+
+# ==========================================================
+# 🏆 第三階段（多班級版）：教師專屬考題庫 & 學習手冊 CRUD
+# ==========================================================
+
+def _get_teacher_classroom(db: Session, teacher: models.User, class_id: Optional[int] = None) -> models.Classroom:
+    """根據前端指定的 class_id 取得該老師的班級；若未指定則取該老師的第一個班級"""
+    query = db.query(models.Classroom).filter(
+        models.Classroom.teacher_username == teacher.username
+    )
+    if class_id:
+        classroom = query.filter(models.Classroom.id == class_id).first()
+        if classroom:
+            return classroom
+
+    classroom = query.order_by(models.Classroom.id.asc()).first()
+    if not classroom:
+        raise HTTPException(status_code=400, detail="請先至「學生管理」建立您的班級後，再進行此操作！")
+    return classroom
+
+
+def _log_teacher_action(db: Session, teacher: models.User, classroom: models.Classroom, action: str, target_type: str, detail: str):
+    log = models.TeacherAuditLog(
+        teacher_username=teacher.username,
+        class_id=classroom.id,
+        class_name=classroom.name,
+        action=action,
+        target_type=target_type,
+        detail=(detail or "")[:250],
+        is_read=False
+    )
+    db.add(log)
+
+
+# --- 教師考題庫 API (支援多班級切換) ---
+@app.get("/teacher/questions/meta")
+def teacher_question_meta(
+    class_id: Optional[int] = None,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
+    from sqlalchemy import or_
+    my_classes = db.query(models.Classroom).filter(models.Classroom.teacher_username == teacher.username).all()
+    active_c = next((c for c in my_classes if c.id == class_id), my_classes[0] if my_classes else None)
+    c_id = active_c.id if active_c else -1
+
+    topics = [t for (t,) in db.query(models.Question.topic)
+              .filter(models.Question.topic.isnot(None),
+                      or_(models.Question.class_id.is_(None), models.Question.class_id == c_id))
+              .distinct().order_by(models.Question.topic).all()]
+    return {
+        "topics": topics,
+        "qtypes": list(QTYPES),
+        "difficulties": list(DIFFICULTIES),
+        "categories": list(CATEGORIES),
+    }
+
+
+@app.get("/teacher/questions")
+def teacher_list_questions(
+    class_id: Optional[int] = None,
+    qtype: Optional[str] = None,
+    difficulty: Optional[str] = None,
+    topic: Optional[str] = None,
+    source: Optional[str] = None,
+    q: Optional[str] = None,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher),
+):
+    from sqlalchemy import or_
+    my_classes = db.query(models.Classroom).filter(
+        models.Classroom.teacher_username == teacher.username
+    ).order_by(models.Classroom.id.asc()).all()
+
+    active_c = next((c for c in my_classes if c.id == class_id), my_classes[0] if my_classes else None)
+    c_id = active_c.id if active_c else None
+
+    query = db.query(models.Question)
+    if source == "class":
+        if not c_id:
+            return {"total": 0, "class_id": None, "class_name": None, "classes": [], "items": []}
+        query = query.filter(models.Question.class_id == c_id)
+    elif source == "official":
+        query = query.filter(models.Question.class_id.is_(None))
+    else:
+        if c_id:
+            query = query.filter(or_(models.Question.class_id.is_(None), models.Question.class_id == c_id))
+        else:
+            query = query.filter(models.Question.class_id.is_(None))
+
+    if qtype:
+        query = query.filter(models.Question.qtype == qtype)
+    if difficulty:
+        query = query.filter(models.Question.difficulty == difficulty)
+    if topic:
+        query = query.filter(models.Question.topic == topic)
+    if q and q.strip():
+        query = query.filter(models.Question.content.like("%" + q.strip() + "%"))
+
+    class_priority = case((models.Question.class_id.isnot(None), 1), else_=0)
+    rows = query.order_by(class_priority.desc(), models.Question.id.desc()).all()
+    return {
+        "total": len(rows),
+        "class_id": c_id,
+        "class_name": active_c.name if active_c else None,
+        "classes": [{"id": c.id, "name": c.name} for c in my_classes],
+        "items": [question_to_dict(r) for r in rows]
+    }
+
+
+@app.post("/teacher/questions")
+def teacher_create_question(
+    payload: QuestionPayload,
+    class_id: Optional[int] = None,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
+    classroom = _get_teacher_classroom(db, teacher, class_id)
+    clean_data = validate_question(payload)
+    row = models.Question(**clean_data, class_id=classroom.id, created_by=teacher.username)
+    db.add(row)
+    _log_teacher_action(db, teacher, classroom, "新增", "考題庫", f"[{row.topic}] {row.content[:60]}")
+    db.commit()
+    db.refresh(row)
+    return question_to_dict(row)
+
+
+@app.put("/teacher/questions/{question_id}")
+def teacher_update_question(
+    question_id: int,
+    payload: QuestionPayload,
+    class_id: Optional[int] = None,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
+    my_classes = {c.id: c for c in db.query(models.Classroom).filter(models.Classroom.teacher_username == teacher.username).all()}
+    row = db.query(models.Question).filter(models.Question.id == question_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="找不到這一題")
+    if row.class_id not in my_classes:
+        raise HTTPException(status_code=403, detail="官方預設題目僅供檢視；您可以新增班級專屬題目！")
+
+    classroom = my_classes[row.class_id]
+    for k, v in validate_question(payload).items():
+        setattr(row, k, v)
+    _log_teacher_action(db, teacher, classroom, "修改", "考題庫", f"#{row.id} [{row.topic}] {row.content[:60]}")
+    db.commit()
+    db.refresh(row)
+    return question_to_dict(row)
+
+
+@app.delete("/teacher/questions/{question_id}")
+def teacher_delete_question(
+    question_id: int,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
+    my_classes = {c.id: c for c in db.query(models.Classroom).filter(models.Classroom.teacher_username == teacher.username).all()}
+    row = db.query(models.Question).filter(models.Question.id == question_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="找不到這一題")
+    if row.class_id not in my_classes:
+        raise HTTPException(status_code=403, detail="無法刪除官方預設題目")
+
+    classroom = my_classes[row.class_id]
+    detail_preview = f"#{row.id} [{row.topic}] {row.content[:60]}"
+    db.delete(row)
+    _log_teacher_action(db, teacher, classroom, "刪除", "考題庫", detail_preview)
+    db.commit()
+    return {"message": "success", "id": question_id}
+
+
+# --- 教師學習手冊 API (支援多班級切換) ---
+@app.get("/teacher/handbook/list")
+def teacher_list_handbook(
+    class_id: Optional[int] = None,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
+    from sqlalchemy import or_
+    base_count = db.query(models.HandbookCard).filter(models.HandbookCard.class_id.is_(None)).count()
+    if base_count == 0:
+        seed_handbook.seed_handbook_data(db)
+
+    my_classes = db.query(models.Classroom).filter(
+        models.Classroom.teacher_username == teacher.username
+    ).order_by(models.Classroom.id.asc()).all()
+
+    active_c = next((c for c in my_classes if c.id == class_id), my_classes[0] if my_classes else None)
+    c_id = active_c.id if active_c else None
+
+    if c_id:
+        cards = db.query(models.HandbookCard).filter(
+            or_(models.HandbookCard.class_id.is_(None), models.HandbookCard.class_id == c_id)
+        ).order_by(models.HandbookCard.order_index.asc(), models.HandbookCard.id.asc()).all()
+    else:
+        cards = db.query(models.HandbookCard).filter(
+            models.HandbookCard.class_id.is_(None)
+        ).order_by(models.HandbookCard.order_index.asc(), models.HandbookCard.id.asc()).all()
+
+    return {
+        "class_id": c_id,
+        "class_name": active_c.name if active_c else None,
+        "classes": [{"id": c.id, "name": c.name} for c in my_classes],
+        "items": cards
+    }
+
+
+@app.post("/teacher/handbook/add")
+def teacher_add_handbook(
+    card: HandbookCreate,
+    class_id: Optional[int] = None,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
+    classroom = _get_teacher_classroom(db, teacher, class_id)
+    new_card = models.HandbookCard(**card.dict(), class_id=classroom.id, created_by=teacher.username)
+    db.add(new_card)
+    _log_teacher_action(db, teacher, classroom, "新增", "學習手冊", f"[{card.cat_name}] {card.title}")
+    db.commit()
+    db.refresh(new_card)
+    return {"status": "success", "card_id": new_card.id}
+
+
+@app.put("/teacher/handbook/{card_id}")
+def teacher_update_handbook(
+    card_id: int,
+    card: HandbookCreate,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
+    my_classes = {c.id: c for c in db.query(models.Classroom).filter(models.Classroom.teacher_username == teacher.username).all()}
+    target = db.query(models.HandbookCard).filter(models.HandbookCard.id == card_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="找不到此知識卡片")
+    if target.class_id not in my_classes:
+        raise HTTPException(status_code=403, detail="官方預設手冊僅供檢視；您可以新增班級專屬字卡！")
+
+    classroom = my_classes[target.class_id]
+    for key, value in card.dict().items():
+        setattr(target, key, value)
+    _log_teacher_action(db, teacher, classroom, "修改", "學習手冊", f"[{card.cat_name}] {card.title}")
+    db.commit()
+    return {"status": "success", "msg": "教材已更新"}
+
+
+@app.delete("/teacher/handbook/{card_id}")
+def teacher_delete_handbook(
+    card_id: int,
+    db: Session = Depends(database.get_db),
+    teacher: models.User = Depends(require_teacher)
+):
+    my_classes = {c.id: c for c in db.query(models.Classroom).filter(models.Classroom.teacher_username == teacher.username).all()}
+    target = db.query(models.HandbookCard).filter(models.HandbookCard.id == card_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="找不到此知識卡片")
+    if target.class_id not in my_classes:
+        raise HTTPException(status_code=403, detail="無法刪除官方預設字卡")
+
+    classroom = my_classes[target.class_id]
+    detail_preview = f"[{target.cat_name}] {target.title}"
+    db.delete(target)
+    _log_teacher_action(db, teacher, classroom, "刪除", "學習手冊", detail_preview)
+    db.commit()
+    return {"status": "success", "msg": "教材已刪除"}
+
+# ==========================================================
+# 🏆 教師資格申請與管理員審核系統 (含證書上傳 & 自動寄信通知)
+# ==========================================================
+
+CERT_UPLOAD_DIR = os.path.join("static", "uploads", "teacher_certs")
+os.makedirs(CERT_UPLOAD_DIR, exist_ok=True)
+ALLOWED_CERT_EXTS = {".pdf", ".jpg", ".jpeg", ".png"}
+
+
+def _send_teacher_review_email(to_email: str, real_name: str, username: str, approved: bool, reason: str = "") -> tuple[bool, str]:
+    """審核完成後寄發通知信，並回傳 (是否成功, 狀態訊息) 供管理員前端即時顯示"""
+    # 每次寄信前重新載入一次 .env，避免重設環境變數沒讀到
+    load_dotenv(override=True)
+    sender_email = (os.getenv("SENDER_EMAIL") or SENDER_EMAIL or "").strip()
+    sender_pwd = (os.getenv("SENDER_PASSWORD") or SENDER_PASSWORD or "").strip()
+
+    if not sender_email or not sender_pwd:
+        msg = "未讀取到 .env 的 SENDER_EMAIL 或 SENDER_PASSWORD（請確認 .env 與 main.py 同目錄，且檔名不是 .env.txt）"
+        print(f"ℹ️ [略過寄信] {msg}")
+        return False, msg
+
+    try:
+        if approved:
+            subject = "【BeeRich 碼上致富】🎉 教師資格審核通過通知"
+            body = (
+                f"親愛的 {real_name} 老師（遊戲帳號：{username}）您好：\n\n"
+                f"恭喜您！您提交的「BeeRich 教師資格審核」已經正式通過！\n"
+                f"您的帳號身分已升級為「教師（Teacher）」。\n\n"
+                f"現在您可以直接前往 BeeRich 遊戲系統登入，系統將自動引導您進入「教師管理後台」\n"
+                f"（或可由遊戲大廳右側選單點選「🧑‍🏫 教師資格」進入教師後台），\n"
+                f"開始建立您的專屬班級、查看學生學習狀況，以及管理班級專屬考題庫與學習手冊！\n\n"
+                f"祝您教學愉快！\n"
+                f"BeeRich 碼上致富 系統團隊 敬上"
+            )
+        else:
+            subject = "【BeeRich 碼上致富】⚠️ 教師資格審核結果通知（未通過）"
+            body = (
+                f"親愛的 {real_name}（遊戲帳號：{username}）您好：\n\n"
+                f"感謝您申請 BeeRich 教師資格。經管理員審核後，本次申請暫未通過，原因如下：\n"
+                f"「{reason}」\n\n"
+                f"請您登入 BeeRich 遊戲大廳，於右側選單點選「🧑‍🏫 教師資格」查看詳情，\n"
+                f"修正並備妥相關資料後即可再次提交申請。\n\n"
+                f"BeeRich 碼上致富 系統團隊 敬上"
+            )
+
+        msg = MIMEText(body, "plain", "utf-8")
+        msg["Subject"] = subject
+        msg["From"] = sender_email
+        msg["To"] = to_email
+
+        with smtplib.SMTP("smtp.gmail.com", 587, timeout=10) as server:
+            server.starttls()
+            clean_pwd = sender_pwd.replace(" ", "")
+            server.login(sender_email, clean_pwd)
+            server.sendmail(sender_email, [to_email], msg.as_string())
+
+        print(f"📧 已成功由 {sender_email} 寄出教師審核通知信至 {to_email}")
+        return True, f"已成功寄送通知信至 {to_email}"
+    except Exception as e:
+        err_str = f"{type(e).__name__}: {e}"
+        print(f"❌ 教師審核通知信寄送失敗: {err_str}")
+        return False, err_str
+
+
+# 1. 玩家端：查詢自己目前的最新申請狀態與身分
+@app.get("/teacher_apply/my_status")
+def get_my_teacher_apply_status(
+    authorization: str = Header(None),
+    db: Session = Depends(database.get_db)
+):
+    username = auth_utils.get_current_user(authorization)
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="找不到使用者")
+
+    latest_app = (
+        db.query(models.TeacherApplication)
+        .filter(models.TeacherApplication.username == username)
+        .order_by(models.TeacherApplication.id.desc())
+        .first()
+    )
+
+    # 🏆 核心修正：如果該帳號目前已是一般玩家 (player)，但過去曾有 approved 的舊紀錄，
+    # 代表已被管理員撤銷教師身分，直接視為無申請狀態（回傳 None），讓前端顯示全新的申請表單！
+    if user.role == "player" and latest_app and latest_app.status == "approved":
+        latest_app = None
+
+    return {
+        "username": user.username,
+        "email": user.email,
+        "role": user.role,
+        "application": {
+            "id": latest_app.id,
+            "real_name": latest_app.real_name,
+            "email": latest_app.email,
+            "teaching_goal": latest_app.teaching_goal,
+            "cert_file_url": latest_app.cert_file_url,
+            "status": latest_app.status,  # pending / reviewing / approved / rejected
+            "reject_reason": latest_app.reject_reason,
+            "created_at": latest_app.created_at,
+            "reviewed_at": latest_app.reviewed_at,
+        } if latest_app else None
+    }
+
+
+# 2. 玩家端：提交（或重新提交）教師資格申請
+@app.post("/teacher_apply/submit")
+async def submit_teacher_application(
+    real_name: str = Form(...),
+    email: str = Form(...),
+    teaching_goal: str = Form(...),
+    cert_file: UploadFile = File(...),
+    authorization: str = Header(None),
+    db: Session = Depends(database.get_db)
+):
+    username = auth_utils.get_current_user(authorization)
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="找不到使用者")
+
+    # 檢查是否有正在「待審核」或「審核中」的申請，避免重複狂送
+    active_app = (
+        db.query(models.TeacherApplication)
+        .filter(
+            models.TeacherApplication.username == username,
+            models.TeacherApplication.status.in_(["pending", "reviewing"])
+        )
+        .first()
+    )
+    if active_app:
+        raise HTTPException(status_code=400, detail="您已有正在審核中的申請，請靜候審核結果！")
+
+    real_name = real_name.strip()
+    email = email.strip()
+    teaching_goal = teaching_goal.strip()
+    if not real_name or not email or not teaching_goal:
+        raise HTTPException(status_code=400, detail="請完整填寫姓名、信箱與教學目標！")
+
+    # 檢查檔案副檔名 (.pdf / .jpg / .png)
+    orig_filename = cert_file.filename or ""
+    ext = os.path.splitext(orig_filename)[1].lower()
+    if ext not in ALLOWED_CERT_EXTS:
+        raise HTTPException(status_code=400, detail="教師資格證僅限上傳 PDF、JPG 或 PNG 格式！")
+
+    content = await cert_file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="檔案大小請勿超過 10MB")
+
+    safe_name = f"cert_{username}_{int(datetime.utcnow().timestamp())}{ext}"
+    save_path = os.path.join(CERT_UPLOAD_DIR, safe_name)
+    with open(save_path, "wb") as f:
+        f.write(content)
+
+    file_url = f"/static/uploads/teacher_certs/{safe_name}"
+
+    new_app = models.TeacherApplication(
+        username=username,
+        real_name=real_name,
+        email=email,
+        teaching_goal=teaching_goal,
+        cert_file_url=file_url,
+        status="pending"
+    )
+    db.add(new_app)
+    db.commit()
+    db.refresh(new_app)
+
+    return {"status": "success", "application_id": new_app.id}
+
+
+# 3. 管理員端：取得所有教師資格申請列表 (含待處理數量統計)
+@app.get("/admin/teacher_applications")
+def admin_list_teacher_applications(
+    db: Session = Depends(database.get_db),
+    admin: models.User = Depends(require_admin)
+):
+    apps = db.query(models.TeacherApplication).order_by(models.TeacherApplication.id.desc()).all()
+    pending_count = sum(1 for a in apps if a.status in ("pending", "reviewing"))
+    return {
+        "pending_count": pending_count,
+        "items": [
+            {
+                "id": a.id,
+                "username": a.username,
+                "real_name": a.real_name,
+                "email": a.email,
+                "teaching_goal": a.teaching_goal,
+                "cert_file_url": a.cert_file_url,
+                "status": a.status,
+                "reject_reason": a.reject_reason,
+                "created_at": a.created_at,
+                "reviewed_at": a.reviewed_at,
+                "reviewed_by": a.reviewed_by,
+            } for a in apps
+        ]
+    }
+
+
+# 4. 管理員端：點進單筆申請時，將 pending 自動改為 reviewing (讓老師端看到「審核中」)
+@app.post("/admin/teacher_applications/{app_id}/mark_reviewing")
+def admin_mark_application_reviewing(
+    app_id: int,
+    db: Session = Depends(database.get_db),
+    admin: models.User = Depends(require_admin)
+):
+    app_row = db.query(models.TeacherApplication).filter(models.TeacherApplication.id == app_id).first()
+    if not app_row:
+        raise HTTPException(status_code=404, detail="找不到該筆申請")
+
+    if app_row.status == "pending":
+        app_row.status = "reviewing"
+        db.commit()
+    return {"status": "success", "current_status": app_row.status}
+
+
+# 5. 管理員端：審核通過或未通過
+class ReviewApplicationRequest(BaseModel):
+    action: str  # "approve" 或 "reject"
+    reject_reason: Optional[str] = None
+
+@app.post("/admin/teacher_applications/{app_id}/review")
+def admin_review_teacher_application(
+    app_id: int,
+    req: ReviewApplicationRequest,
+    db: Session = Depends(database.get_db),
+    admin: models.User = Depends(require_admin)
+):
+    app_row = db.query(models.TeacherApplication).filter(models.TeacherApplication.id == app_id).first()
+    if not app_row:
+        raise HTTPException(status_code=404, detail="找不到該筆申請")
+
+    applicant = db.query(models.User).filter(models.User.username == app_row.username).first()
+    if not applicant:
+        raise HTTPException(status_code=404, detail="找不到該申請人的玩家帳號")
+
+    if req.action == "approve":
+        app_row.status = "approved"
+        app_row.reject_reason = None
+        app_row.reviewed_at = datetime.utcnow()
+        app_row.reviewed_by = admin.username
+        if applicant.role != "admin":
+            applicant.role = "teacher"
+        db.commit()
+
+        sent, mail_msg = _send_teacher_review_email(
+            app_row.email, app_row.real_name, app_row.username, True, ""
+        )
+        return {
+            "status": "approved",
+            "username": applicant.username,
+            "email_sent": sent,
+            "email_msg": mail_msg
+        }
+
+    elif req.action == "reject":
+        reason = (req.reject_reason or "").strip()
+        if not reason:
+            raise HTTPException(status_code=400, detail="請填寫未通過的原因！")
+        app_row.status = "rejected"
+        app_row.reject_reason = reason
+        app_row.reviewed_at = datetime.utcnow()
+        app_row.reviewed_by = admin.username
+        db.commit()
+
+        sent, mail_msg = _send_teacher_review_email(
+            app_row.email, app_row.real_name, app_row.username, False, reason
+        )
+        return {
+            "status": "rejected",
+            "username": applicant.username,
+            "email_sent": sent,
+            "email_msg": mail_msg
+        }
+
+    else:
+        raise HTTPException(status_code=400, detail="無效的審核動作")

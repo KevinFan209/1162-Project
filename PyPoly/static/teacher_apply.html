@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BeeRich - 教師資格申請與審核狀態</title>
+    <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/favicon.ico" type="image/jpeg">
+    <style>
+        :root {
+            --pixel-border: #1e272e;
+            --bee-gold: #ffc048;
+            --bee-yellow: #ffdd59;
+            --bee-dark: #2f3542;
+            --pixel-green: #05c46b;
+            --pixel-blue: #0fbcf9;
+            --pixel-red: #ff3f34;
+            --bg-grid: #d2dae2;
+            --text-dark: #1e272e;
+            --text-gray: #747d8c;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            image-rendering: pixelated;
+        }
+
+        body {
+            background-color: var(--bg-grid);
+            background-image: 
+                linear-gradient(rgba(0, 0, 0, 0.05) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.05) 2px, transparent 2px);
+            background-size: 28px 28px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            width: 100%;
+            background: white;
+            padding: 0 35px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 80px;
+            border-bottom: 4px solid var(--pixel-border);
+        }
+
+        .header-left h1 {
+            font-family: 'VT323', monospace;
+            font-size: 3.2rem;
+            line-height: 1;
+            color: var(--bee-gold);
+            text-shadow: 
+                2px 2px 0 var(--pixel-border),
+                -1.5px -1.5px 0 var(--pixel-border),
+                2px -1.5px 0 var(--pixel-border),
+                -1.5px 2px 0 var(--pixel-border),
+                4px 4px 0 var(--bee-dark);
+            letter-spacing: 2px;
+            cursor: pointer;
+        }
+
+        .btn-pixel {
+            background: var(--bee-yellow);
+            border: 3px solid var(--pixel-border);
+            box-shadow: 3px 3px 0 #000;
+            padding: 10px 20px;
+            font-weight: 900;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            color: var(--text-dark);
+            font-size: 1rem;
+            transition: 0.08s;
+        }
+        .btn-pixel:hover { filter: brightness(1.05); }
+        .btn-pixel:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+
+        main {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 30px 20px;
+        }
+
+        .apply-card {
+            background: white;
+            width: 100%;
+            max-width: 680px;
+            border: 4px solid var(--pixel-border);
+            box-shadow: 8px 8px 0 #000;
+            padding: 34px 38px;
+        }
+
+        .card-title {
+            font-size: 1.65rem;
+            font-weight: 900;
+            color: var(--text-dark);
+            border-bottom: 3px solid var(--pixel-border);
+            padding-bottom: 12px;
+            margin-bottom: 22px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 18px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 900;
+            font-size: 0.95rem;
+            color: var(--text-dark);
+            margin-bottom: 7px;
+        }
+
+        .form-input, .form-textarea {
+            width: 100%;
+            padding: 12px 14px;
+            border: 3px solid var(--pixel-border);
+            background: #fffdf5;
+            font-weight: 800;
+            font-size: 0.98rem;
+            color: var(--text-dark);
+            outline: none;
+        }
+        .form-input:focus, .form-textarea:focus {
+            background: #feffea;
+        }
+        .form-textarea {
+            min-height: 110px;
+            resize: vertical;
+            line-height: 1.6;
+        }
+
+        .file-box {
+            border: 3px dashed var(--pixel-border);
+            background: #f8fafc;
+            padding: 18px;
+            text-align: center;
+            cursor: pointer;
+        }
+        .file-box:hover { background: #fffdf2; }
+
+        .status-banner {
+            padding: 26px;
+            border: 3px solid var(--pixel-border);
+            box-shadow: 4px 4px 0 #000;
+            text-align: center;
+            margin-bottom: 22px;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 6px 18px;
+            border: 3px solid var(--pixel-border);
+            box-shadow: 3px 3px 0 #000;
+            font-size: 1.15rem;
+            font-weight: 900;
+            margin-bottom: 14px;
+        }
+
+        .info-summary {
+            background: #f8fafc;
+            border: 3px solid var(--pixel-border);
+            padding: 18px 20px;
+            text-align: left;
+            margin-top: 16px;
+            font-weight: 800;
+            font-size: 0.92rem;
+            line-height: 1.7;
+            color: var(--text-dark);
+        }
+
+        .reject-box {
+            background: #fff5f5;
+            border: 3px solid var(--pixel-red);
+            padding: 16px 20px;
+            text-align: left;
+            margin: 16px 0;
+            color: var(--text-dark);
+            font-weight: 900;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="header-left"><h1 onclick="location.href='lobby.html'">BeeRich</h1></div>
+    <a href="lobby.html" class="btn-pixel"><span>🔙</span> 返回遊戲大廳</a>
+</header>
+
+<main>
+    <div class="apply-card" id="mainCard">
+        <div style="text-align: center; padding: 40px; font-weight: 900; color: var(--text-gray);">載入教師資格狀態中...</div>
+    </div>
+</main>
+
+<script src="js/ngrok-fetch.js"></script>
+<script>
+    const API_URL = location.origin;
+    let currentStatusData = null;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        const token = localStorage.getItem('token');
+        const username = localStorage.getItem('username');
+        if (!token || !username) {
+            window.location.href = 'login.html';
+            return;
+        }
+        await loadMyApplyStatus();
+        // 每 5 秒自動刷新一次狀態，若管理員點開申請，畫面會即時從「待審核」變成「審核中」！
+        setInterval(loadMyApplyStatus, 5000);
+    });
+
+    function authHeaders() {
+        return { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
+    }
+
+    async function loadMyApplyStatus() {
+        try {
+            const res = await fetch(`${API_URL}/teacher_apply/my_status`, {
+                headers: authHeaders()
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+
+            // 若玩家正在填寫表單中，不要因為 5 秒輪詢而洗掉他打到一半的字
+            const formEl = document.getElementById('applyFormElement');
+            if (formEl && currentStatusData && currentStatusData.application?.status === data.application?.status && data.role === currentStatusData.role) {
+                return;
+            }
+
+            currentStatusData = data;
+            localStorage.setItem('role', data.role);
+            renderView(data);
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    function renderView(data) {
+        const card = document.getElementById('mainCard');
+        const app = data.application;
+
+        // 情況 1：只有當前實際身分真的是 teacher 或 admin 時，才顯示已具備資格
+        if (data.role === 'teacher' || data.role === 'admin') {
+            card.innerHTML = `
+                <div class="card-title"><span>🧑‍🏫</span> 教師資格認證中心</div>
+                <div class="status-banner" style="background: #ebfffa;">
+                    <div class="status-badge" style="background: var(--pixel-green); color: white;">🎉 已具備教師資格</div>
+                    <h3 style="font-weight: 900; font-size: 1.3rem; margin-bottom: 10px;">恭喜！您的帳號已開通教師管理權限</h3>
+                    <p style="font-weight: 800; color: var(--text-gray); line-height: 1.6; margin-bottom: 22px;">
+                        您現在可以進入教師專屬後台建立班級、查看學生學習狀況、以及新增班級專屬考題與學習手冊！
+                    </p>
+                    <button class="btn-pixel" style="background: var(--pixel-green); color: white; font-size: 1.1rem; padding: 14px 28px;" onclick="location.href='teacher.html'">
+                        🚀 進入教師管理後台
+                    </button>
+                </div>
+            `;
+            return;
+        }
+
+        // 情況 2：已送出申請，目前為「待審核 (pending)」或「審核中 (reviewing)」
+        if (app && (app.status === 'pending' || app.status === 'reviewing')) {
+            const isReviewing = app.status === 'reviewing';
+            const badgeBg = isReviewing ? '#e0f2fe' : 'var(--bee-yellow)';
+            const badgeText = isReviewing ? '🔍 審核中（管理員已檢視您的申請）' : '⏳ 待審核（已送出申請）';
+
+            card.innerHTML = `
+                <div class="card-title"><span>🧑‍🏫</span> 教師資格審核進度</div>
+                <div class="status-banner" style="background: #fffdf5;">
+                    <div class="status-badge" style="background: ${badgeBg}; color: var(--text-dark);">${badgeText}</div>
+                    <p style="font-weight: 900; color: var(--text-dark); font-size: 1.05rem; line-height: 1.7; margin-bottom: 10px;">
+                        審核完成後，系統將會發送通知郵件至您填寫的信箱（<b>${escapeHtml(app.email)}</b>），<br>
+                        通過後即可由此進入教師後台進行班級與教材編輯！
+                    </p>
+                    <p style="font-weight: 800; color: var(--text-gray); font-size: 0.9rem; line-height: 1.6;">
+                        💡 溫馨提示：若多日後仍未收到郵件通知，再麻煩老師回到本「教師資格」頁面查看審核狀態或未通過原因。
+                    </p>
+
+                    <div class="info-summary">
+                        <div>📅 <b>申請時間：</b>${formatDate(app.created_at)}</div>
+                        <div>👤 <b>申請姓名：</b>${escapeHtml(app.real_name)}</div>
+                        <div>✉️ <b>聯絡信箱：</b>${escapeHtml(app.email)}</div>
+                        <div>🎯 <b>教學目標：</b>${escapeHtml(app.teaching_goal)}</div>
+                        <div>📎 <b>教師資格證：</b><a href="${app.cert_file_url}" target="_blank" style="color: #0284c7; font-weight: 900;">點此檢視已上傳之證明檔案</a></div>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        // 情況 3：審核未通過 (rejected)，顯示原因並允許點擊「重新申請」
+        if (app && app.status === 'rejected' && !window._isReapplying) {
+            card.innerHTML = `
+                <div class="card-title"><span>🧑‍🏫</span> 教師資格審核結果</div>
+                <div class="status-banner" style="background: #fff5f5;">
+                    <div class="status-badge" style="background: var(--pixel-red); color: white;">❌ 審核未通過</div>
+                    <p style="font-weight: 900; color: var(--text-dark); margin-bottom: 12px;">
+                        很抱歉，您於 ${formatDate(app.created_at)} 提交的教師資格申請未通過審核。
+                    </p>
+                    <div class="reject-box">
+                        <div style="color: var(--pixel-red); margin-bottom: 4px;">📌 管理員回覆之未通過原因：</div>
+                        <div>${escapeHtml(app.reject_reason || '未提供具體原因，請確認上傳之證件是否清晰完整。')}</div>
+                    </div>
+                    <button class="btn-pixel" style="margin-top: 10px; padding: 12px 26px;" onclick="startReapply()">
+                        🔄 重新填寫並提交申請
+                    </button>
+                </div>
+            `;
+            return;
+        }
+
+        // 情況 4：尚未申請（或點了重新申請）-> 顯示申請表單
+        renderForm(data, app);
+    }
+
+    function startReapply() {
+        window._isReapplying = true;
+        renderForm(currentStatusData, currentStatusData?.application);
+    }
+
+    function renderForm(data, prevApp) {
+        const card = document.getElementById('mainCard');
+        const defaultName = prevApp?.real_name || '';
+        const defaultEmail = prevApp?.email || data.email || '';
+        const defaultGoal = prevApp?.teaching_goal || '';
+
+        card.innerHTML = `
+            <div class="card-title"><span>🧑‍🏫</span> 申請成為 BeeRich 教師</div>
+            <p style="font-weight: 800; color: var(--text-gray); margin-bottom: 20px; line-height: 1.6;">
+                請填寫以下教師資訊並上傳教師資格證明文件。送出後管理員將於後台進行審核，通過後即可建立專屬班級與管理教材！
+            </p>
+            <form id="applyFormElement" onsubmit="submitApplication(event)">
+                <div class="form-group">
+                    <label>👤 教師真實姓名</label>
+                    <input type="text" id="inputRealName" class="form-input" value="${escapeHtml(defaultName)}" placeholder="請輸入您的真實姓名..." required>
+                </div>
+
+                <div class="form-group">
+                    <label>✉️ 聯絡電子信箱（審核結果將寄送至此信箱）</label>
+                    <input type="email" id="inputEmail" class="form-input" value="${escapeHtml(defaultEmail)}" placeholder="請輸入您的常用信箱..." required>
+                </div>
+
+                <div class="form-group">
+                    <label>🎯 教學目標（希望使用本系統達成什麼教學效果？）</label>
+                    <textarea id="inputGoal" class="form-textarea" placeholder="希望用我們這個系統能帶領學生學習 Python 基礎邏輯、搭配課堂練習..." required>${escapeHtml(defaultGoal)}</textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>📎 上傳教師資格證 / 在職證明（限 .pdf, .jpg, .png 格式）</label>
+                    <div class="file-box" onclick="document.getElementById('inputCertFile').click()">
+                        <input type="file" id="inputCertFile" accept=".pdf,.jpg,.jpeg,.png" style="display: none;" onchange="updateFileName(this)" required>
+                        <div id="fileDisplayText" style="font-weight: 900; color: var(--text-dark);">📂 點擊此處選擇檔案（支援 PDF / JPG / PNG）</div>
+                    </div>
+                </div>
+
+                <div id="formErrorMsg" style="color: var(--pixel-red); font-weight: 900; margin-bottom: 14px; min-height: 1.2em;"></div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 12px;">
+                    <button type="submit" id="submitBtn" class="btn-pixel" style="background: var(--pixel-green); color: white; padding: 12px 28px; font-size: 1.05rem;">
+                        📤 送出審核申請
+                    </button>
+                </div>
+            </form>
+        `;
+    }
+
+    function updateFileName(input) {
+        const display = document.getElementById('fileDisplayText');
+        if (input.files && input.files[0]) {
+            display.innerHTML = `✅ 已選擇檔案：<span style="color: var(--pixel-green);">${escapeHtml(input.files[0].name)}</span>`;
+        }
+    }
+
+    async function submitApplication(e) {
+        e.preventDefault();
+        const errEl = document.getElementById('formErrorMsg');
+        const btn = document.getElementById('submitBtn');
+        errEl.innerText = '';
+
+        const realName = document.getElementById('inputRealName').value.trim();
+        const email = document.getElementById('inputEmail').value.trim();
+        const goal = document.getElementById('inputGoal').value.trim();
+        const fileInput = document.getElementById('inputCertFile');
+
+        if (!fileInput.files || !fileInput.files[0]) {
+            errEl.innerText = '⚠️ 請上傳您的教師資格證檔案（限 PDF、JPG、PNG）！';
+            return;
+        }
+
+        const fd = new FormData();
+        fd.append('real_name', realName);
+        fd.append('email', email);
+        fd.append('teaching_goal', goal);
+        fd.append('cert_file', fileInput.files[0]);
+
+        btn.disabled = true;
+        btn.innerText = '⏳ 正在上傳送出...';
+
+        try {
+            const res = await fetch(`${API_URL}/teacher_apply/submit`, {
+                method: 'POST',
+                headers: authHeaders(),
+                body: fd
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                window._isReapplying = false;
+                await loadMyApplyStatus();
+            } else {
+                errEl.innerText = `❌ ${data.detail || '送出失敗，請檢查欄位與檔案格式'}`;
+                btn.disabled = false;
+                btn.innerText = '📤 送出審核申請';
+            }
+        } catch (err) {
+            errEl.innerText = '❌ 網路連線異常，請稍後再試';
+            btn.disabled = false;
+            btn.innerText = '📤 送出審核申請';
+        }
+    }
+
+    function formatDate(isoStr) {
+        if (!isoStr) return '—';
+        const d = new Date(isoStr.endsWith('Z') ? isoStr : isoStr + 'Z');
+        return d.toLocaleString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    }
+
+    function escapeHtml(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+</script>
+</body>
+</html>

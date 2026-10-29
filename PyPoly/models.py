@@ -36,6 +36,9 @@ class User(Base):
     character_created_at = Column(DateTime, nullable=True)   # 首次建立角色的時間
     character_updated_at = Column(DateTime, nullable=True)   # 最後一次修改
 
+    # 🏆 教育版新增：學生所屬的班級 ID (NULL 代表一般玩家)
+    class_id = Column(Integer, nullable=True, index=True)
+
 
 class Question(Base):
     __tablename__ = "questions"
@@ -65,6 +68,10 @@ class Question(Base):
     reference_solution = Column(Text)     # 老師的標準寫法 ⚠️ 不可回傳給前端
     time_limit_sec = Column(Integer)      # 作答秒數（前端原本寫死 300）
     max_attempts = Column(Integer)        # 可驗證次數（前端原本寫死 3）
+
+    # 🏆 教育版新增：NULL 代表官方全域題庫；有值代表該班級老師專屬新增的題目
+    class_id = Column(Integer, nullable=True, index=True)
+    created_by = Column(String(50), nullable=True)
 
 # models.py
 class CountryScenario(Base):
@@ -169,3 +176,70 @@ class GameAnswerLog(Base):
     is_correct = Column(Boolean, default=False)       # 是否答對
     answer_sec = Column(Float, default=0)             # 該題作答用時 (秒)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class HandbookCard(Base):
+    __tablename__ = "handbook_cards"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(100), nullable=False)          # 例如: 什麼是變數？貼標籤的置物盒
+    category = Column(String(50), nullable=False)       # 英文代碼: intro, data, cond, loop, list, func, bug
+    cat_name = Column(String(50), nullable=False)       # 顯示標籤: 零基礎概念 / 變數型態...
+    cat_class = Column(String(50), default="cat-basic") # CSS 顏色樣式
+    level = Column(String(50), default="★☆☆ 啟蒙")      # 難易度星級
+    order_index = Column(Integer, default=0)            # 排序權重 (越小越前面)
+    description = Column(Text, nullable=False)          # 白話解說
+    code_example = Column(Text, default="")             # 程式碼範例
+    tip = Column(Text, default="")                      # 避坑提示/小提醒
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # 🏆 教育版新增：NULL 代表官方全域手冊；有值代表該班級老師專屬新增的字卡
+    class_id = Column(Integer, nullable=True, index=True)
+    created_by = Column(String(50), nullable=True)
+
+
+# ==========================================================
+# 🏆 教育版擴充：班級與教師異動通知表
+# ==========================================================
+
+class Classroom(Base):
+    """老師建立的班級資料表"""
+    __tablename__ = "classrooms"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)              # 班級名稱 (如：三年二班)
+    teacher_username = Column(String(50), index=True)       # 建立此班級的老師帳號
+    invite_code = Column(String(20), unique=True, index=True) # 學生加入用的 6 位數邀請碼
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class TeacherAuditLog(Base):
+    """當老師增刪考題或學習手冊時，發送給管理員(Admin)的動態提示紀錄"""
+    __tablename__ = "teacher_audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    teacher_username = Column(String(50), index=True)
+    class_id = Column(Integer, index=True)
+    class_name = Column(String(100))
+    action = Column(String(20))       # "新增" / "修改" / "刪除"
+    target_type = Column(String(20))  # "考題庫" / "學習手冊"
+    detail = Column(String(255))      # 題目或手冊標題摘要
+    is_read = Column(Boolean, default=False) # 管理員是否已讀
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class TeacherApplication(Base):
+    """玩家申請成為教師的審核紀錄表"""
+    __tablename__ = "teacher_applications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), index=True, nullable=False)   # 申請人遊戲帳號 ID
+    real_name = Column(String(100), nullable=False)             # 申請人真實姓名
+    email = Column(String(100), nullable=False)                 # 接收通知的聯絡信箱
+    teaching_goal = Column(Text, nullable=False)                # 教學目標 (希望用本系統達成什麼)
+    cert_file_url = Column(String(255), nullable=False)         # 教師資格證檔案路徑 (.pdf / .jpg / .png)
+    # 狀態流轉：pending(待審核) -> reviewing(審核中，管理員已點開) -> approved(已通過) / rejected(未通過)
+    status = Column(String(20), default="pending", index=True)
+    reject_reason = Column(Text, nullable=True)                 # 未通過原因
+    created_at = Column(DateTime, default=datetime.utcnow)      # 申請日期
+    reviewed_at = Column(DateTime, nullable=True)               # 審核完成日期
+    reviewed_by = Column(String(50), nullable=True)             # 審核的管理員帳號
