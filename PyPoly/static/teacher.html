@@ -620,7 +620,15 @@
         }
 
         document.getElementById('topTeacherName').innerText = `🧑‍🏫 ${username} 老師`;
-		
+
+        // 🏆 修復「個人資料設定」從 teacher_question.html／teacher_handbook.html
+        // 點過來一律停在學生管理：個人資料設定在這個頁面是 JS 分頁切換
+        // （switchTab('profile')），不是獨立網址，其他頁面的選單只能先連
+        // 到 teacher.html?tab=profile，這裡偵測到這個參數就自動切過去。
+        if (new URLSearchParams(window.location.search).get('tab') === 'profile') {
+            switchTab('profile');
+        }
+
 		fetchMyClass();
         loadTeacherMe();
         startTeacherLoop();

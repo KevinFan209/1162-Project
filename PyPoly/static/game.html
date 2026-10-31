@@ -651,15 +651,15 @@
 <div id="threejs-container"></div>
 <video id="webcam" autoplay playsinline></video>
 
-<div class="menu-overlay" id="overlay" onclick="toggleMenu()"></div>
-<div class="side-menu" id="sideMenu">
+<div class="menu-overlay" id="overlay" onclick="toggleMenu()" style="display:none;"></div>
+<div class="side-menu" id="sideMenu" style="display:none;">
     <a href="profile.html" class="menu-item"><span>👤</span> 個人主頁</a>
     <a href="handbook.html" class="menu-item"><span>📚</span> 學習手冊</a>
     <a href="lobby.html?openJoinClass=1" class="menu-item"><span>🏫</span> 加入班級</a>
     <a href="teacher_apply.html" class="menu-item"><span>🧑‍🏫</span> 教師資格</a>
     <a href="guide.html" class="menu-item"><span>📖</span> 遊戲說明</a>
     <a href="learn.html" class="menu-item"><span>📊</span> 學習統計</a>
-    <a href="settings.html" class="menu-item"><span>⚙️</span> 遊戲設定</a>
+    <a href="settings.html" class="menu-item" style="display:none;"><span>⚙️</span> 遊戲設定</a>
     <a href="lobby.html" class="menu-item"><span>🏠</span> 返回大廳</a>
     <a href="javascript:void(0)" onclick="logout()" class="menu-item danger"><span>🚪</span> 登出遊戲</a>
 </div>
@@ -680,7 +680,7 @@
             style="pointer-events:auto; cursor:pointer; border:2px solid #222; border-radius:10px; background:white; padding:8px 12px; font-size:22px;"
         >🔊</button>
 
-        <button class="menu-btn" onclick="toggleMenu()" style="pointer-events: auto;">
+        <button class="menu-btn" onclick="toggleMenu()" style="pointer-events: auto; display:none;">
             <svg width="26" height="26" viewBox="0 0 24 24"
                 fill="none" stroke="black" stroke-width="3"
                 stroke-linecap="round">
@@ -701,7 +701,7 @@
             🗺️ 查看戰術小地圖
         </button>
 		
-		<div id="debug-master-panel" style="display: none; background: rgba(15, 23, 42, 0.95); padding: 18px; border-radius: 20px; border: 2.5px solid #ffde59; margin-top: 10px; pointer-events: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+		<div id="debug-master-panel" style="background: rgba(15, 23, 42, 0.95); padding: 18px; border-radius: 20px; border: 2.5px solid #ffde59; margin-top: 10px; pointer-events: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
 			<h3 style="color: #ffde59; font-size: 1.1rem; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
 				<span>🛠️</span> 開發者控制台
 			</h3>
@@ -1038,6 +1038,18 @@
     window.addEventListener('pageshow', syncBgm);
 
     updateBgmButton();
+
+    // 🏆 修復「沒點過東西就完全沒音樂」：瀏覽器的自動播放政策規定頁面
+    // 要先收到一次真的使用者手勢（點擊/按鍵）才准播放音訊，
+    // unlockBgm() 本身邏輯沒問題，只是玩家進對局後常常先用手勢/鏡頭
+    // 操作、很少主動點畫面，導致常常整場都沒有解鎖過。這裡跳一個
+    // 不擋畫面操作的小提示，引導玩家一定會點一下，不再只能碰運氣靠
+    // 玩家剛好去點到選單按鈕（而且選單按鈕現在也被隱藏掉了，見 #7）。
+    setTimeout(() => {
+        if (!bgmUnlocked) {
+            showCustomNotice('🔊 點擊畫面任一處開啟音效', 'bottom', 3000);
+        }
+    }, 500);
 
 	// 2. 其次：初始化 Socket 連線 (現在它能抓到 API_URL 了)
 	// ⚠️ socket.io 的 polling 握手是 GET，走 ngrok 時會被免費方案的警告頁攔下
@@ -5371,6 +5383,15 @@ function finishFlappyBird(coins) {
 
 	
 async function startRecognitionProcess() {
+    // 🏆 修復平手重新擲骰疊加 renderLoop：原本 renderLoop() 唯一的停止
+    // 條件是 flow-content 被清空，但平手時 showDecideOrderUI() 會重新
+    // 產生一個新的 #recognition-canvas、重新呼叫這個函式，舊的
+    // renderLoop() 並不會因此停止（flow-content 還在、只是內容換了），
+    // 會變成新舊兩個迴圈同時畫在新 canvas 上。用遞增世代 id，每次重新
+    // 開始辨識就讓舊迴圈自己發現「我不是最新一代」而停止。
+    window.recognitionGeneration = (window.recognitionGeneration || 0) + 1;
+    const myGeneration = window.recognitionGeneration;
+
     // 🏆 1. 徹底清理舊實例，防止重複啟動導致 Aborted 崩潰
     if (cameraInstance) {
         try {
@@ -5426,6 +5447,9 @@ async function startRecognitionProcess() {
         function renderLoop() {
             // 如果 flow-content 被隱藏或內容被清空則停止，節省效能
             if (!flowContent || flowContent.innerHTML === "") return;
+            // 🏆 不是最新一代的辨識流程就停止，避免平手重骰時新舊兩個
+            // renderLoop() 同時畫在新的 canvas 上（見上面世代 id 的說明）。
+            if (myGeneration !== window.recognitionGeneration) return;
 
             // A. 繪製背景 (鏡像處理) - 只有當 video 就緒時才畫
             if (video.readyState === 4) {
@@ -6498,7 +6522,20 @@ function triggerGameOver() {
 // 🏆 強化重置函式：徹底解決黑屏與 UI 殘留
 function resetToGodViewState() {
     scene.background = new THREE.Color(0xf1f5f9);
-    if (panoSphere) { panoSphere.visible = false; panoSphere.material.opacity = 0; }
+    // 🏆 修復開合跳背景殘留：panoSphere.visible=false 只是把球體藏起來，
+    // 貼圖（material.map）從來沒清過——下一次顯示觀戰背景時，如果走的是
+    // updateSpectatorUI() 「已經在觀戰中」那條不會重新呼叫
+    // loadSpectatorBackground() 的分支，看到的就是上一輪殘留的舊貼圖
+    // （例如開合跳的 workout_park.jpg）。這裡順便把貼圖清掉，強迫下次
+    // 顯示前一定要重新載入正確的貼圖。
+    if (panoSphere) {
+        panoSphere.visible = false;
+        panoSphere.material.opacity = 0;
+        if (panoSphere.material.map) {
+            panoSphere.material.map = null;
+            panoSphere.material.needsUpdate = true;
+        }
+    }
     setBoardVisibility(true);
     
     const players = JSON.parse(localStorage.getItem('pypoly_game_snapshot')).players;
@@ -6548,6 +6585,31 @@ function resetToGodViewState() {
     const specUniversalCanvas = document.getElementById('spectator-universal-3d-canvas');
     if (specUniversalCanvas) specUniversalCanvas.style.display = 'none';
 
+    // 🏆 修復小鳥飛殘景＋當機：renderFlappyBirdAvatarSpectator() 開的
+    // 這個獨立渲染迴圈原本沒有任何自然停止機制，只有「下一次呼叫同一個
+    // 函式」才會自己取消前一個——每打完一輪小鳥飛就會多疊加一個永遠在
+    // 背景跑的迴圈，疊久了就是回報的「當機」。這裡比照上面 spec3DAnimId
+    // 的作法一起取消掉。
+    if (window.fbSpecAnimId) {
+        cancelAnimationFrame(window.fbSpecAnimId);
+        window.fbSpecAnimId = null;
+    }
+    // 🏆 小鳥飛的 DOM／畫布：finishFlappyBird() 結束時雖然會把這些元素
+    // display:none，但下面那段「還原相機框子元素顯示」的清理邏輯原本
+    // 沒有把它們排除在外，每次換下一回合又會被重新顯示出來，而且畫布
+    // 內容從來沒清過，顯示的是停在最後一幀的舊畫面。這裡直接強制隱藏
+    // + 清空畫布，確保不會被後面的邏輯誤復原。
+    ['fb-container', 'fb-status-bar', 'spectator-flappy-3d-canvas'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+    const fbCanvasEl = document.getElementById('fb-canvas');
+    if (fbCanvasEl) {
+        fbCanvasEl.style.display = 'none';
+        const fbCtx = fbCanvasEl.getContext('2d');
+        if (fbCtx) fbCtx.clearRect(0, 0, fbCanvasEl.width, fbCanvasEl.height);
+    }
+
     // 🏆 收購決策/答題觀戰替身（renderPlayerModelInActiveVisionFrame）
     // 離開觀戰/回到上帝視角時一併從主場景移除，避免殘留。
     if (window.specDecisionAvatarModel) {
@@ -6571,8 +6633,12 @@ function resetToGodViewState() {
         frame.style.zIndex = '';
         frame.style.opacity = '';
         
+        // 🏆 fb-container／spectator-flappy-3d-canvas 不能被這段復原邏輯
+        // 重新顯示出來——它們是上面已經主動清乾淨的小鳥飛殘留，見
+        // resetToGodViewState() 開頭的說明。
+        const FLAPPY_RESIDUE_IDS = ['spectator-universal-3d-canvas', 'fb-container', 'spectator-flappy-3d-canvas'];
         Array.from(frame.children).forEach(child => {
-            if (child.id !== 'spectator-universal-3d-canvas') {
+            if (!FLAPPY_RESIDUE_IDS.includes(child.id)) {
                 child.style.display = ''; // 還原原本的 video
             }
         });
