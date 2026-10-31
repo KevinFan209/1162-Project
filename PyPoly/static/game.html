@@ -962,11 +962,17 @@
         // 🏆 修復：使用者要求音樂不管進到遊戲裡哪個場景（答題/商店/
         // 開合跳/環景圖等）都不要停下，這裡拿掉 bgmOnMap 這個場景
         // 相關的條件——bgmOnMap/setMapBgmScene() 本身留著不動，純粹
-        // 不再影響這裡的播放判斷。分頁切到背景跟遊戲結束兩種情況維持
-        // 原本的暫停邏輯，不受影響。
+        // 不再影響這裡的播放判斷。
+        //
+        // 🏆 修復（補）：原本用 window.uiState !== 'FINISHED' 判斷「遊戲
+        // 已結束」，但 uiState = "FINISHED" 同時也被答題/商店/收購/
+        // 開合跳等每個小階段結束時拿來當「這個小階段跑完了」的通用
+        // 訊號，用它判斷音樂會導致幾乎每個小階段結尾音樂都停一下——
+        // 改用只在 triggerGameOver() 真正結束整場比賽時才會打開的
+        // window.isMatchOver。分頁切到背景的暫停邏輯不受影響。
         return bgmUnlocked &&
             !document.hidden &&
-            window.uiState !== 'FINISHED' &&
+            !window.isMatchOver &&
             localStorage.getItem(BGM_SETTING_KEY) !== 'false';
     }
 
@@ -6534,6 +6540,12 @@ function updateRoundUI(round) {
 
 function triggerGameOver() {
     window.uiState = "FINISHED";
+    // 🏆 真正「整場比賽結束」的訊號，跟 uiState === "FINISHED" 分開——
+    // 後者在答題/商店/收購/開合跳等每個小階段結束時都會被設成同一個
+    // 字串，拿它判斷背景音樂該不該停會導致幾乎每個小階段結尾音樂都
+    // 停一下，這裡新增一個只在真正遊戲結束時才會打開的旗標給
+    // shouldPlayBgm() 用。
+    window.isMatchOver = true;
     stopAllVision();
     if (virtualScreen) virtualScreen.visible = false;
     

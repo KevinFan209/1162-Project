@@ -5051,3 +5051,43 @@ PyPoly 變更紀錄 (changeLog)
   全程都不會停止；分頁切到背景、遊戲結束進結算頁時確認音樂仍會照
   原本邏輯停止。
 ========================================================================
+
+========================================================================
+[2026-10-31] 補修背景音樂仍會停止：uiState FINISHED 被太多小階段共用
+
+  背景：上一輪拿掉 shouldPlayBgm() 裡的 bgmOnMap 條件後，使用者實測
+  回報音樂還是會停，並問能不能把音樂改成寫在 <head> 裡的 <audio>
+  標籤。查證後這個改法不會有效——不管是 new Audio() 還是 HTML
+  <audio> 標籤，產生的都是同一種 HTMLAudioElement，.play()/.pause()
+  行為完全一樣，真正暫停音樂的是 syncBgm()/shouldPlayBgm() 這段 JS
+  邏輯本身，所以沒有改成 <audio> 標籤，繼續往 JS 邏輯裡找。
+
+  真正根因：shouldPlayBgm() 原本還有一個條件
+  `window.uiState !== 'FINISHED'`，用來排除「遊戲已結束」。但這次
+  全文搜尋發現 `window.uiState = "FINISHED"` 被答題
+  (submitQuizAnswer)、冒險答錯懲罰 (handleCodeFail)、商店比
+  DISLIKE、收購決策比 LIKE/DISLIKE、開合跳完成、付費略過開合跳等
+  將近 10 處「這個小階段跑完了」的通用訊號重複使用，不是只有真正
+  整場比賽結束（triggerGameOver()）才會設成這個值。音樂因此在玩家
+  答完一題、逛完商店、做完收購決策、跳完開合跳的瞬間都會先被判定成
+  「遊戲已結束」而暫停，等對應流程把 uiState 改回其他值、或等 2
+  秒保險機制 (setInterval(syncBgm, 2000)) 修正回來——體感上就是
+  「幾乎每個場景音樂都會停一下」。
+
+  修法：新增一個只在 triggerGameOver()（static/game.html，真正整場
+  比賽結束時才會呼叫的全域函式）裡才會打開的旗標
+  `window.isMatchOver`，shouldPlayBgm() 改成檢查
+  `!window.isMatchOver`，不再檢查 `uiState !== 'FINISHED'`——各個
+  小階段原本設定 uiState = "FINISHED" 的程式碼完全不用動，只是不再
+  被背景音樂的判斷誤用。
+
+  驗證：
+  - static/game.html 用 Node vm.Script 做語法檢查，通過。
+  - curl 確認 game.html 仍回 HTTP 200。
+  - 只改到 game.html（前端），main.py 沒有變動，不需要重啟伺服器。
+
+  ⚠️ 尚未做（沒辦法代測，需要使用者實際操作確認）：
+  完整打一局，中途經過答題、商店、收購決策、開合跳、環景圖等每一種
+  場景，確認背景音樂全程都不會停止；分頁切到背景、真正遊戲結束進
+  結算頁時確認音樂仍會照原本邏輯停止。
+========================================================================
