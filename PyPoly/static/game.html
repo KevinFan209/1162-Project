@@ -1032,6 +1032,36 @@
     function unlockBgm() {
         bgmUnlocked = true;
         syncBgm();
+        unlockSfx();
+    }
+
+    // 🏆 修復音效播不出來：playSfx() 的 3 個 Audio 物件都是「遊戲事件
+    // 發生時才第一次建立並呼叫 play()」（收購成功/進監獄/過路費被偷），
+    // 不是在使用者點擊/按鍵這種真實手勢當下呼叫——部分瀏覽器（尤其
+    // Safari/行動裝置）的自動播放限制是「每個音訊元素各自要在手勢
+    // 當下播放過一次才算解鎖」，不是整個頁面解鎖一次就對所有之後才
+    // 建立的新 Audio 物件都有效。這裡比照 gameBgm 的解鎖方式，在同一個
+    // 真實點擊/按鍵事件裡，把 3 個音效都預先建立、靜音播放一次再立刻
+    // 暫停並還原音量，讓它們也完成這次「解鎖」，之後遊戲事件真正呼叫
+    // playSfx() 時才能順利播放。只需要做一次。
+    let sfxUnlocked = false;
+    function unlockSfx() {
+        if (sfxUnlocked) return;
+        sfxUnlocked = true;
+        Object.keys(SFX).forEach(key => {
+            const audio = sfxPlayers[key] ??= new Audio(SFX[key]);
+            const originalVolume = audio.volume;
+            audio.volume = 0;
+            audio.play()
+                .then(() => {
+                    audio.pause();
+                    audio.currentTime = 0;
+                    audio.volume = originalVolume;
+                })
+                .catch(() => {
+                    audio.volume = originalVolume;
+                });
+        });
     }
 
     document.addEventListener('click', unlockBgm);
