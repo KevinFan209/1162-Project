@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
+    <audio src="static/sounds/all_game.mp3" autoplay loop></audio>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PyPoly - Battle</title>
@@ -1037,6 +1038,13 @@
     window.addEventListener('pagehide', () => gameBgm.pause());
     window.addEventListener('pageshow', syncBgm);
 
+    // 🏆 保險機制：uiState 在很多轉場時間點改變後都沒有主動呼叫
+    // syncBgm() 重新檢查（例如換人回合、各種小遊戲/答題/商店流程），
+    // 導致音樂卡在暫停狀態直到玩家剛好點了什麼東西。與其把每一個轉場
+    // 時間點都找出來一一補呼叫，這裡用低成本的方式每 2 秒重新檢查一次
+    // 播放狀態，最多 2 秒內會自動修正回來。
+    setInterval(syncBgm, 2000);
+
     updateBgmButton();
 
     // 🏆 修復「沒點過東西就完全沒音樂」：瀏覽器的自動播放政策規定頁面
@@ -1234,6 +1242,12 @@ function returnToLobbyOnDisconnect(data) {
     const myName = localStorage.getItem('username');
     if (!data || data.user === myName) return;
     if (window.isReturningToLobby) return;
+    // 🏆 修復結算頁誤判斷線（補強）：triggerGameOver() 一開始、也就是
+    // 跳出「🎉 恭喜你！遊戲結束！」的同一時間，就已經把 uiState 設成
+    // "FINISHED"。遊戲已經結束的話，不管伺服器那端為什麼還是送了這個
+    // 事件（例如 main.py 端仍殘留的競態空檔、或未來新增的其他結束對局
+    // 管道），客戶端這裡都直接擋下來，不要再顯示「對手已離線」。
+    if (window.uiState === "FINISHED") return;
 
     console.warn(`🔌 玩家 ${data.user} 已離線，5 秒後自動返回大廳`);
     // buildDisconnectNoticeHtml() 已抽至 static/js/game-notice.js，
@@ -2987,9 +3001,51 @@ window.onload = async function() {
     });
     renderOwnedLandsList(); // 恢復側邊欄的土地清單
 
-    // 步驟 D：全部就緒，播放開場動畫
-    if (typeof playOpeningAnim === "function") playOpeningAnim();
+    // 步驟 D：全部就緒，先讓雙方按下「準備完成」再播放開場動畫
+    showReadyGateUI();
 };
+
+// 🏆 雙方準備完成才開始：決定先後手的手勢流程全程靠鏡頭偵測，完全
+// 沒有滑鼠點擊/鍵盤事件，瀏覽器的音效自動播放限制因此永遠無法解鎖，
+// 導致整場常常沒有背景音樂。這裡新增一個保證會發生的真實點擊，順便
+// 解鎖 unlockBgm()（綁在全域 click 監聽器上），雙方都按下後才真的
+// 進入開場動畫。
+function showReadyGateUI() {
+    const myName = localStorage.getItem('username');
+    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
+
+    let gate = document.getElementById('readyGateOverlay');
+    if (!gate) {
+        gate = document.createElement('div');
+        gate.id = 'readyGateOverlay';
+        document.body.appendChild(gate);
+    }
+    gate.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100vw; height: 100%;
+        background: rgba(15, 23, 42, 0.92); z-index: 999999;
+        display: flex; align-items: center; justify-content: center;
+        flex-direction: column; color: #ffffff; text-align: center;
+        font-family: inherit;
+    `;
+    gate.innerHTML = `
+        <p style="font-size: 1.6rem; margin-bottom: 24px;">雙方都按下準備完成後才會開始遊戲</p>
+        <button id="readyGateBtn" style="
+            font-size: 1.4rem; padding: 16px 40px; border: none; border-radius: 12px;
+            background: #00cdac; color: #ffffff; font-weight: 700; cursor: pointer;
+        ">✅ 準備完成，開始遊戲</button>
+    `;
+
+    document.getElementById('readyGateBtn').addEventListener('click', () => {
+        gate.innerHTML = `<p style="font-size: 1.6rem;">⏳ 等待對手準備中...</p>`;
+        socket.emit('player_ready', { room: roomCode, user: myName });
+    }, { once: true });
+
+    socket.once('both_players_ready', () => {
+        gate.remove();
+        if (typeof playOpeningAnim === "function") playOpeningAnim();
+    });
+}
 	
 	socket.emit('join_game_room', { 
 		room: localStorage.getItem('room_code'), 
@@ -4882,11 +4938,15 @@ let birdData = { y: 240, pipes: [], coins: 0 };
 
 // 🏆 修正版：小鳥飛前置作業 (發送全網廣播，觀戰者將自動被拉入觀看情境)
 async function startBirdGameView() {
-    setMapBgmScene(true);
     console.log("🐦 進入獎勵遊戲：小鳥飛！");
     //playSfx('bird'); // 🏆 需求⑥：小鳥飛（輕快）音效
-    scene.background = null; 
+    scene.background = null;
     setBoardVisibility(false);
+    // 🏆 修復：setBoardVisibility(false) 內部會把 bgmOnMap 設回 false，
+    // 原本緊接著呼叫的 setMapBgmScene(true)（想讓小鳥飛小遊戲期間音樂
+    // 繼續播放）如果寫在它之前，會被這裡立刻蓋回去，意圖完全沒生效。
+    // 一定要在 setBoardVisibility(false) 之後才呼叫。
+    setMapBgmScene(true);
 
     const myName = localStorage.getItem('username');
     const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
@@ -5908,28 +5968,39 @@ function startMainTurn(isMyTurn, targetPlayerName = "對手") {
 
     if (isMyTurn) {
         // 進入我的回合邏輯
-        window.uiState = "READY"; 
+        window.uiState = "READY";
 		window.isPlus3Active = false; // 🏆 重置狀態
 		window.localHandLandmarks = null;
-        
+
+        // 🏆 修復：換人回合時 resetToGodViewState() 想恢復背景音樂會因為
+        // uiState 當時還是上一階段留下的 "FINISHED" 而靜默失敗，之後
+        // uiState 改回 "READY" 本身不會觸發重新檢查。這裡補一行，讓
+        // 「輪到我、骰子畫面彈出來」這個最主要的回合切換時間點能正確
+        // 重新播放背景音樂。
+        syncBgm();
+
         // 檢查背包是否有「骰到步數+3」
         const inv = getPlayerInventory(myName);
         if (inv["item_plus3"] > 0) {
             showGameNotice("🎲 你擁有【骰到步數+3】道具！<br>比出 7 即可使用！", 3000);
         }
-        window.hasBroadcastResult = false; 
+        window.hasBroadcastResult = false;
         currentGameState = { status: "READY", dice_val: 1, hand_detected: false };
-        
-        const myModel = playerModels[myName];
-        const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(myModel.quaternion);
 
-        const screenPos = new THREE.Vector3().copy(myModel.position);
-        screenPos.y += 1.1; 
-        screenPos.addScaledVector(forward, 4.5);
+        // 🏆 修復第 5 項骰子畫面偏移：原本以玩家模型（myModel）座標為
+        // 基準算螢幕位置、再用 .lookAt(camera.position) 轉向——這只有
+        // 在攝影機剛好緊貼模型（第一次輪到某玩家、finalizeGameStart()
+        // 的第一人稱視角）時才會巧合置中。其他每個會顯示 virtualScreen
+        // 的畫面（收購決策/答題/商店/開合跳處罰）全部統一用「以攝影機
+        // 自己為基準」的算法，才能保證不管攝影機在哪、朝哪都穩穩貼在
+        // 畫面正中央。這裡改成跟那些畫面一致的寫法。
+        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+        const screenPos = new THREE.Vector3().copy(camera.position)
+            .addScaledVector(forward, 2.8);
 
         virtualScreen.position.copy(screenPos);
+        virtualScreen.quaternion.copy(camera.quaternion);
         virtualScreen.scale.set(1, 1, 1); // 🏆 修復 #23：每次擲骰恢復原始大小，避免沿用上一階段（商店/答題/處罰）遺留的縮放值
-        virtualScreen.lookAt(camera.position);
         virtualScreen.visible = true;
 
         initCameraAndStartVision();

@@ -125,6 +125,7 @@ def _clear_room_dice_state(code: str):
         dice_order_results.pop(key, None)
         room_dice_data.pop(key, None)
         room_map_cache.pop(key, None)
+        room_ready_players.pop(key, None)
 
 
 # ==========================================================
@@ -1516,7 +1517,7 @@ async def disconnect(sid):
     # 🏆 修復結算頁誤判斷線：要在下面「移除玩家、可能刪房間」之前先讀
     # 這個旗標，不然房間被刪掉後就讀不到了。旗標由 handle_dice_event()
     # 收到 GAME_OVER 廣播時設定，見那裡的完整說明。
-    game_already_ended = bool(active_rooms.get(room, {}).get('game_ended'))
+    game_already_ended = bool(active_rooms.get((room or "").upper(), {}).get('game_ended'))
 
     # 1. 若還在決定先後手階段，整份清掉並通知同房的人。
     #    ⚠️ 不能只在「斷線者已提交過點數」時才處理——死鎖恰恰發生在他還沒提交
@@ -1601,6 +1602,33 @@ async def roll_order(code: str, data: dict):
 # 儲存結構: { room_name: { username: points } }
 room_dice_data = {}
 
+# 🏆「雙方準備完成」畫面用：記錄每個房間已經按下準備完成的玩家。
+# 玩家進房的手勢流程（決定先後手）完全靠鏡頭偵測、不會有任何滑鼠點擊/
+# 鍵盤事件，瀏覽器的音效自動播放限制因此永遠無法解鎖，整場常常沒有
+# 背景音樂。改成要雙方都按下「準備完成」按鈕才進入開場動畫，這個按鈕
+# 本身就是一次保證會發生的真實點擊，順便解鎖音效。
+# 儲存結構: { room_name: set(username) }
+room_ready_players = {}
+
+
+@sio.on('player_ready')
+async def handle_player_ready(sid, data):
+    # 🏆 有活動就更新房間活躍時間，避免進行中的對局被閒置回收
+    touch_room_by_code(data.get('room') if isinstance(data, dict) else None)
+    room = data.get('room')
+    user = data.get('user')
+    if not room or not user:
+        return
+
+    room_ready_players.setdefault(room, set()).add(user)
+    expected = len(active_rooms.get(room.upper(), {}).get('players', [])) or 2
+    print(f"✅ 房間 {room} 準備完成：{room_ready_players[room]} / 共 {expected} 人")
+
+    if len(room_ready_players[room]) >= expected:
+        await sio.emit('both_players_ready', {}, room=room)
+        room_ready_players.pop(room, None)
+
+
 # --- 修正 1：handle_order_dice ---
 # --- 修正後的 handle_order_dice ---
 @sio.on('submit_order_dice')
@@ -1654,21 +1682,21 @@ async def handle_dice_event(sid, data):
     # data 格式範例: {"room": "ROOM123", "user": "玩家ID", "type": "ROLLING" 或 "RESULT", "point": 5}
     room = data.get('room')
     print(f"📣 廣播擲骰事件: {data}")
-    await sio.emit('dice_event_sync', data, room=room)
 
-    # 🏆 修復結算頁誤判斷線：game.html 的 triggerGameOver() 結算時，
-    # 結算者送完 /game/settle 幾乎立刻跳轉 results.html，非結算者固定
-    # 等 1.5 秒才跳轉——結算者通常會先離開 game.html，瀏覽器關閉他的
-    # Socket.IO 連線，被 disconnect() 誤判成真的斷線，廣播給還留在
-    # game.html（正在等那 1.5 秒）的另一位玩家，顯示「對手已離線」。
-    # 這裡收到 GAME_OVER 廣播時先記住這個房間遊戲已經結束，disconnect()
-    # 就能用這個旗標判斷「這次斷線其實是正常跳轉去結算頁，不是真的斷
-    # 線」，不要再廣播 opponent_disconnected。results.html 完全不用
-    # Socket.IO，遊戲結束後這個房間不會再需要偵測斷線，永久壓下沒有
-    # 副作用；旗標掛在 active_rooms[room] 上，房間本來就會在雙方都
-    # 離開後被刪除，不用額外清除。
-    if data.get('type') == 'GAME_OVER' and room in active_rooms:
-        active_rooms[room]['game_ended'] = True
+    # 🏆 修復結算頁誤判斷線（競態條件）：這個旗標原本寫在下面
+    # await sio.emit('dice_event_sync', ...) 之後，但 await 是 asyncio
+    # 真正會讓出控制權的地方——如果伺服器同時在處理別的事件（例如另一
+    # 個房間的高頻廣播），disconnect() 有可能恰好在這個空檔被排進來
+    # 執行、讀到旗標還沒被設成 True 的瞬間，導致「對手已離線」的誤判
+    # 仍然偶爾發生。這裡改成收到 GAME_OVER 的當下、在任何 await 之前
+    # 就同步設定完，不留空檔。同時統一轉大寫，跟 active_rooms 其他地方
+    # 的 key 一致（這裡跟下面 disconnect() 原本都沒轉，房號大小寫不一致
+    # 時旗標會完全失效）。
+    room_key = (room or "").upper()
+    if data.get('type') == 'GAME_OVER' and room_key in active_rooms:
+        active_rooms[room_key]['game_ended'] = True
+
+    await sio.emit('dice_event_sync', data, room=room)
 
 # 在 main.py 中加入此段落
 @sio.on('player_move_sync_request')
