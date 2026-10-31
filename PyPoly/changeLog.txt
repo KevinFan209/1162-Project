@@ -5173,3 +5173,51 @@ PyPoly 變更紀錄 (changeLog)
   重新整理頁面、進行任何一次點擊或按鍵之後，完整打一局，確認收購
   成功、進監獄、過路費被偷錢這三種音效都會正常播放。
 ========================================================================
+
+========================================================================
+[2026-11-01] 新增 2D 畫面位置調整面板模組，補上商店/答題位置預覽頁
+
+  背景：使用者要調整兩處畫面物件位置——(1) 答題時 4 個選項的位置
+  （觀戰者看到的選項也要同步）；(2) 進入商店後左下角手勢簡短說明框、
+  以及道具選項區的位置。希望比照之前「收購/加蓋」「開合跳」預覽頁
+  已經有的座標調整面板（static/js/transform-gizmo.js）那套「調整完
+  存成 JSON，之後再把數據套回真正程式碼」的工作流程。
+
+  查過兩處實際程式碼：
+  - 答題選項：`#adv-options`（CSS class `.task-options`）。查到觀戰者
+    （`sync_adventure_phase` 的 `QUIZ` 分支）跟自己答題用的是同一個
+    `#adv-options` 元素、同一份 CSS，不是各自獨立的兩套——調整這裡
+    的位置，兩邊天然會一起套用，不需要另外做「同步」機制。
+  - 商店畫面：`#shop-ui` 內部用 flex 版面排出來的手勢說明框（含
+    `#shop-instruction-title`/`#shop-instruction-desc`）跟
+    `#shop-items-container`（道具卡片區），兩者都不是用 top/left 定位，
+    是 flex 排版排出來的。
+
+  `transform-gizmo.js` 只能調 Three.js 3D 物件的 position/rotation，
+  沒辦法套用在這兩處 CSS 排版出來的 2D 元素上，所以這次新增一個同樣
+  思路的 2D 版本：`static/js/dom-position-gizmo.js`——不去改動元素
+  原本的 top/left/flex 排版邏輯，改成在目標元素原本已有的 CSS
+  transform（例如 `.task-options` 的 `translateY(-50%)`）後面疊加一個
+  `translate(dx, dy)` 像素偏移；一定要用 `getComputedStyle()` 抓目前
+  實際生效的 transform（可能來自 CSS class）而不是只看 inline
+  style，否則會把原本的置中效果蓋掉。畫面上每個目標旁邊會出現一個
+  可以直接拖曳的「⠿」把手，也可以用右側面板的數字輸入框微調，一樣
+  可以「儲存」成 JSON（格式 `{page, savedAt, targets: {key: {dx, dy}}}`）。
+
+  另外在這個分支（Fan-fix-issue-v3）的 `static/preview/` 底下新增
+  `game_quiz.html`（答題選項位置）、`game_shop.html`（商店手勢說明框
+  +道具選項位置）兩個預覽頁——這個資料夾不進版控，兩個分支各自累積，
+  這次是在 v3 這邊照既有慣例「逐字複製來源 CSS」補上，確保調整出來
+  的像素數字能直接對應回真正的程式碼。
+
+  驗證：
+  - `static/js/dom-position-gizmo.js` 用 Node vm.Script 做語法檢查，
+    通過。
+  - curl 確認兩個預覽頁、新模組都回 HTTP 200。
+  - 只新增檔案，沒有改到任何現有的遊戲邏輯，main.py 沒有變動，不需要
+    重啟伺服器。
+
+  ⚠️ 尚未做（等使用者在預覽頁調好位置、存出 JSON 之後才能做）：
+  讀使用者存的 `game_quiz_position.json`／`game_shop_position.json`，
+  把裡面的 dx/dy 數值實際套進 `static/game.html` 對應的 CSS/行內樣式。
+========================================================================
