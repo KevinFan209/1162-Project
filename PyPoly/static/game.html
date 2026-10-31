@@ -959,8 +959,12 @@
     let bgmPlayPending = false;
 
     function shouldPlayBgm() {
-        return bgmOnMap &&
-            bgmUnlocked &&
+        // 🏆 修復：使用者要求音樂不管進到遊戲裡哪個場景（答題/商店/
+        // 開合跳/環景圖等）都不要停下，這裡拿掉 bgmOnMap 這個場景
+        // 相關的條件——bgmOnMap/setMapBgmScene() 本身留著不動，純粹
+        // 不再影響這裡的播放判斷。分頁切到背景跟遊戲結束兩種情況維持
+        // 原本的暫停邏輯，不受影響。
+        return bgmUnlocked &&
             !document.hidden &&
             window.uiState !== 'FINISHED' &&
             localStorage.getItem(BGM_SETTING_KEY) !== 'false';
@@ -4429,7 +4433,13 @@ function animate() {
 				drawDiceFace(screenCtx, diceImages[3], 350, 150, false);             // 加 3
 				drawUIPill(screenCtx, `總點數：${displayVal}`, 300, "#f08c00", "#ffffff");
 			} else {
-				drawDiceFace(screenCtx, diceImages[displayVal], 270, 190, false);
+				// 🏆 修復：drawDiceFace() 把傳入座標當成圖案「中心點」，
+				// 不是左上角——這裡原本沿用 READY/ROLLING 用的
+				// diceX/diceY（270,190，那兩處是給 drawImage 當左上角用
+				// 的），結果骰子中心點變成 (270,190)，比畫面真正中心
+				// (320,240) 少了 (50,50)，停下顯示點數那一刻就會往左上
+				// 偏移一小段。改成直接傳入畫面中心點 (320,240)。
+				drawDiceFace(screenCtx, diceImages[displayVal], 320, 240, false);
 				drawUIPill(screenCtx, `🎉 恭喜你骰到 ${displayVal} 點！`, 70, "#00cdac", "#ffffff");
 			}
 			
