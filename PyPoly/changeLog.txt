@@ -5292,3 +5292,30 @@ PyPoly 變更紀錄 (changeLog)
   把這 3 組 dx/dy/width/height 數值實際套進 static/game.html 的
   `.task-options`、`#shop-instruction-box`、`#shop-items-container`。
 ========================================================================
+
+========================================================================
+[2026-11-01] 套用使用者實測確認的答題選項/商店畫面位置調整
+
+  背景：使用者用 static/preview/game_quiz.html、game_shop.html 的畫面
+  位置調整面板實測並確認過 3 個目標的最終位置/尺寸，這次把確認過的
+  數值實際套進 static/game.html。
+
+  修法（都是疊加 translate(dx,dy) 在原本的排版上，不改動原本的 top/
+  left/flex 排版邏輯本身，跟預覽頁調整面板的做法一致）：
+  1. `.task-options`（答題 4 個選項區）：transform 從
+     `translateY(-50%)` 改成 `translateY(-50%) translate(87px, -5px)`。
+  2. 商店手勢說明框：補上 `id="shop-instruction-box"`（原本沒有 id，
+     方便之後對照預覽頁），加上 `box-sizing:border-box; width:331px;
+     height:108px; transform:translate(-77px, 0px);`。
+  3. `#shop-items-container`（道具選項區）：補上
+     `transform:translate(-162px, -89px);`。
+
+  驗證：
+  - `static/game.html` 用 Node vm.Script 做語法檢查，通過。
+  - curl 確認 game.html 仍回 HTTP 200。
+  - 只改到 game.html（前端），main.py 沒有變動，不需要重啟伺服器。
+
+  ⚠️ 尚未做（沒辦法代測，需要使用者實際操作確認）：
+  重新整理頁面後實際答一題、進一次商店，確認這 3 個畫面物件的位置跟
+  預覽頁裡確認過的結果一致。
+========================================================================

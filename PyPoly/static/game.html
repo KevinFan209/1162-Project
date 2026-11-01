@@ -364,7 +364,10 @@
         position: absolute;
         top: 60%;
         left: 31%;
-        transform: translateY(-50%);
+        /* 🏆 修正：使用者在 static/preview/game_quiz.html 用畫面位置
+           調整面板實測後確認的位移（dx:87, dy:-5），疊加在原本的
+           translateY(-50%) 置中之後。 */
+        transform: translateY(-50%) translate(87px, -5px);
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: wrap !important;
@@ -884,14 +887,19 @@
                 </div>
             </div>
 
-            <div style="background: rgba(30,41,59,0.95); padding: 15px 30px; border-radius: 20px; border: 3px solid #ffde59; color: white; pointer-events:auto; box-shadow: 0 10px 25px rgba(0,0,0,0.3);">
+            <!-- 🏆 修正：使用者在 static/preview/game_shop.html 用畫面
+                 位置調整面板實測後確認的位移/尺寸（dx:-77, dy:0,
+                 width:331, height:108）。 -->
+            <div id="shop-instruction-box" style="background: rgba(30,41,59,0.95); padding: 15px 30px; border-radius: 20px; border: 3px solid #ffde59; color: white; pointer-events:auto; box-shadow: 0 10px 25px rgba(0,0,0,0.3); box-sizing: border-box; width: 331px; height: 108px; transform: translate(-77px, 0px);">
                 <h3 style="margin-bottom: 6px; color:#ffde59; font-size: 1.1rem;" id="shop-instruction-title">🛒 道具商店</h3>
                 <p style="font-weight: 800; font-size: 1rem; line-height: 1.5;" id="shop-instruction-desc">比出數字 1 ~ 4：選擇道具<br>比出 👎 倒讚：放棄並離開</p>
             </div>
         </div>
 
         <div style="width: 500px; display: flex; flex-direction: column; align-items: center; pointer-events: auto;">
-            <div id="shop-items-container" class="shop-grid-layout" style="width: 100%;">
+            <!-- 🏆 修正：使用者在 static/preview/game_shop.html 用畫面
+                 位置調整面板實測後確認的位移（dx:-162, dy:-89）。 -->
+            <div id="shop-items-container" class="shop-grid-layout" style="width: 100%; transform: translate(-162px, -89px);">
                 </div>
             
             <div id="shop-inline-action-bar" style="display:none; gap: 20px; margin-top: 30px; width: 100%; justify-content: center;">
