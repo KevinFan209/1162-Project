@@ -19,6 +19,11 @@
 //       pageName: 'game_quiz',
 //       targets: [
 //           { key: 'quizOptions', label: '答題選項區', el: document.getElementById('adv-options') },
+//           // resizable: true 的 target 面板上會多出寬/高的數字輸入框，
+//           // 畫面上也會多一個右下角可拖曳的縮放把手；寬高是直接寫絕對
+//           // 像素值（不是像 dx/dy 那樣疊加偏移），因為這才是之後要
+//           // 套回程式碼時真正會寫進 CSS 的數字。
+//           { key: 'shopInstructionBox', label: '手勢說明框', el: ..., resizable: true },
 //       ],
 //   });
 // =============================================================
@@ -32,10 +37,10 @@ function createDomPositionGizmoPanel(opts) {
 
     const panel = document.createElement('div');
     panel.style.cssText = `
-        position: fixed; right: 16px; top: 50%; transform: translateY(-50%); z-index: 99999;
+        position: fixed; left: 16px; bottom: 16px; z-index: 99999;
         background: rgba(15,23,42,0.92); color: #e2e8f0; border-radius: 14px;
         padding: 14px 16px; font-family: 'Segoe UI', '微軟正黑體', sans-serif;
-        font-size: 0.78rem; max-width: 300px; max-height: 80vh; overflow-y: auto;
+        font-size: 0.78rem; max-width: 300px; max-height: 70vh; overflow-y: auto;
         box-shadow: 0 8px 24px rgba(0,0,0,0.3);
     `;
 
@@ -45,7 +50,7 @@ function createDomPositionGizmoPanel(opts) {
     panel.appendChild(title);
 
     const hint = document.createElement('div');
-    hint.textContent = '直接拖曳畫面上的「⠿」把手，或用下面的數字調整；偏移量是疊加在原本排版上的像素位移，調好後按「儲存」。';
+    hint.textContent = '直接拖曳畫面上的「⠿」把手，或用下面的數字調整；偏移量是疊加在原本排版上的像素位移。部分 target 右下角還有黃色「↘」把手可以拖曳縮放寬高。調好後按「儲存」。';
     hint.style.cssText = 'color:#94a3b8; margin-bottom:10px; line-height:1.5;';
     panel.appendChild(hint);
 
@@ -53,15 +58,26 @@ function createDomPositionGizmoPanel(opts) {
         const rect = t.el.getBoundingClientRect();
         t._gizmoHandle.style.left = (rect.left + rect.width / 2) + 'px';
         t._gizmoHandle.style.top = (rect.top - 6) + 'px';
+        if (t.resizable && t._gizmoResizeHandle) {
+            t._gizmoResizeHandle.style.left = rect.right + 'px';
+            t._gizmoResizeHandle.style.top = rect.bottom + 'px';
+        }
     }
 
     function applyOffset(t) {
         const s = state.get(t.key);
         const base = t.el.dataset.gizmoBase || '';
         t.el.style.transform = (base ? base + ' ' : '') + `translate(${s.dx}px, ${s.dy}px)`;
+        if (t.resizable) {
+            t.el.style.width = s.width + 'px';
+            t.el.style.height = s.height + 'px';
+        }
         positionHandle(t);
         const io = inputs.get(t.key);
-        if (io) { io.x.value = s.dx; io.y.value = s.dy; }
+        if (io) {
+            io.x.value = s.dx; io.y.value = s.dy;
+            if (t.resizable) { io.w.value = s.width; io.h.value = s.height; }
+        }
     }
 
     function makeAxisRow(labelText, axis, t) {
@@ -109,6 +125,54 @@ function createDomPositionGizmoPanel(opts) {
         return { row, input };
     }
 
+    // 跟 makeAxisRow 幾乎一樣，差別是直接寫絕對像素值（寬/高），不是
+    // 疊加偏移——之後要套回程式碼時，寬高本來就是要直接寫進 CSS 的
+    // 絕對數字，不像位置那樣適合用「疊加偏移」表示。
+    function makeSizeRow(labelText, axis, t, min) {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex; align-items:center; gap:4px; margin-bottom:4px;';
+
+        const axisLabel = document.createElement('span');
+        axisLabel.textContent = labelText;
+        axisLabel.style.cssText = 'width:16px; color:#64748b; font-weight:700;';
+        row.appendChild(axisLabel);
+
+        const minusBtn = document.createElement('button');
+        minusBtn.textContent = '−';
+        minusBtn.style.cssText = 'width:22px; height:22px; border:none; border-radius:6px; background:#334155; color:#fff; cursor:pointer; font-weight:800;';
+        row.appendChild(minusBtn);
+
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.step = STEP;
+        input.min = min;
+        input.style.cssText = 'width:62px; background:#1e293b; color:#fff; border:1px solid #334155; border-radius:6px; padding:3px 4px; text-align:center;';
+        row.appendChild(input);
+
+        const plusBtn = document.createElement('button');
+        plusBtn.textContent = '+';
+        plusBtn.style.cssText = minusBtn.style.cssText;
+        row.appendChild(plusBtn);
+
+        const suffixEl = document.createElement('span');
+        suffixEl.textContent = 'px';
+        suffixEl.style.cssText = 'color:#64748b;';
+        row.appendChild(suffixEl);
+
+        function set(v) {
+            state.get(t.key)[axis] = Math.max(min, v);
+            applyOffset(t);
+        }
+        minusBtn.onclick = () => set(state.get(t.key)[axis] - STEP);
+        plusBtn.onclick = () => set(state.get(t.key)[axis] + STEP);
+        input.onchange = () => {
+            const v = parseFloat(input.value);
+            if (!isNaN(v)) set(v);
+        };
+
+        return { row, input };
+    }
+
     targets.forEach(t => {
         state.set(t.key, { dx: 0, dy: 0 });
 
@@ -119,6 +183,18 @@ function createDomPositionGizmoPanel(opts) {
         // 我們自己疊加的 translate(dx,dy) 相乘完全等價於原本的位移。
         const computed = getComputedStyle(t.el).transform;
         t.el.dataset.gizmoBase = (computed && computed !== 'none') ? computed : '';
+
+        if (t.resizable) {
+            // 🏆 把目前「沒有寫死寬高、靠內容撐開」的實際渲染尺寸，先
+            // 原封不動凍結成明確的 width/height，之後才能用這組數字當
+            // 基準微調——順便改成 border-box，這樣 width/height 才會
+            // 跟 getBoundingClientRect() 量出來的、包含 padding 的總尺寸
+            // 一致，不會每次調整都因為 padding 被重複加算而跳一下。
+            const rect = t.el.getBoundingClientRect();
+            t.el.style.boxSizing = 'border-box';
+            state.get(t.key).width = Math.round(rect.width);
+            state.get(t.key).height = Math.round(rect.height);
+        }
 
         const section = document.createElement('div');
         section.style.cssText = 'border-top:1px solid #334155; padding-top:8px; margin-top:8px;';
@@ -132,13 +208,30 @@ function createDomPositionGizmoPanel(opts) {
         const yRow = makeAxisRow('Y', 'dy', t);
         section.appendChild(xRow.row);
         section.appendChild(yRow.row);
-        inputs.set(t.key, { x: xRow.input, y: yRow.input });
+        const io = { x: xRow.input, y: yRow.input };
+
+        if (t.resizable) {
+            const wRow = makeSizeRow('寬', 'width', t, 20);
+            const hRow = makeSizeRow('高', 'height', t, 20);
+            section.appendChild(wRow.row);
+            section.appendChild(hRow.row);
+            io.w = wRow.input;
+            io.h = hRow.input;
+        }
+        inputs.set(t.key, io);
 
         const resetBtn = document.createElement('button');
         resetBtn.textContent = '↺ 重設這個';
         resetBtn.style.cssText = 'margin-top:4px; width:100%; padding:4px; border:none; border-radius:6px; background:#475569; color:#fff; cursor:pointer; font-size:0.72rem;';
         resetBtn.onclick = () => {
-            state.set(t.key, { dx: 0, dy: 0 });
+            const s = state.get(t.key);
+            s.dx = 0; s.dy = 0;
+            if (t.resizable) {
+                t.el.style.width = ''; t.el.style.height = '';
+                const rect = t.el.getBoundingClientRect();
+                s.width = Math.round(rect.width);
+                s.height = Math.round(rect.height);
+            }
             applyOffset(t);
         };
         section.appendChild(resetBtn);
@@ -156,6 +249,39 @@ function createDomPositionGizmoPanel(opts) {
         `;
         document.body.appendChild(handle);
         t._gizmoHandle = handle;
+
+        if (t.resizable) {
+            const resizeHandle = document.createElement('div');
+            resizeHandle.textContent = '↘';
+            resizeHandle.title = '拖曳縮放「' + t.label + '」';
+            resizeHandle.style.cssText = `
+                position: fixed; z-index: 99998; cursor: nwse-resize; user-select: none;
+                background: #ffde59; color: #1e293b; font-size: 0.7rem; font-weight: 900;
+                width: 18px; height: 18px; border-radius: 4px; display: flex;
+                align-items: center; justify-content: center;
+                transform: translate(-50%, -50%);
+            `;
+            document.body.appendChild(resizeHandle);
+            t._gizmoResizeHandle = resizeHandle;
+
+            let resizing = false, rStartX = 0, rStartY = 0, origW = 0, origH = 0;
+            resizeHandle.addEventListener('mousedown', e => {
+                resizing = true;
+                rStartX = e.clientX; rStartY = e.clientY;
+                const s = state.get(t.key);
+                origW = s.width; origH = s.height;
+                e.preventDefault();
+                e.stopPropagation();
+            });
+            window.addEventListener('mousemove', e => {
+                if (!resizing) return;
+                const s = state.get(t.key);
+                s.width = Math.max(20, origW + (e.clientX - rStartX));
+                s.height = Math.max(20, origH + (e.clientY - rStartY));
+                applyOffset(t);
+            });
+            window.addEventListener('mouseup', () => { resizing = false; });
+        }
 
         let dragging = false, startX = 0, startY = 0, origDx = 0, origDy = 0;
         handle.addEventListener('mousedown', e => {
@@ -199,7 +325,9 @@ function createDomPositionGizmoPanel(opts) {
         };
         targets.forEach(t => {
             const s = state.get(t.key);
-            data.targets[t.key] = { dx: s.dx, dy: s.dy };
+            data.targets[t.key] = t.resizable
+                ? { dx: s.dx, dy: s.dy, width: s.width, height: s.height }
+                : { dx: s.dx, dy: s.dy };
         });
         const json = JSON.stringify(data, null, 2);
         const filename = (pageName || 'position') + '_position.json';

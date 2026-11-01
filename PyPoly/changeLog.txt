@@ -5221,3 +5221,41 @@ PyPoly 變更紀錄 (changeLog)
   讀使用者存的 `game_quiz_position.json`／`game_shop_position.json`，
   把裡面的 dx/dy 數值實際套進 `static/game.html` 對應的 CSS/行內樣式。
 ========================================================================
+
+========================================================================
+[2026-11-01] 畫面位置調整面板支援縮放寬高，一起存進 JSON
+
+  背景：使用者要在 game_shop.html 的手勢說明框（#shop-instruction-box）
+  上加上可以改變寬高的功能，並把這個資訊一起存進 JSON，沿用之前的
+  畫面位置調整面板（static/js/dom-position-gizmo.js）的工作流程。
+
+  修法：dom-position-gizmo.js 的每個 target 新增可選的 `resizable: true`
+  旗標：
+  - 初始化時把目標元素目前「沒寫死寬高、靠內容撐開」的實際渲染尺寸
+    （getBoundingClientRect()）原封不動凍結成明確的 width/height，
+    同時改成 box-sizing:border-box，確保這組數字跟畫面上量出來的
+    總尺寸一致，不會因為 padding 被重複加算而跳動。
+  - 面板上該 target 的區塊多出「寬」「高」兩行數字輸入框（跟 X/Y 一樣
+    有 +/− 按鈕），這兩個是直接寫絕對像素值，不是像 dx/dy 那樣疊加
+    偏移——因為寬高之後要套回程式碼時，本來就是要直接寫進 CSS 的
+    絕對數字。
+  - 畫面上該 target 右下角會多一個黃色「↘」拖曳把手，可以直接用滑鼠
+    拖曳縮放寬高。
+  - 「重設這個」按鈕一併重設寬高（清空寫死的 width/height，讓它
+    重新用內容撐開，再重新量一次目前的尺寸）。
+  - 存出的 JSON 裡，resizable 的 target 會多出 `width`/`height` 兩個
+    欄位：`{dx, dy, width, height}`；非 resizable 的 target 維持原本
+    的 `{dx, dy}`，不受影響。
+
+  `static/preview/game_shop.html` 的 `shopInstructionBox` target 這次
+  開啟了 `resizable: true`。`quizOptions`／`shopItemsContainer` 沒有
+  開啟，維持原本只能調位置的行為。
+
+  驗證：
+  - `static/js/dom-position-gizmo.js` 用 Node vm.Script 做語法檢查，
+    通過。
+  - curl 確認 game_quiz.html／game_shop.html／dom-position-gizmo.js
+    都回 HTTP 200。
+  - 只改到共用模組跟 gitignore 底下的預覽頁，main.py 沒有變動，不需要
+    重啟伺服器。
+========================================================================
