@@ -174,7 +174,12 @@ function createDomPositionGizmoPanel(opts) {
     }
 
     targets.forEach(t => {
-        state.set(t.key, { dx: 0, dy: 0 });
+        // 🏆 initial：之前存過的 JSON 可以直接當起始值餵進來（例如
+        // { dx: 87, dy: -5 }），讓這頁重新整理後就直接顯示調整過的
+        // 結果，不用每次都手動重新拖一次——面板上的數字輸入框也會正確
+        // 顯示這組起始值，不是看起來調好了、面板卻還停在 0。
+        const initial = t.initial || {};
+        state.set(t.key, { dx: initial.dx || 0, dy: initial.dy || 0 });
 
         // 🏆 一定要用 computed style 抓「目前實際生效」的 transform（可能
         // 來自 CSS class，例如 .task-options 的 translateY(-50%)），不能
@@ -190,10 +195,12 @@ function createDomPositionGizmoPanel(opts) {
             // 基準微調——順便改成 border-box，這樣 width/height 才會
             // 跟 getBoundingClientRect() 量出來的、包含 padding 的總尺寸
             // 一致，不會每次調整都因為 padding 被重複加算而跳一下。
+            // 如果有給 initial.width/height（之前存過的 JSON），直接
+            // 拿來當起始值，不用再從目前渲染尺寸重新量一次。
             const rect = t.el.getBoundingClientRect();
             t.el.style.boxSizing = 'border-box';
-            state.get(t.key).width = Math.round(rect.width);
-            state.get(t.key).height = Math.round(rect.height);
+            state.get(t.key).width = initial.width || Math.round(rect.width);
+            state.get(t.key).height = initial.height || Math.round(rect.height);
         }
 
         const section = document.createElement('div');
