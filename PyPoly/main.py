@@ -2695,13 +2695,16 @@ def teacher_get_my_class(
 ):
     perform_auto_cleanup(db)
 
-    # 自動修復因改名而斷開連結的孤兒班級
-    all_db_classes = db.query(models.Classroom).all()
-    for c in all_db_classes:
-        owner_exists = db.query(models.User).filter(models.User.username == c.teacher_username).first()
-        if not owner_exists:
-            c.teacher_username = teacher.username
-            db.commit()
+    # 🏆 修復：原本這裡有一段「自動修復孤兒班級」的邏輯，會掃過全資料庫
+    # 所有班級，把任何「擁有者帳號已經不存在」的班級無條件轉移給目前呼叫
+    # 這個 API 的老師——完全沒有限制在跟這位老師相關的班級範圍內，等於
+    # 任何老師只要先打開自己的學生管理頁，就可能把跟自己無關的孤兒班級
+    # 意外收進名下（甚至可能跟自己既有的班級撞名，混淆「這個班級有沒有
+    # 學生」的判斷）。這段邏輯原本是為了解決「老師改名字後，班級的
+    # teacher_username 對不上」，但 /auth/update-profile 改名時其實已經
+    # 同步更新 Classroom.teacher_username（見該函式），班級改名不會再
+    # 變成孤兒；真正的孤兒（例如帳號被刪除）應該由管理員手動處理，不該
+    # 靜默分給任意一位老師，所以直接移除這段。
 
     # 撈出該名老師名下的「所有班級」
     my_classes = db.query(models.Classroom).filter(
@@ -2722,6 +2725,17 @@ def teacher_get_my_class(
         models.User.class_id == active_class.id
     ).order_by(models.User.is_online.desc(), models.User.username.asc()).all()
 
+    # 🏆 修復：老師名下有不只一個班級時，畫面一次只會顯示其中一個
+    # （用 class_id 參數或 localStorage 記住的班級決定），之前只看班級
+    # 名稱很容易選錯班級、誤以為「這個班級沒有學生」。這裡補上每個班級
+    # 目前有幾位學生，下拉選單可以直接看到，不用猜。
+    student_counts = dict(
+        db.query(models.User.class_id, func.count(models.User.username))
+        .filter(models.User.class_id.in_([c.id for c in my_classes]))
+        .group_by(models.User.class_id)
+        .all()
+    )
+
     return {
         "has_class": True,
         "class_id": active_class.id,
@@ -2731,7 +2745,8 @@ def teacher_get_my_class(
             {
                 "id": c.id,
                 "name": c.name,
-                "invite_code": c.invite_code
+                "invite_code": c.invite_code,
+                "student_count": student_counts.get(c.id, 0)
             } for c in my_classes
         ],
         "students": [

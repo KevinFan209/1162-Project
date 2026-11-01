@@ -1550,6 +1550,16 @@ socket.on('adventure_phase_broadcast', async (data) => {
             const waitBusy = setInterval(() => {
                 if (!isUiStateBusy(window.uiState)) {
                     clearInterval(waitBusy);
+                    // 🏆 修復：busy 狀態解除後不要無條件補放——如果等待這段
+                    // 期間本地玩家自己的回合已經先開始了（startMainTurn(true)
+                    // 已經把 uiState 設成 "READY"，代表第一人稱擲骰流程正在
+                    // 跑），這個拖了太久才解除的舊廣播已經沒有意義，硬補放
+                    // 只會跟正在進行的擲骰流程搶鏡頭/搶全域狀態，造成回上帝
+                    // 視角後卡住。直接丟掉，不要再進入觀戰。
+                    if (window.uiState === "READY") {
+                        console.warn(`⚠️ 丟棄過期的 ${data.phase} 廣播：本地回合已經開始`);
+                        return;
+                    }
                     enterNow();
                 }
             }, 500);
@@ -2466,10 +2476,19 @@ async function processShopPurchase(itemNum) {
 
     if (itemNum === 4) {
         showGameNotice(`⚔️ 購買成功！立即對敵方發動【${item.name}】`, 2500);
+        // 🏆 修復：這裡接下來會呼叫 executeStealAnimation()，裡面最後也會
+        // endMyTurn()，但 window.uiState 從開商店以來一直是 "SHOP_BROWSING"，
+        // 從來沒有被改回 "FINISHED"——跟放棄購買（👎）那條路徑不一致，會讓
+        // isUiStateBusy() 誤判這個人「還在逛商店」到下一輪才解除，延遲
+        // 觀戰者該同步播放的動畫（監獄動畫等）。在換人之前先改回 FINISHED。
+        window.uiState = "FINISHED";
         setTimeout(() => { executeStealAnimation(myName); }, 2500);
     } else if (itemNum === 3) {
         // 🏆 修正四：道具三專屬的自動發動提示
         showGameNotice(`🎉 成功購買：${item.name}<br><span style="font-size: 1.2rem; color: #ffde59;">(將於下次需付過路費時自動發動)</span>`, 3500);
+        // 🏆 修復：同上，換人前要把 uiState 改回 FINISHED，否則會卡在
+        // SHOP_BROWSING 直到下一次輪到自己才解除。
+        window.uiState = "FINISHED";
         setTimeout(() => {
             allTileMeshes.forEach(m => m.visible = true);
             isProcessingDecision = false;
@@ -2477,6 +2496,9 @@ async function processShopPurchase(itemNum) {
         }, 3500);
     } else {
         showGameNotice(`🎉 成功購買道具：${item.name}`, 2500);
+        // 🏆 修復：同上，換人前要把 uiState 改回 FINISHED，否則會卡在
+        // SHOP_BROWSING 直到下一次輪到自己才解除。
+        window.uiState = "FINISHED";
         setTimeout(() => {
             allTileMeshes.forEach(m => m.visible = true);
             isProcessingDecision = false;
@@ -5441,47 +5463,62 @@ function renderFlappyBirdAvatarSpectator(playerName) {
 
 // 🏆 小鳥飛結算與 UI 清理函式 (完美復原收購手勢按鈕與關閉提示)
 // 🏆 小鳥飛結算與 UI 清理函式 (完美復原收購手勢按鈕與關閉提示)
+// 🏆 修復小鳥飛殘影：小鳥飛小遊戲的觀戰畫面是借用收購決策面板
+// （#adventure-decision-ui）當容器，會把裡面一堆子元素的顯示/版面改掉
+// （見下面 FLAPPY_BIRD_START 分支）。還原這些修改原本寫死在
+// finishFlappyBird() 裡，但那個函式只在正在玩的那個人自己的瀏覽器上
+// 執行，從來沒有廣播給觀戰者——於是觀戰者這邊的收購面板內部狀態會一直
+// 停在被小鳥飛劫持後的樣子，直到重新整理頁面。抽成共用函式後，除了
+// finishFlappyBird() 自己用，updateSpectatorUI() 的 DECISION 分支也會
+// 在每次要顯示收購面板之前先呼叫一次，不管上一次是誰、用什麼方式弄髒
+// 它，顯示前都會自己復原。
+function restoreDecisionUIChrome() {
+    const decisionUI = document.getElementById('adventure-decision-ui');
+    if (!decisionUI) return;
+
+    const leftPanel = decisionUI.querySelector('.analysis-panel-left');
+    if (leftPanel) leftPanel.style.display = 'block';
+
+    const vHeader = decisionUI.querySelector('.vision-header');
+    if (vHeader) vHeader.style.display = 'flex';
+    const actionBtns = decisionUI.querySelector('.decision-actions');
+    if (actionBtns) actionBtns.style.display = 'flex';
+
+    const gestureBar = decisionUI.querySelector('.gesture-action-bar');
+    if (gestureBar) gestureBar.style.display = 'flex';
+
+    const splitLayout = document.getElementById('decision-split-layout');
+    if (splitLayout) splitLayout.style.justifyContent = 'space-between';
+
+    const visionFrame = decisionUI.querySelector('.vision-frame-right');
+    if (visionFrame) {
+        visionFrame.style.width = '';
+        visionFrame.style.height = '100%';
+        visionFrame.style.maxWidth = '';
+        visionFrame.style.aspectRatio = '';
+        visionFrame.style.margin = '';
+        visionFrame.style.overflow = '';
+        visionFrame.style.position = '';
+        visionFrame.style.transform = '';
+    }
+}
+
 function finishFlappyBird(coins) {
     window.uiState = 'FINISHED';
-    
+
     const fbContainer = document.getElementById('fb-container');
     if (fbContainer) fbContainer.style.display = 'none';
-    
+
     const fbStatusBar = document.getElementById('fb-status-bar');
     if (fbStatusBar) fbStatusBar.style.display = 'none';
-    
+
     const decisionUI = document.getElementById('adventure-decision-ui');
     if (decisionUI) {
         decisionUI.style.display = 'none';
-        
-        const leftPanel = decisionUI.querySelector('.analysis-panel-left');
-        if (leftPanel) leftPanel.style.display = 'block'; 
-        
-        const vHeader = decisionUI.querySelector('.vision-header');
-        if (vHeader) vHeader.style.display = 'flex';
-        const actionBtns = decisionUI.querySelector('.decision-actions');
-        if (actionBtns) actionBtns.style.display = 'flex';
-        
-        const gestureBar = decisionUI.querySelector('.gesture-action-bar');
-        if (gestureBar) gestureBar.style.display = 'flex';
-        
-        const splitLayout = document.getElementById('decision-split-layout');
-        if (splitLayout) splitLayout.style.justifyContent = 'space-between'; 
-        
-        const visionFrame = document.querySelector('.vision-frame-right');
-        if (visionFrame) {
-            visionFrame.style.width = '';
-            visionFrame.style.height = '100%';
-            visionFrame.style.maxWidth = '';
-            visionFrame.style.aspectRatio = '';
-            visionFrame.style.margin = '';
-            visionFrame.style.overflow = '';
-            visionFrame.style.position = '';
-            visionFrame.style.transform = ''; 
-        }
+        restoreDecisionUIChrome();
     }
 
-    stopAllVision(); 
+    stopAllVision();
 
     const myName = localStorage.getItem('username');
     const roomCode = JSON.parse(localStorage.getItem('pypoly_active_room'))?.code || localStorage.getItem('room_code');
@@ -7063,7 +7100,20 @@ function exitSpectatorMode() {
 }
 
 async function autoSmoothExitToGodView() {
-    window.lastAdvData = null; 
+    // 🏆 修復：防呆——如果本地玩家自己的回合流程已經開始（uiState 已經
+    // 被 startMainTurn(true) 設成 "READY"，代表第一人稱擲骰鏡頭/
+    // virtualScreen/手勢辨識都已經在跑），這個函式就不該再硬把人切回
+    // 觀戰者、飛去上帝視角——那只會把「我的回合」跟「被迫觀戰」兩組
+    // 狀態各做一半，卡在沒有骰子 UI 也回不去自己回合的半當機狀態。
+    // 正常情況下這個防呆不會被觸發（過期廣播已經在上層被丟棄），這裡
+    // 只是避免同一類問題以後從別的呼叫路徑冒出來。
+    if (window.uiState === "READY") {
+        console.warn("⚠️ 已經是本地玩家的回合，略過自動退回上帝視角。");
+        window.isSpectating = false;
+        return;
+    }
+
+    window.lastAdvData = null;
     window.spectatorLocationCache = "";
     window.isSpectating = false;
 
@@ -7188,8 +7238,13 @@ function updateSpectatorUI(data) {
     }
     else if (data.phase === 'DECISION') {
         taskUI.style.display = 'none';
+        // 🏆 修復小鳥飛殘影：每次要顯示收購面板之前，先把可能被小鳥飛
+        // 小遊戲弄髒的內部子元素還原乾淨——不管上一次是誰、什麼時候
+        // 弄髒它（finishFlappyBird() 的還原只在玩家自己本地生效，
+        // 從來沒有廣播給觀戰者）。
+        restoreDecisionUIChrome();
         decisionUI.style.display = 'flex';
-        
+
         if (data.payload) {
             fillDecisionUI(data.payload, data.user, window.landOwnership[playerCurrentIndex[data.user]], showGameNotice);
         }

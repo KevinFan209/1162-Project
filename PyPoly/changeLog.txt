@@ -5460,3 +5460,97 @@ PyPoly 變更紀錄 (changeLog)
   最終都會準確回到原位；對局中請對手快速開合跳，觀戰確認虛擬人物
   不會往上飄或手臂卡住。
 ========================================================================
+
+========================================================================
+[2026-11-01] 修復組員回報的 4 個問題：監獄動畫同步當機、小鳥飛殘影、教師選單閃爍、班級學生名單
+
+  背景：組員再次回報 4 個問題，整理在 issue_from_group_members.txt。
+  用 3 個背景 agent 查證教師選單閃爍、監獄動畫同步+當機、小鳥飛殘影，
+  第 4 項（班級學生名單）則在查到一半後，用 112213070 家族測試帳號
+  （112213070_1 是老師、112213070／112213070_2 是學生）實際建兩個
+  班級、讓學生加入其中一個再比對，live 確認根因。
+
+  1.【監獄動畫觀戰者不同步＋回上帝視角當機】真正根因是全域旗標
+     window.uiState 卡死：processShopPurchase() 成功購買道具的 3 條
+     路徑（itemNum 3／4／其他）結束回合前都忘了把 uiState 改回
+     "FINISHED"（放棄購買的 👎 路徑有做，這幾條漏了），於是旗標卡在
+     "SHOP_BROWSING" 直到自己下一次真正輪到才會被 startMainTurn(true)
+     改回 "READY"。JAIL_ANIM／PUNISH／PUNISH_SKIP／FLAPPY_BIRD_START
+     這類自動同步觀戰的廣播收到時會先檢查 isUiStateBusy()，busy 就
+     用 setInterval 每 500ms 等它解除才補放——如果觀戰者剛好卡在這個
+     旗標，監獄動畫就會被延到自己下一回合開始擲骰那一刻才補放，跟
+     正在進行的第一人稱擲骰流程（已經設好鏡頭/virtualScreen/手勢
+     辨識）互搶全域狀態，動畫播完呼叫 autoSmoothExitToGodView() 飛去
+     上帝視角卻不知道本地回合已經開始一半，兩邊狀態各做一半卡住。
+
+     修法（三層）：
+     - processShopPurchase() 這 3 條成功購買路徑，換人前都補上
+       window.uiState = "FINISHED"（真正根因，這一項單獨就能修掉
+       回報的情境）。
+     - waitBusy 輪詢（game.html 約 1537-1558 行）補上「busy 解除時如果
+       本地回合已經開始（uiState 已經是 "READY"）就丟棄這個過期廣播，
+       不要再補放」，同時保護 PUNISH／PUNISH_SKIP／FLAPPY_BIRD_START。
+     - autoSmoothExitToGodView()（約 7087 行）加防呆：偵測到本地回合
+       已經開始就直接跳過，不要硬把人切成觀戰者。
+
+  2.【小鳥飛殘影出現在收購決策畫面】小鳥飛小遊戲的觀戰畫面借用收購
+     決策面板（#adventure-decision-ui）當容器，會隱藏/改版面面板內的
+     子元素，還原這些修改的 finishFlappyBird() 只在玩家自己本地執行，
+     從來沒有廣播給觀戰者，於是觀戰者那邊面板的內部狀態永遠停在被
+     小鳥飛劫持後的樣子，下次顯示收購面板就會原樣重現、蓋住畫面。
+     修法：把還原邏輯抽成共用函式 restoreDecisionUIChrome()，
+     finishFlappyBird() 跟 updateSpectatorUI() 的 DECISION 分支都呼叫
+     它——每次要顯示收購面板前都先強制復原乾淨，不管上一次是誰、
+     什麼時候弄髒它。
+
+  3.【教師後台「個人資料設定」會先閃過「學生管理」】teacher.html 是
+     單頁三分頁設計，studentListView 原本沒有 display:none、nav-link
+     也寫死 active，瀏覽器一定先畫出學生管理，直到 DOMContentLoaded
+     才切到正確分頁——這個時間點已經在第一次繪製之後了。
+     teacher_question.html／teacher_handbook.html 的「個人資料設定」
+     連結本身沒有問題，本來就正確連到 teacher.html?tab=profile。
+     修法：studentListView 補上 display:none；把 ?tab= 偵測邏輯從
+     DOMContentLoaded 搬到緊接著三個分頁 <main> 之後的同步行內
+     script，讓瀏覽器解析到這裡就立刻決定好分頁，不會有看得到的中間
+     狀態。原本 DOMContentLoaded 裡的 switchTab('profile') 保留當保險
+     （順便觸發 loadTeacherMe() 填值）。
+
+  4.【班級學生名單看不到學生】live 驗證確認：/teacher/my_class 一次
+     只回傳老師目前選中的「一個」班級的名單（用 class_id 參數或
+     localStorage 記住的班級決定，沒有就 fallback 成最早建立的班級）。
+     實測建第二個班級、讓學生加入第一個班級後，用 class_id 指到第二個
+     （空）班級查詢，學生確實「不見了」——資料跟查詢邏輯本身都是對的，
+     純粹是「老師目前看的班級」跟「學生實際所在班級」不一致。
+     順便查到一個額外隱患：/teacher/my_class 每次呼叫都會掃過全資料庫
+     所有班級，把任何擁有者帳號不存在的班級無條件轉移給當前呼叫者，
+     完全沒限制在跟這位老師相關的範圍內；這段邏輯原本是為了解決「老師
+     改名字後班級對不上」，但 /auth/update-profile 改名時其實已經會
+     同步更新 Classroom.teacher_username，不會再產生這種孤兒班級，這段
+     邏輯已經沒有意義、只剩風險。
+     修法：
+     - main.py 移除 /teacher/my_class 裡這段無差別轉移孤兒班級的邏輯。
+     - /teacher/my_class 的 classes 列表每個班級補上 student_count
+       （該班級目前的學生人數）。
+     - teacher.html 的班級下拉選單顯示「班級：XXX（N 位學生）」，老師
+       一看就知道選的是不是有學生的那個班級，不用猜。
+
+  驗證：
+  - main.py 用 python -m py_compile、game.html／teacher.html 用 Node
+    vm.Script 做語法檢查，皆通過。
+  - curl 確認 game.html／teacher.html 仍回 HTTP 200。
+  - 第 4 項已經用真實測試帳號（112213070_1 老師、112213070／
+    112213070_2 學生）live 建班級/加入/查詢驗證過根因，測試資料用完
+    已清乾淨（刪除測試建立的班級、學生移出班級、所有帳號登出）。
+  - 這次改到 main.py，需要重啟伺服器才會套用第 4 項的修復；
+    game.html／teacher.html 是純前端，不需要重啟。
+
+  ⚠️ 尚未做（沒辦法代測，需要使用者實際操作確認）：
+  (1) 教師帳號分別從考題庫管理、學習手冊點「個人資料設定」，確認不再
+  閃過學生管理。
+  (2) 完整打一局，安排「買道具成功後馬上換對手回合、對手踩到監獄格」
+  這個情境，確認監獄動畫觀戰時即時同步播放，換手後不會卡住/當機。
+  (3) 完整打一局，玩完小鳥飛小遊戲後讓對手進入收購決策畫面，確認面板
+  顯示正常、沒有殘影。
+  (4) 重啟伺服器後，請老師帳號有多個班級時確認下拉選單能看到學生
+  人數，選對班級後學生正常顯示。
+========================================================================
