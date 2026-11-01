@@ -5319,3 +5319,51 @@ PyPoly 變更紀錄 (changeLog)
   重新整理頁面後實際答一題、進一次商店，確認這 3 個畫面物件的位置跟
   預覽頁裡確認過的結果一致。
 ========================================================================
+
+========================================================================
+[2026-11-01] 畫面位置調整面板改成百分比（vw/vh），解決不同螢幕比例跑位
+
+  背景：使用者在 static/preview/game_quiz.html、game_shop.html 用固定
+  px 偏移調整完、套進 game.html 之後，實際拿去不同螢幕比例的裝置玩
+  才發現問題：預覽頁螢幕跟實際遊玩的螢幕長寬比不一樣時，同一組 px
+  數字在兩邊看起來的「比例位移」完全不同（小螢幕上明顯的位移，大
+  螢幕上幾乎看不出來；反過來也一樣）——固定像素天生就不是跨螢幕一致
+  的單位。
+
+  修法：dom-position-gizmo.js 整個改成用「視窗寬高百分比」（CSS 的
+  vw/vh 單位）取代固定像素：
+  - 內部狀態從 dx/dy（px）改成 dxPct/dyPct（視窗寬/高的百分之幾），
+    resizable 的 width/height 也改成 widthPct/heightPct。
+  - 套用方式從 `translate(dxpx, dypx)` 改成
+    `translate(dxPct vw, dyPct vh)`；寬高從 `width:Npx` 改成
+    `width:NvwPct vw; height:NvhPct vh`。
+  - 拖曳把手／縮放把手移動時，把滑鼠的像素位移即時換算成視窗寬/高的
+    百分之幾，不是存一個換了名字但其實還是像素的數字。
+  - resizable target 沒給 initial 時，量目前渲染尺寸後換算成百分比
+    當起始值（而不是直接記錄像素）。
+  - 存出的 JSON 欄位改成 `{dxPct, dyPct, [widthPct, heightPct]}`，
+    另外多存一個 `viewportAtSave: {width, height}` 純粹當參考記錄
+    （套回程式碼時不需要這個欄位，百分比本身就跨螢幕一致）。
+  - `initial` 選項也改成讀 `initial.dxPct`/`dyPct`/`widthPct`/
+    `heightPct`。
+
+  兩個預覽頁的 `createDomPositionGizmoPanel()` 呼叫拿掉了上一輪套用
+  的舊版 px `initial`（`dx:87,dy:-5` 等）——那組數字跟新的百分比單位
+  不是同一套東西，不能直接沿用，改成從 0 重新開始調。舊的
+  `game_quiz_position.json`／`game_shop_position.json`（px 格式）
+  也一併刪除，避免跟新格式搞混。
+
+  驗證：
+  - `static/js/dom-position-gizmo.js` 用 Node vm.Script 做語法檢查，
+    通過。
+  - curl 確認兩個預覽頁、共用模組都回 HTTP 200。
+  - 只改到共用模組跟 gitignore 底下的預覽頁，`static/game.html` 上
+    一輪套用的 px 版修正這次先不動，main.py 也沒有變動，不需要重啟
+    伺服器。
+
+  ⚠️ 尚未做（等使用者用新的百分比面板重新調好、存出新版 JSON、確認
+  沒問題之後才能做）：
+  用新的 vw/vh 數值，取代（不是疊加）上一輪已經套進
+  static/game.html 的 px 版 `.task-options` / `#shop-instruction-box`
+  / `#shop-items-container` 調整。
+========================================================================
