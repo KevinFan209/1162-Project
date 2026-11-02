@@ -383,7 +383,10 @@ def login(user: UserLogin, background_tasks: BackgroundTasks, db: Session = Depe
     db.commit()
 
     token = auth_utils.create_access_token(data={"sub": db_user.username, "role": db_user.role})
-    return {"access_token": token, "role": db_user.role, "username": db_user.username}
+    return {
+        "access_token": token, "role": db_user.role, "username": db_user.username,
+        "teacher_confirmed": db_user.teacher_confirmed
+    }
 
 # 2. Google 登入 (整合封鎖邏輯)
 @app.post("/auth/google_v2")
@@ -417,7 +420,10 @@ def google_login_v2(data: GoogleTokenRequest, background_tasks: BackgroundTasks,
     db.refresh(user)
     
     token = auth_utils.create_access_token(data={"sub": user.username, "role": user.role})
-    return {"access_token": token, "username": user.username, "role": user.role}
+    return {
+        "access_token": token, "username": user.username, "role": user.role,
+        "teacher_confirmed": user.teacher_confirmed
+    }
 
 # 3. 心跳機制 (維持在線與 Admin 復活)
 @app.post("/auth/heartbeat")
@@ -444,12 +450,13 @@ def get_me(username: str, background_tasks: BackgroundTasks, db: Session = Depen
             class_name = classroom.name
 
     return {
-        "username": user.username, 
+        "username": user.username,
         "is_online": user.is_online,
         "role": user.role,
         "email": user.email,
         "class_id": user.class_id,
-        "class_name": class_name
+        "class_name": class_name,
+        "teacher_confirmed": user.teacher_confirmed
     }
 
 # 5. 登出
@@ -537,8 +544,18 @@ def update_user_role(target_username: str, data: dict, db: Session = Depends(dat
         raise HTTPException(status_code=400, detail="不能更改管理員權限")
 
     new_role = data.get("role")
+    old_role = user.role
+
+    # 🏆 教師上線流程：原本不是教師、這次要變成教師，代表這是一次
+    # 全新的教師身分，重置這兩個旗標讓他要重新走一次「大廳確認」跟
+    # 「請建立班級」提示，不要直接沿用（例如先降級又升級回來）之前
+    # 可能已經是 True 的狀態。
+    if new_role == "teacher" and old_role != "teacher":
+        user.teacher_confirmed = False
+        user.teacher_class_prompt_shown = False
+
     user.role = new_role
-    
+
     # 🏆 核心邏輯：如果是封鎖，強制變 0 讓他在 5 秒內被踢出
     if new_role == "banned":
         user.is_online = 0
@@ -977,7 +994,10 @@ def update_profile(
     print(f"✏️ 使用者 {current_username} 已更新個人資料 -> {user.username}")
     # username 可能已變更，必須重新簽發 token（sub 帶的是 username）
     token = auth_utils.create_access_token(data={"sub": user.username, "role": user.role})
-    return {"access_token": token, "username": user.username, "role": user.role}
+    return {
+        "access_token": token, "username": user.username, "role": user.role,
+        "teacher_confirmed": user.teacher_confirmed
+    }
 
 
 # ==========================================================
@@ -2712,7 +2732,10 @@ def teacher_get_my_class(
     ).order_by(models.Classroom.id.asc()).all()
 
     if not my_classes:
-        return {"has_class": False, "classes": []}
+        return {
+            "has_class": False, "classes": [],
+            "teacher_class_prompt_shown": teacher.teacher_class_prompt_shown
+        }
 
     # 決定目前選中的是哪一個班級（若前端有傳 class_id 且屬於該老師就用它，否則預設選第一個）
     active_class = None
@@ -3306,6 +3329,41 @@ def get_my_teacher_apply_status(
     }
 
 
+# 🏆 教師上線流程：使用者第一次從 lobby.html 右側選單點「教師頁面」
+# 時呼叫這個端點，把 teacher_confirmed 標記成 True——之後登入/直接
+# 打開 teacher.html 才不會再被導回大廳重新走一次這個流程。
+@app.post("/teacher_apply/confirm_teacher_page")
+def confirm_teacher_page(
+    authorization: str = Header(None),
+    db: Session = Depends(database.get_db)
+):
+    username = auth_utils.get_current_user(authorization)
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="找不到使用者")
+    if user.role not in ("teacher", "admin"):
+        raise HTTPException(status_code=403, detail="只有教師可以執行這個動作")
+    user.teacher_confirmed = True
+    db.commit()
+    return {"status": "success", "teacher_confirmed": True}
+
+
+# 🏆「請建立班級」提示只應該出現一次：第一次顯示的同時呼叫這個端點
+# 標記起來，之後不管有沒有建班級、重新登入幾次都不會再跳出來。
+@app.post("/teacher/mark_class_prompt_shown")
+def mark_class_prompt_shown(
+    authorization: str = Header(None),
+    db: Session = Depends(database.get_db)
+):
+    username = auth_utils.get_current_user(authorization)
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="找不到使用者")
+    user.teacher_class_prompt_shown = True
+    db.commit()
+    return {"status": "success"}
+
+
 # 2. 玩家端：提交（或重新提交）教師資格申請
 @app.post("/teacher_apply/submit")
 async def submit_teacher_application(
@@ -3442,6 +3500,13 @@ def admin_review_teacher_application(
         app_row.reviewed_at = datetime.utcnow()
         app_row.reviewed_by = admin.username
         if applicant.role != "admin":
+            # 🏆 教師上線流程：原本不是教師、這次核准後要變成教師，重置
+            # 這兩個旗標，讓他要重新走一次「大廳確認」跟「請建立班級」
+            # 提示（跟 /admin/users/{username}/role 手動改身分那條路徑
+            # 一致）。
+            if applicant.role != "teacher":
+                applicant.teacher_confirmed = False
+                applicant.teacher_class_prompt_shown = False
             applicant.role = "teacher"
         db.commit()
 

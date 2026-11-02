@@ -39,6 +39,19 @@ class User(Base):
     # 🏆 教育版新增：學生所屬的班級 ID (NULL 代表一般玩家)
     class_id = Column(Integer, nullable=True, index=True)
 
+    # ======================================================
+    # 🏆 教師上線流程：role 一變成 "teacher" 當下，其他程式碼就已經
+    # 完全認定這個帳號是教師了，沒有別的依據可以分辨「剛被賦予教師
+    # 身分、還沒自己確認過」跟「已經是用得好好的教師」。這兩個欄位
+    # 預設 True，新增欄位時既有帳號（含目前已經在用的教師帳號）會
+    # 自動回填成 True，不受影響；只有之後新賦予教師身分時才會被明確
+    # 設成 False，重新走一次確認流程。
+    # ======================================================
+    # 這個教師帳號是否已經完成過第一次「從大廳點進教師頁面」的確認。
+    teacher_confirmed = Column(Boolean, default=True)
+    # 「請建立班級」提示是否已經顯示過一次。
+    teacher_class_prompt_shown = Column(Boolean, default=True)
+
 
 class Question(Base):
     __tablename__ = "questions"

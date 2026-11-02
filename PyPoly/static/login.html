@@ -424,10 +424,14 @@
     const API_URL = location.origin;
 
     // 🏆 統一依身分分流跳轉：管理員 -> admin.html｜老師 -> teacher.html｜學生與一般玩家 -> lobby.html
-    function redirectByRole(userRole) {
+    // 🏆 教師上線流程：剛被賦予教師身分、還沒自己從大廳點過一次「教師
+    // 頁面」確認的話（teacherConfirmed !== true），先跟一般玩家一樣
+    // 導去 lobby.html，不要直接跳 teacher.html——確認過一次之後，
+    // 之後登入才會直接進教師後台。
+    function redirectByRole(userRole, teacherConfirmed) {
         if (userRole === 'admin') {
             window.location.href = 'admin.html';
-        } else if (userRole === 'teacher') {
+        } else if (userRole === 'teacher' && teacherConfirmed) {
             window.location.href = 'teacher.html';
         } else {
             window.location.href = 'lobby.html';
@@ -462,7 +466,8 @@
                         const data = await res.json();
                         if (data.is_online === 1 && data.role !== 'banned') {
                             localStorage.setItem('role', data.role);
-                            redirectByRole(data.role);
+                            localStorage.setItem('teacher_confirmed', String(data.teacher_confirmed));
+                            redirectByRole(data.role, data.teacher_confirmed);
                         }
                     }
                 } catch (err) {
@@ -509,7 +514,8 @@
                         localStorage.setItem('token', result.access_token);
                         localStorage.setItem('username', result.username);
                         localStorage.setItem('role', result.role);
-                        redirectByRole(result.role);
+                        localStorage.setItem('teacher_confirmed', String(result.teacher_confirmed));
+                        redirectByRole(result.role, result.teacher_confirmed);
                     } else {
                         showModal("🔒 登入失敗", result.detail || "帳號或密碼錯誤", false);
                     }
@@ -583,7 +589,8 @@
                 localStorage.setItem('token', result.access_token);
                 localStorage.setItem('username', result.username);
                 localStorage.setItem('role', result.role);
-                redirectByRole(result.role);
+                localStorage.setItem('teacher_confirmed', String(result.teacher_confirmed));
+                redirectByRole(result.role, result.teacher_confirmed);
             } else {
                 showModal("❌ 登入失敗", result.detail || "Google 驗證失敗", false);
             }

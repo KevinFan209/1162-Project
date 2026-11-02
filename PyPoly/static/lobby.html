@@ -380,7 +380,7 @@
     <a href="profile.html" class="menu-item"><span>👤</span> 個人主頁</a>
     <a href="handbook.html" class="menu-item"><span>📚</span> 學習手冊</a>
     <a href="javascript:void(0)" onclick="openJoinClassModal()" class="menu-item"><span>🏫</span> 加入班級</a>
-    <a href="teacher_apply.html" class="menu-item"><span>🧑‍🏫</span> 教師資格</a>
+    <a href="teacher_apply.html" class="menu-item" id="menuTeacherLink"><span>🧑‍🏫</span> <span id="menuTeacherLinkText">教師資格</span></a>
     <a href="guide.html" class="menu-item"><span>📖</span> 遊戲說明</a>
     <a href="learn.html" class="menu-item"><span>📊</span> 學習統計</a>
     <a href="settings.html" class="menu-item" style="display:none;"><span>⚙️</span> 遊戲設定</a>
@@ -507,6 +507,36 @@
         window.location.href = 'login.html';
     }
 
+    // 🏆 教師上線流程：已經是教師的人，選單這一項改名「教師頁面」，
+    // 點一次就直接確認＋進教師後台，不用再經過 teacher_apply.html
+    // 裡「🚀 進入教師管理後台」那個要再點一次的按鈕；還不是教師的人
+    // （role !== 'teacher'）維持原本「教師資格」連去申請流程不變。
+    async function goToTeacherPage() {
+        const token = localStorage.getItem('token');
+        if (localStorage.getItem('teacher_confirmed') !== 'true') {
+            try {
+                const res = await fetch(`${API_URL}/teacher_apply/confirm_teacher_page`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) localStorage.setItem('teacher_confirmed', 'true');
+            } catch (err) { console.error(err); }
+        }
+        window.location.href = 'teacher.html';
+    }
+
+    function setupTeacherMenuItem(role) {
+        const link = document.getElementById('menuTeacherLink');
+        const text = document.getElementById('menuTeacherLinkText');
+        if (!link || !text) return;
+        if (role === 'teacher') {
+            text.innerText = '教師頁面';
+            link.href = 'javascript:void(0)';
+            link.onclick = goToTeacherPage;
+        }
+        // 其他角色維持預設的 href="teacher_apply.html"，不用額外處理。
+    }
+
     window.onload = async function() {
         const token = localStorage.getItem('token');
         const username = localStorage.getItem('username');
@@ -515,6 +545,8 @@
             window.location.href = 'login.html';
             return;
         }
+
+        setupTeacherMenuItem(localStorage.getItem('role'));
 
         // 🏆 其他頁面的側邊選單「加入班級」連到這裡時帶這個參數，一進
         // lobby 就直接彈出加入班級視窗，不用使用者自己再點一次——

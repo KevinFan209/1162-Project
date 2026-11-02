@@ -924,6 +924,7 @@
 <div id="minimap-overlay" onclick="if(event.target===this) closeMiniMap()">
     <div class="minimap-container">
         <button class="close-minimap-btn" onclick="closeMiniMap()">✖</button>
+        <div id="minimap-legend" class="minimap-legend"></div>
         <div id="minimap-grid-content" style="display: contents;">
             </div>
         
@@ -2191,8 +2192,13 @@ async function triggerTask() {
             // 2. 玩家自己播放 3D 鐵籠動畫
             await playJailAnimationCore(buildSpectatorAnimCtx(), myName, currentIndex);
 
+            // 🏆 監獄暫停一回合：記下「下一次輪到這個人時要跳過」。
+            // 自己發的 sync_adventure_phase 廣播帶 skip_sid，自己收不到，
+            // 所以這裡要自己直接設定；對手那邊則是在下面 JAIL_ANIM 的
+            // 觀戰廣播分支裡設定同一個旗標。
+            window.jailedPlayer = myName;
+
             // 3. 動畫播完後，觸發換人回合 (這會自動讓大家回到上帝視角)
-            const nextP = getNextPlayerName();
             // 🏆 統一走 endMyTurn：先前這裡直接 emit next_turn_trigger，會繞過回合計數與結束判定
             endMyTurn();
             break;
@@ -6528,30 +6534,46 @@ function spawnStepBubble(parentModel, text) {
 // 🏆 修正版：精準控制換人提示順序 [解決提示消失問題]
 socket.on('next_turn_sync', (data) => {
     const myName = localStorage.getItem('username');
-    const nextPlayer = data.next_player; 
+    const nextPlayer = data.next_player;
     const isMyTurn = (nextPlayer === myName);
-    
+    const skippedPlayer = data.skippedPlayer;
+
     resetToGodViewState();
 
     gsap.to(camera.position, {
         x: 0, y: 35, z: 25,
-        duration: 2.2, 
+        duration: 2.2,
         ease: "power2.inOut",
         onUpdate: () => camera.lookAt(0, 0, 0),
         onComplete: () => {
             setTimeout(() => {
-                if (isMyTurn) {
-                    showGameNotice("⭐ 該你了！準備行動", 2500);
-                    setTimeout(() => transitionToMyTurn(), 3500);
+                const showTurnNotice = () => {
+                    if (isMyTurn) {
+                        showGameNotice("⭐ 該你了！準備行動", 2500);
+                        setTimeout(() => transitionToMyTurn(), 3500);
+                    } else {
+                        // 1. 先顯示短暫的過場文字 (2秒)
+                        showGameNotice(`⏳ 換 ${nextPlayer} 遊玩中...`, 2000);
+
+                        // 2. 🏆 重要：等過場文字消失後，再啟動「持續性」的等待提示
+                        // 移除原本在這裡的立即呼叫 startMainTurn
+                        setTimeout(() => {
+                            startMainTurn(false, nextPlayer);
+                        }, 2200);
+                    }
+                };
+
+                // 🏆 監獄暫停一回合：如果這次換人跳過了上一輪被關進監獄的人，
+                // 先讓雙方各自看到對應的監獄提示，提示完才接著跑原本的換人流程，
+                // 不改動原本那段邏輯本身。
+                if (skippedPlayer) {
+                    const jailMsg = (skippedPlayer === myName)
+                        ? "⛓️ 因為上一輪進到監獄，暫停一回合，在監獄裡好好學習程式碼"
+                        : `⛓️ 玩家 ${skippedPlayer} 正在監獄裡好好學習程式碼`;
+                    showGameNotice(jailMsg, 2500);
+                    setTimeout(showTurnNotice, 2800);
                 } else {
-                    // 1. 先顯示短暫的過場文字 (2秒)
-                    showGameNotice(`⏳ 換 ${nextPlayer} 遊玩中...`, 2000);
-                    
-                    // 2. 🏆 重要：等過場文字消失後，再啟動「持續性」的等待提示
-                    // 移除原本在這裡的立即呼叫 startMainTurn
-                    setTimeout(() => {
-                        startMainTurn(false, nextPlayer); 
-                    }, 2200); 
+                    showTurnNotice();
                 }
             }, 800);
         }
@@ -6578,7 +6600,18 @@ function endMyTurn() {
     const myName = localStorage.getItem('username');
     const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
-    const nextP = getNextPlayerName();
+    let nextP = getNextPlayerName();
+
+    // 🏆 監獄暫停一回合：照正常順序該輪到的人剛好是上一輪被關進監獄的人，
+    // 代表要跳過他——這是固定 2 人對局，跳過的人之外就是真正下一個輪到
+    // 的人（也就是現在正在結束回合、呼叫這個函式的自己）。只跳一次，
+    // 消耗掉旗標避免下一輪又被誤判。
+    let skippedPlayer = null;
+    if (window.jailedPlayer && nextP === window.jailedPlayer) {
+        skippedPlayer = window.jailedPlayer;
+        window.jailedPlayer = null;
+        nextP = myName;
+    }
 
     const gameSnapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot'));
     const maxTurns = gameSnapshot.winLaps || 10;
@@ -6607,7 +6640,7 @@ function endMyTurn() {
     }
     
     // 正常換人 (發送原本的信號)
-    socket.emit('next_turn_trigger', { room: roomCode, next_player: nextP });
+    socket.emit('next_turn_trigger', { room: roomCode, next_player: nextP, skippedPlayer });
 }
 
 function updateRoundUI(round) {
@@ -7368,10 +7401,14 @@ function updateSpectatorUI(data) {
         });
     }
 	else if (data.phase === 'JAIL_ANIM') {
-        taskUI.style.display = 'none'; 
+        taskUI.style.display = 'none';
         decisionUI.style.display = 'none';
         if (panoSphere) { panoSphere.visible = false; panoSphere.material.opacity = 0; }
-        
+
+        // 🏆 監獄暫停一回合：這段是對手（跟觀戰者）這邊收到的廣播，
+        // 同樣記一次「下一次輪到這個人時要跳過」。
+        window.jailedPlayer = data.user;
+
         // 🏆 觀戰者同步播放監獄落下動畫
         playJailAnimationCore(buildSpectatorAnimCtx(), data.user, data.payload.tileIdx)
         .then(() => {
@@ -7623,13 +7660,31 @@ function closeTileInfo() {
 }
 
 function renderMiniMapTiles() {
+    // 🏆 小地圖加上「目前位置」標記：playerCurrentIndex 本來就會同步追蹤
+    // 雙方（不只自己）目前站在哪一格，直接拿來用，不需要額外的即時更新機制。
+    const gameSnapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot'));
+    const players = (gameSnapshot && gameSnapshot.players) || [];
+    const playerPositions = players.map(pName => ({
+        name: pName,
+        idx: playerCurrentIndex[pName] || 0,
+        color: getPlayerLandColor(pName)
+    }));
+
     renderMiniMapTilesInto(
         document.getElementById('minimap-grid-content'),
         gameMap,
         window.landOwnership,
         getPlayerLandColor,
-        (idx, tile) => showTileInfo(idx, tile)
+        (idx, tile) => showTileInfo(idx, tile),
+        playerPositions
     );
+
+    const legendEl = document.getElementById('minimap-legend');
+    if (legendEl) {
+        legendEl.innerHTML = playerPositions.map(p =>
+            `<span><span class="legend-dot" style="background:${p.color}"></span>${p.name}</span>`
+        ).join('');
+    }
 }
 
 function showTileInfo(idx, tile) {

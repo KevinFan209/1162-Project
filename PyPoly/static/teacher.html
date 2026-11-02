@@ -650,6 +650,19 @@
             return;
         }
 
+        // 🏆 教師上線流程：剛被賦予教師身分、還沒自己從大廳點過一次
+        // 「教師頁面」確認的話，不管是從哪裡進來這個頁面（登入時的
+        // 轉跳、書籤、直接輸入網址），都導回大廳——只有 admin 不受
+        // 這個限制（admin 本來就不用走這個確認流程）。
+        // 刻意只在明確是字串 "false" 時才擋：這個 key 是 login.html
+        // 登入時才會寫入 localStorage，舊的 session（這次改動上線前
+        // 就已經登入、還沒重新登入過）會完全沒有這個 key，不該被誤判
+        // 成「尚未確認」而擋下來。
+        if (role === 'teacher' && localStorage.getItem('teacher_confirmed') === 'false') {
+            window.location.href = 'lobby.html';
+            return;
+        }
+
         document.getElementById('topTeacherName').innerText = `🧑‍🏫 ${username} 老師`;
 
         // 🏆 修復「個人資料設定」從 teacher_question.html／teacher_handbook.html
@@ -844,7 +857,15 @@
                 updateTopClassBadge(null);
                 studentsCache = [];
                 renderStudents();
-                if (!silent) openClassModal('create', true);
+                // 🏆 修復：這個提示原本每次沒有班級就會無條件跳出來，跟
+                // 目前在哪個分頁無關——改成只在還沒顯示過一次時才跳，
+                // 顯示的同時標記起來，之後不管有沒有建班級都不會再跳。
+                if (!silent && !data.teacher_class_prompt_shown) {
+                    openClassModal('create', true);
+                    fetch(`${API_URL}/teacher/mark_class_prompt_shown`, {
+                        method: 'POST', headers: authHeaders()
+                    }).catch(() => {});
+                }
             } else {
                 localStorage.setItem('teacher_active_class_id', String(data.class_id));
                 updateTopClassBadge(data.class_name);

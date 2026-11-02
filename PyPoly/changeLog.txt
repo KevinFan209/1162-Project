@@ -5554,3 +5554,115 @@ PyPoly 變更紀錄 (changeLog)
   (4) 重啟伺服器後，請老師帳號有多個班級時確認下拉選單能看到學生
   人數，選對班級後學生正常顯示。
 ========================================================================
+
+========================================================================
+[2026-11-02] 修復組員回報的 3 個問題：監獄暫停一回合、小地圖玩家位置、教師上線流程
+
+  背景：組員再回報 3 個問題，整理在 issue_from_group_members.txt。用 3
+  個背景 agent 查證完畢，寫計畫並經使用者確認方向後動工。
+
+  1.【監獄邏輯沒有真的讓玩家暫停一回合】查到的機制：監獄動畫
+     （case 'JAIL':，game.html）播完就直接呼叫 endMyTurn()，跟其他
+     格子沒有任何差別——getNextPlayerName() 單純回傳「玩家清單裡不是
+     自己的那一個」，完全沒有監獄/暫停的概念；全專案也沒有任何半成品
+     的旗標，小地圖提示文字裡寫的「暫停下一個回合」純粹是說明文字，
+     沒有程式在執行。回合順序完全由客戶端自己決定：endMyTurn() 算出
+     next_player 直接 emit next_turn_trigger，main.py 只是單純轉發
+     （next_turn_sync，沒有 skip_sid），伺服器完全沒有回合權威狀態。
+     這個遊戲固定只有 2 人，不用處理 3 人以上的輪替。
+     修法（不新增伺服器狀態或新的 socket 事件，沿用既有的
+     next_turn_trigger/next_turn_sync 轉發機制夾帶資訊）：
+     - 玩家踩到監獄的那一刻，兩邊客戶端各自記下
+       window.jailedPlayer（踩到的人自己在 case 'JAIL': 裡直接設定；
+       對手/觀戰者在既有的 JAIL_ANIM 廣播處理分支裡設定）。
+     - endMyTurn() 算出「照正常順序該輪到的人」之後，檢查是不是剛好
+       等於 window.jailedPlayer：是的話代表要跳過，記住被跳過的名字、
+       清空旗標（只跳一次），因為只有 2 人，真正下一個輪到的人就是
+       現在正在結束回合的自己；把被跳過的人一起放進
+       next_turn_trigger 的 skippedPlayer 欄位。
+     - next_turn_sync 的接收端：如果 payload 帶有 skippedPlayer，在
+       現有「換人換上帝視角」動畫跑完之後、原本彈「該你了/等待中」
+       提示之前，先各自彈一則監獄提示（自己被跳過 vs. 對方被跳過文字
+       不同），提示完再接著跑原本的換人流程，不改動該邏輯本身。
+     - 順手拿掉 case 'JAIL': 裡原本算好卻從沒用到的死程式碼
+       const nextP = getNextPlayerName();。
+
+  2.【小地圖沒有顯示玩家目前位置】查到的機制：
+     renderMiniMapTilesInto()（static/js/minimap.js）只依格子類型/
+     地權上色，完全沒有「玩家在哪」的概念；好消息是 playerCurrentIndex
+     本來就會即時追蹤雙方（不只自己）目前站在哪一格，openMiniMap() 每次
+     打開都會重新渲染，不需要額外的即時更新機制。
+     修法：
+     - renderMiniMapTilesInto() 新增第 6 個可選參數
+       playerPositions（[{name, idx, color}, ...]），在對應格子的
+       .minimap-tile 內疊加一個小圓點標記（新增 CSS 類別
+       .minimap-player-marker），兩人同格時左右錯開避免疊在一起。
+     - game.html 的 renderMiniMapTiles() 從 playerCurrentIndex 跟
+       gameSnapshot.players 組出 playerPositions，顏色沿用
+       getPlayerLandColor（跟地權色、人物配色一致）。
+     - 小地圖容器加一個圖例（#minimap-legend，絕對定位疊在容器內距
+       範圍內，不影響原本的 9x6 格線排版），列出每個玩家的顏色對應。
+
+  3.【教師後台沒建班級時跳出提示訊息的邏輯＋教師上線流程】查到的機制：
+     「請建立班級」提示是 fetchMyClass() 在 data.has_class 為否時
+     無條件跳出的，跟目前切到哪個分頁完全無關——fetchMyClass() 在
+     DOMContentLoaded 裡無論如何都會呼叫，即使網址帶 ?tab=profile 也
+     一樣，這就是「點個人資料設定卻跳出請建立班級」的直接原因。
+     另外，「玩家變成教師」的兩條路徑（管理員手動改身分、教師申請
+     審核通過）都是直接把 role 設成 "teacher"，沒有任何「已核准但還
+     沒自己確認」的中間狀態，login.html 看到 role==='teacher' 就直接
+     跳 teacher.html，沒有「第一次」的例外；lobby.html 的選單項目是
+     寫死的「教師資格」連去 teacher_apply.html，teacher_apply.html
+     對於已經是教師的人還要再多點一次按鈕才會到 teacher.html。
+     「只顯示一次」如果用 localStorage 做，lobby.html 的 logout() 會
+     localStorage.clear()，旗標會在登出後失效、下次登入又跳出來，
+     必須存在資料庫。
+     修法：
+     - models.py 的 User 新增 teacher_confirmed／
+       teacher_class_prompt_shown 兩個 Boolean 欄位，預設 True（讓
+       既有、已經在用的教師帳號完全不受影響），db_migrate.py 補上對應
+       遷移並已對正式資料庫執行過。
+     - main.py：兩條「變成教師」的路徑（PUT /admin/users/{username}/role、
+       POST /admin/teacher_applications/{app_id}/review 核准分支），
+       原本角色不是 teacher、這次要變成 teacher 時，把這兩個欄位重置
+       成 False；新增 POST /teacher_apply/confirm_teacher_page（第一次
+       從大廳點進教師頁面時呼叫）跟 POST /teacher/mark_class_prompt_shown
+       （「請建立班級」第一次顯示時呼叫）兩個端點；/auth/login、
+       /auth/google_v2、/auth/update-profile、/auth/me 的回應補上
+       teacher_confirmed；/teacher/my_class 的「沒有班級」分支補上
+       teacher_class_prompt_shown 讓前端判斷要不要顯示提示。
+     - login.html 的 redirectByRole()：role==='teacher' 時多判斷一次
+       teacher_confirmed，是 true 才跳 teacher.html，否則跳 lobby.html
+       （跟一般玩家相同），並把 teacher_confirmed 存進 localStorage。
+     - teacher.html：進入守門補上同樣判斷（只在明確是字串 "false" 時
+       才擋，避免誤判舊版、沒有這個 localStorage key 的既有教師
+       session），擋到的話導回 lobby.html；fetchMyClass() 的提示邏輯
+       改成只有 teacher_class_prompt_shown 還是 false 時才彈，彈出的
+       同時呼叫端點標記成已顯示過。
+     - lobby.html 的選單項目改成依角色動態決定：role==='teacher' 時
+       文字變成「教師頁面」、點擊時先呼叫確認端點再直接導去
+       teacher.html，不再經過 teacher_apply.html；其他角色維持
+       「教師資格」連去 teacher_apply.html 走申請流程不變。
+
+  驗證：
+  - main.py 用 python -m py_compile、models.py/db_migrate.py 同樣用
+    py_compile、game.html／login.html／teacher.html／lobby.html 用
+    Node vm.Script 做語法檢查，皆通過。
+  - db_migrate.py 已對正式資料庫執行過，確認兩個新欄位存在，既有帳號
+    （112213070_1）回填值為 TRUE，不受影響。
+  - 這次改到 main.py，需要重啟伺服器才會套用教師上線流程的新/異動
+    端點；static/*.html、static/js/minimap.js 是純前端，不需要重啟。
+
+  ⚠️ 尚未做（沒辦法代測，需要使用者實際操作確認）：
+  (1) 完整打一局，玩家 1 踩到監獄後，確認玩家 2 打完自己的回合後，
+  雙方都會看到對應的監獄暫停提示，接著才是正常的換人提示，真正輪到
+  的是玩家 2 再打一次，不是玩家 1。
+  (2) 對局中打開小地圖，確認能看到自己跟對手目前的位置標記，顏色跟
+  圖例對得上。
+  (3) 請管理員把一個測試帳號的身分改成教師，確認第一次登入會先進
+  大廳、選單顯示「教師頁面」、點一次就直接進教師後台不用經過
+  teacher_apply.html；確認「請建立班級」提示只出現這一次，之後不管
+  怎麼切換分頁或重新登入都不會再跳出來（即使還沒建班級）。
+  (4) 確認現有、已經在用的教師帳號完全沒有受到影響（登入照常直接進
+  teacher.html，不會被要求重新確認）。
+========================================================================
