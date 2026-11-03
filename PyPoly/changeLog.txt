@@ -5819,3 +5819,25 @@ PyPoly 變更紀錄 (changeLog)
   確認教師依然直接進各自後台，一般玩家/學生依然導去 homepage.html
   （這部分邏輯沒有被這次改動影響，但建議一併確認沒有意外）。
 ========================================================================
+
+========================================================================
+[2026-11-03] homepage.html 文字調整 + lobby.html 加返回首頁按鈕
+
+  背景：使用者希望 homepage.html 上一般玩家/學生看到的主按鈕文字從
+  「前往 Lobby」改成「前往大廳」（跟全站其他地方用語一致），並且要
+  從 lobby.html 也能一鍵連回 homepage.html。
+
+  修法：
+  - static/homepage.html：右上角已登入時的主按鈕（#primaryBtn）跟
+    JS 的 primaryDestination() 裡，一般玩家/學生分支的文字都從
+    「🚀 前往 Lobby」改成「🚀 前往大廳」（admin／教師的按鈕文字不變）。
+  - static/lobby.html：右上角（.header-right，玩家徽章左側）新增
+    一個「🏠 返回首頁」連結，連去 homepage.html；樣式新增 .btn-home
+    （跟 homepage.html 的 .btn-nav 同一套白底+黃色 hover 配色風格），
+    套用在既有的 .btn-pixel 上，跟其他像素風按鈕一致。
+
+  驗證：
+  - static/homepage.html、static/lobby.html 用 Node vm.Script 做語法
+    檢查，皆通過。
+  - 純前端樣式/文字調整，不需要重啟伺服器即可生效。
+========================================================================

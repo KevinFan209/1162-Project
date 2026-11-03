@@ -257,6 +257,18 @@
         }
         .btn-side:hover { filter: brightness(1.05); }
 
+        /* 🏆 右上角「返回首頁」：跟 homepage.html 的 .btn-nav 同一套配色風格 */
+        .btn-home {
+            background: #fffdf5;
+            color: var(--text-dark);
+            padding: 8px 16px;
+            border-radius: 4px;
+            box-shadow: 3px 3px 0 #000;
+            font-size: 0.9rem;
+            text-decoration: none;
+        }
+        .btn-home:hover { background: var(--bee-yellow); }
+
         /* 右側主舞台 */
         .main-board {
             flex: 1;
@@ -391,6 +403,7 @@
 <header>
     <div class="header-left"><h1>BeeRich</h1></div>
     <div class="header-right">
+        <a href="homepage.html" class="btn-pixel btn-home">🏠 返回首頁</a>
         <div class="player-badge">
 			<span id="topClassBadge" style="display: none; background: var(--bee-yellow); border: 2px solid var(--pixel-border); padding: 2px 8px; font-size: 0.82rem; box-shadow: 2px 2px 0 #000;"></span>
 			<span id="topPlayerName">載入中...</span>

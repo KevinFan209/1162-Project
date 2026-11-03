@@ -497,7 +497,7 @@
             <a href="login.html?from=homepage" class="btn-pixel btn-auth" id="authBtn">登入 / 註冊</a>
             <span class="user-badge" id="userBadge" style="display:none;">👤 <span id="userBadgeName"></span></span>
             <a href="javascript:void(0)" class="btn-pixel btn-logout" id="logoutBtn" style="display:none;" onclick="logout()">🚪 登出</a>
-            <a href="lobby.html" class="btn-pixel btn-auth" id="primaryBtn" style="display:none;">🚀 前往 Lobby</a>
+            <a href="lobby.html" class="btn-pixel btn-auth" id="primaryBtn" style="display:none;">🚀 前往大廳</a>
         </div>
     </header>
 
@@ -752,7 +752,7 @@
         function primaryDestination(role, teacherConfirmed) {
             if (role === 'admin') return { href: 'admin.html', label: '🛠️ 管理後台' };
             if (role === 'teacher' && teacherConfirmed) return { href: 'teacher.html', label: '🧑‍🏫 教師後台' };
-            return { href: 'lobby.html', label: '🚀 前往 Lobby' };
+            return { href: 'lobby.html', label: '🚀 前往大廳' };
         }
 
         function showLoggedInHeader(username, role, teacherConfirmed) {
