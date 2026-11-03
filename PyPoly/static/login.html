@@ -453,6 +453,20 @@
         const username = localStorage.getItem('username');
         const role = localStorage.getItem('role');
 
+        // 🏆 homepage.html 上線後，login.html 不該再是任意直接輸入網址
+        // （含 ngrok 網址＋/static/login.html）就能直接看到的畫面——全站
+        // 其他頁面（lobby.html、game.html...）偵測到未登入時，也都是
+        // bare 導去 'login.html'，沒有帶任何標記。這裡只在「本來就沒
+        // 登入」的情況擋：沒帶 ?from=homepage 標記，代表不是從
+        // homepage.html 的「登入 / 註冊」按鈕點進來的，一律先導去
+        // homepage.html。已登入的情況完全不受影響，維持下面既有的
+        // 背景驗證→redirectByRole 流程（admin／已確認教師還是直接進
+        // 各自後台，不會被導去 homepage）。
+        if (!token && urlParams.get('from') !== 'homepage') {
+            window.location.href = 'homepage.html';
+            return;
+        }
+
         // 🔥 加入非阻塞背景驗證（附帶 2 秒超時防護），避免卡死登入畫面
         if (token && username && role) {
             (async () => {

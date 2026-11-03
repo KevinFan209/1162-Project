@@ -494,7 +494,7 @@
             <a href="#features-section" class="btn-pixel btn-nav">🌟 遊戲特色</a>
             <a href="#faq-section" class="btn-pixel btn-nav">❓ 常見問題</a>
             <!-- 🏆 未登入：顯示登入/註冊按鈕；已登入：由 setupAuthHeader() 換成帳號徽章＋登出＋前往主頁按鈕 -->
-            <a href="login.html" class="btn-pixel btn-auth" id="authBtn">登入 / 註冊</a>
+            <a href="login.html?from=homepage" class="btn-pixel btn-auth" id="authBtn">登入 / 註冊</a>
             <span class="user-badge" id="userBadge" style="display:none;">👤 <span id="userBadgeName"></span></span>
             <a href="javascript:void(0)" class="btn-pixel btn-logout" id="logoutBtn" style="display:none;" onclick="logout()">🚪 登出</a>
             <a href="lobby.html" class="btn-pixel btn-auth" id="primaryBtn" style="display:none;">🚀 前往 Lobby</a>
@@ -515,7 +515,7 @@
                 <img src="assets/homepage/favicon-mascot.png" alt="Beerich 蛇蜂標誌" class="mascot-img" onclick="openLightbox(this.src)">
                 <div style="display: flex; flex-direction: column; gap: 8px;">
                     <div style="font-weight: 900; font-size: 1rem;">準備好冒險了嗎？</div>
-                    <a href="login.html" class="btn-pixel btn-start-adventure" id="startAdventureBtn">🚀 開始冒險</a>
+                    <a href="login.html?from=homepage" class="btn-pixel btn-start-adventure" id="startAdventureBtn">🚀 開始冒險</a>
                 </div>
             </div>
         </div>
@@ -780,7 +780,7 @@
             document.getElementById('primaryBtn').style.display = 'none';
 
             const startBtn = document.getElementById('startAdventureBtn');
-            startBtn.href = 'login.html';
+            startBtn.href = 'login.html?from=homepage';
             startBtn.textContent = '🚀 開始冒險';
         }
 

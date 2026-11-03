@@ -5770,3 +5770,52 @@ PyPoly 變更紀錄 (changeLog)
   (6) 之後補上 3 張缺的截圖到 static/assets/homepage/ 後，確認對應的
   特色卡片圖片能正常顯示。
 ========================================================================
+
+========================================================================
+[2026-11-03] 直接輸入 /static/login.html 網址也導去 homepage.html
+
+  背景：上一版加了 homepage.html 後，網站根目錄「/」會先導去
+  homepage.html，但使用者發現如果直接在網址列輸入完整路徑（包含 ngrok
+  網址）/static/login.html，還是會直接看到登入畫面，繞過了
+  homepage.html 這一關。
+
+  查到的機制：全站幾十個頁面（lobby.html、teacher.html、admin.html、
+  game.html、profile.html...）偵測到未登入時，都是 bare 導去
+  'login.html'（不帶任何標記），使用者直接在網址列輸入、或透過
+  ngrok 網址的任何舊書籤/分享連結，也是直接打到這個路徑——這些全部
+  都會讓人直接看到登入表單，跳過 homepage.html。
+
+  但 login.html 不能無條件整個改成導去 homepage.html：homepage.html
+  上「登入 / 註冊」跟「開始冒險」這兩個按鈕本身就是連去 login.html，
+  如果 login.html 無條件再導回 homepage.html，兩邊會互相導向形成
+  無限迴圈，使用者永遠進不去登入表單。
+
+  修法（用一個 query 參數分辨「從 homepage 點進來」跟「其他任何方式
+  抵達」）：
+  - homepage.html 的「登入 / 註冊」「開始冒險」按鈕（含 JS 動態切換
+    時設定的 href）改成連去 login.html?from=homepage。
+  - login.html 的 DOMContentLoaded 一開始新增判斷：如果目前沒有
+    token（還沒登入）且網址沒有帶 ?from=homepage 這個標記，一律導去
+    homepage.html，不渲染登入表單；已登入的情況完全不受影響，照舊
+    走原本「背景打 /auth/me 驗證 → redirectByRole」的流程（admin／
+    已確認教師還是直接進各自後台，不會被導去 homepage）。
+  - 因為全站其他頁面的 login.html 導向都是 bare（沒帶這個標記），
+    這個改動讓「任何方式、任何頁面偵測到未登入」最終都會先經過
+    homepage.html，只有真的從 homepage.html 按鈕點進來才會直接看到
+    登入表單。
+
+  驗證：
+  - static/login.html、static/homepage.html 用 Node vm.Script 做語法
+    檢查，皆通過。
+  - 純前端邏輯調整，不需要重啟伺服器即可生效。
+  - 已確認兩邊的標記字串一致（login.html?from=homepage）。
+
+  ⚠️ 尚未做（沒辦法代測，需要使用者實際操作確認）：
+  (1) 清空 localStorage 後直接在網址列輸入 .../static/login.html
+  （含 ngrok 網址），確認會被導去 homepage.html 而不是看到登入表單。
+  (2) 從 homepage.html 點「登入 / 註冊」或「開始冒險」按鈕，確認能
+  正常看到登入表單並完成登入（沒有被導回 homepage 形成迴圈）。
+  (3) 已登入狀態下直接輸入 .../static/login.html，確認 admin／已
+  確認教師依然直接進各自後台，一般玩家/學生依然導去 homepage.html
+  （這部分邏輯沒有被這次改動影響，但建議一併確認沒有意外）。
+========================================================================
