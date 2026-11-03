@@ -4708,3 +4708,25 @@ PyPoly 變更紀錄 (changeLog)
   (6) jiajiun-next 原本修的房間列表標題、刷新閃爍、#17/#23 等
   bug 確認還是修好的狀態。
 ========================================================================
+
+========================================================================
+[2026-11-03] Discord 機器人顯示的遊戲網址改成 homepage.html
+
+  背景：Fan-fix-issue-v3 分支新增了 homepage.html 作為未登入時的
+  首頁，但實際執行 Discord bot（bot.py）的是 main 分支這份 ops/
+  資料夾，所以負責貼公開網址的 ops/cogs/ops_cog.py 要在 main 這邊改，
+  跟哪個分支正在被 bot 啟動服務無關（bot 本身固定從 main 執行，啟動
+  哪個分支的 PyPoly 伺服器則是另一件事，由 /start 的分支參數決定）。
+
+  修法：ops/cogs/ops_cog.py 裡 3 處組網址的地方（/start 啟動完成後貼
+  的「點這裡開始玩」、/url 查詢網址、/status 查詢狀態裡的「公開網址」
+  欄位）全部把 /static/login.html 改成 /static/homepage.html，跟
+  Fan-fix-issue-v3 那邊的改法一致。
+
+  驗證：
+  - python -m py_compile ops/cogs/ops_cog.py 通過。
+  - 純文字字串調整，下次機器人重新啟動/執行對應指令時就會生效。
+  - 注意：如果用 /start 啟動的是還沒有 homepage.html 的分支（例如
+    main 自己這份 PyPoly），這個網址會連到還不存在的頁面；啟動帶有
+    homepage.html 的分支（例如 Fan-fix-issue-v3）時才會正常顯示。
+========================================================================

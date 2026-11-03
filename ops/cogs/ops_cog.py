@@ -52,7 +52,7 @@ class OpsCog(commands.Cog):
         verified = tunnel_manager.url_verified()
         e = _embed(
             title,
-            f"**點這裡開始玩**\n{result}/static/login.html\n\n"
+            f"**點這裡開始玩**\n{result}/static/homepage.html\n\n"
             "· 第一次進去請允許相機權限\n"
             "· 帳號是學號，密碼同帳號\n"
             "· 建議用 Chrome 或 Edge",
@@ -132,7 +132,7 @@ class OpsCog(commands.Cog):
                 embed=_embed("💤 目前沒有公開網址", "請先用 `/start` 啟動。", GREY))
             return
         await interaction.response.send_message(
-            embed=_embed("🔗 目前的遊戲網址", f"{current}/static/login.html", GREEN))
+            embed=_embed("🔗 目前的遊戲網址", f"{current}/static/homepage.html", GREEN))
 
     # ── /status ──────────────────────────────────────────
     @app_commands.command(name="status", description="查詢伺服器與隧道狀態")
@@ -157,7 +157,7 @@ class OpsCog(commands.Cog):
             players = await server_manager.online_players()
             if players is not None:
                 lines.append(f"**房間內玩家**：{players} 人")
-        lines.append(f"**公開網址**：{current + '/static/login.html' if current else '無（隧道未啟動）'}")
+        lines.append(f"**公開網址**：{current + '/static/homepage.html' if current else '無（隧道未啟動）'}")
 
         await interaction.followup.send(
             embed=_embed("📊 PyPoly 狀態", "\n".join(lines), GREEN if up else GREY))
