@@ -5866,3 +5866,26 @@ PyPoly 變更紀錄 (changeLog)
   - git status 顯示 107 個檔案都是 modified（內容覆蓋），檔名沒有
     新增/刪除，跟 /game/map_config 用 id 推導檔名的邏輯不受影響。
 ========================================================================
+
+========================================================================
+[2026-11-04] 更新 skyboxes/scenarios/README.txt，不再講舊的 5 筆情境
+
+  背景：static/assets/skyboxes/scenarios/README.txt 還停留在舊版
+  5 個情境（id=1~5，以 init_adventure_data.py 為準）的說明，跟現在
+  實際的 107 個情境（seed_scenarios.sql）不符，會誤導之後看文件的人。
+
+  修法：
+  - 改成直接說明 1.jpg~107.jpg 對應 107 個南投情境，對應關係以
+    seed_scenarios.sql 為準；並補充 main.py 的 /game/map_config 是
+    用 f"scenarios/{id}.jpg" 直接推導路徑，資料表本身沒有存檔名。
+  - 額外加一段警示：init_adventure_data.py 這個舊種子腳本還留著，
+    一旦照 README.md 的步驟跑了它，會把 scenarios 整表清空只灌回
+    舊的 5 筆，107 筆會被蓋掉。這是這次順便發現的、文件跟實際流程
+    不一致的地方，先記錄在這裡，還沒有動 init_adventure_data.py 或
+    README.md 本身。
+  - loadTextureSafe 失敗時退回 sky_reward.jpg 的說明維持不變。
+
+  驗證：
+  - 純文字說明檔，純人工檢查內容是否跟目前程式碼（main.py:1851、
+    seed_scenarios.sql）一致，不需要額外測試。
+========================================================================
