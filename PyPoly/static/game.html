@@ -444,8 +444,15 @@
 
     #adventure-decision-ui {
         position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-        z-index: 30000; background: transparent; 
+        z-index: 30000; background: transparent;
         display: none; align-items: center; justify-content: center;
+        /* 🏆 修復：這個蓋板本身沒設 pointer-events，之前鏡頭啟動失敗
+           時卡著忘記關掉，就會整頁（連 z-index 較低的靜音鈕、小地圖
+           鈕都會）吃掉所有點擊。改成跟 #shop-ui（同檔案裡已經用的
+           模式）一樣：外層關掉點擊，底下 #decision-split-layout 本來
+           就已經讓 .analysis-panel-left / .gesture-action-bar 各自
+           開回 pointer-events:auto，正常顯示時操作不受影響。 */
+        pointer-events: none;
     }
 
     #decision-split-layout {
@@ -3684,6 +3691,37 @@ async function stopAllVision() {
     console.log("🧹 視覺資源已徹底釋放");
 }
 
+// 🏆 修復：鏡頭啟動失敗（例如連續切換階段撞上 NotReadableError）時，
+// initCameraAndStartVision() 原本只是 console.error 完就結束，沒有
+// finally、沒有任何畫面復原——但呼叫端（收購決策/答題/商店等）在
+// 呼叫鏡頭之前就已經把對應的全螢幕蓋板切成 display:flex 了，蓋板
+// 沒有設 pointer-events，z-index 又高於 header/side-panel，結果
+// 整頁點擊全部被這塊透明蓋板吃掉，連靜音鈕、小地圖鈕都點不動，
+// 而且唯一會關掉蓋板的 executePurchase() 要等手勢被偵測到才會跑，
+// 鏡頭沒開成功就永遠到不了那裡，造成整場卡死。
+// 這裡統一處理：把目前實際顯示中的蓋板關掉、重設 uiState、通知玩家，
+// 再把錯誤重新拋出，讓呼叫端原本就寫好但從未被觸發過的
+// catch(){ endMyTurn(); } 真正生效，回合可以正常換人繼續。
+function handleVisionStartFailure(err) {
+    console.error("啟動失敗:", err);
+
+    ["adventure-decision-ui", "adventure-task-ui", "shop-ui"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el && el.style.display !== 'none') {
+            el.style.display = 'none';
+        }
+    });
+
+    window.uiState = "READY";
+    if (virtualScreen) virtualScreen.visible = false;
+
+    if (typeof showGameNotice === 'function') {
+        showGameNotice("⚠️ 鏡頭啟動失敗，已自動跳過手勢步驟", 3000);
+    }
+
+    throw err;
+}
+
 
 // ==========================================
 // 🏆 1. 移植自 Python 的手勢辨識核心邏輯 (完全在前端執行，零延遲！)
@@ -3751,7 +3789,13 @@ async function sendPoseFrame(imageSource) {
 }
 
 async function initCameraAndStartVision() {
-    await stopAllVision(); 
+    await stopAllVision();
+    // 🏆 修復：關掉舊鏡頭跟要求開新鏡頭中間完全沒有間隔，track.stop()
+    // 只是「請求」釋放，作業系統/瀏覽器真正放掉裝置的時間點不受這段
+    // JS 控制——快速連續切換階段（骰子→答題→收購決策）容易撞上
+    // NotReadableError（裝置仍被視為使用中）。留一點時間讓裝置真的
+    // 釋放，大幅降低撞上這個 race 的機率。
+    await new Promise(resolve => setTimeout(resolve, 300));
     video = document.getElementById('webcam');
 
     try {
@@ -3968,7 +4012,7 @@ async function initCameraAndStartVision() {
         };
 
     } catch (err) {
-        console.error("啟動失敗:", err);
+        handleVisionStartFailure(err);
     }
 }
 

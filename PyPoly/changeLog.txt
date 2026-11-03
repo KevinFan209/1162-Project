@@ -5925,3 +5925,68 @@ PyPoly 變更紀錄 (changeLog)
   - 沒有實際對資料庫執行 run_seed_scenarios.py（會覆寫現有 scenarios
     資料，風險動作，留給使用者自行決定何時執行/重新部署時執行）。
 ========================================================================
+
+========================================================================
+[2026-11-04] 修復收購決策畫面卡死全頁（鏡頭啟動失敗後整頁點不動）
+
+  背景：使用者跟組員實測都遇到，先手玩家答對題目進入「是否收購」
+  畫面後，整頁完全點不動（連靜音鈕、觀戰小地圖鈕都沒反應），鏡頭
+  也沒開起來。使用者原本猜是上一輪 localStorage 沒清乾淨，但從提供
+  的 console 紀錄最後一行「啟動失敗: NotReadableError: Could not
+  start video source」判斷不是這個原因，是鏡頭啟動失敗後沒有任何
+  畫面復原機制。
+
+  根因（兩層，用 Explore agent 查過程式碼、再直接讀原始碼覆核確認）：
+  1. initCameraAndStartVision()（game.html，骰子/答題/收購決策/商店
+     等 7 個階段轉換共用同一支函式）每次都是 await stopAllVision()
+     完全沒有延遲就馬上呼叫 getUserMedia()。track.stop() 只是「請求」
+     釋放鏡頭，作業系統真正放掉裝置的時間點不受這段 JS 控制，連續
+     快速切換階段（骰子→答題→收購決策，log 裡 3 次「🧹 視覺資源已
+     徹底釋放」就是連續跑了 3 次這個流程）容易撞上這個 race，丟出
+     NotReadableError。
+  2. 失敗後完全沒有清理：catch block 原本只有 console.error，沒有
+     finally。進收購決策畫面前已經把 #adventure-decision-ui（全螢幕、
+     z-index:30000、完全沒設 pointer-events）切成 display:flex，然後
+     裸呼叫（沒 await/catch）initCameraAndStartVision()。因為這個
+     函式把自己的錯誤整個吞掉，呼叫端原本寫好的
+     catch(){ endMyTurn(); } 永遠跑不到。這塊蓋板蓋住了 header（靜音
+     鈕，z-index:10）跟側邊欄（小地圖鈕，z-index:10），整頁點擊全被
+     吃掉。唯一會關掉蓋板的 executePurchase() 要等手勢被偵測到才會
+     跑，鏡頭沒開成功就永遠到不了那裡，整場卡死除非重新整理頁面。
+
+  修法（static/game.html，三處）：
+  - 新增 handleVisionStartFailure(err) 共用函式：把目前顯示中的全螢幕
+    蓋板（adventure-decision-ui / adventure-task-ui / shop-ui）關掉、
+    把 uiState 重設回 READY、用 showGameNotice() 提示玩家「鏡頭啟動
+    失敗，已自動跳過手勢步驟」，再重新 throw 這個錯誤——讓呼叫端
+    （submitQuizAnswer 答對分支、handleCodeSuccess）原本就寫好、但
+    從未被觸發過的 catch(){ endMyTurn(); } 真正生效，回合可以正常
+    換人繼續，不會讓兩個玩家都卡死。initCameraAndStartVision() 的
+    catch block 改成呼叫這個函式。
+  - 在 await stopAllVision() 跟 getUserMedia() 之間加 300ms 延遲，
+    讓作業系統有機會真的釋放鏡頭裝置，降低撞上這個 race 的機率（玩家
+    感覺不出這個延遲）。
+  - CSS：#adventure-decision-ui 加 pointer-events:none。同檔案裡
+    #shop-ui 本來就是這個模式（外層關閉點擊，會互動的子元素各自開
+    pointer-events:auto），#adventure-decision-ui 底下的
+    #decision-split-layout 也已經是這個寫法，只是外層容器本身忘了加
+    ——即使以後又有程式邏輯漏洞讓某個蓋板卡著忘記關，也不會再連帶擋住
+    畫面其他地方的點擊。
+
+  不在這次範圍：先後手判定手勢流程（startRecognitionProcess）另一套
+  鏡頭管理（cameraInstance/#temp-video），收尾時找不到明確的
+  track.stop()，可能是另一個鏡頭沒真正釋放乾淨的來源，但結構上獨立、
+  不是這次 log 對應到的路徑，使用者確認這次不處理，只記錄備查。也
+  沒有改其餘 5 個裸呼叫 initCameraAndStartVision() 的地方（dice 手勢、
+  答題手勢、商店等）——核心修復已經能解掉卡死，這幾處風險大於目前
+  已知的效益。
+
+  驗證：
+  - 用 Node 把 <script> 區塊抽出來做語法檢查（new Function 試編譯），
+    通過。
+  - 沒有實際模擬 getUserMedia 失敗跑一次完整流程（需要刻意讓鏡頭不可
+    用才能重現，留給使用者實機測試：刻意停用鏡頭走到收購決策畫面，
+    確認蓋板會自動消失、靜音鈕/小地圖鈕恢復可點、有提示訊息、回合
+    正常換人；鏡頭正常時也要確認延遲感覺不出來、CSS 改動沒擋到收購
+    決策畫面的按鈕/手勢列）。
+========================================================================
