@@ -5691,3 +5691,82 @@ PyPoly 變更紀錄 (changeLog)
   - 已確認專案裡其他頁面（admin.html、teacher.html 等）的 #modalTitle
     沒有套用同樣這段會跑成標楷體的寫法，不需要一併修。
 ========================================================================
+
+========================================================================
+[2026-11-03] 新增 homepage.html 作為未登入時的首頁
+
+  背景：使用者希望新增一個獨立的「行銷/介紹首頁」homepage.html：未
+  登入時先看到這頁（含系統公告、特色介紹、FAQ），右上角可以選擇登入；
+  登入成功後導回這頁，右上角改顯示帳號名稱、並新增「前往 Lobby」的
+  按鈕。使用者提供了一份設計好的 homepage.html 範例（風格跟現有頁面
+  的像素風一致），裡面的特色介紹圖是專案截圖，需要搬進 static/ 並修正
+  連結。
+
+  查到的機制：伺服器完全沒有掛 "/" 這個路由（main.py 只掛了
+  /static、/models 兩個 StaticFiles mount），所以新路由不能直接把
+  static/homepage.html 的內容當 FileResponse 回傳——homepage.html 跟
+  全站其他頁面一樣，連結都是用「同層相對路徑」寫的（href="login.html"、
+  src="assets/homepage/xxx.png"），這些相對路徑假設目前頁面本來就在
+  /static/ 底下才會解析正確；如果直接回傳檔案內容，瀏覽器會認為目前
+  網址是「/」，相對路徑就會變成對到 /login.html、
+  /assets/homepage/xxx.png（都是 404）。
+
+  範例資料夾裡 homepage.html 引用 7 張圖，但只有 4 張檔案對得上
+  （example_favicon.png／example_character_create.png／
+  example_ai_analysis.png／example_handbook.png），example_teacger_apply.png
+  是打字錯誤（html 裡寫的是 example_teacher_apply.png），但「手勢影像
+  辨識」「房產投資挑戰」「總資產結算獲勝」這 3 張完全沒有對應檔案。
+  跟使用者確認：先保留引用維持破圖，之後補檔案即可。另外跟使用者
+  確認：登入後導回 homepage 只套用在一般玩家／學生身上，admin 與
+  已確認過的教師維持現狀，登入後依然直接跳 admin.html／teacher.html，
+  不經過 homepage。
+
+  修法：
+  - 新增 static/assets/homepage/，搬入並重新命名 4 張現有截圖（檔名
+    去掉 example_ 前綴、改成 kebab-case，順手修正 1 個打字錯誤的
+    檔名），另外 3 張缺的截圖（gesture-recognition.png／
+    property-challenge.png／settle.png）先維持引用、等使用者之後補檔。
+  - 新增 static/homepage.html：圖片路徑改用上面的新檔名；加入跟
+    login.html 一致的登入狀態偵測（帶 token 打 /auth/me，2 秒逾時
+    防呆），依結果切換右上角——未登入顯示原本的「登入 / 註冊」按鈕，
+    已登入改顯示帳號名稱＋登出＋依角色導向的主按鈕（admin→管理後台、
+    已確認教師→教師後台、其他→Lobby，跟 login.html 的
+    redirectByRole()／lobby.html 的 setupTeacherMenuItem() 共用同一套
+    角色判斷慣例）；頂部橫幅的「開始冒險」按鈕同樣依登入狀態切換目的
+    地；新增 logout()（邏輯跟 lobby.html 的 logout() 相同，差異是
+    登出後留在 homepage.html，不用跳去 login.html）。
+  - main.py 新增 GET "/" 路由：**用 RedirectResponse 307 轉址到
+    /static/homepage.html**（不是直接回傳檔案內容），讓瀏覽器真正
+    載入的網址變成 /static/homepage.html，範例檔案裡原封不動的相對
+    路徑才會正確對應。
+  - static/login.html 的 redirectByRole()：admin／已確認教師兩個分支
+    維持原樣，其餘（一般玩家／學生／還沒確認過的教師）的導向從
+    lobby.html 改成 homepage.html。
+
+  驗證：
+  - main.py 用 python -m py_compile、static/homepage.html／
+    static/login.html 用 Node vm.Script 做語法檢查，皆通過。
+  - 在獨立測試用的 8001 port（不影響使用者自己在跑的 8000 port）
+    curl 驗證：GET / 回 307 轉址到 /static/homepage.html；
+    /static/homepage.html 回 200；5 張已搬移/重新命名的截圖都回
+    200；3 張還沒補檔的截圖如預期回 404；login.html／lobby.html 仍
+    正常回 200。
+  - 這次改到 main.py，需要重啟伺服器才會套用新的 "/" 轉址路由；
+    static/homepage.html、static/login.html、新增的圖片資料夾都是純
+    前端/靜態檔案，不需要重啟。
+
+  ⚠️ 尚未做（沒辦法代測，需要使用者實際操作確認）：
+  (1) 清空 localStorage 後開啟網站根目錄，確認會看到 homepage.html、
+  右上角是「登入 / 註冊」按鈕。
+  (2) 用一般玩家帳號登入，確認登入成功後回到 homepage.html，右上角
+  變成帳號名稱＋登出＋「前往 Lobby」按鈕，點下去能正常進 lobby.html。
+  (3) 用 admin／已確認教師帳號登入，確認登入後仍然直接進
+  admin.html／teacher.html，不會先經過 homepage.html。
+  (4) 在已登入狀態下手動把網址列改成網站根目錄，確認 homepage.html
+  右上角能正確顯示帳號名稱與對應角色的按鈕（admin/教師/一般玩家三種
+  都各測一次）。
+  (5) 點登出，確認會留在 homepage.html（不是 login.html），且右上角
+  變回「登入 / 註冊」。
+  (6) 之後補上 3 張缺的截圖到 static/assets/homepage/ 後，確認對應的
+  特色卡片圖片能正常顯示。
+========================================================================

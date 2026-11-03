@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>碼上致富 Beerich - 結合影像辨識用大富翁學習 Python</title>
+    <!-- 引入 Google Fonts 像素與圓體字型 -->
+    <link href="https://fonts.googleapis.com/css2?family=VT323&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --pixel-border: #1e272e;
+            --bee-gold: #ffc048;
+            --bee-yellow: #ffdd59;
+            --bee-dark: #2f3542;
+            --pixel-green: #05c46b;
+            --pixel-blue: #0fbcf9;
+            --pixel-red: #ff3f34;
+            --badge-blue: #4facfe;
+            --badge-yellow: #ffde59;
+            --bg-grid: #d2dae2;
+            --card-bg: #ffffff;
+            --text-dark: #1e272e;
+            --text-gray: #747d8c;
+        }
+
+        html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            outline: none !important;
+            width: 100%;
+            height: auto;
+            overflow-x: hidden;
+            overflow-y: auto;
+            scroll-behavior: smooth;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+            image-rendering: pixelated;
+        }
+
+        body {
+            background-color: var(--bg-grid);
+            background-image:
+                linear-gradient(rgba(0, 0, 0, 0.05) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.05) 2px, transparent 2px);
+            background-size: 28px 28px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        /* 頂部導覽列：絕對固定在最上方 */
+        header {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0;
+            width: 100%;
+            background: white;
+            padding: 0 35px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 80px;
+            z-index: 99999;
+            border: none;
+            border-bottom: 4px solid var(--pixel-border);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+        }
+
+        .header-left h1 {
+            font-family: 'VT323', monospace;
+            font-size: 3.2rem;
+            line-height: 1;
+            color: var(--bee-gold);
+            text-shadow:
+                2px 2px 0 var(--pixel-border),
+                -1.5px -1.5px 0 var(--pixel-border),
+                2px -1.5px 0 var(--pixel-border),
+                -1.5px 2px 0 var(--pixel-border),
+                4px 4px 0 var(--bee-dark);
+            letter-spacing: 2px;
+            user-select: none;
+            cursor: pointer;
+        }
+
+        .header-right { display: flex; align-items: center; gap: 10px; }
+
+        .btn-pixel {
+            border: 3px solid var(--pixel-border);
+            font-weight: 900;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            transition: all 0.06s ease;
+            text-decoration: none;
+            padding: 8px 16px;
+            font-size: 0.9rem;
+        }
+        .btn-pixel:active {
+            transform: translate(3px, 3px) !important;
+            box-shadow: 0 0 0 #000 !important;
+        }
+
+        .btn-nav {
+            background: #fffdf5;
+            color: var(--text-dark);
+            box-shadow: 3px 3px 0 #000;
+        }
+        .btn-nav:hover { background: var(--bee-yellow); }
+
+        .btn-auth {
+            background: var(--bee-yellow);
+            color: var(--text-dark);
+            box-shadow: 3px 3px 0 #000;
+        }
+        .btn-auth:hover { filter: brightness(1.05); }
+
+        /* 已登入狀態：帳號徽章 + 登出 + 前往主要頁面按鈕 */
+        .user-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #fffdf5;
+            border: 3px solid var(--pixel-border);
+            box-shadow: 3px 3px 0 #000;
+            padding: 8px 14px;
+            font-weight: 900;
+            font-size: 0.9rem;
+            color: var(--text-dark);
+        }
+
+        .btn-logout {
+            background: #fffdf5;
+            color: var(--text-dark);
+            box-shadow: 3px 3px 0 #000;
+        }
+        .btn-logout:hover { background: #ffecec; }
+
+        /* 主體容器：預留空間給 fixed header */
+        .intro-main {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 30px 20px;
+            margin-top: 80px;
+            gap: 30px;
+        }
+
+        /* 頂部橫向專題介紹區 */
+        .intro-top-banner {
+            width: 100%;
+            max-width: 1200px;
+            background: var(--card-bg);
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0px #000;
+            padding: 35px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 30px;
+        }
+
+        .intro-top-left { flex: 1.5; }
+
+        .intro-title {
+            font-size: 2.2rem;
+            font-weight: 900;
+            color: var(--text-dark);
+            margin-bottom: 10px;
+            line-height: 1.2;
+        }
+
+        .intro-subtitle {
+            font-size: 1.15rem;
+            font-weight: 900;
+            color: var(--bee-dark);
+            margin-bottom: 12px;
+        }
+
+        .intro-desc {
+            font-size: 1rem;
+            color: var(--text-gray);
+            line-height: 1.6;
+        }
+
+        .intro-top-right {
+            flex: 0 0 auto;
+            background: #fffdf5;
+            border: 3px solid var(--pixel-border);
+            box-shadow: 5px 5px 0px #000;
+            padding: 25px 30px;
+            display: flex;
+            align-items: center;
+            gap: 25px;
+        }
+
+        .mascot-img {
+            width: 110px;
+            height: 110px;
+            object-fit: contain;
+            border-radius: 50%;
+            border: 3px solid var(--pixel-border);
+            background: white;
+            box-shadow: 3px 3px 0px #000;
+            animation: bounce 2s infinite ease-in-out;
+            cursor: pointer;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        .btn-start-adventure {
+            padding: 12px 24px;
+            background: var(--pixel-green);
+            color: white;
+            font-size: 1.05rem;
+            box-shadow: 0 4px 0 #000;
+            border: 3px solid var(--pixel-border);
+            font-weight: 900;
+            cursor: pointer;
+            transition: 0.1s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap;
+        }
+        .btn-start-adventure:hover { filter: brightness(1.05); }
+        .btn-start-adventure:active {
+            transform: translate(3px, 3px);
+            box-shadow: 0 0 0 #000;
+        }
+
+        /* 區塊共用樣式 */
+        .features-section {
+            width: 100%;
+            max-width: 1200px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            /* 關鍵：讓點擊錨點跳轉時，不會被固定的導覽列擋住標題 */
+            scroll-margin-top: 100px;
+        }
+
+        .section-heading {
+            font-size: 1.8rem;
+            font-weight: 900;
+            color: var(--text-dark);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+            text-shadow: 2px 2px 0 var(--bee-yellow);
+        }
+
+        .feature-card-vertical {
+            background: var(--card-bg);
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0px #000;
+            padding: 25px;
+            display: flex;
+            gap: 30px;
+            align-items: center;
+            transition: transform 0.1s;
+        }
+        .feature-card-vertical:hover {
+            transform: translate(-3px, -3px);
+            box-shadow: 9px 9px 0px #000;
+            background: #fffdf9;
+        }
+
+        .feature-img-box-v {
+            width: 280px;
+            height: 160px;
+            background: #f1f2f6;
+            border: 3px solid var(--pixel-border);
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 5px;
+            flex-shrink: 0;
+            box-shadow: 3px 3px 0 #000;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .feature-img-box-v::after {
+            content: '🔍 點擊放大';
+            position: absolute;
+            bottom: 6px;
+            right: 6px;
+            background: rgba(0, 0, 0, 0.75);
+            color: #fff;
+            padding: 3px 8px;
+            font-size: 0.75rem;
+            font-weight: 900;
+            border-radius: 3px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        .feature-img-box-v:hover::after { opacity: 1; }
+
+        .feature-img-box-v img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            transition: transform 0.2s;
+        }
+        .feature-img-box-v:hover img { transform: scale(1.03); }
+
+        .feature-content-v h3 {
+            font-size: 1.3rem;
+            font-weight: 900;
+            color: var(--text-dark);
+            margin-bottom: 8px;
+        }
+
+        .feature-content-v p {
+            font-size: 0.95rem;
+            color: var(--text-gray);
+            line-height: 1.6;
+        }
+
+        /* 系統公告區塊與分頁設計 */
+        .news-box {
+            background: var(--card-bg);
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0px #000;
+            padding: 25px 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .news-container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .news-card {
+            background: #fff;
+            border: 3px solid var(--pixel-border);
+            box-shadow: 4px 4px 0px #000;
+            padding: 16px 20px;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            transition: transform 0.1s;
+        }
+        .news-card:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0px #000;
+            background: #fffdf9;
+        }
+
+        .news-date-badge {
+            border: 2px solid var(--pixel-border);
+            padding: 6px 12px;
+            font-weight: 900;
+            font-size: 0.85rem;
+            box-shadow: 2px 2px 0 #000;
+            white-space: nowrap;
+            display: inline-block;
+            color: var(--text-dark);
+            align-self: center;
+        }
+
+        /* 公告標籤顏色類別 */
+        .tag-yellow { background-color: var(--badge-yellow); }
+        .tag-blue   { background-color: var(--badge-blue); color: #fff; }
+        .tag-green  { background-color: var(--pixel-green); color: #fff; }
+        .tag-gray   { background-color: #f1f2f6; color: var(--text-dark); }
+
+        .news-content p {
+            font-size: 0.95rem;
+            color: var(--text-dark);
+            line-height: 1.5;
+        }
+
+        /* 公告分頁按鈕列 */
+        .news-pagination {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .btn-page {
+            background: #fffdf5;
+            color: var(--text-dark);
+            box-shadow: 3px 3px 0 #000;
+            padding: 6px 14px;
+            font-size: 0.9rem;
+        }
+        .btn-page:hover { background: var(--bee-yellow); }
+
+        /* 常見問題 (FAQ) 折疊選單 */
+        .faq-card {
+            background: var(--card-bg);
+            border: 4px solid var(--pixel-border);
+            box-shadow: 6px 6px 0px #000;
+            margin-bottom: 15px;
+        }
+
+        .faq-question {
+            padding: 18px 25px;
+            font-weight: 900;
+            font-size: 1.1rem;
+            color: var(--text-dark);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #fffdf5;
+            user-select: none;
+        }
+        .faq-question:hover { background: var(--bee-yellow); }
+
+        .faq-answer {
+            padding: 0 25px;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease, padding 0.3s ease;
+            font-size: 0.95rem;
+            color: var(--text-gray);
+            line-height: 1.6;
+            background: white;
+            border-top: 0px solid var(--pixel-border);
+        }
+
+        .faq-card.open .faq-answer {
+            padding: 18px 25px;
+            max-height: 200px;
+            border-top: 3px solid var(--pixel-border);
+        }
+
+        /* 燈箱 Modal */
+        .lightbox-modal {
+            display: none;
+            position: fixed;
+            z-index: 100000;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.85);
+            justify-content: center;
+            align-items: center;
+            padding: 30px;
+        }
+        .lightbox-modal.active { display: flex; }
+        .lightbox-content {
+            max-width: 90%; max-height: 90%;
+            border: 5px solid var(--bee-yellow);
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            background: white;
+            object-fit: contain;
+        }
+        .lightbox-close {
+            position: absolute; top: 20px; right: 30px;
+            color: #fff; font-size: 3rem; font-weight: bold;
+            cursor: pointer; text-shadow: 2px 2px 0 #000;
+        }
+        .lightbox-close:hover { color: var(--bee-yellow); }
+
+        @media (max-width: 900px) {
+            .intro-top-banner { flex-direction: column; align-items: stretch; }
+            .feature-card-vertical { flex-direction: column; align-items: stretch; }
+            .feature-img-box-v { width: 100%; height: 180px; }
+            .news-card { flex-direction: column; align-items: flex-start; gap: 10px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 頂部導覽列 (使用 fixed 絕對固定在頂端) -->
+    <header>
+        <div class="header-left">
+            <h1 onclick="window.scrollTo({top: 0, behavior: 'smooth'})">BeeRich</h1>
+        </div>
+        <div class="header-right">
+            <a href="#news-section" class="btn-pixel btn-nav">📢 系統公告</a>
+            <a href="#features-section" class="btn-pixel btn-nav">🌟 遊戲特色</a>
+            <a href="#faq-section" class="btn-pixel btn-nav">❓ 常見問題</a>
+            <!-- 🏆 未登入：顯示登入/註冊按鈕；已登入：由 setupAuthHeader() 換成帳號徽章＋登出＋前往主頁按鈕 -->
+            <a href="login.html" class="btn-pixel btn-auth" id="authBtn">登入 / 註冊</a>
+            <span class="user-badge" id="userBadge" style="display:none;">👤 <span id="userBadgeName"></span></span>
+            <a href="javascript:void(0)" class="btn-pixel btn-logout" id="logoutBtn" style="display:none;" onclick="logout()">🚪 登出</a>
+            <a href="lobby.html" class="btn-pixel btn-auth" id="primaryBtn" style="display:none;">🚀 前往 Lobby</a>
+        </div>
+    </header>
+
+    <!-- 主介紹與特色內容 -->
+    <main class="intro-main">
+
+        <!-- 頂部橫向專題介紹 -->
+        <div class="intro-top-banner">
+            <div class="intro-top-left">
+                <h2 class="intro-title">碼上致富 BeeRich</h2>
+                <p class="intro-subtitle">結合影像辨識與大富翁的 Python 學習平台</p>
+                <p class="intro-desc">擺脫枯燥乏味的語法死背！本平台將經典大富翁遊戲結合即時手勢影像辨識與 Python 知識點題庫，讓玩家在歡樂對戰中邊玩邊學。</p>
+            </div>
+            <div class="intro-top-right">
+                <img src="assets/homepage/favicon-mascot.png" alt="Beerich 蛇蜂標誌" class="mascot-img" onclick="openLightbox(this.src)">
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="font-weight: 900; font-size: 1rem;">準備好冒險了嗎？</div>
+                    <a href="login.html" class="btn-pixel btn-start-adventure" id="startAdventureBtn">🚀 開始冒險</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 系統公告與更新日誌區塊 -->
+        <div id="news-section" class="features-section">
+            <h3 class="section-heading">📢 系統公告與更新日誌</h3>
+            <div class="news-box">
+                <div class="news-container" id="newsContainer">
+
+                    <!-- 第 1 頁公告 -->
+                    <div class="news-card news-page-1">
+                        <span class="news-date-badge tag-yellow">2026.10</span>
+                        <div class="news-content">
+                            <p>🏆 <strong>【賽事快訊】雙料挺進全國與地方指標性黑客松決賽</strong><br>狂賀！本系統「碼上致富 Beerich」成功晉級「南投山城數位黑客松」複賽，以及「大專校院資訊應用服務創新競賽」決賽！</p>
+                        </div>
+                    </div>
+
+                    <div class="news-card news-page-1">
+                        <span class="news-date-badge tag-blue">2026.10</span>
+                        <div class="news-content">
+                            <p>⚙️ <strong>【系統升級】多權限後台與學習統計報表上線</strong><br>正式開放「多權限後台管理系統」！支援教師為自己的班級量身打造專屬「學習手冊」與「題庫」。</p>
+                        </div>
+                    </div>
+
+                    <div class="news-card news-page-1">
+                        <span class="news-date-badge tag-gray">2026.10</span>
+                        <div class="news-content">
+                            <p>🛠️ <strong>【效能優化】全面封測啟動與核心架構優化</strong><br>啟動系統內部封測！針對核心遊戲流程進行全面盤點，持續修復各項已知錯誤，並穩步提升系統整體的運行流暢度與互動穩定性。</p>
+                        </div>
+                    </div>
+
+                    <!-- 第 2 頁公告 -->
+                    <div class="news-card news-page-2" style="display: none;">
+                        <span class="news-date-badge tag-green">2026.09</span>
+                        <div class="news-content">
+                            <p>🚀 <strong>【重大更新】全新「進階模式」實境編譯器上線</strong><br>雙軌制學習版圖補齊！玩家現在可直接於遊戲內啟動 Python 實境編譯器，親手撰寫程式碼解題，體驗更高階的運算思維挑戰。</p>
+                        </div>
+                    </div>
+
+                    <div class="news-card news-page-2" style="display: none;">
+                        <span class="news-date-badge tag-blue">2026.07</span>
+                        <div class="news-content">
+                            <p>🌍 <strong>【功能解鎖】AI 虛擬助教與動態環境定價實裝</strong><br>導入 OpenAI 虛擬助教提供即時除錯引導；並成功串接氣象署與環境部 OpenData API，土地資產將隨真實氣溫與 AQI 產生動態定價波動！</p>
+                        </div>
+                    </div>
+
+                    <div class="news-card news-page-2" style="display: none;">
+                        <span class="news-date-badge tag-gray">2026.06</span>
+                        <div class="news-content">
+                            <p>🎮 <strong>【里程碑】Beerich 基礎版 3D 對局環境建置完成</strong><br>完成 3D 虛擬大富翁棋盤、玩家角色渲染機制，並成功將 Python 基礎邏輯題庫與遊戲推進機制進行深度整合。</p>
+                        </div>
+                    </div>
+
+                    <!-- 第 3 頁公告 -->
+                    <div class="news-card news-page-3" style="display: none;">
+                        <span class="news-date-badge tag-blue">2026.04</span>
+                        <div class="news-content">
+                            <p>🖐️ <strong>【互動實裝】具身認知微遊戲模組上線</strong><br>邊緣運算骨架追蹤技術導入！新增「體能訓練場（開合跳）」與「獎勵關卡（小鳥飛）」、讓學童透過肢體互動化解死記語法的疲勞。</p>
+                        </div>
+                    </div>
+
+                    <div class="news-card news-page-3" style="display: none;">
+                        <span class="news-date-badge tag-gray">2026.03</span>
+                        <div class="news-content">
+                            <p>🌱 <strong>【專案啟動】確立核心願景，啟動系統原型設計</strong><br>開發團隊正式成立，確立「遊戲趣味 × 程式學習 × 南投永續」三大核心願景，著手盤點偏鄉科技教育痛點與系統架構規劃。</p>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- 1, 2, 3 分頁按鈕 -->
+                <div class="news-pagination">
+                    <button class="btn-pixel btn-page" id="btnPage1" onclick="switchNewsPage(1)" style="background: var(--bee-yellow);">1</button>
+                    <button class="btn-pixel btn-page" id="btnPage2" onclick="switchNewsPage(2)">2</button>
+                    <button class="btn-pixel btn-page" id="btnPage3" onclick="switchNewsPage(3)">3</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 核心遊戲特色 -->
+        <div id="features-section" class="features-section">
+            <h3 class="section-heading">🌟 核心遊戲特色</h3>
+
+            <div class="feature-card-vertical">
+                <div class="feature-img-box-v" onclick="openLightbox(this.querySelector('img').src)">
+                    <img src="assets/homepage/character-create.png" alt="個人角色自訂義特色">
+                </div>
+                <div class="feature-content-v">
+                    <h3>個人角色自訂義</h3>
+                    <p>支援 3D 角色即時預覽與全方位互動，並內建外觀顏色編輯、快速風格套色與臉部五官自訂功能，讓每位玩家都能打造獨一無二的專屬像素分身！</p>
+                </div>
+            </div>
+
+            <div class="feature-card-vertical">
+                <div class="feature-img-box-v" onclick="openLightbox(this.querySelector('img').src)">
+                    <img src="assets/homepage/gesture-recognition.png" alt="手勢影像辨識特色">
+                </div>
+                <div class="feature-content-v">
+                    <h3>手勢影像辨識</h3>
+                    <p>透過鏡頭即時捕捉手勢動作，將肢體互動無縫轉換為遊戲指令與答題機制，擺脫傳統鍵盤與滑鼠的束縛，打造身歷其境的沈浸式學習體驗。</p>
+                </div>
+            </div>
+
+            <div class="feature-card-vertical">
+                <div class="feature-img-box-v" onclick="openLightbox(this.querySelector('img').src)">
+                    <img src="assets/homepage/property-challenge.png" alt="房產投資挑戰特色">
+                </div>
+                <div class="feature-content-v">
+                    <h3>房產投資挑戰</h3>
+                    <p>踩中地圖格子並回答 Python 題目，獲得金幣並收購對應的知識點房產，逐步建立屬於你的程式帝國，在競爭中累積實戰財商與程式邏輯。</p>
+                </div>
+            </div>
+
+            <div class="feature-card-vertical">
+                <div class="feature-img-box-v" onclick="openLightbox(this.querySelector('img').src)">
+                    <img src="assets/homepage/settle.png" alt="總資產結算獲勝特色">
+                </div>
+                <div class="feature-content-v">
+                    <h3>總資產結算獲勝</h3>
+                    <p>遊戲結束後自動結算房產總值與持有金幣，總資產最高者勝出！全面考驗玩家的投資策略、資金調度與程式實力的雙重對決。</p>
+                </div>
+            </div>
+
+            <div class="feature-card-vertical">
+                <div class="feature-img-box-v" onclick="openLightbox(this.querySelector('img').src)">
+                    <img src="assets/homepage/ai-analysis.png" alt="學習統計及 AI 導師特色">
+                </div>
+                <div class="feature-content-v">
+                    <h3>學習統計與 AI 導師</h3>
+                    <p>系統自動記錄答題表現與知識點掌握度，並在答錯時由 AI 導師即時提供專屬提示與解析，精準引導並提升學習成效。</p>
+                </div>
+            </div>
+
+            <div class="feature-card-vertical">
+                <div class="feature-img-box-v" onclick="openLightbox(this.querySelector('img').src)">
+                    <img src="assets/homepage/handbook.png" alt="豐富題庫與手冊特色">
+                </div>
+                <div class="feature-content-v">
+                    <h3>豐富題庫與手冊</h3>
+                    <p>內建多維度 Python 學習手冊與動態題庫，涵蓋基礎語法到進階概念，搭配即時回饋與詳盡解析，讓自主學習更有效率。</p>
+                </div>
+            </div>
+
+            <div class="feature-card-vertical">
+                <div class="feature-img-box-v" onclick="openLightbox(this.querySelector('img').src)">
+                    <img src="assets/homepage/teacher-apply.png" alt="教師審核與申請特色">
+                </div>
+                <div class="feature-content-v">
+                    <h3>教師審核與申請</h3>
+                    <p>提供專屬教師身分申請與班級、題庫管理審核機制，方便教育工作者將平台應用於課堂教學，輕鬆追蹤與管理學生的學習進度。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 常見問題 (FAQ) 區塊 -->
+        <div id="faq-section" class="features-section" style="margin-bottom: 50px;">
+            <h3 class="section-heading">❓ 常見問題 (FAQ)</h3>
+
+            <div class="faq-card" onclick="toggleFaq(this)">
+                <div class="faq-question">
+                    <span>Q1: 遊玩本平台需要準備什麼特殊設備嗎？</span>
+                    <span>▼</span>
+                </div>
+                <div class="faq-answer">
+                    只需要一台配備有網路攝影機 (Webcam) 的電腦或筆電，以及標準的網頁瀏覽器即可順暢遊玩與進行手勢辨識！
+                </div>
+            </div>
+
+            <div class="faq-card" onclick="toggleFaq(this)">
+                <div class="faq-question">
+                    <span>Q2: 老師該如何申請教師端帳號並審核開通？</span>
+                    <span>▼</span>
+                </div>
+                <div class="faq-answer">
+                    您可以先完成一般帳號註冊，並於系統內提交「教師身分審核申請」。經管理員審核通過後，即可解鎖教師端專區權限，進行建立班級、指派題庫與追蹤學生的學習統計數據。
+                </div>
+            </div>
+
+            <div class="faq-card" onclick="toggleFaq(this)">
+                <div class="faq-question">
+                    <span>Q3: 完全沒有 Python 基礎的新手可以玩嗎？</span>
+                    <span>▼</span>
+                </div>
+                <div class="faq-answer">
+                    當然可以！平台內建由淺入深的 Python 學習手冊與基礎題庫，搭配 AI 導師的即時引導，非常適合零基礎的初學者邊玩邊學。
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- 全螢幕燈箱放大視窗 -->
+    <div class="lightbox-modal" id="lightboxModal" onclick="closeLightbox()">
+        <span class="lightbox-close">&times;</span>
+        <img class="lightbox-content" id="lightboxImg">
+    </div>
+
+    <script src="js/ngrok-fetch.js"></script>
+    <!-- 互動腳本：燈箱、FAQ、公告分頁切換、登入狀態偵測 -->
+    <script>
+        const API_URL = location.origin;
+
+        function openLightbox(imgSrc) {
+            const modal = document.getElementById('lightboxModal');
+            const modalImg = document.getElementById('lightboxImg');
+            modal.classList.add('active');
+            modalImg.src = imgSrc;
+        }
+
+        function closeLightbox() {
+            document.getElementById('lightboxModal').classList.remove('active');
+        }
+
+        function toggleFaq(card) {
+            card.classList.toggle('open');
+            const arrow = card.querySelector('.faq-question span:last-child');
+            arrow.textContent = card.classList.contains('open') ? '▲' : '▼';
+        }
+
+        // 公告分頁切換邏輯
+        function switchNewsPage(page) {
+            for (let i = 1; i <= 3; i++) {
+                document.querySelectorAll('.news-page-' + i).forEach(card => card.style.display = 'none');
+            }
+            document.querySelectorAll('.news-page-' + page).forEach(card => card.style.display = 'flex');
+
+            document.querySelectorAll('.btn-page').forEach(btn => btn.style.background = '#fffdf5');
+            document.getElementById('btnPage' + page).style.background = 'var(--bee-yellow)';
+        }
+
+        // 🏆 依角色決定「已登入」狀態下主要按鈕該去哪裡，跟 login.html 的
+        // redirectByRole()／lobby.html 的 setupTeacherMenuItem() 共用同一套判斷。
+        function primaryDestination(role, teacherConfirmed) {
+            if (role === 'admin') return { href: 'admin.html', label: '🛠️ 管理後台' };
+            if (role === 'teacher' && teacherConfirmed) return { href: 'teacher.html', label: '🧑‍🏫 教師後台' };
+            return { href: 'lobby.html', label: '🚀 前往 Lobby' };
+        }
+
+        function showLoggedInHeader(username, role, teacherConfirmed) {
+            const dest = primaryDestination(role, teacherConfirmed);
+
+            document.getElementById('authBtn').style.display = 'none';
+            document.getElementById('userBadge').style.display = 'inline-flex';
+            document.getElementById('userBadgeName').textContent = username;
+            document.getElementById('logoutBtn').style.display = 'inline-flex';
+
+            const primaryBtn = document.getElementById('primaryBtn');
+            primaryBtn.style.display = 'inline-flex';
+            primaryBtn.href = dest.href;
+            primaryBtn.textContent = dest.label;
+
+            const startBtn = document.getElementById('startAdventureBtn');
+            startBtn.href = dest.href;
+            startBtn.textContent = dest.label;
+        }
+
+        function showLoggedOutHeader() {
+            document.getElementById('authBtn').style.display = 'inline-flex';
+            document.getElementById('userBadge').style.display = 'none';
+            document.getElementById('logoutBtn').style.display = 'none';
+            document.getElementById('primaryBtn').style.display = 'none';
+
+            const startBtn = document.getElementById('startAdventureBtn');
+            startBtn.href = 'login.html';
+            startBtn.textContent = '🚀 開始冒險';
+        }
+
+        // 🏆 登出：跟 lobby.html 的 logout() 同一套邏輯（保留角色外觀備份），
+        // 差異是登出後留在 homepage.html，不用再跳去 login.html——因為
+        // homepage 本身就是未登入時的入口。
+        async function logout() {
+            const username = localStorage.getItem('username');
+            try {
+                await fetch(`${API_URL}/auth/logout?username=${username}&confirm=true`, { method: 'POST' });
+            } catch (err) { console.error(err); }
+
+            const charBackups = {};
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('pypoly_char_')) {
+                    charBackups[key] = localStorage.getItem(key);
+                }
+            }
+
+            localStorage.clear();
+
+            Object.keys(charBackups).forEach(key => {
+                localStorage.setItem(key, charBackups[key]);
+            });
+
+            showLoggedOutHeader();
+        }
+
+        // 🏆 跟 login.html 一樣的登入狀態偵測寫法：帶 token 打 /auth/me，
+        // 2 秒逾時防呆，驗證失敗（逾時／401／已停權）就當作未登入。
+        (async () => {
+            const token = localStorage.getItem('token');
+            const username = localStorage.getItem('username');
+            const role = localStorage.getItem('role');
+
+            if (!token || !username || !role) {
+                showLoggedOutHeader();
+                return;
+            }
+
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 2000);
+
+                const res = await fetch(`${API_URL}/auth/me?username=${encodeURIComponent(username)}`, {
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.is_online === 1 && data.role !== 'banned') {
+                        localStorage.setItem('role', data.role);
+                        localStorage.setItem('teacher_confirmed', String(data.teacher_confirmed));
+                        showLoggedInHeader(data.username, data.role, data.teacher_confirmed);
+                        return;
+                    }
+                }
+            } catch (err) {
+                console.error(err);
+            }
+            showLoggedOutHeader();
+        })();
+    </script>
+
+</body>
+</html>

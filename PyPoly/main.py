@@ -43,7 +43,7 @@ import io
 from dotenv import load_dotenv
 from fastapi import Request
 from openai import AsyncOpenAI
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 import seed_handbook
 
 # 🏆 讀取 PyPoly/.env（機敏設定：SENDER_EMAIL / SENDER_PASSWORD / SECRET_KEY 等）
@@ -84,6 +84,19 @@ app.mount("/models", StaticFiles(directory="models"), name="models")
 async def favicon():
     # 請確保你的蜜蜂圖片真的是放在 static 資料夾底下，且檔名叫 logo.jpg
     return FileResponse("static/favicon.jpg")
+
+
+# 🏆 新增首頁入口：未登入時網站根目錄要先看到 homepage.html。
+# 這裡刻意用 redirect、不是直接回傳檔案內容——homepage.html 裡的連結
+# 跟全站其他頁面一樣都是用「同層相對路徑」寫的（例如 href="login.html"、
+# src="assets/homepage/xxx.png"），這些相對路徑是假設目前頁面本身就在
+# /static/ 底下才會解析正確。如果這裡直接回傳檔案內容，瀏覽器會認為
+# 目前網址是「/」，上述相對路徑就會變成對到 /login.html、
+# /assets/homepage/xxx.png（都是 404），而不是 /static/login.html。
+# 用 redirect 讓瀏覽器真正載入 /static/homepage.html，相對路徑才會對。
+@app.get("/", include_in_schema=False)
+async def homepage_redirect():
+    return RedirectResponse(url="/static/homepage.html")
 
 
 # 🏆 靜態檔一律要求瀏覽器重新驗證。
