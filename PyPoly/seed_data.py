@@ -161,7 +161,7 @@ def seed_data():
         #    自己出的題目一起洗掉。改成以 content 比對，只補上還沒有的題目，
         #    既有的一律不動——所以這支腳本可以安心重複執行。
         #    真的要從頭重建請帶 --reset。
-        #    （情境 scenarios 一樣交由 init_adventure_data.py 專責，這裡不碰。）
+        #    （情境 scenarios 一樣交由 run_seed_scenarios.py 專責，這裡不碰。）
         if "--reset" in sys.argv:
             removed = db.query(models.Question).delete()
             db.commit()

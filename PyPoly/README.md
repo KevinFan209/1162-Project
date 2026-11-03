@@ -17,10 +17,10 @@ cp .env.example .env   # 再填入實際值（Windows: copy .env.example .env）
 
 ## 初始化資料庫
 啟動時 `models.Base.metadata.create_all` 會自動建表；種子資料請**依序**執行
-（順序很重要：`init_adventure_data.py` 會覆蓋 `scenarios`，須最後跑正式情境）：
+（順序很重要：情境資料會覆蓋 `scenarios`，須最後跑正式情境）：
 ```bash
 python seed_data.py            # 題庫（含 opt4）
-python init_adventure_data.py  # 5 筆南投正式情境（含 skybox）
+python run_seed_scenarios.py   # 107 筆南投正式情境（含 skybox，見 seed_scenarios.sql）
 python create_admin.py         # 建立管理員帳號
 ```
 

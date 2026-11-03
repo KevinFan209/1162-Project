@@ -5889,3 +5889,39 @@ PyPoly 變更紀錄 (changeLog)
   - 純文字說明檔，純人工檢查內容是否跟目前程式碼（main.py:1851、
     seed_scenarios.sql）一致，不需要額外測試。
 ========================================================================
+
+========================================================================
+[2026-11-04] 移除舊的 init_adventure_data.py，改用 run_seed_scenarios.py 灌 107 筆情境
+
+  背景：107 個情境改好圖檔跟 README 之後，順便檢查發現
+  init_adventure_data.py 這個舊種子腳本還留著、還被
+  docker/entrypoint.sh 跟 README.md 的安裝步驟引用。它只會灌 5 筆
+  舊資料（id=1~5）並清空整個 scenarios 資料表——在全新的資料庫上
+  第一次啟動時（entrypoint.sh 判斷題庫是空的才會跑 seed），實際上
+  會把 scenarios 灌成舊的 5 筆，而不是 seed_scenarios.sql 的 107 筆，
+  跟現在遊戲裡實際有的 107 個情境/天空盒完全不符。
+
+  修法：
+  - 新增 PyPoly/run_seed_scenarios.py：用專案既有的 SQLAlchemy/pymysql
+    連線（database.engine）直接執行 seed_scenarios.sql 裡的 4 條語句
+    （SET NAMES / DELETE / ALTER AUTO_INCREMENT / 一個大 INSERT），
+    不額外依賴 mysql CLI（Docker 映像特意沒裝 mariadb-client，省
+    140MB）。執行前已確認該 SQL 檔用純文字 split(';') 切語句是安全的
+    （內容裡沒有語句內部出現 ASCII 分號的情況）。
+  - 刪除 init_adventure_data.py。
+  - docker/entrypoint.sh、README.md 的種子資料步驟都改成呼叫
+    python run_seed_scenarios.py。
+  - seed_data.py 裡提到「情境交由誰負責」的註解、
+    static/assets/skyboxes/scenarios/README.txt 的警示段落也一併
+    更新成現況。
+
+  驗證：
+  - run_seed_scenarios.py / seed_data.py 用 py_compile 檢查語法通過。
+  - docker/entrypoint.sh 用 `sh -n` 檢查語法通過，且確認編輯後仍是
+    LF 換行（這個檔案要求 LF，CRLF 會在容器裡噴 bad interpreter）。
+  - 全專案搜尋 init_adventure_data，確認除了 changeLog 的歷史記錄跟
+    新腳本/README 裡說明「這是取代掉的舊檔」的文字以外，沒有任何
+    地方還會真的呼叫它。
+  - 沒有實際對資料庫執行 run_seed_scenarios.py（會覆寫現有 scenarios
+    資料，風險動作，留給使用者自行決定何時執行/重新部署時執行）。
+========================================================================

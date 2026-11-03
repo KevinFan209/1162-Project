@@ -54,7 +54,7 @@ db.close()
 if [ "$NEED_SEED" = "yes" ]; then
     echo "🌱 首次啟動，正在灌入題庫與冒險格資料..."
     python seed_data.py
-    python init_adventure_data.py
+    python run_seed_scenarios.py
 else
     echo "⏭️  題庫已有資料，略過 seed"
 fi

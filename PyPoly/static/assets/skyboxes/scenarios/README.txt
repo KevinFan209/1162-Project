@@ -6,11 +6,9 @@
 main.py 的 /game/map_config 會直接用 f"scenarios/{id}.jpg" 推導圖檔
 路徑（資料表本身沒有存檔名欄位），所以圖檔只要照 id 命名就一定對得上。
 
-⚠️ init_adventure_data.py 這個舊的種子腳本還留著，只會灌 5 筆舊資料
-（id=1~5）並清空整個 scenarios 資料表。如果之後重新初始化資料庫時
-照 README.md 的步驟跑了這個腳本，107 筆會被蓋回舊的 5 筆，圖檔雖然
-還在但大部分會對不到任何情境。要確認目前是不是用 107 筆版本，可以
-直接查 scenarios 資料表的筆數，或改用 seed_scenarios.sql 重新灌。
+（舊版 init_adventure_data.py 只灌 5 筆的種子腳本已經刪掉，README.md
+跟 docker/entrypoint.sh 都改成跑 run_seed_scenarios.py，一律對應這
+107 筆、不會再被蓋回舊資料。）
 
 圖還沒放進來時：
   game.html 的 loadTextureSafe 會自動改用 sky_reward.jpg 當替代背景，
