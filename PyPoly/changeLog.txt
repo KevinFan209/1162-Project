@@ -5990,3 +5990,57 @@ PyPoly 變更紀錄 (changeLog)
     正常換人；鏡頭正常時也要確認延遲感覺不出來、CSS 改動沒擋到收購
     決策畫面的按鈕/手勢列）。
 ========================================================================
+
+========================================================================
+[2026-11-04] 修復先後手判定後，整局手勢辨識必定卡頓
+
+  背景：使用者跟組員實測都發現，每局開始的「先後手」手勢辨識
+  （startRecognitionProcess()）跑過一次之後，同一局後面所有鏡頭辨識
+  畫面（骰子走幾步、答題手勢）都會變得明顯卡頓，而且是必定發生、
+  不是機率性的。主控台雖然每次階段轉換都會印出「🧹 視覺資源已徹底
+  釋放」，但看起來沒有效果。
+
+  派了兩個唯讀 Explore agent 分別查前端 game.html 跟後端 main.py，
+  結論互相印證：
+  - 後端完全排除：三個 vision WebSocket route（/ws/vision/game_start、
+    /ws/vision/jumping、/ws/vision/bird）都只對前端送來的手部座標做
+    輕量數學運算，沒有任何 per-connection 的全域狀態殘留風險。
+  - 先後手判定沒有自己另外建一個 MediaPipe 模型（重用全域共用的
+    globalHands），也沒有自己開 WebSocket——這兩個方向都不成立。
+  - 真正的根因是 startRecognitionProcess() 裡的 renderLoop()（畫鏡頭
+    預覽＋掃描特效的 requestAnimationFrame 迴圈）從來沒有被明確取消
+    過。它唯二的自我停止條件（flow-content 被清空、recognitionGeneration
+    世代改變）在「正常（非平手）判定出先後手」這條路徑上都不會被
+    滿足，追蹤完整流程後確認：從先後手判定結束、經過鏡頭飛入動畫，
+    一路到第一個骰子畫面開始，這整段期間這個迴圈都還在背景持續畫圖，
+    跟新畫面自己的鏡頭/畫布處理確定有時間重疊，才會造成之後必定卡頓。
+  - 次因：#temp-video 的鏡頭串流也從頭到尾沒有被真正停掉，4 個收尾點
+    都只呼叫 cameraInstance.stop()（只停 MediaPipe Camera 輔助物件
+    自己的擷取迴圈），沒有一個呼叫 getTracks().forEach(t=>t.stop())
+    去真正停掉底層 MediaStream 的 track。檔案裡原本有一段看起來像是
+    要做這件事的死碼（renderOrderFrame()，從未被呼叫過，用到的
+    currentStream 變數也從未被賦值過），這次沒有動它（跟這次卡頓
+    無關，使用者確認不處理）。
+
+  修法（static/game.html）：
+  - 新增全域變數 orderRenderLoopId，記住 renderLoop() 每次
+    requestAnimationFrame 排程的 id。
+  - 新增共用函式 stopOrderRecognitionLoop()：cancelAnimationFrame
+    這個 id，並重新抓取 #temp-video 元素、明確停掉它的 MediaStream
+    track、清空 srcObject。
+  - 在先後手判定可能結束的全部 4 個地方（進 startRecognitionProcess
+    時的舊實例清理、onFistUpDetected 的收尾、dice_order_final 非平手
+    分支的收尾、開發者除錯介面的強制決定）都呼叫這個函式，確保不管
+    走哪條路徑結束，鏡頭跟動畫迴圈都會被明確釋放，不再只依賴間接
+    條件。
+
+  不在這次範圍：renderOrderFrame() 死碼／currentStream 變數清理、
+  小鳥小遊戲 fbAnimId 同樣缺少 cancelAnimationFrame 的問題——都是
+  調查過程中順便發現、跟這次卡頓無關的獨立問題，使用者確認先不處理。
+
+  驗證：
+  - 用 Node 把 <script> 區塊抽出來做語法檢查（new Function 試編譯），
+    通過。
+  - 沒有實機跑一局驗證效能改善幅度（留給使用者實測：走完先後手判定
+    進骰子畫面確認不再卡頓，且鏡頭指示燈應該會看到熄滅再重新亮起）。
+========================================================================

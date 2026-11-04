@@ -2903,7 +2903,14 @@ let rollStartTime = 0;
 const rollDuration = 1500; 
 
 // 2. 核心遊戲與 Three.js 全域變數
-let cameraInstance = null; 
+let cameraInstance = null;
+// 🏆 修復：先後手判定的 renderLoop()（畫鏡頭預覽＋掃描特效）原本只靠
+// flow-content 被清空／世代編號改變這兩個間接條件自己停下來，但一般
+// （非平手）判定出先後手後，這兩個條件在相當長一段時間內都不會成立
+// ——實測會一路跑到骰子畫面都還在背景畫圖搶主執行緒，造成之後每個
+// 手勢辨識畫面必定卡頓。改成明確存住 rAF id，在鏡頭確定不再需要的
+// 收尾點直接 cancelAnimationFrame，不再只靠那兩個間接條件。
+let orderRenderLoopId = null;
 let syncTimer = null;
 let visionSocket = null;
 let scene, camera, renderer, playerModel, virtualScreen;
@@ -5590,8 +5597,23 @@ function finishFlappyBird(coins) {
     }, 3500);
 }
 
+// 🏆 修復：先後手判定結束時統一呼叫這個函式，確保 renderLoop() 的
+// rAF 迴圈跟 #temp-video 的鏡頭串流都被明確釋放，不要只靠
+// cameraInstance.stop()（那只會停 MediaPipe Camera 輔助物件自己的
+// 擷取迴圈，不會停 renderLoop 也不會停底層 MediaStream 的 track）。
+function stopOrderRecognitionLoop() {
+    if (orderRenderLoopId) {
+        cancelAnimationFrame(orderRenderLoopId);
+        orderRenderLoopId = null;
+    }
+    const tempVideo = document.getElementById('temp-video');
+    if (tempVideo && tempVideo.srcObject) {
+        tempVideo.srcObject.getTracks().forEach(t => t.stop());
+        tempVideo.srcObject = null;
+    }
+}
 
-	
+
 async function startRecognitionProcess() {
     // 🏆 修復平手重新擲骰疊加 renderLoop：原本 renderLoop() 唯一的停止
     // 條件是 flow-content 被清空，但平手時 showDecideOrderUI() 會重新
@@ -5609,6 +5631,7 @@ async function startRecognitionProcess() {
         } catch (e) { console.log("停止舊相機時發生錯誤:", e); }
         cameraInstance = null;
     }
+    stopOrderRecognitionLoop();
 
     // 🏆 2. 抓取動態產生的元素
     const video = document.getElementById('temp-video');
@@ -5709,10 +5732,10 @@ async function startRecognitionProcess() {
             }
 
             drawScannerOverlay(ctx);
-            requestAnimationFrame(renderLoop);
+            orderRenderLoopId = requestAnimationFrame(renderLoop);
         }
-        
-        renderLoop();
+
+        orderRenderLoopId = requestAnimationFrame(renderLoop);
 
     } catch (err) {
         console.error("啟動辨識流程失敗:", err);
@@ -5917,10 +5940,11 @@ async function onFistUpDetected(point) {
             }
 
             // 停止並清理相機
-            if (cameraInstance) { 
-                await cameraInstance.stop(); 
-                cameraInstance = null; 
+            if (cameraInstance) {
+                await cameraInstance.stop();
+                cameraInstance = null;
             }
+            stopOrderRecognitionLoop();
 
             // 同步點數至後端
             syncOrderDice(point);
@@ -6006,6 +6030,7 @@ socket.on('dice_order_final', (results) => {
             
             setTimeout(() => {
                 if (cameraInstance) cameraInstance.stop();
+                stopOrderRecognitionLoop();
                 finalizeGameStart(iAmFirst);
             }, 3500);
         }
@@ -7911,6 +7936,7 @@ function executeDebugAction() {
         const flowContent = document.getElementById('flow-content');
         if (flowContent) flowContent.innerHTML = "";
         if (cameraInstance) { cameraInstance.stop(); cameraInstance = null; }
+        stopOrderRecognitionLoop();
 
         syncOrderDice(val);
         onFistUpDetected(val);
