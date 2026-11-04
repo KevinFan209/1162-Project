@@ -1174,6 +1174,27 @@ function loadTextureSafe(path, onLoad, fallbackPath = FALLBACK_SKYBOX) {
     });
 }
 
+// 🏆 修復 GPU 顯存洩漏：panoSphere（全景球體）的貼圖每次切換場景
+// （進冒險格、進商店、回大廳、觀戰同步）都會換成新載入的一張，但
+// 換之前從來沒有釋放舊的 WebGL 貼圖——JS 的垃圾回收只會清掉 JS
+// 物件本身，不會自動釋放貼圖占用的 GPU 顯存，一定要明確呼叫
+// texture.dispose()（等同這個檔案 static/js/board-build.js 裡
+// disposeObject3D() 已經在用、用來修棋盤格子 GPU 洩漏的同一套做法，
+// 只是全景貼圖這邊當初漏掉了）。沒釋放的話每次場景轉換都會永久多
+// 佔一塊顯存，對局玩越久、走過越多冒險格就堆越多——實測用效能
+// 側錄確認 readPixels（GPU 同步點）吃掉了主執行緒 78% 的時間，且
+// 隨對局進行越來越慢，正是顯存壓力累積到一定程度的典型症狀。
+// 全部 7 個原本直接寫 panoSphere.material.map = texture 的地方都
+// 改呼叫這個函式。
+function setPanoTexture(texture) {
+    if (!panoSphere) return;
+    const oldMap = panoSphere.material.map;
+    if (oldMap && oldMap !== texture) {
+        oldMap.dispose();
+    }
+    panoSphere.material.map = texture;
+}
+
 async function fetchMapConfig(mode, difficulty) {
     const activeRoom = JSON.parse(localStorage.getItem('pypoly_active_room')) || {};
     const roomCode = activeRoom.code || localStorage.getItem('room_code');
@@ -1630,7 +1651,7 @@ async function testAdventureView(countryName, scenario, skyboxUrl, questionObj) 
 
 		scene.background = null; 
         if (panoSphere) {
-            panoSphere.material.map = texture;
+            setPanoTexture(texture);
             panoSphere.material.opacity = 1;
             panoSphere.material.needsUpdate = true;
             panoSphere.visible = true;
@@ -2379,7 +2400,7 @@ async function startShopView() {
 
     // 這裡我們暫時借用 workout_park 或是 sky_reward 的背景
     loadTextureSafe(`assets/skyboxes/sky_reward.jpg`, async (texture) => {
-        panoSphere.material.map = texture;
+        setPanoTexture(texture);
         panoSphere.material.opacity = 0;
         panoSphere.material.needsUpdate = true;
 		panoSphere.visible = true;
@@ -4411,7 +4432,7 @@ function showAdventureTaskUI_Spectator(questionObj) {
 async function setupSpectatorEnvironment(skyboxUrl) {
     // 觀戰者用的是同一批 skybox 檔名，若不防護會跟著一起卡住
     loadTextureSafe(`assets/skyboxes/${skyboxUrl}`, (texture) => {
-        panoSphere.material.map = texture;
+        setPanoTexture(texture);
         panoSphere.material.opacity = 1; // 觀戰者直接顯示，不需淡入
         panoSphere.material.needsUpdate = true;
         panoSphere.position.copy(camera.position);
@@ -4730,7 +4751,7 @@ async function startJumpingJackView() {
     const imgPath = `assets/skyboxes/workout_park.jpg`;
 
     loadTextureSafe(imgPath, async (texture) => {
-        panoSphere.material.map = texture;
+        setPanoTexture(texture);
         panoSphere.material.opacity = 0;
         panoSphere.material.needsUpdate = true;
         panoSphere.position.copy(camera.position);
@@ -5102,7 +5123,7 @@ async function startBirdGameView() {
     }
 
     loadTextureSafe(imgPath, async (texture) => {
-        panoSphere.material.map = texture;
+        setPanoTexture(texture);
         panoSphere.material.opacity = 0;
         panoSphere.material.needsUpdate = true;
         panoSphere.position.copy(camera.position);
@@ -6811,7 +6832,7 @@ function resetToGodViewState() {
         panoSphere.visible = false;
         panoSphere.material.opacity = 0;
         if (panoSphere.material.map) {
-            panoSphere.material.map = null;
+            setPanoTexture(null);
             panoSphere.material.needsUpdate = true;
         }
     }
@@ -7127,7 +7148,7 @@ function loadSpectatorBackground(data) {
     if (data.payload && data.payload.skybox) {
         loadTextureSafe(`assets/skyboxes/${data.payload.skybox}`, (texture) => {
             if (panoSphere) {
-                panoSphere.material.map = texture;
+                setPanoTexture(texture);
                 panoSphere.material.opacity = 1;
                 panoSphere.material.needsUpdate = true;
                 panoSphere.visible = true;

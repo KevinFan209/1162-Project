@@ -6044,3 +6044,56 @@ PyPoly 變更紀錄 (changeLog)
   - 沒有實機跑一局驗證效能改善幅度（留給使用者實測：走完先後手判定
     進骰子畫面確認不再卡頓，且鏡頭指示燈應該會看到熄滅再重新亮起）。
 ========================================================================
+
+========================================================================
+[2026-11-04] 修復全景貼圖沒釋放造成的 GPU 顯存洩漏（對局越玩越卡）
+
+  背景：上一輪修好先後手判定的 renderLoop 洩漏後，使用者實測回報
+  「還是會卡，而且是在先手玩家第二次擲骰才開始明顯卡頓，拳頭觸發
+  骰子後，骰子隨機變化的畫面頻率明顯下降」。先確認過
+  orderRenderLoopId 是 null（上次的修復確實有生效），排除是同一個
+  問題。又派一個 Explore agent 查遍「反覆開關鏡頭會不會累積洩漏」
+  （成長的陣列、WebSocket 疊加、MediaPipe onResults 疊加回呼、
+  Three.js 物件沒釋放），全部排除——這次骰子動畫完全是純前端
+  requestAnimationFrame 驅動，跟伺服器、跟鏡頭開關次數都無關，程式碼
+  層級找不到任何問題。
+
+  請使用者直接用 Chrome DevTools 的 Performance 分頁側錄卡頓當下的
+  畫面，Bottom-Up 分頁顯示 **readPixels 占了取樣時間的 78.1%**——
+  這是 WebGL 把 GPU 畫面讀回 CPU 的操作，是一個會強迫 GPU 同步、
+  非常昂貴的呼叫，而且會隨 GPU 顯存壓力增加而越來越慢。
+
+  順著這條線索查全檔案：**完全找不到任何 `.dispose()` 呼叫**。
+  `panoSphere`（全景球體）的貼圖在 7 個地方（進冒險格
+  testAdventureView、進商店 startShopView、觀戰同步
+  setupSpectatorEnvironment/loadSpectatorBackground、開合跳
+  startJumpingJackView、小鳥遊戲 startBirdGameView、回大廳
+  resetToGodViewState）都是直接把 `panoSphere.material.map` 換成
+  新載入的貼圖，**換之前從來沒有釋放舊的那張**。JS 的垃圾回收只會
+  清掉 JS 物件本身，不會自動釋放貼圖占用的 GPU 顯存，一定要明確呼叫
+  `texture.dispose()`——這個檔案其實已經在 `static/js/board-build.js`
+  的 `disposeObject3D()` 用過同一套做法修過棋盤格子的 GPU 洩漏
+  （changeLog #68），只是全景貼圖這邊當初漏掉了，沒套用同一套修法。
+  這些 360 度環景圖解析度通常不小，每次進冒險格/商店/觀戰同步就
+  永久多佔一塊 GPU 顯存，對局玩越久、走過越多冒險格就堆越多，完全
+  符合「越玩越卡、而且是在走過幾個冒險格之後才開始明顯」這個現象。
+
+  修法（static/game.html）：
+  - 新增共用函式 setPanoTexture(texture)：換貼圖前先檢查
+    panoSphere.material.map 是不是舊的、不同於新貼圖，是的話先呼叫
+    .dispose() 釋放，再指定新貼圖（texture 傳 null 也適用，對應
+    resetToGodViewState 那個「清空目前貼圖」的用法）。
+  - 原本 7 個直接寫 panoSphere.material.map = texture（或 = null）
+    的地方全部改呼叫這個函式。
+
+  驗證：
+  - 用 Node 把 <script> 區塊抽出來做語法檢查（new Function 試編譯），
+    通過。
+  - 檢查 7 個呼叫點前後的程式碼（opacity/needsUpdate/visible 等）都
+    維持原樣沒有被動到，只換掉賦值那一行。
+  - 沒有實機跑長局驗證 GPU 顯存是否真的不再持續成長（留給使用者
+    實測：連續走過多個冒險格/商店/回大廳幾輪，用 Performance 分頁
+    再側錄一次確認 readPixels 佔比不再隨時間上升，或用
+    chrome://gpu、工作管理員看 GPU 記憶體用量是否趨於平穩而不是
+    持續往上爬）。
+========================================================================
