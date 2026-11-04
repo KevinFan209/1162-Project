@@ -6172,3 +6172,75 @@ PyPoly 變更紀錄 (changeLog)
     頁面載入模式，量的是開場那一瞬間的指標，不會反映這種玩到後面
     才出現的漸進式洩漏，無法用來驗證這次修復。
 ========================================================================
+
+========================================================================
+[2026-11-04] 修復手勢辨識每次啟動都重複搶鏡頭，產生孤兒串流的 GPU 洩漏
+
+  背景：上一輪修完 5 個 Three.js 場景資源洩漏後，使用者重測仍回報
+  「還是沒有解決，Performance 側錄同樣是那幾個項目占用很高的
+  執行緒」。先掃過整份 game.html 跟 js/*.js 裡所有 new THREE.*
+  的建立點，確認上一輪該修的都修了、沒有漏掉的 Three.js 場景物件，
+  排除方向錯誤後改查「鏡頭本身」這條線。
+
+  發現整份檔案有 4 個啟動手勢辨識鏡頭的函式（
+  initCameraAndStartVision() 骰子/答題/收購、initPoseAndStartVision()
+  開合跳、startFlappyBirdMiniGame() 小鳥飛、startRecognitionProcess()
+  先後手判定）都是同一個模式：自己先手動呼叫一次
+  navigator.mediaDevices.getUserMedia()，把拿到的串流指定給
+  video.srcObject 並 play()，然後才建立 MediaPipe 的 Camera
+  工具物件並呼叫它的 start()。用 WebFetch 直接讀了
+  cdn.jsdelivr.net 上實際發布的 camera_utils.js 原始碼確認：
+  Camera.start() 自己內部也會呼叫一次 getUserMedia()，取得「另一個
+  全新的」MediaStream，再把它指定給同一個 video.srcObject——也就是
+  把上面手動拿到的那個串流直接蓋掉。被蓋掉的那個串流物件此時已經
+  沒有任何 JS 變數再參照它，但瀏覽器不會因為沒有參照就自動停止
+  實體攝影機擷取，一定要明確呼叫 track.stop() 才會真正關閉，而
+  這份程式碼裡從來沒有人記得去停它。
+
+  後果：這 4 個函式幾乎對應遊戲裡所有需要鏡頭的環節（每次骰子、
+  每次答題手勢、每次收購決策、開合跳、小鳥飛、先後手判定），等於
+  每觸發一次手勢辨識就會在背景多開一條永遠不會被關掉的攝影機
+  擷取串流，隨回合數線性累積——這比上一輪修的 Three.js 貼圖/
+  Sprite/Group 洩漏頻率更高、也更吃資源（每條孤兒串流背後是一整套
+  持續運作的攝影機硬體擷取＋色彩空間轉換管線，不只是一塊靜態
+  貼圖）。完全符合使用者回報的「必定漸進式變慢」「readPixels 顯示
+  是從 MediaPipe 自己的 WASM 模組內部被呼叫」這兩個症狀：不是
+  MediaPipe 自己壞掉，是背景一堆孤兒攝影機串流持續跟它搶 GPU/
+  驅動層的處理資源，導致它自己原本正常的 readPixels 也跟著變慢。
+
+  修法（static/game.html）：4 個函式都拿掉自己手動呼叫
+  getUserMedia()／video.srcObject = stream／video.play() 這一段，
+  改成完全交給 Camera.start() 自己取得串流；原本沒有 await 的
+  activeCamera.start() / cameraInstance.start() 全部改成
+  await，讓 Camera 內部 getUserMedia 失敗時能被原本就包著的
+  try/catch 接住（initCameraAndStartVision 跟
+  startFlappyBirdMiniGame 本來就有 catch 會呼叫
+  handleVisionStartFailure／印錯誤；initPoseAndStartVision 跟
+  startRecognitionProcess 維持跟修改前一樣沒有特別處理失敗，
+  行為不變，不是這次要補的範圍）。副作用：原本三處手動呼叫時
+  帶的 frameRate 提示（ideal 60 / max 15）沒辦法透過 Camera 的
+  options 傳進去（Camera 只吃 width/height/facingMode），拿掉了，
+  但這幾個場景本來就不是靠高幀率撐畫面，影響可忽略。
+
+  不在這次範圍：startFlappyBirdMiniGame() 呼叫 stopAllVision() 後
+  沒有像 initCameraAndStartVision() 一樣補上 300ms 延遲就直接讓
+  Camera.start() 要新串流，理論上跟最早修的「NotReadableError 卡死
+  收購畫面」是同一種 race，但這是修改前就存在的既有風險、跟這次
+  洩漏無關，先不動，使用者之後若在小鳥飛环節撞到鏡頭啟動失敗再
+  回頭補。
+
+  驗證：
+  - 用 Node 把 <script> 區塊抽出來做語法檢查（new Function 試編譯），
+    通過。
+  - 用 WebFetch 直接讀 cdn.jsdelivr.net 上的 camera_utils.js 原始碼，
+    確認 Camera.start() 真的會自己呼叫 getUserMedia、stop() 只會
+    停掉它自己取得的那個串流，不是憑空猜測的行為。
+  - 檢查 4 個呼叫點改完之後，中間沒有任何程式碼依賴「手動拿到的
+    那個串流」要同步存在（例如沒有在拿掉的那幾行之後、Camera
+    建立之前，有程式碼讀 video.videoWidth 之類的），確認拿掉是
+    安全的。
+  - 沒有實機跑長局驗證：留給使用者實測，這次應該是目前找到的洩漏
+    點裡影響最大的一個，預期能直接感受到差異；若再側錄 Performance
+    也請同時打開工作管理員看鏡頭/GPU 資源，確認不再隨回合數持續
+    往上堆。
+========================================================================

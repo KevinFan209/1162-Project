@@ -3844,12 +3844,20 @@ async function initCameraAndStartVision() {
     video = document.getElementById('webcam');
 
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
-        video.srcObject = stream;
-        await video.play();
-        
+        // 🏆 修復攝影機串流洩漏：原本這裡手動呼叫一次 getUserMedia() 取得
+        // 串流、指定給 video.srcObject、播放，但下面建立的 MediaPipe
+        // Camera 工具自己的 start() 內部也會呼叫一次 getUserMedia()、
+        // 取得「另一個全新的」串流再蓋掉 video.srcObject——上面這個
+        // 手動拿到的串流變數離開作用域後沒有任何地方再呼叫它的
+        // track.stop()，但瀏覽器不會因為 JS 物件沒有參照就自動停止
+        // 實體鏡頭擷取，等於每次呼叫這個函式（也就是每一次骰子/答題/
+        // 收購的手勢辨識）就會在背景多開一條永遠不會被關掉的鏡頭串流，
+        // 隨回合數線性累積，跟 Three.js 貼圖/材質那幾個洩漏點是同一等級
+        // 的「越玩越卡」成因，而且觸發頻率更高。改成只讓 Camera.start()
+        // 自己取得串流（下面改成 await 它，讓失敗能被這個 try 的既有
+        // catch 接住），不要自己另外搶一次鏡頭權限。
         virtualScreen.visible = true;
-        
+
         const protectedStates = ["PURCHASE_DECISION", "SHOP_BROWSING", "SHOP_CONFIRMING"];
         if (!protectedStates.includes(window.uiState)) {
             const isAdventure = document.getElementById('adventure-task-ui').style.display === 'block';
@@ -3896,7 +3904,7 @@ async function initCameraAndStartVision() {
             width: 640,
             height: 480
         });
-        activeCamera.start();
+        await activeCamera.start();
 
         visionSocket.onmessage = (e) => {
             const data = JSON.parse(e.data);
@@ -4909,9 +4917,10 @@ async function initPoseAndStartVision() {
     // 2. 隱藏棋盤格
     setBoardVisibility(false);
 
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
-    video.srcObject = stream;
-    await video.play();
+    // 🏆 修復攝影機串流洩漏：不要自己手動呼叫 getUserMedia()，下面的
+    // Camera.start() 自己就會取得串流並指定給 video.srcObject，手動
+    // 搶一次鏡頭權限的結果只是製造一條沒人會呼叫 track.stop() 的
+    // 孤兒串流（詳見 initCameraAndStartVision() 同一套修法的註解）。
 
     // 3. 虛擬螢幕定位與縮放
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
@@ -5108,7 +5117,7 @@ async function initPoseAndStartVision() {
 		width: 640,
 		height: 480
 	});
-	activeCamera.start();
+	await activeCamera.start();
 }
 
 // 🏆 createJailCage()／playJailAnimationCore() 已抽至 static/js/spectator-animations.js
@@ -5396,12 +5405,11 @@ async function startFlappyBirdMiniGame() {
     gameLoop();
 
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { width: 640, height: 480, frameRate: { ideal: 60 } } 
-        });
-        video.srcObject = stream;
-        await video.play();
-
+        // 🏆 修復攝影機串流洩漏：不要自己手動呼叫 getUserMedia()，下面的
+        // Camera.start() 自己就會取得串流並指定給 video.srcObject（詳見
+        // initCameraAndStartVision() 同一套修法的註解）。副作用是失去
+        // frameRate:ideal 60 這個提示，Camera 的 options 不支援這個
+        // constraint，但預設的攝影機張數已足夠這個小遊戲使用。
         globalPose.onResults((results) => {
             if (window.uiState !== 'FLAPPY_BIRD') return;
 
@@ -5476,7 +5484,7 @@ async function startFlappyBirdMiniGame() {
             width: 640,
             height: 480
         });
-        activeCamera.start();
+        await activeCamera.start();
 
     } catch (err) {
         console.error("[FLAPPY DEBUG] ❌ 相機啟動失敗", err);
@@ -5689,15 +5697,12 @@ async function startRecognitionProcess() {
     });
 
     try {
-        // 🏆 4. 取得相機串流
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { width: 400, height: 300, frameRate: { max: 15 } } 
-        });
-        video.srcObject = stream;
-
-        // 確保影片播放且樣式不影響渲染
+        // 🏆 4. 確保影片播放且樣式不影響渲染
+        // 🏆 修復攝影機串流洩漏：不要自己手動呼叫 getUserMedia()，下面的
+        // Camera.start() 自己就會取得串流並指定給 video.srcObject（詳見
+        // initCameraAndStartVision() 同一套修法的註解）。副作用是失去
+        // frameRate:max 15 這個提示，但先後手判定本身對幀率沒有硬性要求。
         video.style.cssText = "position: absolute; opacity: 0; pointer-events: none;";
-        await video.play();
 
         // 🏆 5. 啟動相機工具
         cameraInstance = new Camera(video, {
@@ -5708,7 +5713,7 @@ async function startRecognitionProcess() {
             },
             width: 400, height: 300
         });
-        cameraInstance.start();
+        await cameraInstance.start();
 
         let localDiceFrame = 0;
         let isRollingLocal = false;
