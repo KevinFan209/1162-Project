@@ -291,13 +291,20 @@ async def start_cleanup_task():
 
     async def cleanup_loop():
         while True:
-            # 建立一個新的資料庫連線來清理
-            db = database.SessionLocal()
-            try:
-                perform_auto_cleanup(db)
-            finally:
-                db.close()
+            # 🏆 修復事件迴圈阻塞：這支伺服器只開一個 Uvicorn worker，
+            # 全部請求/WebSocket/Socket.IO 事件共用同一個 asyncio 事件
+            # 迴圈。SQLAlchemy 是同步 DB driver，先前直接在這個
+            # async def 迴圈裡呼叫 perform_auto_cleanup(db)，DB 查詢
+            # 期間會整個卡住唯一的事件迴圈，這段時間內其他所有請求都
+            # 會停擺——這正是 /auth/heartbeat 每隔約 10 秒會間歇性
+            # 503 的原因。改用 asyncio.to_thread() 丟到背景執行緒做，
+            # 事件迴圈就不會被這個每 10 秒跑一次、不管有沒有東西要清
+            # 都會查一次 DB 的迴圈卡住。
+            await asyncio.to_thread(perform_auto_cleanup_bg)
             # 🏆 一併回收閒置房間，避免大廳堆滿沒人但顯示滿員的殭屍房
+            # （這個函式本身是純記憶體的 dict 操作，只有真的遇到閒置
+            # 房間才會觸發 sync_room_log() 的 DB 寫入，屬於罕見分支，
+            # 不是造成「固定每 10 秒卡一次」的主因，先不動它。）
             cleanup_idle_rooms()
             # 每 10 秒自動掃描一次
             await asyncio.sleep(10)

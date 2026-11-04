@@ -6244,3 +6244,48 @@ PyPoly 變更紀錄 (changeLog)
     也請同時打開工作管理員看鏡頭/GPU 資源，確認不再隨回合數持續
     往上堆。
 ========================================================================
+
+========================================================================
+[2026-11-04] 修復 cleanup_loop 同步 DB 呼叫卡住唯一事件迴圈（週期性 heartbeat 503）
+
+  背景：追查前端鏡頭/GPU 洩漏的過程中，順便確認過主控台反覆出現
+  的 /auth/heartbeat...503 錯誤的根因：main.py 只開一個 Uvicorn
+  worker（沒有 --workers 參數），全部 HTTP 請求／WebSocket／
+  Socket.IO 事件共用同一個 asyncio 事件迴圈。start_cleanup_task()
+  裡的 cleanup_loop() 每 10 秒跑一次，直接在這個 async def 迴圈
+  裡呼叫同步的 perform_auto_cleanup(db)（SQLAlchemy 預設是同步
+  DB driver）——這段 DB 查詢執行期間會整個卡住唯一的事件迴圈，
+  其他所有請求（包含 /auth/heartbeat）在這段時間都會被排隊到
+  逾時，正是「約每 10 秒會有一批 503」的直接原因。這個問題跟前端
+  鏡頭/GPU 洩漏是兩個獨立的根因，當時先記下來、問過使用者要不要
+  一起處理，使用者先專心驗證前端修復，這次才回頭單獨處理。
+
+  修法（main.py）：cleanup_loop() 裡原本手動開 DB session 再呼叫
+  perform_auto_cleanup(db) 的那段，改成呼叫既有的
+  perform_auto_cleanup_bg()（本來就是給 BackgroundTasks 用、自己
+  開關 session 的版本），並用 asyncio.to_thread() 丟到背景執行緒
+  跑，讓這段同步 DB I/O 不要佔用事件迴圈。
+
+  不在這次範圍：同一個迴圈裡的 cleanup_idle_rooms() 沒有動——它
+  本身是純記憶體的 dict 操作（遍歷 active_rooms、踢掉逾時的），
+  只有真的遇到閒置房間時才會呼叫 sync_room_log() 做一次同步 DB
+  寫入，是罕見分支，不是「固定每 10 秒卡一次」這個症狀的主因。
+  而且 active_rooms 這個全域 dict 同時也被多個 async 的 Socket.IO
+  事件處理常式直接讀寫，如果把 cleanup_idle_rooms() 整個丟進
+  asyncio.to_thread() 的背景執行緒，會讓它在跟事件迴圈不同的
+  執行緒上遍歷／修改這個 dict，雖然 GIL 保證單一操作不會壞記憶體，
+  但「先算出哪些房間逾時、再逐一刪除」這整段邏輯不是原子操作，
+  可能跟事件迴圈那邊的房間建立/更新動作重疊出邏輯上的競態——
+  這個風險沒有對應的明確好處（它本來就不常跑、不常卡），所以
+  刻意不碰，只修保證每次都會執行、也保證會卡住事件迴圈的
+  perform_auto_cleanup 那段。
+
+  驗證：
+  - python -m py_compile main.py 通過，沒有語法錯誤。
+  - 檢查 perform_auto_cleanup_bg() 既有實作（自己開關 db session），
+    確認跟 cleanup_loop() 原本手動開關 session 再呼叫
+    perform_auto_cleanup(db) 的行為完全等價，只是換了呼叫方式。
+  - 沒有實機長時間監測驗證 503 真的消失（留給使用者實測：連續
+    開著對局一段時間，觀察主控台 /auth/heartbeat 是否還會固定
+    每 10 秒左右跳出一批 503）。
+========================================================================
