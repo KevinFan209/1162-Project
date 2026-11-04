@@ -294,7 +294,15 @@ async function playJailAnimationCore(ctx, playerName, tileIdx) {
           .to({}, { duration: 4.5 });
     });
 
-    if (head) head.remove(tearsGroup);
+    // 🏆 修復 GPU 顯存洩漏：cage/tearsGroup 都是純 Mesh 子物件組成的
+    // Group，之前只 remove() 沒 dispose()，每次有人入獄就永久多佔
+    // 一份幾何體+材質。disposeObject3D() 是 board-build.js 既有的
+    // 全域共用函式（只處理 isMesh 子物件，這裡剛好完全符合）。
+    if (head) {
+        disposeObject3D(tearsGroup);
+        head.remove(tearsGroup);
+    }
+    disposeObject3D(cage);
     scene.remove(cage);
     model.position.copy(origPos);
     model.rotation.copy(origRot);
@@ -387,6 +395,9 @@ async function playStealAnimationCore(ctx, attackerName, victimName) {
         tl.to({}, { duration: 1.5 });
     });
 
+    // 🏆 修復 GPU 顯存洩漏：shovel 是純 Mesh 子物件組成的 Group，
+    // 之前只 remove() 沒 dispose()，每次偷竊動畫就永久多佔一份。
+    disposeObject3D(shovel);
     attackerModel.remove(shovel);
 
     attackerModel.position.copy(origAttackerPos);

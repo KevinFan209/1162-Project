@@ -1195,6 +1195,21 @@ function setPanoTexture(texture) {
     panoSphere.material.map = texture;
 }
 
+// 🏆 同一套 GPU 洩漏修法用在 updateMeshFaceTexture()/updateModelColors()：
+// 這兩個函式每次收到對手外觀廣播（連線時、對手改外觀時）都會重新
+// new 一份 mesh.material（單一材質或頭部的 6 面陣列），舊的材質跟
+// 材質上的 texture（人臉貼圖）原本只是被 JS 變數覆蓋、從未 dispose()
+// 過。雖然這兩個函式一局大概只會被呼叫個兩三次（不像全景貼圖是每次
+// 場景轉換都洩漏），不是這次卡頓的主因，但同一個洞不該放著不補。
+function disposeMeshMaterial(material) {
+    if (!material) return;
+    const mats = Array.isArray(material) ? material : [material];
+    mats.forEach(m => {
+        if (m.map) m.map.dispose();
+        m.dispose();
+    });
+}
+
 async function fetchMapConfig(mode, difficulty) {
     const activeRoom = JSON.parse(localStorage.getItem('pypoly_active_room')) || {};
     const roomCode = activeRoom.code || localStorage.getItem('room_code');
@@ -3310,6 +3325,7 @@ function updateMeshFaceTexture(mesh, faceDataUrl, skinColor) {
     // 改成明確把材質重設回單一純色，跟 createCustomBoxCharacter() 沒有
     // faceDataUrl 時的預設狀態一致。
     const resetToPlainSkin = () => {
+        disposeMeshMaterial(mesh.material);
         mesh.material = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.6 });
     };
     if (!faceDataUrl) {
@@ -3339,6 +3355,7 @@ function updateMeshFaceTexture(mesh, faceDataUrl, skinColor) {
             const faceMat = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.5, transparent: true });
 
             // Three.js 立方體面索引：0:+X, 1:-X, 2:+Y, 3:-Y, 4:+Z, 5:-Z。 正前方是 +Z (Index 4)
+            disposeMeshMaterial(mesh.material);
             mesh.material = [skinMat, skinMat, skinMat, skinMat, faceMat, skinMat];
             mesh.material.forEach(m => m.needsUpdate = true);
             console.log(`🎯 3D 角色面部貼圖渲染更新成功！`);
@@ -6330,7 +6347,19 @@ async function playStartAnimation(playerName) {
         }
     });
 
-    gsap.to(noticeSprite.scale, { x: 0, y: 0, duration: 0.3, onComplete: () => scene.remove(noticeSprite) });
+    gsap.to(noticeSprite.scale, {
+        x: 0, y: 0, duration: 0.3,
+        onComplete: () => {
+            // 🏆 修復 GPU 顯存洩漏：每次經過起點都會建立一張新的
+            // 1024x512 CanvasTexture，原本只有 scene.remove()，從未
+            // dispose() 過，比 spawnStepBubble 的氣泡單張更大，同一套
+            // 修法：Sprite 專屬資源要手動 dispose texture 跟 material，
+            // 不能用只處理 Mesh 的 disposeObject3D()。
+            scene.remove(noticeSprite);
+            noticeSprite.material.map.dispose();
+            noticeSprite.material.dispose();
+        }
+    });
 
     // =========================================================================
     // 🏆 關鍵修改區二：金幣提示改到畫面「左邊」
@@ -6609,7 +6638,21 @@ function spawnStepBubble(parentModel, text) {
         scene.add(sprite);
 
         gsap.to(sprite.position, { y: sprite.position.y + 2, duration: 0.8 });
-        gsap.to(sprite.material, { opacity: 0, duration: 0.4, delay: 0.4, onComplete: () => scene.remove(sprite) });
+        gsap.to(sprite.material, {
+            opacity: 0, duration: 0.4, delay: 0.4,
+            onComplete: () => {
+                // 🏆 修復 GPU 顯存洩漏：這個氣泡每次對手走一步就會建立一個
+                // 新的 CanvasTexture + SpriteMaterial，原本只有 scene.remove()，
+                // 從未 dispose() 過——這兩個是 Sprite 專屬的資源，不是
+                // Mesh，不能用 disposeObject3D()（它只處理 isMesh 的子物件），
+                // 要手動 dispose texture 跟 material。對手走越多步、這個
+                // 函式被呼叫越多次，就永久多佔越多顯存，是目前已知最高
+                // 頻率的洩漏來源（每走一步就洩漏一次）。
+                scene.remove(sprite);
+                texture.dispose();
+                spriteMaterial.dispose();
+            }
+        });
     }
 }
 	

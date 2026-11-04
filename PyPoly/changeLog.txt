@@ -6097,3 +6097,78 @@ PyPoly 變更紀錄 (changeLog)
     chrome://gpu、工作管理員看 GPU 記憶體用量是否趨於平穩而不是
     持續往上爬）。
 ========================================================================
+
+========================================================================
+[2026-11-04] 修復收購/入獄/偷竊/走路動畫殘留的多處 GPU 顯存洩漏
+
+  背景：上一輪修好全景貼圖的 GPU 洩漏（changeLog 上一條）後，使用者
+  重開一局再測，仍回報「還是會卡」，並提供新的 Performance 側錄：
+  readPixels 這次改成是從 MediaPipe 自己的 Hands WASM 模組內部被呼叫
+  （不是從這個檔案自己的 Three.js 渲染程式碼），搭配 chrome://gpu
+  確認硬體加速一切正常、且卡頓確定是「漸進式」而不是從頭就卡——
+  這代表全景貼圖洩漏是真的、也修對了，但不是唯一的洩漏來源，
+  readPixels 的異常耗時可以用「GPU 指令佇列被其他累積工作塞爆」
+  解釋，不管是哪支程式碼實際呼叫它。
+
+  又派一次調查，照全景貼圖那次的思路（找「建立新 Three.js 幾何/
+  材質/貼圖，之後只 remove() 從不 dispose()」的模式）掃過整份
+  程式碼，另外找到 4 個同類型、確實存在、之前都沒套用過
+  disposeObject3D()（changeLog #68）或貼圖 dispose 修法的洩漏點：
+  - spawnStepBubble()：對手每走一步就會生一個新的 CanvasTexture +
+    SpriteMaterial 氣泡特效，是目前已知頻率最高的洩漏（每步一次）。
+  - playStartAnimation() 的 createNoticeSprite()：玩家每經過一次
+    起點格就會生一張新的 1024x512 CanvasTexture 提示牌，單張比
+    氣泡大，但頻率低（一圈一次）。
+  - createShovel()：購地/加蓋動畫（purchase-animation.js）跟偷竊
+    動畫（spectator-animations.js）各自呼叫一次，用完只
+    model.remove(shovel)，沒 dispose 過裡面的 Mesh。
+  - createJailCage() + 臨時建立的 tearsGroup（哭泣特效）：入獄動畫
+    （spectator-animations.js 的 playJailAnimationCore()）結束時
+    只 scene.remove(cage) / head.remove(tearsGroup)，同樣沒 dispose。
+  - updateMeshFaceTexture()/updateModelColors()：收到對手外觀廣播
+    時重新 new 一份 mesh.material（含頭部人臉貼圖），舊的材質跟
+    texture 只是被變數覆蓋掉。這個一局大概只會觸發兩三次，不像
+    前面幾個會隨回合數線性累積，但同一個洞還是順手一起補掉。
+
+  修法：
+  - static/game.html：
+    - spawnStepBubble() 跟 createNoticeSprite()（playStartAnimation()
+      內）的 gsap onComplete callback 裡，scene.remove() 之外都補上
+      texture.dispose() 跟對應 material 的 .dispose()——這兩個是
+      THREE.Sprite 專屬資源，disposeObject3D() 只處理 isMesh 的
+      子物件，Sprite.isMesh 不是 true，不能套用那個共用函式，
+      只能手動 dispose。
+    - 新增共用函式 disposeMeshMaterial(material)（放在 setPanoTexture
+      旁邊），處理單一材質或材質陣列，連同 material.map 一起
+      dispose。updateMeshFaceTexture() 的 resetToPlainSkin 分支跟
+      人臉貼圖載入成功分支、重新賦值 mesh.material 前都先呼叫它。
+  - static/js/spectator-animations.js：playJailAnimationCore() 的
+    cage/tearsGroup、playStealAnimationCore() 的 shovel，收尾
+    remove() 前都補上 disposeObject3D()——這幾個都是純 Mesh 子物件
+    組成的 THREE.Group，disposeObject3D()（board-build.js 既有的
+    全域共用函式，整份檔案都是用 <script src> 載入、不需要 import）
+    直接適用，不用另外手動拆。
+  - static/js/purchase-animation.js：runPurchaseAnimationCore() 的
+    shovel 收尾同理補上 disposeObject3D()。
+
+  不在這次範圍：updateModelColors() 目前沒有實際呼叫點被動到（跟
+  updateMeshFaceTexture() 是兩支平行、用途重疊的函式，順手一起
+  補了但沒有特別去追它現在是否還在被呼叫）；main.py 的
+  cleanup_loop() 每 10 秒在共用事件迴圈上做同步 DB 呼叫、會卡住
+  /auth/heartbeat 等請求的問題，是另一個獨立確認存在的後端問題，
+  跟這次前端 GPU 洩漏無關，使用者還沒回覆是否要另外處理，先不動。
+
+  驗證：
+  - 用 Node 把 <script> 區塊抽出來做語法檢查（new Function 試編譯），
+    通過；spectator-animations.js、purchase-animation.js 另外用
+    node --check 驗證語法，通過。
+  - 檢查 git diff，確認每個修改點都只在原本的收尾/賦值程式碼旁
+    加一行 dispose 呼叫，沒有動到其他邏輯。
+  - 沒有實機跑長局驗證 GPU 顯存是否真的不再持續成長（留給使用者
+    實測：這次修的幾個點涵蓋對手走路、經過起點、購地/加蓋、偷竊、
+    入獄、外觀廣播，建議跑一局涵蓋到這幾種事件的對局，再用
+    Performance 側錄或 chrome://gpu/工作管理員確認 GPU 記憶體用量
+    趨於平穩）。使用者提供的 Lighthouse 報告（download.json）是
+    頁面載入模式，量的是開場那一瞬間的指標，不會反映這種玩到後面
+    才出現的漸進式洩漏，無法用來驗證這次修復。
+========================================================================
