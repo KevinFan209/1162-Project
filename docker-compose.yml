@@ -1,4 +1,4 @@
-# PyPoly 開發環境
+# BeeRich 開發環境
 #
 # 用法（在專案根目錄）：
 #   docker compose up -d --build     啟動
@@ -37,10 +37,10 @@ services:
       --collation-server=utf8mb4_unicode_ci
     environment:
       MARIADB_ROOT_PASSWORD: pypoly
-      MARIADB_DATABASE: pypoly_db
+      MARIADB_DATABASE: beerich_db
     volumes:
       # named volume：down 之後資料還在，down -v 才會清掉
-      - pypoly_db_data:/var/lib/mysql
+      - beerich_db_data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-uroot", "-ppypoly"]
       interval: 3s
@@ -62,7 +62,7 @@ services:
 
     environment:
       # 容器裡的 localhost 是容器自己，主機名必須是 compose 的服務名 db
-      DATABASE_URL: mysql+pymysql://root:pypoly@db:3306/pypoly_db
+      DATABASE_URL: mysql+pymysql://root:pypoly@db:3306/beerich_db
       DB_HOST: db
       DB_USER: root
       DB_PASSWORD: pypoly
@@ -84,4 +84,4 @@ services:
       - "8000:8000"
 
 volumes:
-  pypoly_db_data:
+  beerich_db_data:

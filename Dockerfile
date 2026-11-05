@@ -1,4 +1,4 @@
-# PyPoly 開發用映像
+# BeeRich 開發用映像
 #
 # ⚠️ WORKDIR 必須正好是 PyPoly/ 的內容所在。
 #    main.py:57 的 StaticFiles(directory="static") 與 game_start.py:9 的

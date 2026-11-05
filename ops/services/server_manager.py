@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""管理 PyPoly uvicorn 子行程。
+"""管理 BeeRich uvicorn 子行程。
 
 安全性設計：啟動指令是寫死在本模組中的固定字串陣列，不接受任何來自 Discord
 的輸入，也不經過 shell。呼叫端只能「啟動 / 停止 / 查狀態」這三個動作。

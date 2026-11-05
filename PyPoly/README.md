@@ -1,10 +1,10 @@
-# PyPoly 啟動說明
+# BeeRich 啟動說明
 
 程式互動式大富翁（FastAPI + Socket.IO 後端，Three.js 前端）。
 
 ## 環境需求
 - Python 3.11+
-- MySQL（XAMPP 皆可），資料庫名稱 `pypoly_db`
+- MySQL（XAMPP 皆可），資料庫名稱 `beerich_db`
 
 ## 安裝
 ```bash

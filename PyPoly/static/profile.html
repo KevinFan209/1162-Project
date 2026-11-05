@@ -542,7 +542,7 @@
 
         // 🏆 修正 #35，並跟 lobby.html 用同一套邏輯：每次載入頁面時直接
         // 問資料庫要 colors/features，現場渲染出縮圖——不再依賴
-        // character.html 寫入的 pypoly_char_preview 快取，換裝置、清過
+        // character.html 寫入的 beerich_char_preview 快取，換裝置、清過
         // localStorage 也能正確顯示。真正的角色建立/編輯一律在
         // character.html 進行，這裡只負責顯示。
         const avatarBox = document.getElementById('profile-avatar-box');
@@ -574,8 +574,8 @@
                         avatarBox.innerHTML = `<img src="${dataUrl}" alt="我的角色" style="width: 100%; height: 100%; object-fit: contain;">`;
                     }, cameraFaceUrl);
                 } else {
-                    const myFace = localStorage.getItem(`pypoly_char_face_${username}`) || localStorage.getItem('pypoly_char_face');
-                    const savedCharImage = localStorage.getItem('pypoly_char_preview');
+                    const myFace = localStorage.getItem(`beerich_char_face_${username}`) || localStorage.getItem('beerich_char_face');
+                    const savedCharImage = localStorage.getItem('beerich_char_preview');
                     if (savedCharImage) {
                         avatarBox.innerHTML = `<img src="${savedCharImage}" alt="我的角色" style="width: 100%; height: 100%; object-fit: contain;">`;
                     } else if (myFace) {

@@ -1,5 +1,5 @@
 #!/bin/sh
-# PyPoly 容器啟動流程
+# BeeRich 容器啟動流程
 #
 # ⚠️ 這個檔案必須是 LF 換行。CRLF 會讓 Linux 找不到直譯器並噴
 #    "bad interpreter"，而錯誤訊息完全看不出是換行問題。
@@ -62,6 +62,6 @@ fi
 # create_admin.py 自己有存在性檢查，可以無條件執行
 python create_admin.py
 
-echo "🚀 啟動 PyPoly (main:sio_app)"
+echo "🚀 啟動 BeeRich (main:sio_app)"
 # ⚠️ 進入點是 sio_app 不是 app；用 app 的話 /socket.io 會全部 404
 exec uvicorn main:sio_app --host 0.0.0.0 --port 8000 --reload

@@ -96,10 +96,10 @@ ADVANCED_QUESTIONS = {
 
 CODE_QUESTIONS = {
     "easy": [
-        ("輸出", "請用 print 在螢幕上印出 Hello, PyPoly",
+        ("輸出", "請用 print 在螢幕上印出 Hello, BeeRich",
          "# 在這裡寫下你的程式碼\n",
-         "Hello, PyPoly",
-         "print('Hello, PyPoly')"),
+         "Hello, BeeRich",
+         "print('Hello, BeeRich')"),
         ("變數", "宣告變數 x 等於 10、變數 y 等於 3，然後印出 x + y 的結果。",
          "x = \ny = \n",
          "13",

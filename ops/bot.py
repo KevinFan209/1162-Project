@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""PyPoly ops bot 進入點。
+"""BeeRich ops bot 進入點。
 
 啟動：
     cd ops
@@ -85,7 +85,7 @@ async def _on_app_command_error(interaction: discord.Interaction, error: app_com
 
 class OpsBot(commands.Bot):
     def __init__(self):
-        super().__init__(command_prefix="!pypoly ", intents=intents, help_command=None)
+        super().__init__(command_prefix="!beerich ", intents=intents, help_command=None)
 
     async def setup_hook(self):
         self.tree.on_error = _on_app_command_error

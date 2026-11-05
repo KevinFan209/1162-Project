@@ -189,7 +189,7 @@ def _build_map() -> str:
         if info["funcs"]:
             py_funcs.append(f"  {p.name}: " + ", ".join(info["funcs"][:25]))
 
-    parts = ["# PyPoly 程式碼地圖（自動產生，不是完整原始碼）", ""]
+    parts = ["# BeeRich 程式碼地圖（自動產生，不是完整原始碼）", ""]
 
     parts.append("## 後端 REST 路由")
     parts += [f"  {r}" for r in routes]

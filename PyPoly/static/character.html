@@ -1036,7 +1036,7 @@ loader.load('models/minecraft_-_steve.glb', (gltf) => {
 const EMPTY_FACE_FEATURES = { eyebrow: 'none', eye: 'none', nose: 'none', mouth: 'none' };
 const faceFeatures = Object.assign({}, EMPTY_FACE_FEATURES);
 // 是否正在使用「五官套裝」臉（相對於相機拍的臉／完全沒設定臉）——
-// 取代原本讀 localStorage pypoly_char_features 存在與否來判斷的做法，
+// 取代原本讀 localStorage beerich_char_features 存在與否來判斷的做法，
 // 因為 colors／features 已經不再寫入 localStorage。
 let hasFeatureFace = false;
 
@@ -1254,10 +1254,10 @@ function updateFeatureSelectionUI() {
 
 function clearFaceFeatures() {
     hasFeatureFace = false;
-    localStorage.removeItem('pypoly_char_face');
+    localStorage.removeItem('beerich_char_face');
     // 🏆 跟 clearFace() 同一個理由：一併清掉 game.html 實際讀取的
     // per-user key，不然會殘留一個已經失效的舊人臉網址。
-    localStorage.removeItem(`pypoly_char_face_${localStorage.getItem('username') || 'default_user'}`);
+    localStorage.removeItem(`beerich_char_face_${localStorage.getItem('username') || 'default_user'}`);
     if (shaderMat) {
         const prevTex = shaderMat.uniforms.faceTex.value;
         if (prevTex) prevTex.dispose();
@@ -1314,7 +1314,7 @@ function applySavedFaceTexture(url) {
         showSavedFacePreview(url);
         // 快取回本機，維持跟其他地方（mirrorFaceToUserKey 等）一致的
         // 讀取來源，不管這張臉原本是從本機還是伺服器拿到的。
-        localStorage.setItem('pypoly_char_face', url);
+        localStorage.setItem('beerich_char_face', url);
     };
     img.src = url;
 }
@@ -1384,7 +1384,7 @@ async function restoreCharacterFromServer() {
             }
         }
         // 伺服器沒有相機照片才退回本機快取（例如還沒重新上傳過的舊資料）。
-        applySavedFaceTexture(cameraFaceUrl || localStorage.getItem('pypoly_char_face'));
+        applySavedFaceTexture(cameraFaceUrl || localStorage.getItem('beerich_char_face'));
     }
 
     if (character) {
@@ -1502,7 +1502,7 @@ function applyFaceToModel() {
     shaderMat.uniforms.faceTex.value = tex;
     shaderMat.uniforms.hasFace.value = 1.0;
     shaderMat.needsUpdate = true;
-    localStorage.setItem('pypoly_char_face', faceCanvas.toDataURL('image/jpeg', 0.85));
+    localStorage.setItem('beerich_char_face', faceCanvas.toDataURL('image/jpeg', 0.85));
     hasFeatureFace = false;
     Object.assign(faceFeatures, EMPTY_FACE_FEATURES);
     updateFeatureSelectionUI();
@@ -1516,13 +1516,13 @@ function clearFace() {
     shaderMat.uniforms.faceTex.value = makeDummyTexture();
     shaderMat.uniforms.hasFace.value = 0.0;
     shaderMat.needsUpdate = true;
-    localStorage.removeItem('pypoly_char_face');
-    // 🏆 修復對局中人臉全黑：這裡原本只清了 pypoly_char_face，沒清
+    localStorage.removeItem('beerich_char_face');
+    // 🏆 修復對局中人臉全黑：這裡原本只清了 beerich_char_face，沒清
     // game.html 實際讀取的 per-user key，造成那個 key 繼續指向底下
     // DELETE /auth/camera_face 剛刪掉的伺服器檔案——下次進對局會去載入
     // 一張已經 404 的圖片，臉那一面因此整片全黑。
     const clearedUser = localStorage.getItem('username') || 'default_user';
-    localStorage.removeItem(`pypoly_char_face_${clearedUser}`);
+    localStorage.removeItem(`beerich_char_face_${clearedUser}`);
     document.getElementById('clearFaceBtn').disabled = true;
     setBadge('idle', '已清除人臉貼圖');
     hideSavedFacePreview();
@@ -1544,17 +1544,17 @@ function clearFace() {
 //
 // 判斷目前是哪種「臉」靠 hasFeatureFace（五官套裝互動時會設成 true，
 // applyFaceToModel() 相機模式則會設成 false）：
-// - 五官套裝模式：重新合成一次目前的五官組合存回 pypoly_char_face
+// - 五官套裝模式：重新合成一次目前的五官組合存回 beerich_char_face
 //   （給 game.html 等其他地方當圖片 fallback 用），並順手清掉伺服器上
 //   可能殘留的舊相機照片（不會再被用到，留著只是孤兒檔案）。
-// - 相機模式：把 pypoly_char_face（相機截圖）上傳到伺服器
+// - 相機模式：把 beerich_char_face（相機截圖）上傳到伺服器
 //   /auth/camera_face，這樣換裝置登入也能看到同一張照片。
 // - 兩者都沒有（從沒碰過臉部功能、只調了顏色）：兩段都不做，不去動
 //   伺服器上可能存在的舊資料，避免誤刪。
 async function saveCharacter() {
     if (hasFeatureFace) {
         const faceCanvas = composeFaceTexture();
-        localStorage.setItem('pypoly_char_face', faceCanvas.toDataURL('image/png'));
+        localStorage.setItem('beerich_char_face', faceCanvas.toDataURL('image/png'));
     }
 
     saveCharacterToServer();
@@ -1571,7 +1571,7 @@ async function saveCharacter() {
             }).catch(err => console.warn('⚠️ 清理舊相機人臉貼圖失敗', err));
         }
     } else {
-        const faceDataUrl = localStorage.getItem('pypoly_char_face');
+        const faceDataUrl = localStorage.getItem('beerich_char_face');
         if (faceDataUrl) {
             cameraUploadOk = false;
             if (token) {
@@ -1601,19 +1601,19 @@ async function saveCharacter() {
 // 🏆 character.html 的職責現在只是建立/編輯角色並把配方存進資料庫
 // （saveCharacterToServer()）——縮圖改由 lobby.html／profile.html 在
 // 載入時直接拿資料庫的 colors/features 即時渲染（static/js/
-// character-preview.js），不再需要這裡截圖快取 pypoly_char_preview，
+// character-preview.js），不再需要這裡截圖快取 beerich_char_preview，
 // 所以把截圖那段整個拿掉。這支函式現在只剩一件事：把相機/五官合成的
 // 臉部貼圖（圖片，資料庫不存，只能留在本機）鏡射成 per-user key，
 // 供同一台裝置上其他頁面（game.html、結算畫面等）讀取。
 function mirrorFaceToUserKey() {
     const currentName = localStorage.getItem('username') || 'default_user';
-    const faceData = localStorage.getItem('pypoly_char_face');
+    const faceData = localStorage.getItem('beerich_char_face');
     if (faceData) {
-        localStorage.setItem(`pypoly_char_face_${currentName}`, faceData);
+        localStorage.setItem(`beerich_char_face_${currentName}`, faceData);
     } else {
         // 🏆 原本這裡 faceData 是空的時候什麼都不做，導致清除人臉後存檔
         // 時沒有把舊的 per-user key 一併清掉——明確移除，不要留著舊值。
-        localStorage.removeItem(`pypoly_char_face_${currentName}`);
+        localStorage.removeItem(`beerich_char_face_${currentName}`);
     }
 }
 

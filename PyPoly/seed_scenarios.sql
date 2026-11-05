@@ -25,7 +25,7 @@
 --        南投 ← 南投市/草屯鎮/中寮鄉/名間鄉
 --
 -- 執行方式（在 PyPoly 目錄下）：
---     mysql -u root pypoly_db < seed_scenarios.sql
+--     mysql -u root beerich_db < seed_scenarios.sql
 --   或用 phpMyAdmin 貼上執行。
 --   ⚠️ 會清空 scenarios 資料表後重建，原有的 5 筆會被取代。
 --

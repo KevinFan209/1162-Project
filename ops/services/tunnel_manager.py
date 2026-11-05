@@ -42,7 +42,7 @@ _verified: bool = False  # 上次啟動時是否真的驗證到網址可連線
 def url_verified() -> bool:
     """上次 start() 是否成功驗證網址可連線。
 
-    False 代表 ngrok 行程還活著但本機連不上——通常是 PyPoly 伺服器
+    False 代表 ngrok 行程還活著但本機連不上——通常是 BeeRich 伺服器
     根本沒開（隧道通了但後面沒有東西）。呼叫端應據此提示使用者。
     """
     return _verified
@@ -123,7 +123,7 @@ def _close_logs():
 
 
 async def _wait_reachable(url: str, timeout: float = 40.0) -> bool:
-    """確認經由隧道真的連得到 PyPoly。回傳是否驗證成功。
+    """確認經由隧道真的連得到 BeeRich。回傳是否驗證成功。
 
     固定網域不需要等 DNS 傳播（先前 cloudflared 那版要等 90 秒就是為此），
     所以這裡只是確認「隧道通了而且後面的伺服器有回應」。

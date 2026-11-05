@@ -16,9 +16,9 @@
 //
 // ⚠️ 加蓋升級分支裡有一段原樣保留的既有副作用：如果呼叫端提供的
 // window.landOwnership 物件裡剛好有這個 tileIndex 的資料，這裡會
-// 直接更新 floorCount 並寫回 localStorage 的 pypoly_land_ownership
+// 直接更新 floorCount 並寫回 localStorage 的 beerich_land_ownership
 // ——這是真正遊戲裡「加蓋後要持久化樓層數」用的，preview 頁如果想
-// 示範加蓋動畫、又不想污染真實的 pypoly_land_ownership，記得讓
+// 示範加蓋動畫、又不想污染真實的 beerich_land_ownership，記得讓
 // window.landOwnership 是一個「不包含這個 tileIndex」的物件（例如
 // 空物件 {}），這個 if 判斷就會自然跳過，不會寫入 localStorage。
 // =============================================================
@@ -174,7 +174,7 @@ async function runPurchaseAnimationCore(ctx, playerName, tileIndex, color, isUpg
 
                             if (window.landOwnership && window.landOwnership[tileIndex]) {
                                 window.landOwnership[tileIndex].floorCount = floorCount + 1;
-                                localStorage.setItem('pypoly_land_ownership', JSON.stringify(window.landOwnership));
+                                localStorage.setItem('beerich_land_ownership', JSON.stringify(window.landOwnership));
                             }
                         } else {
                             existingHouse.children.forEach(c => {

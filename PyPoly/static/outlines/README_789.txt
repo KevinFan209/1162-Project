@@ -1,4 +1,4 @@
-PyPoly 手勢輪廓圖 (需求③)
+BeeRich 手勢輪廓圖 (需求③)
 ========================================
 
 game.html 的 preloadAssets 已擴充為載入 outlines/1.png ~ 9.png。

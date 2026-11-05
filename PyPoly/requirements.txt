@@ -1,4 +1,4 @@
-# PyPoly 後端相依套件
+# BeeRich 後端相依套件
 #
 # ⚠️ 請不要把 mediapipe / opencv 加回來。
 #    手勢與姿態辨識（MediaPipe Hands / Pose / FaceDetection）是透過 CDN

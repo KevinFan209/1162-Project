@@ -1,4 +1,4 @@
-# 用 Docker 跑 PyPoly
+# 用 Docker 跑 BeeRich
 
 給組員的本機開發環境。裝好 Docker Desktop 之後，**不需要**再裝 Python、MySQL、XAMPP，
 也不用自己建資料庫或灌題庫——全部自動完成。
@@ -102,4 +102,4 @@ Linux 容器，少了這行 `--reload` 會安靜地沒反應）。若仍無效�
 ```bash
 docker compose logs app | tail -20
 ```
-看到 `🚀 啟動 PyPoly (main:sio_app)` 就是正常了。
+看到 `🚀 啟動 BeeRich (main:sio_app)` 就是正常了。

@@ -409,12 +409,12 @@
     }
 
     async function createAndGo() {
-        const activeRoom = localStorage.getItem('pypoly_active_room');
+        const activeRoom = localStorage.getItem('beerich_active_room');
         
         if (activeRoom) {
             const reset = confirm("偵測到舊對局資料，是否強制清除並建立新房間？");
             if (!reset) return;
-            localStorage.removeItem('pypoly_active_room');
+            localStorage.removeItem('beerich_active_room');
         }
 
         const newRoomData = {
@@ -444,7 +444,7 @@
             });
 
             if (response.ok) {
-                localStorage.setItem('pypoly_active_room', JSON.stringify(newRoomData));
+                localStorage.setItem('beerich_active_room', JSON.stringify(newRoomData));
                 localStorage.setItem('is_host', 'true');
                 window.location.href = 'WaitingRoom.html';
             } else {

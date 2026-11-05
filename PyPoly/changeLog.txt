@@ -6357,3 +6357,90 @@ PyPoly 變更紀錄 (changeLog)
     96/107 提升到 105/107（剩下 2 筆是刻意排除的設計行為，不是
     問題）。跑了兩次結果一致，確認是穩定修復、不是當次 API 運氣好。
 ========================================================================
+
+========================================================================
+[2026-11-05] 專案改名：程式碼內所有「PyPoly」字串統一改成「BeeRich」
+
+  背景：專案已經正式改名為「BeeRich 碼上致富」，但程式碼裡還大量
+  殘留舊名字「PyPoly」。使用者已知的是資料庫名稱跟部分 HTML title，
+  實際清查後發現分佈遠比這兩處廣：頁面標題、密碼重設信件內容、
+  AI 導師人設、Discord 機器人指令與介面文字、題庫內容、前端
+  localStorage 存檔 key 等。使用者已經自己建好新資料庫 beerich_db
+  並搬移完舊資料，這次只需要把程式碼裡的字面值改掉。
+
+  範圍決策（先進 Plan Mode 跟使用者逐項確認過）：
+  - 實體資料夾 PyPoly/ 不改名，只改資料夾裡面程式碼的文字/字串——
+    資料夾名稱被 Discord bot 的 /start、docker COPY、13 個
+    worktree 分支的路徑假設綁得很深，改資料夾名風險跟範圍都遠大
+    於效益。對應地，PYPOLY_DIR 這個環境變數名稱、ops/config.py
+    裡 Path(...) 組路徑用到的字面值 "PyPoly"，以及所有單純描述
+    檔案路徑的註解（例如「PyPoly/.env」「cd PyPoly」「在 PyPoly/
+    目錄下啟動」）全部保留不動，這些是路徑，不是品牌名稱。
+  - Discord 機器人指令前綴 !pypoly 一起改成 !beerich（連同其他
+    機器人介面文字一起徹底統一）。
+  - 前端 localStorage 的 key 名稱一起改成 beerich_xxx——玩家瀏覽器
+    裡用舊 key 存的角色外觀/暫存設定會讀不到（等同重置一次），
+    但對局本身是伺服器同步的，不受影響。
+
+  明確排除、刻意不碰的 4 處（跟改名無關的另外議題，混在一起改
+  風險更高）：
+  - auth_utils.py 的 SECRET_KEY 預設值 "pypoly-adventure-secret-
+    key-2026"——是安全性密鑰，只是字面上剛好有 pypoly 開頭，正式
+    環境若沒有另外設定環境變數覆蓋、目前就是吃這個預設值，改掉會
+    讓所有人目前的登入 session 一次失效，沒有任何好處。
+  - docker-compose.yml 裡字面值是 pypoly 的資料庫密碼（
+    MARIADB_ROOT_PASSWORD / DB_PASSWORD / healthcheck 的 -ppypoly）
+    ——密碼輪替是另一個安全性議題，跟改名無關。
+  - .env 裡真實的 SENDER_EMAIL=pypoly.service@gmail.com 寄信
+    帳號——這是真實外部 Gmail 帳號，改字串不會真的換一個新信箱，
+    要另外申請新帳號才有意義，超出「改程式碼文字」的範圍。
+
+  修改內容（依類別）：
+  - 資料庫名稱 pypoly_db → beerich_db：database.py、
+    docker-compose.yml（含 volume 名稱 pypoly_db_data →
+    beerich_db_data）、.env.example、ops/services/llm_client.py
+    （餵給 LLM 的資料庫介紹文字）、README.md、seed_scenarios.sql。
+  - HTML <title>：basic.html、hard.html、forgot.html、
+    avatar_creation_備.html、game.html 這 5 個還沒改的頁面；
+    game.html 房間名稱顯示 fallback 字串也改掉。
+  - main.py 密碼重設信件的 Subject 跟內文、learn_ai.py AI 導師
+    system prompt 裡的自稱。
+  - seed_data.py 的「Hello, PyPoly」這道題目：任務文字、預期輸出、
+    參考程式碼三處同步改成 Hello, BeeRich（不能只改任務說明，
+    否則學生照新說明作答會被判錯）。⚠️ 這題內容是存在資料庫
+    questions 表裡的資料，改 seed_data.py 只影響「以後重新灌
+    資料」的結果，使用者已經搬移過的 beerich_db 裡這筆題目很
+    可能還是舊文字，需要的話可另外執行：
+    UPDATE questions SET content='請用 print 在螢幕上印出 Hello, BeeRich',
+    expected_output='Hello, BeeRich',
+    reference_solution="print('Hello, BeeRich')"
+    WHERE content='請用 print 在螢幕上印出 Hello, PyPoly';
+  - Discord 機器人：ops/bot.py 指令前綴 !pypoly → !beerich；
+    ops/cogs/ops_cog.py／ask_cog.py 的 embed 標題與指令描述文字。
+  - 前端 localStorage key（170+ 處，先用 grep 列出完整的
+    pypoly_[a-zA-Z0-9_]+ 字面值清單確認沒漏掉任何一個，再統一把
+    前綴 pypoly_ 換成 beerich_）：game.html、character.html、
+    WaitingRoom.html、results.html、lobby.html、profile.html、
+    modal.html、homepage.html、static/js/purchase-animation.js、
+    character-preview.js，同一個 key 的讀/寫端都換到。
+  - 其餘純文字註解/文件：docker-compose.yml、Dockerfile、
+    docker/entrypoint.sh（含印到 container log 的啟動訊息，
+    DOCKER.md 裡引用同一段文字的地方也一起改）、DOCKER.md、
+    ops/README.md、ops/.env.example 標頭、ops/services/
+    project_context.py／server_manager.py／tunnel_manager.py、
+    air_quality.py、requirements.txt、static/js/character-face.js、
+    static/outlines/README_789.txt、static/sounds/README.txt。
+
+  驗證：
+  - 全部改動過的 .py 用 python -m py_compile、entrypoint.sh 用
+    bash -n、docker-compose.yml 用 pyyaml 解析，皆通過。
+  - 全部改動過的 .html 用 Node 把 <script> 區塊抽出來做語法檢查
+    （new Function 試編譯），全部改動過的獨立 .js 用
+    node --check，皆通過。
+  - git diff --stat 確認是 228 行新增對 228 行刪除，純文字取代、
+    沒有意外新增/刪除程式邏輯。
+  - 改完整個 repo 再用大小寫不分的 grep 掃一次 pypoly，確認剩下
+    的命中只落在上面「明確排除」清單、純路徑引用（PyPoly/ 資料
+    夾名稱本身），以及 changeLog.txt／past/ 的歷史紀錄，沒有
+    漏掉的品牌名稱殘留。
+========================================================================

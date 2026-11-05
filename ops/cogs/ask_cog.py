@@ -44,7 +44,7 @@ class AskCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @app_commands.command(name="ask", description="問 AI 關於 PyPoly 的問題（只回文字，不會執行任何操作）")
+    @app_commands.command(name="ask", description="問 AI 關於 BeeRich 的問題（只回文字，不會執行任何操作）")
     @app_commands.describe(question="你想問的問題，例如「結算的答對率是在哪裡算的？」")
     @channel_guard.restrict_to(lambda: config.CHANNEL_OPS_ID)
     async def ask(self, interaction: discord.Interaction, question: str):

@@ -2,7 +2,7 @@
 // 角色縮圖產生器（lobby.html／profile.html 共用）
 //
 // 用跟遊戲裡一樣的方塊角色（player-model.js 的 createCustomBoxCharacter）
-// 離屏渲染一張縮圖，不再依賴 character.html 寫入的 pypoly_char_preview
+// 離屏渲染一張縮圖，不再依賴 character.html 寫入的 beerich_char_preview
 // 快取——這樣換裝置、清過 localStorage，只要資料庫有 colors/features，
 // 大廳/個人主頁都能直接補出縮圖，不需要先跑一次 character.html。
 //

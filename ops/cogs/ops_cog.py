@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""PyPoly 伺服器控制指令。
+"""BeeRich 伺服器控制指令。
 
 安全性設計：services 層的指令字串全部寫死，能觸發的行為侷限在
 「啟動 / 停止 / 查狀態 / 查網址 / 查分支」這幾件事。
@@ -66,11 +66,11 @@ class OpsCog(commands.Cog):
         if notes:
             e.add_field(name="ℹ️ 備註", value="\n".join(notes)[:1000], inline=False)
         if not verified:
-            # 隧道行程活著但連不到 PyPoly。改用固定網域之後不再有
+            # 隧道行程活著但連不到 BeeRich。改用固定網域之後不再有
             # DNS 傳播的問題，所以這種情況幾乎都是後端伺服器沒起來。
             e.add_field(
                 name="⚠️ 尚未驗證連線",
-                value=("隧道已建立，但這台主機透過它連不到 PyPoly。\n"
+                value=("隧道已建立，但這台主機透過它連不到 BeeRich。\n"
                        "通常是後端伺服器沒有正常啟動，可用 `/status` 確認；\n"
                        "網址本身是固定的，不會因為重啟而失效。"),
                 inline=False)
@@ -87,14 +87,14 @@ class OpsCog(commands.Cog):
         return [app_commands.Choice(name=b, value=b) for b in names[:25]]
 
     # ── /start ───────────────────────────────────────────
-    @app_commands.command(name="start", description="啟動 PyPoly 伺服器並建立公開網址")
+    @app_commands.command(name="start", description="啟動 BeeRich 伺服器並建立公開網址")
     @app_commands.describe(branch="要啟動哪個分支（留空則沿用目前的）")
     @app_commands.autocomplete(branch=_branch_autocomplete)
     @channel_guard.restrict_to(lambda: config.CHANNEL_OPS_ID)
     async def start(self, interaction: discord.Interaction, branch: str | None = None):
         # 準備分支、建隧道加起來可能要 30 秒以上，必須先 defer 否則 Discord 會判定逾時
         await interaction.response.defer(thinking=True)
-        await interaction.followup.send(embed=await self._bring_up("🎮 PyPoly 已上線", branch))
+        await interaction.followup.send(embed=await self._bring_up("🎮 BeeRich 已上線", branch))
 
     # ── /restart ─────────────────────────────────────────
     @app_commands.command(name="restart", description="重新啟動伺服器（可順便換分支）")
@@ -120,7 +120,7 @@ class OpsCog(commands.Cog):
                 RED))
             return
 
-        await interaction.followup.send(embed=await self._bring_up("🔄 PyPoly 已重新啟動", keep))
+        await interaction.followup.send(embed=await self._bring_up("🔄 BeeRich 已重新啟動", keep))
 
     # ── /url ─────────────────────────────────────────────
     @app_commands.command(name="url", description="查詢遊戲網址（固定不變，不會改變任何狀態）")
@@ -160,7 +160,7 @@ class OpsCog(commands.Cog):
         lines.append(f"**公開網址**：{current + '/static/homepage.html' if current else '無（隧道未啟動）'}")
 
         await interaction.followup.send(
-            embed=_embed("📊 PyPoly 狀態", "\n".join(lines), GREEN if up else GREY))
+            embed=_embed("📊 BeeRich 狀態", "\n".join(lines), GREEN if up else GREY))
 
     # ── /branches ────────────────────────────────────────
     @app_commands.command(name="branches", description="列出所有分支，以及哪個正在服務")
@@ -198,7 +198,7 @@ class OpsCog(commands.Cog):
             embed=_embed("🌿 分支清單", body[:4000], GREEN))
 
     # ── /stop ────────────────────────────────────────────
-    @app_commands.command(name="stop", description="停止 PyPoly 伺服器與公開網址")
+    @app_commands.command(name="stop", description="停止 BeeRich 伺服器與公開網址")
     @channel_guard.restrict_to(lambda: config.CHANNEL_OPS_ID)
     async def stop(self, interaction: discord.Interaction):
         await interaction.response.defer(thinking=True)

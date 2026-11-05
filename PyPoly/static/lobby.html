@@ -506,7 +506,7 @@
         const charBackups = {};
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
-            if (key && key.startsWith('pypoly_char_')) {
+            if (key && key.startsWith('beerich_char_')) {
                 charBackups[key] = localStorage.getItem(key);
             }
         }
@@ -570,7 +570,7 @@
         }
 
         // 🏆 左側角色縮圖改成每次載入頁面時直接問資料庫要 colors/features，
-        // 現場渲染出縮圖——不再依賴 character.html 寫入的 pypoly_char_preview
+        // 現場渲染出縮圖——不再依賴 character.html 寫入的 beerich_char_preview
         // 快取，換裝置、清過 localStorage 也能正確顯示。
         const charBox = document.getElementById('lobby-char-box');
         if (charBox) {
@@ -603,8 +603,8 @@
                 } else {
                     // 伺服器還沒有角色資料（真的還沒建立過），退回本機可能
                     // 殘留的舊快取圖片顯示，沒有就維持空白。
-                    const myFace = localStorage.getItem(`pypoly_char_face_${username}`) || localStorage.getItem('pypoly_char_face');
-                    const savedCharImage = localStorage.getItem('pypoly_char_preview');
+                    const myFace = localStorage.getItem(`beerich_char_face_${username}`) || localStorage.getItem('beerich_char_face');
+                    const savedCharImage = localStorage.getItem('beerich_char_preview');
                     if (savedCharImage) {
                         charBox.innerHTML = `<img src="${savedCharImage}" alt="我的角色" style="width: 100%; height: 100%; object-fit: contain; transform: scale(1.15);">`;
                     } else if (myFace) {
@@ -650,7 +650,7 @@
             window.location.href = "login.html";
         }
         
-        localStorage.removeItem('pypoly_game_snapshot');
+        localStorage.removeItem('beerich_game_snapshot');
         renderRooms();
         setInterval(renderRooms, 10000);
     };
@@ -779,7 +779,7 @@ function showCustomAlert(title, message, isSuccess = false) {
     }
     
     const myName = localStorage.getItem('username');
-    const myFace = localStorage.getItem(`pypoly_char_face_${myName}`) || localStorage.getItem('pypoly_char_face');
+    const myFace = localStorage.getItem(`beerich_char_face_${myName}`) || localStorage.getItem('beerich_char_face');
 
     const avatarContainer = document.getElementById('player-avatar-preview'); 
     if (avatarContainer && myFace) {
@@ -868,13 +868,13 @@ function showCustomAlert(title, message, isSuccess = false) {
     }
     
     async function checkGhostRoom() {
-        const localRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
+        const localRoom = JSON.parse(localStorage.getItem('beerich_active_room'));
         if (!localRoom) return;
 
         try {
             const res = await fetch(`${API_URL}/rooms/verify/${localRoom.code}`);
             if (res.status === 404) {
-                localStorage.removeItem('pypoly_active_room');
+                localStorage.removeItem('beerich_active_room');
                 localStorage.removeItem('is_host');
             }
         } catch (e) {
@@ -893,7 +893,7 @@ function showCustomAlert(title, message, isSuccess = false) {
 
             if (joinRes.ok) {
                 const serverRoom = await joinRes.json();
-                localStorage.setItem('pypoly_active_room', JSON.stringify(serverRoom));
+                localStorage.setItem('beerich_active_room', JSON.stringify(serverRoom));
                 
                 const isActuallyHost = (serverRoom.hostId === myName);
                 localStorage.setItem('is_host', isActuallyHost ? 'true' : 'false');
@@ -965,7 +965,7 @@ function showCustomAlert(title, message, isSuccess = false) {
             if (joinRes.ok) {
                 const serverRoom = await joinRes.json();
                 
-                localStorage.setItem('pypoly_active_room', JSON.stringify(serverRoom));
+                localStorage.setItem('beerich_active_room', JSON.stringify(serverRoom));
                 
                 const isActuallyHost = (serverRoom.hostId === myName);
                 localStorage.setItem('is_host', isActuallyHost ? 'true' : 'false');
@@ -1001,7 +1001,7 @@ function showCustomAlert(title, message, isSuccess = false) {
                         const charBackups = {};
                         for (let i = 0; i < localStorage.length; i++) {
                             const key = localStorage.key(i);
-                            if (key && key.startsWith('pypoly_char_')) {
+                            if (key && key.startsWith('beerich_char_')) {
                                 charBackups[key] = localStorage.getItem(key);
                             }
                         }

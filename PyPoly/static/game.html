@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PyPoly - Battle</title>
+    <title>BeeRich - Battle</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap" rel="stylesheet">
 	<script src="js/ngrok-fetch.js"></script>
 	<script src="js/character-face.js"></script>
@@ -1211,7 +1211,7 @@ function disposeMeshMaterial(material) {
 }
 
 async function fetchMapConfig(mode, difficulty) {
-    const activeRoom = JSON.parse(localStorage.getItem('pypoly_active_room')) || {};
+    const activeRoom = JSON.parse(localStorage.getItem('beerich_active_room')) || {};
     const roomCode = activeRoom.code || localStorage.getItem('room_code');
     const myName = localStorage.getItem('username');
     const isHost = (activeRoom.hostId === myName);
@@ -1225,7 +1225,7 @@ async function fetchMapConfig(mode, difficulty) {
     // 等房主的 SYNC_MAP 廣播到了才會「跳」到正確位置——這正是實測
     // 回報過的現象。拿掉這段短路之後，每次都真的問一次伺服器，保證
     // 拿到的就是這個房間當下真正的地圖。
-    const storedMapKey = `pypoly_synced_map_${roomCode}`;
+    const storedMapKey = `beerich_synced_map_${roomCode}`;
 
     try {
         // 🏆 測試模式：房間資料帶 testMode 時，向後端要一張含 BLANK 空白格的地圖，
@@ -1265,7 +1265,7 @@ socket.on('connect', () => {
     console.log("⚡ 遊戲主通訊 Socket 連線成功！");
     
     // 獲取房間資訊 (從 localStorage 讀取)
-    const activeRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const activeRoom = JSON.parse(localStorage.getItem('beerich_active_room'));
 	
     const myName = localStorage.getItem('username');
     const roomCode = activeRoom.code || localStorage.getItem('room_code');
@@ -1302,7 +1302,7 @@ async function leaveDisconnectedRoomAndGoLobby() {
     window.isReturningToLobby = true;
 
     const myName = localStorage.getItem('username');
-    const roomCode = JSON.parse(localStorage.getItem('pypoly_active_room'))?.code || localStorage.getItem('room_code');
+    const roomCode = JSON.parse(localStorage.getItem('beerich_active_room'))?.code || localStorage.getItem('room_code');
     try {
         if (roomCode) {
             await fetch(`${API_URL}/rooms/leave/${roomCode}?username=${encodeURIComponent(myName)}`, { method: 'POST' });
@@ -1312,24 +1312,24 @@ async function leaveDisconnectedRoomAndGoLobby() {
     }
 
     const gameKeys = [
-        'pypoly_active_room',
+        'beerich_active_room',
         'room_code',
         'room_info',
         'is_host',
-        'pypoly_game_snapshot',
-        'pypoly_current_round',
-        'pypoly_turn_order',
-        'pypoly_land_ownership',
-        'pypoly_global_owned_lands',
-        'pypoly_used_questions',
+        'beerich_game_snapshot',
+        'beerich_current_round',
+        'beerich_turn_order',
+        'beerich_land_ownership',
+        'beerich_global_owned_lands',
+        'beerich_used_questions',
         'current_player_role'
     ];
     gameKeys.forEach(key => localStorage.removeItem(key));
 
     const prefixes = [
-        'pypoly_synced_map_',
-        'pypoly_inv_',
-        'pypoly_jumps_'
+        'beerich_synced_map_',
+        'beerich_inv_',
+        'beerich_jumps_'
     ];
     Object.keys(localStorage)
         .filter(key => prefixes.some(prefix => key.startsWith(prefix)))
@@ -1421,8 +1421,8 @@ async function restoreCharacterFromServer() {
         }
 
         if (faceUrl) {
-            localStorage.setItem('pypoly_char_face', faceUrl);
-            localStorage.setItem(`pypoly_char_face_${myName}`, faceUrl);
+            localStorage.setItem('beerich_char_face', faceUrl);
+            localStorage.setItem(`beerich_char_face_${myName}`, faceUrl);
         }
         // 🏆 廣播自己外觀時改優先讀這裡（記憶體、這次連線最新鮮），不要
         // 再繞一手 localStorage——見 broadcastMyAppearance()。
@@ -1450,14 +1450,14 @@ function broadcastMyAppearance() {
     // 記憶體被清空，但上次存過的值還在）。
     let myLocalFace = window.myCharacterRecipe && window.myCharacterRecipe.faceUrl;
     if (!myLocalFace) {
-        myLocalFace = localStorage.getItem(`pypoly_char_face_${myName}`);
+        myLocalFace = localStorage.getItem(`beerich_char_face_${myName}`);
     }
     if (!myLocalFace) {
-        myLocalFace = localStorage.getItem('pypoly_char_face');
-        if (myLocalFace) localStorage.setItem(`pypoly_char_face_${myName}`, myLocalFace);
+        myLocalFace = localStorage.getItem('beerich_char_face');
+        if (myLocalFace) localStorage.setItem(`beerich_char_face_${myName}`, myLocalFace);
     }
 
-    const gameSnapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot') || '{}');
+    const gameSnapshot = JSON.parse(localStorage.getItem('beerich_game_snapshot') || '{}');
     const safeRoomCode = gameSnapshot.code || localStorage.getItem('room_code') || window.roomCode;
 
 	console.log(`🔎 [前端偵錯] 正在發送廣播，當前房間代碼為: "${safeRoomCode}"`);
@@ -1501,7 +1501,7 @@ socket.on('user_appearance_broadcast', (data) => {
         // 可能是失效的舊相機照片網址）。這裡仍然也寫一份進
         // localStorage，給 results.html 等其他頁面相容用。
         window.netPlayerFaces[data.user] = data.face;
-        localStorage.setItem(`pypoly_char_face_${data.user}`, data.face);
+        localStorage.setItem(`beerich_char_face_${data.user}`, data.face);
     }
     
     // 即時驅動 3D 引擎更新棋盤上的對手Mesh材質
@@ -1515,14 +1515,14 @@ socket.on('user_appearance_broadcast', (data) => {
 });
 
 window.globalQuestionPool = []; // 存放地圖所有的題目
-window.usedQuestions = JSON.parse(localStorage.getItem('pypoly_used_questions')) || []; // 記錄已經用過的題目
+window.usedQuestions = JSON.parse(localStorage.getItem('beerich_used_questions')) || []; // 記錄已經用過的題目
 
 // 🏆 輔助函式：標記題目為已使用，並廣播給全房間
 function markQuestionAsUsed(content) {
     if (!window.usedQuestions.includes(content)) {
         window.usedQuestions.push(content);
-        localStorage.setItem('pypoly_used_questions', JSON.stringify(window.usedQuestions));
-        const roomCode = JSON.parse(localStorage.getItem('pypoly_active_room'))?.code || localStorage.getItem('room_code');
+        localStorage.setItem('beerich_used_questions', JSON.stringify(window.usedQuestions));
+        const roomCode = JSON.parse(localStorage.getItem('beerich_active_room'))?.code || localStorage.getItem('room_code');
         socket.emit('broadcast_dice_event', { 
             room: roomCode, user: localStorage.getItem('username'), type: "QUESTION_USED", point: content 
         });
@@ -1636,7 +1636,7 @@ socket.on('adventure_phase_broadcast', async (data) => {
 async function testAdventureView(countryName, scenario, skyboxUrl, questionObj) {
     setMapBgmScene(false);
     const myName = localStorage.getItem('username');
-    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomData = JSON.parse(localStorage.getItem('beerich_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
 
     console.log(`🗺️ 進入冒險：${countryName}`);
@@ -1722,7 +1722,7 @@ async function submitQuizAnswer(chosen) {
 
     const correctAnswer = window.lockedDiceVal;
     const myName = localStorage.getItem('username');
-    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomData = JSON.parse(localStorage.getItem('beerich_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
 
     if (window.currentAdventureQuestion) markQuestionAsUsed(window.currentAdventureQuestion.content);
@@ -1865,7 +1865,7 @@ async function handleCodeSuccess() {
 
     window.uiState = "FINISHED";
     const myName = localStorage.getItem('username');
-    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomData = JSON.parse(localStorage.getItem('beerich_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
 
     if (window.currentAdventureQuestion) markQuestionAsUsed(window.currentAdventureQuestion.content);
@@ -1926,7 +1926,7 @@ function handleCodeFail() {
 
     window.uiState = "FINISHED";
     const myName = localStorage.getItem('username');
-    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomData = JSON.parse(localStorage.getItem('beerich_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
 
     // 🏆 修復 #40：同上，程式碼題沒有選項，改傳 null（見 handleCodeSuccess 的註解）。
@@ -2016,7 +2016,7 @@ function startAdvCodeTimer(seconds) {
 // --- 核心分流邏輯 (加入彈出視窗除錯) ---
 function startAdventureRecognition(questionObj) {
     const myName = localStorage.getItem('username');
-    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomData = JSON.parse(localStorage.getItem('beerich_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
 
     const qCategory = questionObj ? questionObj.category : '找不到';
@@ -2172,11 +2172,11 @@ async function triggerTask() {
 	const myName = localStorage.getItem('username');
     const currentIndex = playerCurrentIndex[myName];
     
-    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomData = JSON.parse(localStorage.getItem('beerich_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
     
     // 🏆 修正一：讀取與 fetchMapConfig 完全一致的 key，確保地圖 100% 同步
-    const savedMap = localStorage.getItem(`pypoly_synced_map_${roomCode}`);
+    const savedMap = localStorage.getItem(`beerich_synced_map_${roomCode}`);
     if (savedMap) gameMap = JSON.parse(savedMap);
 
     if (!gameMap || gameMap.length === 0) {
@@ -2221,7 +2221,7 @@ async function triggerTask() {
         case 'START':
             // 🏆 已經在 movePlayerSequence 中領取過獎勵與播放動畫了，直接切換回合即可
             setTimeout(() => {
-                const roomCode = JSON.parse(localStorage.getItem('pypoly_active_room'))?.code || localStorage.getItem('room_code');
+                const roomCode = JSON.parse(localStorage.getItem('beerich_active_room'))?.code || localStorage.getItem('room_code');
 				endMyTurn();
             }, 1000);
             break;
@@ -2281,7 +2281,7 @@ async function triggerTask() {
 
 // 取得玩家背包
 function getPlayerInventory(playerName) {
-    const inv = localStorage.getItem(`pypoly_inv_${playerName}`);
+    const inv = localStorage.getItem(`beerich_inv_${playerName}`);
     return inv ? JSON.parse(inv) : {};
 }
 
@@ -2313,7 +2313,7 @@ function updateInventoryUI(playerName) {
 function addItemToInventory(playerName, itemId) {
     const inv = getPlayerInventory(playerName);
     inv[itemId] = (inv[itemId] || 0) + 1;
-    localStorage.setItem(`pypoly_inv_${playerName}`, JSON.stringify(inv));
+    localStorage.setItem(`beerich_inv_${playerName}`, JSON.stringify(inv));
     console.log(`🎒 ${playerName} 獲得道具: ${itemId}，目前數量:`, inv);
     updateInventoryUI(playerName); // 更新畫面
 }
@@ -2323,14 +2323,14 @@ function deductItemFromInventory(playerName, itemId) {
     const inv = getPlayerInventory(playerName);
     if (inv[itemId] > 0) {
         inv[itemId]--;
-        localStorage.setItem(`pypoly_inv_${playerName}`, JSON.stringify(inv));
+        localStorage.setItem(`beerich_inv_${playerName}`, JSON.stringify(inv));
         updateInventoryUI(playerName); // 更新畫面
     }
 }
 
 // 🏆 輔助函式：取得玩家的專屬地盤顏色 (對應身體顏色)
 function getPlayerLandColor(playerName) {
-    const gameSnapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot'));
+    const gameSnapshot = JSON.parse(localStorage.getItem('beerich_game_snapshot'));
     if (!gameSnapshot || !gameSnapshot.players) return "#4facfe"; 
     const p1 = gameSnapshot.players[0];
     const p2 = gameSnapshot.players[1];
@@ -2407,7 +2407,7 @@ async function startShopView() {
     setMapBgmScene(false);
     console.log("🛒 進入道具店格");
     const myName = localStorage.getItem('username');
-    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomData = JSON.parse(localStorage.getItem('beerich_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
 
     setBoardVisibility(false);
@@ -2460,7 +2460,7 @@ function openShopUI() {
     document.getElementById('shop-instruction-title').innerText = "🛒 道具商店";
     document.getElementById('shop-instruction-desc').innerHTML = "比出數字 1 ~ 4：選擇道具<br>比出 👎 倒讚：放棄並離開";
     
-    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomData = JSON.parse(localStorage.getItem('beerich_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
     const myName = localStorage.getItem('username');
     
@@ -2500,7 +2500,7 @@ async function processShopPurchase(itemNum) {
     const myName = localStorage.getItem('username');
     const balanceEl = document.getElementById(`balance-${myName}`);
     const currentBalance = parseInt(balanceEl.innerText.replace(/,/g, ''));
-    const roomCode = JSON.parse(localStorage.getItem('pypoly_active_room'))?.code || localStorage.getItem('room_code');
+    const roomCode = JSON.parse(localStorage.getItem('beerich_active_room'))?.code || localStorage.getItem('room_code');
 
     if (currentBalance < item.price) {
         showGameNotice("❌ 金幣不足，交易取消！", 2500);
@@ -2588,7 +2588,7 @@ function showShopConfirmUI(itemNum) {
 
     // 通知觀戰者
     const item = SHOP_ITEMS[itemNum];
-    const roomCode = JSON.parse(localStorage.getItem('pypoly_active_room'))?.code || localStorage.getItem('room_code');
+    const roomCode = JSON.parse(localStorage.getItem('beerich_active_room'))?.code || localStorage.getItem('room_code');
     // 🏆 修正：加入 itemNum 讓觀戰者知道要放大哪一張神祕卡片
     socket.emit('sync_adventure_phase', { 
         room: roomCode, 
@@ -2846,14 +2846,14 @@ socket.on('dice_event_sync', (data) => {
             // 已經建好的模型重新貼回新地圖的起點，不會錯誤搬動已經走到
             // 別的格子的玩家。
             repositionPlayerModelsToStart();
-            const roomCode = JSON.parse(localStorage.getItem('pypoly_active_room'))?.code || localStorage.getItem('room_code');
-            localStorage.setItem(`pypoly_synced_map_${roomCode}`, JSON.stringify(gameMap));
+            const roomCode = JSON.parse(localStorage.getItem('beerich_active_room'))?.code || localStorage.getItem('room_code');
+            localStorage.setItem(`beerich_synced_map_${roomCode}`, JSON.stringify(gameMap));
         }
 		// 🏆 接收其他玩家出過的題目，加入本地黑名單
         else if (data.type === "QUESTION_USED") {
             if (!window.usedQuestions.includes(data.point)) {
                 window.usedQuestions.push(data.point);
-                localStorage.setItem('pypoly_used_questions', JSON.stringify(window.usedQuestions));
+                localStorage.setItem('beerich_used_questions', JSON.stringify(window.usedQuestions));
                 console.log("📝 題庫同步：已排除別人出過的題目");
             }
         }
@@ -2906,7 +2906,7 @@ socket.on('dice_event_sync', (data) => {
         }
 		// 🏆 接收回合更新
         else if (data.type === "ROUND_UPDATE") {
-            localStorage.setItem('pypoly_current_round', data.point);
+            localStorage.setItem('beerich_current_round', data.point);
             if (typeof updateRoundUI === "function") updateRoundUI(data.point);
         }
         // 🏆 接收遊戲結束
@@ -2993,7 +2993,7 @@ window.noticeHideTimer = null;
 // 🌟 關鍵修正 1：在 function 前面加上 async，才能使用 await 等待地圖下載
 window.onload = async function() {
     // 1. 讀取快照資料
-    const gameSnapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot'));
+    const gameSnapshot = JSON.parse(localStorage.getItem('beerich_game_snapshot'));
     const myName = localStorage.getItem('username');
 
     if (!gameSnapshot) {
@@ -3024,7 +3024,7 @@ window.onload = async function() {
     if (headerLapInfo) {
         headerLapInfo.style.display = 'flex'; 
         headerLapInfo.innerText = `第 1 / ${totalLaps} 回合 ⏳`;
-        localStorage.setItem('pypoly_current_round', 1); // 遊戲開始初始化為 1
+        localStorage.setItem('beerich_current_round', 1); // 遊戲開始初始化為 1
     }
 
     // 處理歡迎標題
@@ -3096,7 +3096,7 @@ window.onload = async function() {
     // 步驟 B：🌟 關鍵修正 2：主動向伺服器抓取地圖，並使用 await 強制等待回傳
     console.log("⏳ 正在向伺服器請求地圖配置...");
     if (typeof fetchMapConfig === "function") {
-        const activeRoom = JSON.parse(localStorage.getItem('pypoly_active_room')) || {};
+        const activeRoom = JSON.parse(localStorage.getItem('beerich_active_room')) || {};
         
         // 抓取真實設定，如果沒有資料則預設給基礎與普通
         const gameMode = activeRoom.mode || "基礎填空"; 
@@ -3147,7 +3147,7 @@ window.onload = async function() {
 // 進入開場動畫。
 function showReadyGateUI() {
     const myName = localStorage.getItem('username');
-    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomData = JSON.parse(localStorage.getItem('beerich_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
 
     let gate = document.getElementById('readyGateOverlay');
@@ -3436,7 +3436,7 @@ function updateModelColors(model, colors, faceDataUrl) {
 	
 	
 async function loadPlayerModels() {
-    const gameSnapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot'));
+    const gameSnapshot = JSON.parse(localStorage.getItem('beerich_game_snapshot'));
     if (!gameSnapshot || !gameSnapshot.players) {
         console.error("🚨 找不到遊戲快照，載入失敗");
         return;
@@ -3454,7 +3454,7 @@ async function loadPlayerModels() {
 
     for (let index = 0; index < players.length; index++) {
         const playerName = players[index];
-        const exactFace = localStorage.getItem(`pypoly_char_face_${playerName}`);
+        const exactFace = localStorage.getItem(`beerich_char_face_${playerName}`);
 
         let activeColors = { head: '#f5c18a', body: '#4a90d9', arm: '#5cbaee', legs: '#2c4a8c', feet: '#2c1f14' };
         let activeFace = null;
@@ -3463,7 +3463,7 @@ async function loadPlayerModels() {
         if (playerName === myName) {
             const myColors = window.myCharacterRecipe && window.myCharacterRecipe.colors;
             if (myColors) activeColors = myColors;
-            activeFace = exactFace || localStorage.getItem('pypoly_char_face');
+            activeFace = exactFace || localStorage.getItem('beerich_char_face');
         } else {
             let oppColors = window.netPlayerColors && window.netPlayerColors[playerName];
             // 🏆 修復對局中對手人臉全黑：優先順序改成「這次連線收到的
@@ -3626,8 +3626,8 @@ function drawUIPill(ctx, text, yOffset, bgColor, textColor) {
 
 	
 function playOpeningAnim() {
-    const gameSnapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot'));
-    const roomName = gameSnapshot ? (gameSnapshot.name || gameSnapshot.code) : "PyPoly";
+    const gameSnapshot = JSON.parse(localStorage.getItem('beerich_game_snapshot'));
+    const roomName = gameSnapshot ? (gameSnapshot.name || gameSnapshot.code) : "BeeRich";
     
     // 固定在俯衝前的初始位置
     camera.position.set(0, 45, 60); 
@@ -3967,7 +3967,7 @@ async function initCameraAndStartVision() {
                             window.isPlus3Active = true;
                             deductItemFromInventory(localStorage.getItem('username'), "item_plus3"); 
                             showGameNotice("🎟️ 已啟用【骰到步數+3】！<br>請用拳頭碰觸骰子擲點...", 2500);
-                            socket.emit('broadcast_dice_event', { room: JSON.parse(localStorage.getItem('pypoly_active_room'))?.code || localStorage.getItem('room_code'), user: localStorage.getItem('username'), type: "PLUS3_READY" });
+                            socket.emit('broadcast_dice_event', { room: JSON.parse(localStorage.getItem('beerich_active_room'))?.code || localStorage.getItem('room_code'), user: localStorage.getItem('username'), type: "PLUS3_READY" });
                         } else {
                             if (!window.noItemWarningLock) {
                                 showGameNotice("❌ 你沒有【骰到步數+3】道具！", 2000);
@@ -3988,7 +3988,7 @@ async function initCameraAndStartVision() {
                         if (inv["item_discount"] && inv["item_discount"] > 0) {
                             if (window.isDiscountApplied) return; 
                             showGameNotice("🎟️ 已使用折扣道具！<br><span style='font-size: 1.5rem; color: #ef4444;'>⚠️ 注意：即使放棄收購，道具也無法退回</span>", 3500);
-                            const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+                            const roomData = JSON.parse(localStorage.getItem('beerich_active_room'));
                             const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
                             socket.emit('sync_adventure_choice', { room: roomCode, choice: "USE_DISCOUNT" });
                             applyItemDiscount();
@@ -4027,7 +4027,7 @@ async function initCameraAndStartVision() {
                             stopAllVision();
                             if (virtualScreen) virtualScreen.visible = false;
                             const myName = localStorage.getItem('username');
-                            const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+                            const roomData = JSON.parse(localStorage.getItem('beerich_active_room'));
                             if (roomData) socket.emit('player_move_sync_request', { room: roomData.code, user: myName, steps: window.lockedDiceVal });
                         }, 800);
                     }
@@ -4035,7 +4035,7 @@ async function initCameraAndStartVision() {
                     if (data.dice_val === "LIKE" || data.dice_val === "DISLIKE") {
                         if (window.shopCooldown) return; 
                         window.shopCooldown = true;
-                        const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+                        const roomData = JSON.parse(localStorage.getItem('beerich_active_room'));
                         const activeRoomCode = roomData ? roomData.code : localStorage.getItem('room_code');
                         socket.emit('sync_adventure_choice', { room: activeRoomCode, choice: data.dice_val });
                         setTimeout(() => {
@@ -4114,7 +4114,7 @@ function applyItemDiscount() {
 }
 
 async function executeStealAnimation(attackerName) {
-    const players = JSON.parse(localStorage.getItem('pypoly_game_snapshot')).players;
+    const players = JSON.parse(localStorage.getItem('beerich_game_snapshot')).players;
     const victimName = players.find(p => p !== attackerName);
     const roomCode = localStorage.getItem('room_code');
 
@@ -4162,21 +4162,21 @@ async function executeStealAnimation(attackerName) {
 // 🏆 修正：土地資料要綁在目前這個房號上；房號換了（新的一局）就清掉
 // 上一局殘留的資料，房號沒換（同一局重新整理）才繼續沿用——不然重建
 // 的房子不會消失，過路費也會繼續算到上一局的舊地主身上。
-const _activeRoomForLands = JSON.parse(localStorage.getItem('pypoly_active_room')) || {};
-const _lastLandRoomCode = localStorage.getItem('pypoly_land_ownership_room');
+const _activeRoomForLands = JSON.parse(localStorage.getItem('beerich_active_room')) || {};
+const _lastLandRoomCode = localStorage.getItem('beerich_land_ownership_room');
 if (_activeRoomForLands.code && _activeRoomForLands.code !== _lastLandRoomCode) {
-    localStorage.removeItem('pypoly_land_ownership');
-    localStorage.removeItem('pypoly_global_owned_lands');
-    localStorage.setItem('pypoly_land_ownership_room', _activeRoomForLands.code);
+    localStorage.removeItem('beerich_land_ownership');
+    localStorage.removeItem('beerich_global_owned_lands');
+    localStorage.setItem('beerich_land_ownership_room', _activeRoomForLands.code);
 }
-let globalOwnedLands = JSON.parse(localStorage.getItem('pypoly_global_owned_lands')) || [];
-window.landOwnership = JSON.parse(localStorage.getItem('pypoly_land_ownership')) || {};
+let globalOwnedLands = JSON.parse(localStorage.getItem('beerich_global_owned_lands')) || [];
+window.landOwnership = JSON.parse(localStorage.getItem('beerich_land_ownership')) || {};
 
 // 🏆 修正一、三、四：過路費精準判定、地主廣播、道具略過動畫
 async function handleTollPhase(myName, landName, questionObj) {
     const currentIdx = playerCurrentIndex[myName];
     const landData = window.landOwnership[currentIdx];
-    const roomCode = JSON.parse(localStorage.getItem('pypoly_active_room'))?.code || localStorage.getItem('room_code');
+    const roomCode = JSON.parse(localStorage.getItem('beerich_active_room'))?.code || localStorage.getItem('room_code');
 
     // 🏆 情境 A：踩到自己的地，顯示提示並同步給觀戰者
     if (landData && landData.owner === myName) {
@@ -4247,7 +4247,7 @@ socket.on('land_bought_sync', async (data) => {
     const newFloorCount = isActuallyUpgrade ? oldFloorCount + 1 : 1;
 
     // 🏆 核心修正：取得現在的回合數，如果是升級，沿用最初購買的回合
-    const currentRound = parseInt(localStorage.getItem('pypoly_current_round')) || 1;
+    const currentRound = parseInt(localStorage.getItem('beerich_current_round')) || 1;
     const buyRound = oldLandData ? (oldLandData.buyRound || currentRound) : currentRound;
 
     if (data.user !== myName) {
@@ -4281,8 +4281,8 @@ socket.on('land_bought_sync', async (data) => {
     globalOwnedLands.push({ owner: data.user, name: realLandName, toll: data.toll || 0 });
     renderOwnedLandsList();
     
-    localStorage.setItem('pypoly_land_ownership', JSON.stringify(window.landOwnership));
-    localStorage.setItem('pypoly_global_owned_lands', JSON.stringify(globalOwnedLands));
+    localStorage.setItem('beerich_land_ownership', JSON.stringify(window.landOwnership));
+    localStorage.setItem('beerich_global_owned_lands', JSON.stringify(globalOwnedLands));
 
     if (data.user !== myName) {
         if (window.isSpectating && window.lastAdvData?.user === data.user) {
@@ -4303,7 +4303,7 @@ socket.on('land_bought_sync', async (data) => {
 
 async function executePurchase(isBuying) {
     const myName = localStorage.getItem('username');
-    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomData = JSON.parse(localStorage.getItem('beerich_active_room'));
     const nextP = getNextPlayerName();
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
     const currentIndex = playerCurrentIndex[myName];
@@ -4513,7 +4513,7 @@ function animate() {
             window.uiTimer = now;
             
             socket.emit('trigger_dice_roll', { 
-                room: JSON.parse(localStorage.getItem('pypoly_active_room'))?.code || localStorage.getItem('room_code'), 
+                room: JSON.parse(localStorage.getItem('beerich_active_room'))?.code || localStorage.getItem('room_code'), 
                 user: localStorage.getItem('username') 
             });
         } 
@@ -4525,7 +4525,7 @@ function animate() {
 				// 🏆 修正二：在這裡計算原始點數與 +3 後的點數
 				let originalDice = Math.floor(Math.random() * 6) + 1;
 				
-				const roomCode = JSON.parse(localStorage.getItem('pypoly_active_room'))?.code || localStorage.getItem('room_code');
+				const roomCode = JSON.parse(localStorage.getItem('beerich_active_room'))?.code || localStorage.getItem('room_code');
 				const myName = localStorage.getItem('username');
 				
 				if (window.isPlus3Active) {
@@ -4557,7 +4557,7 @@ function animate() {
 		else if (window.uiState === "RESULT") {
 			// 🏆 新增：一進入 RESULT 狀態就立即廣播給其他玩家
 			if (!window.hasBroadcastResult) {
-				const roomCode = JSON.parse(localStorage.getItem('pypoly_active_room'))?.code || localStorage.getItem('room_code');
+				const roomCode = JSON.parse(localStorage.getItem('beerich_active_room'))?.code || localStorage.getItem('room_code');
 				const myName = localStorage.getItem('username');
 				
 				socket.emit('broadcast_dice_event', {
@@ -4718,12 +4718,12 @@ let currentJumpingCount = 0;
 // 因為結算是由單一權威端送出，需要同時掌握雙方的數字。
 // =========================================================
 function getJumpCount(playerName) {
-    return parseInt(localStorage.getItem(`pypoly_jumps_${playerName}`)) || 0;
+    return parseInt(localStorage.getItem(`beerich_jumps_${playerName}`)) || 0;
 }
 
 function addJumpCount(playerName, n) {
     const total = getJumpCount(playerName) + (parseInt(n) || 0);
-    localStorage.setItem(`pypoly_jumps_${playerName}`, total);
+    localStorage.setItem(`beerich_jumps_${playerName}`, total);
     console.log(`🏃 ${playerName} 開合跳累計：${total} 次`);
     return total;
 }
@@ -4747,18 +4747,18 @@ let turnEndedGuard = false;
 
 function setTurnOrder(firstName, secondName) {
     const order = [firstName, secondName];
-    localStorage.setItem('pypoly_turn_order', JSON.stringify(order));
+    localStorage.setItem('beerich_turn_order', JSON.stringify(order));
     console.log(`🔢 本局行動順序：${order.join(' → ')}`);
     return order;
 }
 
 function getTurnOrder() {
     try {
-        const saved = JSON.parse(localStorage.getItem('pypoly_turn_order'));
+        const saved = JSON.parse(localStorage.getItem('beerich_turn_order'));
         if (Array.isArray(saved) && saved.length) return saved;
     } catch (e) { /* 落到下面的退路 */ }
     // 退路：沒記錄到就沿用加入順序，行為與修正前相同，不會更糟
-    return JSON.parse(localStorage.getItem('pypoly_game_snapshot'))?.players || [];
+    return JSON.parse(localStorage.getItem('beerich_game_snapshot'))?.players || [];
 }
 
 // 🏆 修正 1：開合跳視角同步打字機與階段拆分
@@ -4767,7 +4767,7 @@ async function startJumpingJackView() {
     console.log("🤸 進入開合跳格：準備鍛鍊！");
     
     const myName = localStorage.getItem('username');
-    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomData = JSON.parse(localStorage.getItem('beerich_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
 
     setBoardVisibility(false);
@@ -4861,7 +4861,7 @@ async function payToSkipJumping() {
 
     const penalty = 300; 
     const myName = localStorage.getItem('username');
-    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomData = JSON.parse(localStorage.getItem('beerich_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
 
     console.log("💰 執行支付略過邏輯 (鎖定中)...");
@@ -4931,7 +4931,7 @@ async function initPoseAndStartVision() {
     virtualScreen.scale.set(1.4, 1.4, 1.4); 
     virtualScreen.visible = true;
 
-    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomData = JSON.parse(localStorage.getItem('beerich_active_room'));
     const myName = localStorage.getItem('username');
     
     socket.emit('start_pose_sync', { room: roomData.code, user: myName, type: "START" });
@@ -4977,7 +4977,7 @@ async function initPoseAndStartVision() {
 		const data = JSON.parse(e.data);
 		const skipOverlay = document.getElementById('skip-confirm-overlay');
 		const debugStatus = document.getElementById('gesture-debug-status');
-		const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+		const roomData = JSON.parse(localStorage.getItem('beerich_active_room'));
 		const myName = localStorage.getItem('username');
 
 		// 🏆 1. 偵錯訊息更新：始終顯示目前的偵測狀態
@@ -5138,7 +5138,7 @@ async function startBirdGameView() {
     setMapBgmScene(true);
 
     const myName = localStorage.getItem('username');
-    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomData = JSON.parse(localStorage.getItem('beerich_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
 
     const imgPath = `assets/skyboxes/sky_reward.jpg`;
@@ -5209,7 +5209,7 @@ async function startFlappyBirdMiniGame() {
     fbLastFrameTs = null; // 重新開始時 dt 計算從頭來，不沿用舊時間戳記
 
     const myName = localStorage.getItem('username');
-    const roomCode = JSON.parse(localStorage.getItem('pypoly_active_room'))?.code || localStorage.getItem('room_code');
+    const roomCode = JSON.parse(localStorage.getItem('beerich_active_room'))?.code || localStorage.getItem('room_code');
 
     socket.emit('sync_adventure_phase', { 
         room: roomCode, 
@@ -5624,7 +5624,7 @@ function finishFlappyBird(coins) {
     stopAllVision();
 
     const myName = localStorage.getItem('username');
-    const roomCode = JSON.parse(localStorage.getItem('pypoly_active_room'))?.code || localStorage.getItem('room_code');
+    const roomCode = JSON.parse(localStorage.getItem('beerich_active_room'))?.code || localStorage.getItem('room_code');
 
     updateMoneyUI(myName, coins);
     showGameNotice(`🎉 小鳥飛挑戰結束！獲得 ${coins} 金幣`, 3000);
@@ -5939,8 +5939,8 @@ async function startRecognitionProcess() {
 	}
 
 	function syncOrderDice(point) {
-		// 🏆 修正 1：檢查 room_code 是否存在，你的 localStorage 可能是存 pypoly_active_room
-		const activeRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
+		// 🏆 修正 1：檢查 room_code 是否存在，你的 localStorage 可能是存 beerich_active_room
+		const activeRoom = JSON.parse(localStorage.getItem('beerich_active_room'));
 		const roomCode = activeRoom ? activeRoom.code : localStorage.getItem('room_code');
 		const user = localStorage.getItem('username');
 
@@ -6056,7 +6056,7 @@ socket.on('dice_order_final', (results) => {
             isRolling = false; 
             myDicePoint = 0;
             
-            const activeRoom = JSON.parse(localStorage.getItem('pypoly_active_room'));
+            const activeRoom = JSON.parse(localStorage.getItem('beerich_active_room'));
             const roomCode = activeRoom ? activeRoom.code : localStorage.getItem('room_code');
             socket.emit('reset_dice_order', { room: roomCode });
 
@@ -6132,7 +6132,7 @@ function finalizeGameStart(iAmFirst) {
 
 		// 🏆 新增：找出對手是誰，並在我的畫面中隱藏他
 		/*
-        const players = JSON.parse(localStorage.getItem('pypoly_game_snapshot')).players;
+        const players = JSON.parse(localStorage.getItem('beerich_game_snapshot')).players;
         const opponentName = players.find(p => p !== myName);
         if (playerModels[opponentName]) {
             playerModels[opponentName].visible = false; // 這樣他就絕對擋不到你了
@@ -6387,7 +6387,7 @@ async function playStartAnimation(playerName) {
 // game.html - 修正後的 movePlayerSequence (支援字卡自動隱藏與恢復)
 // 🏆 加固：原本函式內部有多處沒有防呆的查表／解析
 // （mapBlocks[playerCurrentIndex[playerName]]、JSON.parse(localStorage
-// .getItem('pypoly_game_snapshot')).players），一旦某個時間點短暫讀到
+// .getItem('beerich_game_snapshot')).players），一旦某個時間點短暫讀到
 // 空值而丟出例外，函式會中途中斷、isMoving 永遠卡在 true（下面
 // `if (isMoving) return;` 會擋掉這個玩家之後所有移動指令）。改用
 // try/finally 保證不管中途有沒有丟例外，isMoving 一定會被重置。
@@ -6396,7 +6396,7 @@ async function movePlayerSequence(playerName, steps) {
     isMoving = true;
 
     try {
-    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomData = JSON.parse(localStorage.getItem('beerich_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
     const myName = localStorage.getItem('username');
     const isMe = (playerName === myName);
@@ -6421,9 +6421,9 @@ async function movePlayerSequence(playerName, steps) {
     // 誰該往左偏、誰該往右偏，但插入順序取決於兩個玩家的模型分別在什麼
     // 時機被建立，兩邊瀏覽器不保證一致，模型重建（重新整理、換外觀）時
     // 也可能跟著變——一旦兩邊算出同一個方向，虛擬人物就會疊在格子正
-    // 中央。改用 pypoly_game_snapshot.players（伺服器同步下來的加入
+    // 中央。改用 beerich_game_snapshot.players（伺服器同步下來的加入
     // 順序，兩邊看到的保證是同一份資料），讀不到時才退回原本的寫法。
-    const snapshotPlayers = JSON.parse(localStorage.getItem('pypoly_game_snapshot') || 'null')?.players;
+    const snapshotPlayers = JSON.parse(localStorage.getItem('beerich_game_snapshot') || 'null')?.players;
     const firstPlayer = (snapshotPlayers && snapshotPlayers[0]) || Object.keys(playerModels)[0];
 
     for (let i = 1; i <= steps; i++) {
@@ -6479,7 +6479,7 @@ async function movePlayerSequence(playerName, steps) {
         }
     }
     
-    const players = JSON.parse(localStorage.getItem('pypoly_game_snapshot')).players;
+    const players = JSON.parse(localStorage.getItem('beerich_game_snapshot')).players;
     const offsetFinal = (playerName === players[0] ? -0.8 : 0.8); 
     const nextIdx = (playerCurrentIndex[playerName] + 1) % mapBlocks.length;
     
@@ -6579,7 +6579,7 @@ function showCustomNotice(msg, position = "center", duration = 3000) {
 function spawnStepBubble(parentModel, text) {
     const myName = localStorage.getItem('username');
     // 🏆 改用直接比對參數的方式，避免抓不到模型屬性
-    const players = JSON.parse(localStorage.getItem('pypoly_game_snapshot')).players;
+    const players = JSON.parse(localStorage.getItem('beerich_game_snapshot')).players;
     const isMe = (parentModel === playerModels[myName]);
 
     if (isMe) {
@@ -6720,7 +6720,7 @@ socket.on('next_turn_sync', (data) => {
 
 function getNextPlayerName() {
     const myName = localStorage.getItem('username');
-    const snapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot'));
+    const snapshot = JSON.parse(localStorage.getItem('beerich_game_snapshot'));
     if (!snapshot || !snapshot.players) return '對方';
     return snapshot.players.find(p => p !== myName) || '對方';
 }
@@ -6736,7 +6736,7 @@ function endMyTurn() {
     turnEndedGuard = true;
 
     const myName = localStorage.getItem('username');
-    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomData = JSON.parse(localStorage.getItem('beerich_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
     let nextP = getNextPlayerName();
 
@@ -6751,9 +6751,9 @@ function endMyTurn() {
         nextP = myName;
     }
 
-    const gameSnapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot'));
+    const gameSnapshot = JSON.parse(localStorage.getItem('beerich_game_snapshot'));
     const maxTurns = gameSnapshot.winLaps || 10;
-    let currentRound = parseInt(localStorage.getItem('pypoly_current_round')) || 1;
+    let currentRound = parseInt(localStorage.getItem('beerich_current_round')) || 1;
 
     // 🏆 核心邏輯：由「本回合最後行動的人」結束時，才算一個大回合結束。
     //    必須用實際行動順序而非加入順序——先前用 players[1]（加入順序），
@@ -6771,7 +6771,7 @@ function endMyTurn() {
         } else {
             // 進入下一回合
             currentRound++;
-            localStorage.setItem('pypoly_current_round', currentRound);
+            localStorage.setItem('beerich_current_round', currentRound);
             socket.emit('broadcast_dice_event', { room: roomCode, user: myName, type: "ROUND_UPDATE", point: currentRound });
             updateRoundUI(currentRound); 
         }
@@ -6782,11 +6782,11 @@ function endMyTurn() {
 }
 
 function updateRoundUI(round) {
-    const total = JSON.parse(localStorage.getItem('pypoly_game_snapshot'))?.winLaps || 10;
+    const total = JSON.parse(localStorage.getItem('beerich_game_snapshot'))?.winLaps || 10;
     const header = document.getElementById('headerLapInfo');
     if (header) header.innerText = `第 ${round} / ${total} 回合 ⏳`;
     
-    const players = JSON.parse(localStorage.getItem('pypoly_game_snapshot'))?.players || [];
+    const players = JSON.parse(localStorage.getItem('beerich_game_snapshot'))?.players || [];
     players.forEach(p => {
         const el = document.getElementById(`laps-${p}`);
         if (el) el.innerText = `回合 ${round} / ${total}`;
@@ -6815,12 +6815,12 @@ function triggerGameOver() {
         showCustomNotice("💰 正在進行遊戲結算...<br><span style='font-size: 1.5rem;'>即將為您轉跳至成績單</span>", "center", 0);
         
         (function () {
-            const gs = JSON.parse(localStorage.getItem('pypoly_game_snapshot')) || {};
+            const gs = JSON.parse(localStorage.getItem('beerich_game_snapshot')) || {};
             const players = gs.players || [];
-            const rd = JSON.parse(localStorage.getItem('pypoly_active_room'));
+            const rd = JSON.parse(localStorage.getItem('beerich_active_room'));
             const rc = rd ? rd.code : localStorage.getItem('room_code');
             const myName = localStorage.getItem('username');
-            const finalRound = parseInt(localStorage.getItem('pypoly_current_round')) || 1;
+            const finalRound = parseInt(localStorage.getItem('beerich_current_round')) || 1;
             const go = () => { window.location.href = `results.html?room=${encodeURIComponent(rc)}`; };
             
             const order = getTurnOrder();
@@ -6832,7 +6832,7 @@ function triggerGameOver() {
                     let cash = el ? (parseInt(el.innerText.replace(/,/g, '')) || 0) : 0;
                     
                     // 🏆 複利算法與結算頁完全同步
-                    const landOwnership = JSON.parse(localStorage.getItem('pypoly_land_ownership')) || {};
+                    const landOwnership = JSON.parse(localStorage.getItem('beerich_land_ownership')) || {};
                     let realEstateValue = 0;
                     Object.values(landOwnership).forEach(land => {
                         if (land.owner === p) {
@@ -6886,7 +6886,7 @@ function resetToGodViewState() {
     }
     setBoardVisibility(true);
     
-    const players = JSON.parse(localStorage.getItem('pypoly_game_snapshot')).players;
+    const players = JSON.parse(localStorage.getItem('beerich_game_snapshot')).players;
 
     Object.keys(playerModels).forEach(pName => {
         const m = playerModels[pName];
@@ -7019,7 +7019,7 @@ function transitionToMyTurn() {
     if (headObject) headObject.visible = false;
 
     // 🏆 修正：在計算相機位置前，先讓人物精準面向「車道正前方」 [需求 1]
-    const players = JSON.parse(localStorage.getItem('pypoly_game_snapshot')).players;
+    const players = JSON.parse(localStorage.getItem('beerich_game_snapshot')).players;
     const offset = (myName === players[0]) ? -0.8 : 0.8;
     const currentIdx = playerCurrentIndex[myName] || 0;
     const nextIdx = (currentIdx + 1) % mapBlocks.length;
@@ -7692,7 +7692,7 @@ socket.on('adventure_choice_broadcast', (data) => {
 function logAnswerToServer(isCorrect, chosenVal) {
     try {
         const myName = localStorage.getItem('username');
-        const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+        const roomData = JSON.parse(localStorage.getItem('beerich_active_room'));
         const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
         const q = window.currentAdventureQuestion || {};
         const answerSec = window.questionShownAt ? (Date.now() - window.questionShownAt) / 1000 : 0;
@@ -7800,7 +7800,7 @@ function closeTileInfo() {
 function renderMiniMapTiles() {
     // 🏆 小地圖加上「目前位置」標記：playerCurrentIndex 本來就會同步追蹤
     // 雙方（不只自己）目前站在哪一格，直接拿來用，不需要額外的即時更新機制。
-    const gameSnapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot'));
+    const gameSnapshot = JSON.parse(localStorage.getItem('beerich_game_snapshot'));
     const players = (gameSnapshot && gameSnapshot.players) || [];
     const playerPositions = players.map(pName => ({
         name: pName,
@@ -7945,7 +7945,7 @@ function executeDebugAction() {
         return;
     }
 
-    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomData = JSON.parse(localStorage.getItem('beerich_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
     const myName = localStorage.getItem('username');
 

@@ -3,7 +3,7 @@
 
 由 origin/vamos 分支的 990e880「接環境部API，特定格子有環境加成」移植而來，
 原作者 specialstyle035@gmail.com。原版是根目錄的獨立小伺服器 + air_quality.py，
-本檔把邏輯搬進 PyPoly，接到既有的 /game/adventure_analysis
+本檔把邏輯搬進 BeeRich，接到既有的 /game/adventure_analysis
 （那裡原本有一行 random.randint(15,160) 的 AQI 佔位）。
 
 解析與比對邏輯來自 teca 分支（環境部 API 實際回傳的是裸 list，不是

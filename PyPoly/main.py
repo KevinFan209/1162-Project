@@ -874,10 +874,10 @@ def send_otp_email(to_email: str, otp: str):
     if not SENDER_EMAIL or not SENDER_PASSWORD:
         raise HTTPException(status_code=500, detail="郵件服務未設定（請於 .env 填入 SENDER_EMAIL / SENDER_PASSWORD）")
     msg = MIMEText(
-        f"您的 PyPoly 密碼重設驗證碼為：{otp}\n\n此驗證碼供重設密碼使用，若非本人操作請忽略本信。",
+        f"您的 BeeRich 密碼重設驗證碼為：{otp}\n\n此驗證碼供重設密碼使用，若非本人操作請忽略本信。",
         "plain", "utf-8"
     )
-    msg["Subject"] = "PyPoly 密碼重設驗證碼"
+    msg["Subject"] = "BeeRich 密碼重設驗證碼"
     msg["From"] = SENDER_EMAIL
     msg["To"] = to_email
     try:

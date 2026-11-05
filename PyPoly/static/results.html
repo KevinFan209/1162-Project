@@ -421,8 +421,8 @@
     const roomCode = new URLSearchParams(window.location.search).get('room');
     const myName = localStorage.getItem('username');
 
-    const landOwnership = JSON.parse(localStorage.getItem('pypoly_land_ownership')) || {};
-    const mapCache = JSON.parse(localStorage.getItem(`pypoly_synced_map_${roomCode}`)) || [];
+    const landOwnership = JSON.parse(localStorage.getItem('beerich_land_ownership')) || {};
+    const mapCache = JSON.parse(localStorage.getItem(`beerich_synced_map_${roomCode}`)) || [];
 
     window.onload = () => {
         if (!roomCode) {
@@ -447,13 +447,13 @@
     }
 
     function cleanupGameState() {
-        const exact = ['pypoly_active_room', 'room_code', 'room_info', 'is_host',
-                       'pypoly_game_snapshot', 'pypoly_current_round', 'pypoly_turn_order',
-                       'pypoly_land_ownership', 'pypoly_global_owned_lands',
-                       'pypoly_used_questions', 'current_player_role'];
+        const exact = ['beerich_active_room', 'room_code', 'room_info', 'is_host',
+                       'beerich_game_snapshot', 'beerich_current_round', 'beerich_turn_order',
+                       'beerich_land_ownership', 'beerich_global_owned_lands',
+                       'beerich_used_questions', 'current_player_role'];
         exact.forEach(k => localStorage.removeItem(k));
 
-        const prefixes = ['pypoly_synced_map_', 'pypoly_inv_', 'pypoly_jumps_'];
+        const prefixes = ['beerich_synced_map_', 'beerich_inv_', 'beerich_jumps_'];
         Object.keys(localStorage)
             .filter(k => prefixes.some(p => k.startsWith(p)))
             .forEach(k => localStorage.removeItem(k));
@@ -613,7 +613,7 @@
         } catch (err) {
             console.warn('⚠️ 取得贏家角色顏色失敗（使用預設顏色）', err);
         }
-        const faceUrl = localStorage.getItem(`pypoly_char_face_${winnerName}`) || localStorage.getItem('pypoly_char_face');
+        const faceUrl = localStorage.getItem(`beerich_char_face_${winnerName}`) || localStorage.getItem('beerich_char_face');
 
         if (typeof createCustomBoxCharacter === 'function') {
             const model = createCustomBoxCharacter(colors, faceUrl);
