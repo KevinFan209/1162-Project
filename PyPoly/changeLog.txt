@@ -6444,3 +6444,50 @@ PyPoly 變更紀錄 (changeLog)
     夾名稱本身），以及 changeLog.txt／past/ 的歷史紀錄，沒有
     漏掉的品牌名稱殘留。
 ========================================================================
+
+========================================================================
+[2026-11-06] 整理專案說明文件：移除失真的根目錄 README 舊規劃段、README.txt 全改 .md
+
+  背景：使用者要求檢查整個專案底下的 README 文件並更新，另外把
+  README.txt 都改成 markdown 格式。盤點後找到 6 份：根目錄
+  README.md、ops/README.md、PyPoly/README.md 這三份已經是
+  markdown；static/assets/skyboxes/scenarios/README.txt、
+  static/outlines/README_789.txt、static/sounds/README.txt
+  這三份是純文字檔。
+
+  根目錄 README.md 第 39 行起有一大段「系統概述／使用技術／
+  模組設計／資料庫設計／API 設計／開發時程」，內容跟實際實作
+  完全不符（寫 Node.js/Express、Redis、OpenCV+ArUco、REST 路由
+  /api/auth/login、WebSocket 事件 dice_roll/player_move、
+  3/4~5/7 的開發時程），是專題初期的規劃腦補，文件裡自己也有
+  警語承認跟最終實作不同。跟使用者確認後決定整段移除，改用
+  `PyPoly/README.md` 當單一事實來源，避免兩邊架構說明各自
+  偏離、日後矛盾。順手修正同一份文件裡另一處過時說明：
+  `ops/` 的描述還寫著「Cloudflare 隧道腳本」，但 ops/README.md
+  早就說明專案已經從 Cloudflare Quick Tunnel 換成 ngrok（原因是
+  Google OAuth 的「已授權 JavaScript 來源」要求固定網域，隨機
+  網址的 Quick Tunnel 結構上不可能通過），改成「ngrok 隧道腳本」。
+
+  修法：
+  - 根目錄 README.md：移除整段舊規劃內容，改成一段簡短提示指向
+    `PyPoly/` 程式碼與 `PyPoly/changeLog.txt`；`ops/` 說明文字
+    改成 ngrok。
+  - 3 份 README.txt 改寫成 markdown 格式（加標題層級、表格、
+    code block，內容照舊不變）並改副檔名為 .md：
+    `static/assets/skyboxes/scenarios/README.md`、
+    `static/outlines/README_789.md`、`static/sounds/README.md`。
+  - `run_seed_scenarios.py` 裡提到 `README.txt` 路徑的註解同步
+    改成 `README.md`（唯一一處程式碼裡用檔名引用這幾份文件的
+    地方，確認過沒有任何程式會真的用路徑去讀取這些 README，
+    純粹是人看的註解說明，改副檔名不影響任何功能）。
+  - ops/README.md、PyPoly/README.md 檢查過内容，確認跟目前
+    實作一致（資料庫名稱、BeeRich 品牌字樣都已經是上次改名時
+    更新過的版本），沒有再需要修改的地方。
+
+  驗證：
+  - python -m py_compile run_seed_scenarios.py 通過。
+  - 全專案重新 find README* 一次，確認剩下的 6 份全部是 .md，
+    沒有任何 .txt 的 README 殘留。
+  - grep 全專案確認沒有其他地方以檔名引用這 3 份改過副檔名的
+    文件（排除掉這次順手修正的那一處）。
+========================================================================

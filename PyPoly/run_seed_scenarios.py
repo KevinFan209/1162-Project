@@ -13,7 +13,7 @@ from database import engine
 # 執行 seed_scenarios.sql：107 筆正式情境資料（含天空盒對應的 id）。
 # 這個檔取代掉舊的 init_adventure_data.py（只灌 5 筆、id=1~5）——
 # 107 筆上線後 init_adventure_data.py 已不再是現況的種子資料，見
-# static/assets/skyboxes/scenarios/README.txt 的說明。
+# static/assets/skyboxes/scenarios/README.md 的說明。
 #
 # 不用 mysql CLI 是因為 Docker 映像特意不裝 mariadb-client（省 140MB），
 # 這裡直接用專案本來就有的 SQLAlchemy/pymysql 連線執行。
