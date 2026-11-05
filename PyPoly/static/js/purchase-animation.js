@@ -127,6 +127,9 @@ async function runPurchaseAnimationCore(ctx, playerName, tileIndex, color, isUpg
         const hasHouse = targetTile.userData.hasHouse;
 
         buildTl.to({}, { duration: 0.6 }).add(() => {
+            // 🏆 修復 GPU 顯存洩漏：shovel 是純 Mesh 子物件組成的 Group，
+            // 之前只 remove() 沒 dispose()，每次收購/加蓋動畫就永久多佔一份。
+            disposeObject3D(shovel);
             model.remove(shovel);
 
             if (!hasHouse || isUpgrade) {

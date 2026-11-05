@@ -478,7 +478,12 @@
         </aside>
 
         <!-- 📋 畫面一：學生管理列表 -->
-        <main class="admin-board" id="studentListView">
+        <!-- 🏆 修復：原本這裡沒有 display:none，預設一定會先畫出來，
+             從 teacher_question.html／teacher_handbook.html 點「個人
+             資料設定」過來時會先閃一下這個畫面。跟另外兩個分頁一樣
+             預設隱藏，實際要顯示哪個分頁由下面緊接著三個分頁之後的
+             行內 script 同步決定。 -->
+        <main class="admin-board" id="studentListView" style="display: none;">
             <div class="board-header">
                 <div class="class-info-banner" id="classInfoBanner">
                     <select id="classSelectDropdown" class="class-badge-box" style="cursor: pointer; outline: none; display: none;" onchange="onSwitchClass(this.value)"></select>
@@ -590,6 +595,32 @@
     </div>
 </div>
 
+<script>
+    // 🏆 修復「個人資料設定」會先閃過「學生管理」：原本偵測網址上
+    // ?tab=profile 並切分頁的邏輯寫在檔案最下面的 DOMContentLoaded
+    // 事件裡，那個時間點瀏覽器早就已經把預設顯示的「學生管理」畫面畫
+    // 出來了（studentListView 原本沒有 display:none），使用者會看到
+    // 畫面先閃一下學生管理、再跳到個人資料設定——這是真的發生了兩次
+    // 渲染，不是視覺錯覺。teacher_question.html／teacher_handbook.html
+    // 的「個人資料設定」連結本身沒有問題，本來就正確連到
+    // teacher.html?tab=profile。
+    //
+    // 改成緊接著三個分頁的 <main> 之後放一段同步執行的行內 script，
+    // 瀏覽器解析到這裡時（在繼續解析/繪製後面的彈窗跟功能性 script
+    // 之前）就立刻決定好要顯示哪個分頁，保證畫面第一次真正繪製出來時
+    // 就已經是正確的分頁。下面檔案最下面 DOMContentLoaded 裡原本的
+    // switchTab('profile') 呼叫繼續保留，只是現在單純當保險、順便觸發
+    // loadTeacherMe() 把個人資料欄位填值，不影響顯示時機。
+    (function () {
+        const initialTab = new URLSearchParams(window.location.search).get('tab') === 'profile'
+            ? 'profile' : 'students';
+        document.getElementById('navStudents').classList.toggle('active', initialTab === 'students');
+        document.getElementById('navProfile').classList.toggle('active', initialTab === 'profile');
+        document.getElementById('studentListView').style.display = initialTab === 'students' ? 'flex' : 'none';
+        document.getElementById('teacherProfileView').style.display = initialTab === 'profile' ? 'flex' : 'none';
+    })();
+</script>
+
 <!-- 像素彈窗 -->
 <div id="statusModal" class="modal-overlay" style="display: none;">
     <div class="modal-content">
@@ -619,8 +650,29 @@
             return;
         }
 
+        // 🏆 教師上線流程：剛被賦予教師身分、還沒自己從大廳點過一次
+        // 「教師頁面」確認的話，不管是從哪裡進來這個頁面（登入時的
+        // 轉跳、書籤、直接輸入網址），都導回大廳——只有 admin 不受
+        // 這個限制（admin 本來就不用走這個確認流程）。
+        // 刻意只在明確是字串 "false" 時才擋：這個 key 是 login.html
+        // 登入時才會寫入 localStorage，舊的 session（這次改動上線前
+        // 就已經登入、還沒重新登入過）會完全沒有這個 key，不該被誤判
+        // 成「尚未確認」而擋下來。
+        if (role === 'teacher' && localStorage.getItem('teacher_confirmed') === 'false') {
+            window.location.href = 'lobby.html';
+            return;
+        }
+
         document.getElementById('topTeacherName').innerText = `🧑‍🏫 ${username} 老師`;
-		
+
+        // 🏆 修復「個人資料設定」從 teacher_question.html／teacher_handbook.html
+        // 點過來一律停在學生管理：個人資料設定在這個頁面是 JS 分頁切換
+        // （switchTab('profile')），不是獨立網址，其他頁面的選單只能先連
+        // 到 teacher.html?tab=profile，這裡偵測到這個參數就自動切過去。
+        if (new URLSearchParams(window.location.search).get('tab') === 'profile') {
+            switchTab('profile');
+        }
+
 		fetchMyClass();
         loadTeacherMe();
         startTeacherLoop();
@@ -805,7 +857,15 @@
                 updateTopClassBadge(null);
                 studentsCache = [];
                 renderStudents();
-                if (!silent) openClassModal('create', true);
+                // 🏆 修復：這個提示原本每次沒有班級就會無條件跳出來，跟
+                // 目前在哪個分頁無關——改成只在還沒顯示過一次時才跳，
+                // 顯示的同時標記起來，之後不管有沒有建班級都不會再跳。
+                if (!silent && !data.teacher_class_prompt_shown) {
+                    openClassModal('create', true);
+                    fetch(`${API_URL}/teacher/mark_class_prompt_shown`, {
+                        method: 'POST', headers: authHeaders()
+                    }).catch(() => {});
+                }
             } else {
                 localStorage.setItem('teacher_active_class_id', String(data.class_id));
                 updateTopClassBadge(data.class_name);
@@ -817,8 +877,11 @@
                 codeBadge.style.display = 'inline-block';
                 codeBadge.innerText = `🔑 班級邀請碼：${data.invite_code}`;
 
+                // 🏆 修復：有不只一個班級時，之前只顯示班級名稱，很容易
+                // 選錯班級、誤以為「這個班級沒有學生」（其實學生在另一個
+                // 班級裡）。這裡加上學生人數，一看就知道選對了沒有。
                 dropdown.innerHTML = (data.classes || []).map(c =>
-                    `<option value="${c.id}" ${c.id === data.class_id ? 'selected' : ''}>🏫 班級：${c.name}</option>`
+                    `<option value="${c.id}" ${c.id === data.class_id ? 'selected' : ''}>🏫 班級：${c.name}（${c.student_count ?? 0} 位學生）</option>`
                 ).join('');
 
                 studentsCache = data.students || [];

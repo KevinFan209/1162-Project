@@ -43,7 +43,7 @@ import io
 from dotenv import load_dotenv
 from fastapi import Request
 from openai import AsyncOpenAI
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 import seed_handbook
 
 # 🏆 讀取 PyPoly/.env（機敏設定：SENDER_EMAIL / SENDER_PASSWORD / SECRET_KEY 等）
@@ -86,6 +86,19 @@ async def favicon():
     return FileResponse("static/favicon.jpg")
 
 
+# 🏆 新增首頁入口：未登入時網站根目錄要先看到 homepage.html。
+# 這裡刻意用 redirect、不是直接回傳檔案內容——homepage.html 裡的連結
+# 跟全站其他頁面一樣都是用「同層相對路徑」寫的（例如 href="login.html"、
+# src="assets/homepage/xxx.png"），這些相對路徑是假設目前頁面本身就在
+# /static/ 底下才會解析正確。如果這裡直接回傳檔案內容，瀏覽器會認為
+# 目前網址是「/」，上述相對路徑就會變成對到 /login.html、
+# /assets/homepage/xxx.png（都是 404），而不是 /static/login.html。
+# 用 redirect 讓瀏覽器真正載入 /static/homepage.html，相對路徑才會對。
+@app.get("/", include_in_schema=False)
+async def homepage_redirect():
+    return RedirectResponse(url="/static/homepage.html")
+
+
 # 🏆 靜態檔一律要求瀏覽器重新驗證。
 #
 # StaticFiles 只回 last-modified 與 etag，不回 Cache-Control。沒有明確
@@ -125,6 +138,7 @@ def _clear_room_dice_state(code: str):
         dice_order_results.pop(key, None)
         room_dice_data.pop(key, None)
         room_map_cache.pop(key, None)
+        room_ready_players.pop(key, None)
 
 
 # ==========================================================
@@ -277,13 +291,20 @@ async def start_cleanup_task():
 
     async def cleanup_loop():
         while True:
-            # 建立一個新的資料庫連線來清理
-            db = database.SessionLocal()
-            try:
-                perform_auto_cleanup(db)
-            finally:
-                db.close()
+            # 🏆 修復事件迴圈阻塞：這支伺服器只開一個 Uvicorn worker，
+            # 全部請求/WebSocket/Socket.IO 事件共用同一個 asyncio 事件
+            # 迴圈。SQLAlchemy 是同步 DB driver，先前直接在這個
+            # async def 迴圈裡呼叫 perform_auto_cleanup(db)，DB 查詢
+            # 期間會整個卡住唯一的事件迴圈，這段時間內其他所有請求都
+            # 會停擺——這正是 /auth/heartbeat 每隔約 10 秒會間歇性
+            # 503 的原因。改用 asyncio.to_thread() 丟到背景執行緒做，
+            # 事件迴圈就不會被這個每 10 秒跑一次、不管有沒有東西要清
+            # 都會查一次 DB 的迴圈卡住。
+            await asyncio.to_thread(perform_auto_cleanup_bg)
             # 🏆 一併回收閒置房間，避免大廳堆滿沒人但顯示滿員的殭屍房
+            # （這個函式本身是純記憶體的 dict 操作，只有真的遇到閒置
+            # 房間才會觸發 sync_room_log() 的 DB 寫入，屬於罕見分支，
+            # 不是造成「固定每 10 秒卡一次」的主因，先不動它。）
             cleanup_idle_rooms()
             # 每 10 秒自動掃描一次
             await asyncio.sleep(10)
@@ -382,7 +403,10 @@ def login(user: UserLogin, background_tasks: BackgroundTasks, db: Session = Depe
     db.commit()
 
     token = auth_utils.create_access_token(data={"sub": db_user.username, "role": db_user.role})
-    return {"access_token": token, "role": db_user.role, "username": db_user.username}
+    return {
+        "access_token": token, "role": db_user.role, "username": db_user.username,
+        "teacher_confirmed": db_user.teacher_confirmed
+    }
 
 # 2. Google 登入 (整合封鎖邏輯)
 @app.post("/auth/google_v2")
@@ -416,7 +440,10 @@ def google_login_v2(data: GoogleTokenRequest, background_tasks: BackgroundTasks,
     db.refresh(user)
     
     token = auth_utils.create_access_token(data={"sub": user.username, "role": user.role})
-    return {"access_token": token, "username": user.username, "role": user.role}
+    return {
+        "access_token": token, "username": user.username, "role": user.role,
+        "teacher_confirmed": user.teacher_confirmed
+    }
 
 # 3. 心跳機制 (維持在線與 Admin 復活)
 @app.post("/auth/heartbeat")
@@ -443,12 +470,13 @@ def get_me(username: str, background_tasks: BackgroundTasks, db: Session = Depen
             class_name = classroom.name
 
     return {
-        "username": user.username, 
+        "username": user.username,
         "is_online": user.is_online,
         "role": user.role,
         "email": user.email,
         "class_id": user.class_id,
-        "class_name": class_name
+        "class_name": class_name,
+        "teacher_confirmed": user.teacher_confirmed
     }
 
 # 5. 登出
@@ -536,8 +564,18 @@ def update_user_role(target_username: str, data: dict, db: Session = Depends(dat
         raise HTTPException(status_code=400, detail="不能更改管理員權限")
 
     new_role = data.get("role")
+    old_role = user.role
+
+    # 🏆 教師上線流程：原本不是教師、這次要變成教師，代表這是一次
+    # 全新的教師身分，重置這兩個旗標讓他要重新走一次「大廳確認」跟
+    # 「請建立班級」提示，不要直接沿用（例如先降級又升級回來）之前
+    # 可能已經是 True 的狀態。
+    if new_role == "teacher" and old_role != "teacher":
+        user.teacher_confirmed = False
+        user.teacher_class_prompt_shown = False
+
     user.role = new_role
-    
+
     # 🏆 核心邏輯：如果是封鎖，強制變 0 讓他在 5 秒內被踢出
     if new_role == "banned":
         user.is_online = 0
@@ -976,7 +1014,10 @@ def update_profile(
     print(f"✏️ 使用者 {current_username} 已更新個人資料 -> {user.username}")
     # username 可能已變更，必須重新簽發 token（sub 帶的是 username）
     token = auth_utils.create_access_token(data={"sub": user.username, "role": user.role})
-    return {"access_token": token, "username": user.username, "role": user.role}
+    return {
+        "access_token": token, "username": user.username, "role": user.role,
+        "teacher_confirmed": user.teacher_confirmed
+    }
 
 
 # ==========================================================
@@ -1513,6 +1554,11 @@ async def disconnect(sid):
     room, user = info.get("room"), info.get("user")
     print(f"🔌 [斷線] {user} 離開房間 {room}")
 
+    # 🏆 修復結算頁誤判斷線：要在下面「移除玩家、可能刪房間」之前先讀
+    # 這個旗標，不然房間被刪掉後就讀不到了。旗標由 handle_dice_event()
+    # 收到 GAME_OVER 廣播時設定，見那裡的完整說明。
+    game_already_ended = bool(active_rooms.get((room or "").upper(), {}).get('game_ended'))
+
     # 1. 若還在決定先後手階段，整份清掉並通知同房的人。
     #    ⚠️ 不能只在「斷線者已提交過點數」時才處理——死鎖恰恰發生在他還沒提交
     #    就離開的情況（剩下的人永遠湊不滿 2 人）。只要該房有進行中的擲骰回合，
@@ -1540,7 +1586,11 @@ async def disconnect(sid):
                 touch_room(r)
 
     # 3. 通知同房其他人，讓前端能顯示提示而不是無限等待
-    await sio.emit('opponent_disconnected', {"user": user, "room": room}, room=room)
+    #    🏆 遊戲已經結束的話，這次「斷線」其實是玩家正常跳轉去結算頁
+    #    （results.html 完全不用 Socket.IO），不是真的斷線，不要誤導
+    #    還留在 game.html 的另一位玩家。
+    if not game_already_ended:
+        await sio.emit('opponent_disconnected', {"user": user, "room": room}, room=room)
 
 
 @sio.event
@@ -1591,6 +1641,33 @@ async def roll_order(code: str, data: dict):
 
 # 儲存結構: { room_name: { username: points } }
 room_dice_data = {}
+
+# 🏆「雙方準備完成」畫面用：記錄每個房間已經按下準備完成的玩家。
+# 玩家進房的手勢流程（決定先後手）完全靠鏡頭偵測、不會有任何滑鼠點擊/
+# 鍵盤事件，瀏覽器的音效自動播放限制因此永遠無法解鎖，整場常常沒有
+# 背景音樂。改成要雙方都按下「準備完成」按鈕才進入開場動畫，這個按鈕
+# 本身就是一次保證會發生的真實點擊，順便解鎖音效。
+# 儲存結構: { room_name: set(username) }
+room_ready_players = {}
+
+
+@sio.on('player_ready')
+async def handle_player_ready(sid, data):
+    # 🏆 有活動就更新房間活躍時間，避免進行中的對局被閒置回收
+    touch_room_by_code(data.get('room') if isinstance(data, dict) else None)
+    room = data.get('room')
+    user = data.get('user')
+    if not room or not user:
+        return
+
+    room_ready_players.setdefault(room, set()).add(user)
+    expected = len(active_rooms.get(room.upper(), {}).get('players', [])) or 2
+    print(f"✅ 房間 {room} 準備完成：{room_ready_players[room]} / 共 {expected} 人")
+
+    if len(room_ready_players[room]) >= expected:
+        await sio.emit('both_players_ready', {}, room=room)
+        room_ready_players.pop(room, None)
+
 
 # --- 修正 1：handle_order_dice ---
 # --- 修正後的 handle_order_dice ---
@@ -1645,6 +1722,20 @@ async def handle_dice_event(sid, data):
     # data 格式範例: {"room": "ROOM123", "user": "玩家ID", "type": "ROLLING" 或 "RESULT", "point": 5}
     room = data.get('room')
     print(f"📣 廣播擲骰事件: {data}")
+
+    # 🏆 修復結算頁誤判斷線（競態條件）：這個旗標原本寫在下面
+    # await sio.emit('dice_event_sync', ...) 之後，但 await 是 asyncio
+    # 真正會讓出控制權的地方——如果伺服器同時在處理別的事件（例如另一
+    # 個房間的高頻廣播），disconnect() 有可能恰好在這個空檔被排進來
+    # 執行、讀到旗標還沒被設成 True 的瞬間，導致「對手已離線」的誤判
+    # 仍然偶爾發生。這裡改成收到 GAME_OVER 的當下、在任何 await 之前
+    # 就同步設定完，不留空檔。同時統一轉大寫，跟 active_rooms 其他地方
+    # 的 key 一致（這裡跟下面 disconnect() 原本都沒轉，房號大小寫不一致
+    # 時旗標會完全失效）。
+    room_key = (room or "").upper()
+    if data.get('type') == 'GAME_OVER' and room_key in active_rooms:
+        active_rooms[room_key]['game_ended'] = True
+
     await sio.emit('dice_event_sync', data, room=room)
 
 # 在 main.py 中加入此段落
@@ -2644,13 +2735,16 @@ def teacher_get_my_class(
 ):
     perform_auto_cleanup(db)
 
-    # 自動修復因改名而斷開連結的孤兒班級
-    all_db_classes = db.query(models.Classroom).all()
-    for c in all_db_classes:
-        owner_exists = db.query(models.User).filter(models.User.username == c.teacher_username).first()
-        if not owner_exists:
-            c.teacher_username = teacher.username
-            db.commit()
+    # 🏆 修復：原本這裡有一段「自動修復孤兒班級」的邏輯，會掃過全資料庫
+    # 所有班級，把任何「擁有者帳號已經不存在」的班級無條件轉移給目前呼叫
+    # 這個 API 的老師——完全沒有限制在跟這位老師相關的班級範圍內，等於
+    # 任何老師只要先打開自己的學生管理頁，就可能把跟自己無關的孤兒班級
+    # 意外收進名下（甚至可能跟自己既有的班級撞名，混淆「這個班級有沒有
+    # 學生」的判斷）。這段邏輯原本是為了解決「老師改名字後，班級的
+    # teacher_username 對不上」，但 /auth/update-profile 改名時其實已經
+    # 同步更新 Classroom.teacher_username（見該函式），班級改名不會再
+    # 變成孤兒；真正的孤兒（例如帳號被刪除）應該由管理員手動處理，不該
+    # 靜默分給任意一位老師，所以直接移除這段。
 
     # 撈出該名老師名下的「所有班級」
     my_classes = db.query(models.Classroom).filter(
@@ -2658,7 +2752,10 @@ def teacher_get_my_class(
     ).order_by(models.Classroom.id.asc()).all()
 
     if not my_classes:
-        return {"has_class": False, "classes": []}
+        return {
+            "has_class": False, "classes": [],
+            "teacher_class_prompt_shown": teacher.teacher_class_prompt_shown
+        }
 
     # 決定目前選中的是哪一個班級（若前端有傳 class_id 且屬於該老師就用它，否則預設選第一個）
     active_class = None
@@ -2671,6 +2768,17 @@ def teacher_get_my_class(
         models.User.class_id == active_class.id
     ).order_by(models.User.is_online.desc(), models.User.username.asc()).all()
 
+    # 🏆 修復：老師名下有不只一個班級時，畫面一次只會顯示其中一個
+    # （用 class_id 參數或 localStorage 記住的班級決定），之前只看班級
+    # 名稱很容易選錯班級、誤以為「這個班級沒有學生」。這裡補上每個班級
+    # 目前有幾位學生，下拉選單可以直接看到，不用猜。
+    student_counts = dict(
+        db.query(models.User.class_id, func.count(models.User.username))
+        .filter(models.User.class_id.in_([c.id for c in my_classes]))
+        .group_by(models.User.class_id)
+        .all()
+    )
+
     return {
         "has_class": True,
         "class_id": active_class.id,
@@ -2680,7 +2788,8 @@ def teacher_get_my_class(
             {
                 "id": c.id,
                 "name": c.name,
-                "invite_code": c.invite_code
+                "invite_code": c.invite_code,
+                "student_count": student_counts.get(c.id, 0)
             } for c in my_classes
         ],
         "students": [
@@ -3240,6 +3349,41 @@ def get_my_teacher_apply_status(
     }
 
 
+# 🏆 教師上線流程：使用者第一次從 lobby.html 右側選單點「教師頁面」
+# 時呼叫這個端點，把 teacher_confirmed 標記成 True——之後登入/直接
+# 打開 teacher.html 才不會再被導回大廳重新走一次這個流程。
+@app.post("/teacher_apply/confirm_teacher_page")
+def confirm_teacher_page(
+    authorization: str = Header(None),
+    db: Session = Depends(database.get_db)
+):
+    username = auth_utils.get_current_user(authorization)
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="找不到使用者")
+    if user.role not in ("teacher", "admin"):
+        raise HTTPException(status_code=403, detail="只有教師可以執行這個動作")
+    user.teacher_confirmed = True
+    db.commit()
+    return {"status": "success", "teacher_confirmed": True}
+
+
+# 🏆「請建立班級」提示只應該出現一次：第一次顯示的同時呼叫這個端點
+# 標記起來，之後不管有沒有建班級、重新登入幾次都不會再跳出來。
+@app.post("/teacher/mark_class_prompt_shown")
+def mark_class_prompt_shown(
+    authorization: str = Header(None),
+    db: Session = Depends(database.get_db)
+):
+    username = auth_utils.get_current_user(authorization)
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="找不到使用者")
+    user.teacher_class_prompt_shown = True
+    db.commit()
+    return {"status": "success"}
+
+
 # 2. 玩家端：提交（或重新提交）教師資格申請
 @app.post("/teacher_apply/submit")
 async def submit_teacher_application(
@@ -3376,6 +3520,13 @@ def admin_review_teacher_application(
         app_row.reviewed_at = datetime.utcnow()
         app_row.reviewed_by = admin.username
         if applicant.role != "admin":
+            # 🏆 教師上線流程：原本不是教師、這次核准後要變成教師，重置
+            # 這兩個旗標，讓他要重新走一次「大廳確認」跟「請建立班級」
+            # 提示（跟 /admin/users/{username}/role 手動改身分那條路徑
+            # 一致）。
+            if applicant.role != "teacher":
+                applicant.teacher_confirmed = False
+                applicant.teacher_class_prompt_shown = False
             applicant.role = "teacher"
         db.commit()
 

@@ -363,8 +363,13 @@
     .task-options {
         position: absolute;
         top: 60%;
-        left: 31%;
-        transform: translateY(-50%);
+        /* 🏆 改成用 right:50% + transform:translateX(50%) 做真正的水平
+           置中，不用 left——跟經典的 left:50%+translateX(-50%) 置中法
+           是同一個原理，只是換邊，數學上剛好落在正中央，不是之前
+           left:31% 那種湊出來的近似值。先在 static/preview/game_quiz.html
+           試過確認可行。 */
+        right: 50%;
+        transform: translate(50%, -50%);
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: wrap !important;
@@ -439,8 +444,15 @@
 
     #adventure-decision-ui {
         position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-        z-index: 30000; background: transparent; 
+        z-index: 30000; background: transparent;
         display: none; align-items: center; justify-content: center;
+        /* 🏆 修復：這個蓋板本身沒設 pointer-events，之前鏡頭啟動失敗
+           時卡著忘記關掉，就會整頁（連 z-index 較低的靜音鈕、小地圖
+           鈕都會）吃掉所有點擊。改成跟 #shop-ui（同檔案裡已經用的
+           模式）一樣：外層關掉點擊，底下 #decision-split-layout 本來
+           就已經讓 .analysis-panel-left / .gesture-action-bar 各自
+           開回 pointer-events:auto，正常顯示時操作不受影響。 */
+        pointer-events: none;
     }
 
     #decision-split-layout {
@@ -452,6 +464,15 @@
         pointer-events: none;
         align-items: center;
         justify-content: space-between;
+        /* 🏆 修正：.gesture-action-bar 原本用 position:absolute 相對
+           .vision-frame-right 置中——數學上沒錯，但 vision-frame-right
+           （flex:1.5，沒有上限）跟 analysis-panel-left（flex:1，被
+           max-width:430px 夸住）寬度不對等，大螢幕下 vision-frame-right
+           會比預期寬很多，裡面的「置中」看起來就偏右，不是整個決策
+           面板（左右兩塊加在一起）的正中間。把定位基準移到這裡（整個
+           左右兩塊的外層），先在 static/preview/game_decision.html
+           試過確認可行。 */
+        position: relative;
     }
 
     .analysis-panel-left {
@@ -465,10 +486,9 @@
         margin-top: 50px;
     }
 
-    .vision-frame-right { 
+    .vision-frame-right {
         flex: 1.5;
         height: 100%;
-        position: relative;
         display: flex;
         flex-direction: column;
         justify-content: flex-end;
@@ -651,12 +671,15 @@
 <div id="threejs-container"></div>
 <video id="webcam" autoplay playsinline></video>
 
-<div class="menu-overlay" id="overlay" onclick="toggleMenu()"></div>
-<div class="side-menu" id="sideMenu">
+<div class="menu-overlay" id="overlay" onclick="toggleMenu()" style="display:none;"></div>
+<div class="side-menu" id="sideMenu" style="display:none;">
     <a href="profile.html" class="menu-item"><span>👤</span> 個人主頁</a>
+    <a href="handbook.html" class="menu-item"><span>📚</span> 學習手冊</a>
+    <a href="lobby.html?openJoinClass=1" class="menu-item"><span>🏫</span> 加入班級</a>
+    <a href="teacher_apply.html" class="menu-item"><span>🧑‍🏫</span> 教師資格</a>
     <a href="guide.html" class="menu-item"><span>📖</span> 遊戲說明</a>
     <a href="learn.html" class="menu-item"><span>📊</span> 學習統計</a>
-    <a href="settings.html" class="menu-item"><span>⚙️</span> 遊戲設定</a>
+    <a href="settings.html" class="menu-item" style="display:none;"><span>⚙️</span> 遊戲設定</a>
     <a href="lobby.html" class="menu-item"><span>🏠</span> 返回大廳</a>
     <a href="javascript:void(0)" onclick="logout()" class="menu-item danger"><span>🚪</span> 登出遊戲</a>
 </div>
@@ -677,7 +700,7 @@
             style="pointer-events:auto; cursor:pointer; border:2px solid #222; border-radius:10px; background:white; padding:8px 12px; font-size:22px;"
         >🔊</button>
 
-        <button class="menu-btn" onclick="toggleMenu()" style="pointer-events: auto;">
+        <button class="menu-btn" onclick="toggleMenu()" style="pointer-events: auto; display:none;">
             <svg width="26" height="26" viewBox="0 0 24 24"
                 fill="none" stroke="black" stroke-width="3"
                 stroke-linecap="round">
@@ -698,7 +721,7 @@
             🗺️ 查看戰術小地圖
         </button>
 		
-		<div id="debug-master-panel" style="display: none; background: rgba(15, 23, 42, 0.95); padding: 18px; border-radius: 20px; border: 2.5px solid #ffde59; margin-top: 10px; pointer-events: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+		<div id="debug-master-panel" style="background: rgba(15, 23, 42, 0.95); padding: 18px; border-radius: 20px; border: 2.5px solid #ffde59; margin-top: 10px; pointer-events: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
 			<h3 style="color: #ffde59; font-size: 1.1rem; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
 				<span>🛠️</span> 開發者控制台
 			</h3>
@@ -872,8 +895,13 @@
 <div id="shop-ui" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:30000; background:transparent; pointer-events:none;">
     <div style="position: absolute; top: 85px; left: 0; right: 380px; bottom: 0; display: flex; align-items: center; justify-content: space-around; padding: 20px;">
         
-        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; padding-bottom: 40px; gap: 20px;">
-            
+        <!-- 🏆 修正：左欄原本是 flex:1，會吃掉所有剩餘空間（一般螢幕
+             寬度下比右欄的 500px 快一倍寬），兩欄各自 align-items:center
+             置中沒錯，但相對整個可用區域看起來不對稱——改成跟右欄一樣
+             固定 500px，兩欄等寬後視覺上才會真的對稱。先在
+             static/preview/game_shop.html 試過確認可行。 -->
+        <div style="width: 500px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; padding-bottom: 40px; gap: 20px;">
+
             <div id="shop-spectator-avatar-viewport" style="display:none; width: 280px; height: 320px; background: linear-gradient(to bottom, rgba(255,255,255,0.95), rgba(241,245,249,0.95)); border-radius: 24px; border: 4px solid #4facfe; box-shadow: 0 15px 35px rgba(0,0,0,0.15); overflow: hidden; position: relative; pointer-events: auto;">
                 <canvas id="shop-avatar-canvas" style="width: 100%; height: 100%; display: block;"></canvas>
                 <div style="position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); background: #1e293b; color: #ffde59; padding: 4px 14px; border-radius: 12px; font-weight: 900; font-size: 0.85rem; letter-spacing: 1px; white-space: nowrap;">
@@ -881,7 +909,7 @@
                 </div>
             </div>
 
-            <div style="background: rgba(30,41,59,0.95); padding: 15px 30px; border-radius: 20px; border: 3px solid #ffde59; color: white; pointer-events:auto; box-shadow: 0 10px 25px rgba(0,0,0,0.3);">
+            <div id="shop-instruction-box" style="background: rgba(30,41,59,0.95); padding: 15px 30px; border-radius: 20px; border: 3px solid #ffde59; color: white; pointer-events:auto; box-shadow: 0 10px 25px rgba(0,0,0,0.3);">
                 <h3 style="margin-bottom: 6px; color:#ffde59; font-size: 1.1rem;" id="shop-instruction-title">🛒 道具商店</h3>
                 <p style="font-weight: 800; font-size: 1rem; line-height: 1.5;" id="shop-instruction-desc">比出數字 1 ~ 4：選擇道具<br>比出 👎 倒讚：放棄並離開</p>
             </div>
@@ -903,6 +931,7 @@
 <div id="minimap-overlay" onclick="if(event.target===this) closeMiniMap()">
     <div class="minimap-container">
         <button class="close-minimap-btn" onclick="closeMiniMap()">✖</button>
+        <div id="minimap-legend" class="minimap-legend"></div>
         <div id="minimap-grid-content" style="display: contents;">
             </div>
         
@@ -955,10 +984,20 @@
     let bgmPlayPending = false;
 
     function shouldPlayBgm() {
-        return bgmOnMap &&
-            bgmUnlocked &&
+        // 🏆 修復：使用者要求音樂不管進到遊戲裡哪個場景（答題/商店/
+        // 開合跳/環景圖等）都不要停下，這裡拿掉 bgmOnMap 這個場景
+        // 相關的條件——bgmOnMap/setMapBgmScene() 本身留著不動，純粹
+        // 不再影響這裡的播放判斷。
+        //
+        // 🏆 修復（補）：原本用 window.uiState !== 'FINISHED' 判斷「遊戲
+        // 已結束」，但 uiState = "FINISHED" 同時也被答題/商店/收購/
+        // 開合跳等每個小階段結束時拿來當「這個小階段跑完了」的通用
+        // 訊號，用它判斷音樂會導致幾乎每個小階段結尾音樂都停一下——
+        // 改用只在 triggerGameOver() 真正結束整場比賽時才會打開的
+        // window.isMatchOver。分頁切到背景的暫停邏輯不受影響。
+        return bgmUnlocked &&
             !document.hidden &&
-            window.uiState !== 'FINISHED' &&
+            !window.isMatchOver &&
             localStorage.getItem(BGM_SETTING_KEY) !== 'false';
     }
 
@@ -1019,6 +1058,36 @@
     function unlockBgm() {
         bgmUnlocked = true;
         syncBgm();
+        unlockSfx();
+    }
+
+    // 🏆 修復音效播不出來：playSfx() 的 3 個 Audio 物件都是「遊戲事件
+    // 發生時才第一次建立並呼叫 play()」（收購成功/進監獄/過路費被偷），
+    // 不是在使用者點擊/按鍵這種真實手勢當下呼叫——部分瀏覽器（尤其
+    // Safari/行動裝置）的自動播放限制是「每個音訊元素各自要在手勢
+    // 當下播放過一次才算解鎖」，不是整個頁面解鎖一次就對所有之後才
+    // 建立的新 Audio 物件都有效。這裡比照 gameBgm 的解鎖方式，在同一個
+    // 真實點擊/按鍵事件裡，把 3 個音效都預先建立、靜音播放一次再立刻
+    // 暫停並還原音量，讓它們也完成這次「解鎖」，之後遊戲事件真正呼叫
+    // playSfx() 時才能順利播放。只需要做一次。
+    let sfxUnlocked = false;
+    function unlockSfx() {
+        if (sfxUnlocked) return;
+        sfxUnlocked = true;
+        Object.keys(SFX).forEach(key => {
+            const audio = sfxPlayers[key] ??= new Audio(SFX[key]);
+            const originalVolume = audio.volume;
+            audio.volume = 0;
+            audio.play()
+                .then(() => {
+                    audio.pause();
+                    audio.currentTime = 0;
+                    audio.volume = originalVolume;
+                })
+                .catch(() => {
+                    audio.volume = originalVolume;
+                });
+        });
     }
 
     document.addEventListener('click', unlockBgm);
@@ -1034,7 +1103,26 @@
     window.addEventListener('pagehide', () => gameBgm.pause());
     window.addEventListener('pageshow', syncBgm);
 
+    // 🏆 保險機制：uiState 在很多轉場時間點改變後都沒有主動呼叫
+    // syncBgm() 重新檢查（例如換人回合、各種小遊戲/答題/商店流程），
+    // 導致音樂卡在暫停狀態直到玩家剛好點了什麼東西。與其把每一個轉場
+    // 時間點都找出來一一補呼叫，這裡用低成本的方式每 2 秒重新檢查一次
+    // 播放狀態，最多 2 秒內會自動修正回來。
+    setInterval(syncBgm, 2000);
+
     updateBgmButton();
+
+    // 🏆 修復「沒點過東西就完全沒音樂」：瀏覽器的自動播放政策規定頁面
+    // 要先收到一次真的使用者手勢（點擊/按鍵）才准播放音訊，
+    // unlockBgm() 本身邏輯沒問題，只是玩家進對局後常常先用手勢/鏡頭
+    // 操作、很少主動點畫面，導致常常整場都沒有解鎖過。這裡跳一個
+    // 不擋畫面操作的小提示，引導玩家一定會點一下，不再只能碰運氣靠
+    // 玩家剛好去點到選單按鈕（而且選單按鈕現在也被隱藏掉了，見 #7）。
+    setTimeout(() => {
+        if (!bgmUnlocked) {
+            showCustomNotice('🔊 點擊畫面任一處開啟音效', 'bottom', 3000);
+        }
+    }, 500);
 
 	// 2. 其次：初始化 Socket 連線 (現在它能抓到 API_URL 了)
 	// ⚠️ socket.io 的 polling 握手是 GET，走 ngrok 時會被免費方案的警告頁攔下
@@ -1083,6 +1171,42 @@ function loadTextureSafe(path, onLoad, fallbackPath = FALLBACK_SKYBOX) {
             console.warn(`   → 改用純色，流程繼續`);
             onLoad(makeSolidTexture());
         }
+    });
+}
+
+// 🏆 修復 GPU 顯存洩漏：panoSphere（全景球體）的貼圖每次切換場景
+// （進冒險格、進商店、回大廳、觀戰同步）都會換成新載入的一張，但
+// 換之前從來沒有釋放舊的 WebGL 貼圖——JS 的垃圾回收只會清掉 JS
+// 物件本身，不會自動釋放貼圖占用的 GPU 顯存，一定要明確呼叫
+// texture.dispose()（等同這個檔案 static/js/board-build.js 裡
+// disposeObject3D() 已經在用、用來修棋盤格子 GPU 洩漏的同一套做法，
+// 只是全景貼圖這邊當初漏掉了）。沒釋放的話每次場景轉換都會永久多
+// 佔一塊顯存，對局玩越久、走過越多冒險格就堆越多——實測用效能
+// 側錄確認 readPixels（GPU 同步點）吃掉了主執行緒 78% 的時間，且
+// 隨對局進行越來越慢，正是顯存壓力累積到一定程度的典型症狀。
+// 全部 7 個原本直接寫 panoSphere.material.map = texture 的地方都
+// 改呼叫這個函式。
+function setPanoTexture(texture) {
+    if (!panoSphere) return;
+    const oldMap = panoSphere.material.map;
+    if (oldMap && oldMap !== texture) {
+        oldMap.dispose();
+    }
+    panoSphere.material.map = texture;
+}
+
+// 🏆 同一套 GPU 洩漏修法用在 updateMeshFaceTexture()/updateModelColors()：
+// 這兩個函式每次收到對手外觀廣播（連線時、對手改外觀時）都會重新
+// new 一份 mesh.material（單一材質或頭部的 6 面陣列），舊的材質跟
+// 材質上的 texture（人臉貼圖）原本只是被 JS 變數覆蓋、從未 dispose()
+// 過。雖然這兩個函式一局大概只會被呼叫個兩三次（不像全景貼圖是每次
+// 場景轉換都洩漏），不是這次卡頓的主因，但同一個洞不該放著不補。
+function disposeMeshMaterial(material) {
+    if (!material) return;
+    const mats = Array.isArray(material) ? material : [material];
+    mats.forEach(m => {
+        if (m.map) m.map.dispose();
+        m.dispose();
     });
 }
 
@@ -1219,6 +1343,12 @@ function returnToLobbyOnDisconnect(data) {
     const myName = localStorage.getItem('username');
     if (!data || data.user === myName) return;
     if (window.isReturningToLobby) return;
+    // 🏆 修復結算頁誤判斷線（補強）：triggerGameOver() 一開始、也就是
+    // 跳出「🎉 恭喜你！遊戲結束！」的同一時間，就已經把 uiState 設成
+    // "FINISHED"。遊戲已經結束的話，不管伺服器那端為什麼還是送了這個
+    // 事件（例如 main.py 端仍殘留的競態空檔、或未來新增的其他結束對局
+    // 管道），客戶端這裡都直接擋下來，不要再顯示「對手已離線」。
+    if (window.uiState === "FINISHED") return;
 
     console.warn(`🔌 玩家 ${data.user} 已離線，5 秒後自動返回大廳`);
     // buildDisconnectNoticeHtml() 已抽至 static/js/game-notice.js，
@@ -1464,6 +1594,16 @@ socket.on('adventure_phase_broadcast', async (data) => {
             const waitBusy = setInterval(() => {
                 if (!isUiStateBusy(window.uiState)) {
                     clearInterval(waitBusy);
+                    // 🏆 修復：busy 狀態解除後不要無條件補放——如果等待這段
+                    // 期間本地玩家自己的回合已經先開始了（startMainTurn(true)
+                    // 已經把 uiState 設成 "READY"，代表第一人稱擲骰流程正在
+                    // 跑），這個拖了太久才解除的舊廣播已經沒有意義，硬補放
+                    // 只會跟正在進行的擲骰流程搶鏡頭/搶全域狀態，造成回上帝
+                    // 視角後卡住。直接丟掉，不要再進入觀戰。
+                    if (window.uiState === "READY") {
+                        console.warn(`⚠️ 丟棄過期的 ${data.phase} 廣播：本地回合已經開始`);
+                        return;
+                    }
                     enterNow();
                 }
             }, 500);
@@ -1526,7 +1666,7 @@ async function testAdventureView(countryName, scenario, skyboxUrl, questionObj) 
 
 		scene.background = null; 
         if (panoSphere) {
-            panoSphere.material.map = texture;
+            setPanoTexture(texture);
             panoSphere.material.opacity = 1;
             panoSphere.material.needsUpdate = true;
             panoSphere.visible = true;
@@ -2095,8 +2235,13 @@ async function triggerTask() {
             // 2. 玩家自己播放 3D 鐵籠動畫
             await playJailAnimationCore(buildSpectatorAnimCtx(), myName, currentIndex);
 
+            // 🏆 監獄暫停一回合：記下「下一次輪到這個人時要跳過」。
+            // 自己發的 sync_adventure_phase 廣播帶 skip_sid，自己收不到，
+            // 所以這裡要自己直接設定；對手那邊則是在下面 JAIL_ANIM 的
+            // 觀戰廣播分支裡設定同一個旗標。
+            window.jailedPlayer = myName;
+
             // 3. 動畫播完後，觸發換人回合 (這會自動讓大家回到上帝視角)
-            const nextP = getNextPlayerName();
             // 🏆 統一走 endMyTurn：先前這裡直接 emit next_turn_trigger，會繞過回合計數與結束判定
             endMyTurn();
             break;
@@ -2270,7 +2415,7 @@ async function startShopView() {
 
     // 這裡我們暫時借用 workout_park 或是 sky_reward 的背景
     loadTextureSafe(`assets/skyboxes/sky_reward.jpg`, async (texture) => {
-        panoSphere.material.map = texture;
+        setPanoTexture(texture);
         panoSphere.material.opacity = 0;
         panoSphere.material.needsUpdate = true;
 		panoSphere.visible = true;
@@ -2380,10 +2525,19 @@ async function processShopPurchase(itemNum) {
 
     if (itemNum === 4) {
         showGameNotice(`⚔️ 購買成功！立即對敵方發動【${item.name}】`, 2500);
+        // 🏆 修復：這裡接下來會呼叫 executeStealAnimation()，裡面最後也會
+        // endMyTurn()，但 window.uiState 從開商店以來一直是 "SHOP_BROWSING"，
+        // 從來沒有被改回 "FINISHED"——跟放棄購買（👎）那條路徑不一致，會讓
+        // isUiStateBusy() 誤判這個人「還在逛商店」到下一輪才解除，延遲
+        // 觀戰者該同步播放的動畫（監獄動畫等）。在換人之前先改回 FINISHED。
+        window.uiState = "FINISHED";
         setTimeout(() => { executeStealAnimation(myName); }, 2500);
     } else if (itemNum === 3) {
         // 🏆 修正四：道具三專屬的自動發動提示
         showGameNotice(`🎉 成功購買：${item.name}<br><span style="font-size: 1.2rem; color: #ffde59;">(將於下次需付過路費時自動發動)</span>`, 3500);
+        // 🏆 修復：同上，換人前要把 uiState 改回 FINISHED，否則會卡在
+        // SHOP_BROWSING 直到下一次輪到自己才解除。
+        window.uiState = "FINISHED";
         setTimeout(() => {
             allTileMeshes.forEach(m => m.visible = true);
             isProcessingDecision = false;
@@ -2391,6 +2545,9 @@ async function processShopPurchase(itemNum) {
         }, 3500);
     } else {
         showGameNotice(`🎉 成功購買道具：${item.name}`, 2500);
+        // 🏆 修復：同上，換人前要把 uiState 改回 FINISHED，否則會卡在
+        // SHOP_BROWSING 直到下一次輪到自己才解除。
+        window.uiState = "FINISHED";
         setTimeout(() => {
             allTileMeshes.forEach(m => m.visible = true);
             isProcessingDecision = false;
@@ -2782,7 +2939,14 @@ let rollStartTime = 0;
 const rollDuration = 1500; 
 
 // 2. 核心遊戲與 Three.js 全域變數
-let cameraInstance = null; 
+let cameraInstance = null;
+// 🏆 修復：先後手判定的 renderLoop()（畫鏡頭預覽＋掃描特效）原本只靠
+// flow-content 被清空／世代編號改變這兩個間接條件自己停下來，但一般
+// （非平手）判定出先後手後，這兩個條件在相當長一段時間內都不會成立
+// ——實測會一路跑到骰子畫面都還在背景畫圖搶主執行緒，造成之後每個
+// 手勢辨識畫面必定卡頓。改成明確存住 rAF id，在鏡頭確定不再需要的
+// 收尾點直接 cancelAnimationFrame，不再只靠那兩個間接條件。
+let orderRenderLoopId = null;
 let syncTimer = null;
 let visionSocket = null;
 let scene, camera, renderer, playerModel, virtualScreen;
@@ -2972,9 +3136,51 @@ window.onload = async function() {
     });
     renderOwnedLandsList(); // 恢復側邊欄的土地清單
 
-    // 步驟 D：全部就緒，播放開場動畫
-    if (typeof playOpeningAnim === "function") playOpeningAnim();
+    // 步驟 D：全部就緒，先讓雙方按下「準備完成」再播放開場動畫
+    showReadyGateUI();
 };
+
+// 🏆 雙方準備完成才開始：決定先後手的手勢流程全程靠鏡頭偵測，完全
+// 沒有滑鼠點擊/鍵盤事件，瀏覽器的音效自動播放限制因此永遠無法解鎖，
+// 導致整場常常沒有背景音樂。這裡新增一個保證會發生的真實點擊，順便
+// 解鎖 unlockBgm()（綁在全域 click 監聽器上），雙方都按下後才真的
+// 進入開場動畫。
+function showReadyGateUI() {
+    const myName = localStorage.getItem('username');
+    const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
+    const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
+
+    let gate = document.getElementById('readyGateOverlay');
+    if (!gate) {
+        gate = document.createElement('div');
+        gate.id = 'readyGateOverlay';
+        document.body.appendChild(gate);
+    }
+    gate.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100vw; height: 100%;
+        background: rgba(15, 23, 42, 0.92); z-index: 999999;
+        display: flex; align-items: center; justify-content: center;
+        flex-direction: column; color: #ffffff; text-align: center;
+        font-family: inherit;
+    `;
+    gate.innerHTML = `
+        <p style="font-size: 1.6rem; margin-bottom: 24px;">雙方都按下準備完成後才會開始遊戲</p>
+        <button id="readyGateBtn" style="
+            font-size: 1.4rem; padding: 16px 40px; border: none; border-radius: 12px;
+            background: #00cdac; color: #ffffff; font-weight: 700; cursor: pointer;
+        ">✅ 準備完成，開始遊戲</button>
+    `;
+
+    document.getElementById('readyGateBtn').addEventListener('click', () => {
+        gate.innerHTML = `<p style="font-size: 1.6rem;">⏳ 等待對手準備中...</p>`;
+        socket.emit('player_ready', { room: roomCode, user: myName });
+    }, { once: true });
+
+    socket.once('both_players_ready', () => {
+        gate.remove();
+        if (typeof playOpeningAnim === "function") playOpeningAnim();
+    });
+}
 	
 	socket.emit('join_game_room', { 
 		room: localStorage.getItem('room_code'), 
@@ -3119,6 +3325,7 @@ function updateMeshFaceTexture(mesh, faceDataUrl, skinColor) {
     // 改成明確把材質重設回單一純色，跟 createCustomBoxCharacter() 沒有
     // faceDataUrl 時的預設狀態一致。
     const resetToPlainSkin = () => {
+        disposeMeshMaterial(mesh.material);
         mesh.material = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.6 });
     };
     if (!faceDataUrl) {
@@ -3148,6 +3355,7 @@ function updateMeshFaceTexture(mesh, faceDataUrl, skinColor) {
             const faceMat = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.5, transparent: true });
 
             // Three.js 立方體面索引：0:+X, 1:-X, 2:+Y, 3:-Y, 4:+Z, 5:-Z。 正前方是 +Z (Index 4)
+            disposeMeshMaterial(mesh.material);
             mesh.material = [skinMat, skinMat, skinMat, skinMat, faceMat, skinMat];
             mesh.material.forEach(m => m.needsUpdate = true);
             console.log(`🎯 3D 角色面部貼圖渲染更新成功！`);
@@ -3528,6 +3736,37 @@ async function stopAllVision() {
     console.log("🧹 視覺資源已徹底釋放");
 }
 
+// 🏆 修復：鏡頭啟動失敗（例如連續切換階段撞上 NotReadableError）時，
+// initCameraAndStartVision() 原本只是 console.error 完就結束，沒有
+// finally、沒有任何畫面復原——但呼叫端（收購決策/答題/商店等）在
+// 呼叫鏡頭之前就已經把對應的全螢幕蓋板切成 display:flex 了，蓋板
+// 沒有設 pointer-events，z-index 又高於 header/side-panel，結果
+// 整頁點擊全部被這塊透明蓋板吃掉，連靜音鈕、小地圖鈕都點不動，
+// 而且唯一會關掉蓋板的 executePurchase() 要等手勢被偵測到才會跑，
+// 鏡頭沒開成功就永遠到不了那裡，造成整場卡死。
+// 這裡統一處理：把目前實際顯示中的蓋板關掉、重設 uiState、通知玩家，
+// 再把錯誤重新拋出，讓呼叫端原本就寫好但從未被觸發過的
+// catch(){ endMyTurn(); } 真正生效，回合可以正常換人繼續。
+function handleVisionStartFailure(err) {
+    console.error("啟動失敗:", err);
+
+    ["adventure-decision-ui", "adventure-task-ui", "shop-ui"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el && el.style.display !== 'none') {
+            el.style.display = 'none';
+        }
+    });
+
+    window.uiState = "READY";
+    if (virtualScreen) virtualScreen.visible = false;
+
+    if (typeof showGameNotice === 'function') {
+        showGameNotice("⚠️ 鏡頭啟動失敗，已自動跳過手勢步驟", 3000);
+    }
+
+    throw err;
+}
+
 
 // ==========================================
 // 🏆 1. 移植自 Python 的手勢辨識核心邏輯 (完全在前端執行，零延遲！)
@@ -3595,16 +3834,30 @@ async function sendPoseFrame(imageSource) {
 }
 
 async function initCameraAndStartVision() {
-    await stopAllVision(); 
+    await stopAllVision();
+    // 🏆 修復：關掉舊鏡頭跟要求開新鏡頭中間完全沒有間隔，track.stop()
+    // 只是「請求」釋放，作業系統/瀏覽器真正放掉裝置的時間點不受這段
+    // JS 控制——快速連續切換階段（骰子→答題→收購決策）容易撞上
+    // NotReadableError（裝置仍被視為使用中）。留一點時間讓裝置真的
+    // 釋放，大幅降低撞上這個 race 的機率。
+    await new Promise(resolve => setTimeout(resolve, 300));
     video = document.getElementById('webcam');
 
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
-        video.srcObject = stream;
-        await video.play();
-        
+        // 🏆 修復攝影機串流洩漏：原本這裡手動呼叫一次 getUserMedia() 取得
+        // 串流、指定給 video.srcObject、播放，但下面建立的 MediaPipe
+        // Camera 工具自己的 start() 內部也會呼叫一次 getUserMedia()、
+        // 取得「另一個全新的」串流再蓋掉 video.srcObject——上面這個
+        // 手動拿到的串流變數離開作用域後沒有任何地方再呼叫它的
+        // track.stop()，但瀏覽器不會因為 JS 物件沒有參照就自動停止
+        // 實體鏡頭擷取，等於每次呼叫這個函式（也就是每一次骰子/答題/
+        // 收購的手勢辨識）就會在背景多開一條永遠不會被關掉的鏡頭串流，
+        // 隨回合數線性累積，跟 Three.js 貼圖/材質那幾個洩漏點是同一等級
+        // 的「越玩越卡」成因，而且觸發頻率更高。改成只讓 Camera.start()
+        // 自己取得串流（下面改成 await 它，讓失敗能被這個 try 的既有
+        // catch 接住），不要自己另外搶一次鏡頭權限。
         virtualScreen.visible = true;
-        
+
         const protectedStates = ["PURCHASE_DECISION", "SHOP_BROWSING", "SHOP_CONFIRMING"];
         if (!protectedStates.includes(window.uiState)) {
             const isAdventure = document.getElementById('adventure-task-ui').style.display === 'block';
@@ -3651,7 +3904,7 @@ async function initCameraAndStartVision() {
             width: 640,
             height: 480
         });
-        activeCamera.start();
+        await activeCamera.start();
 
         visionSocket.onmessage = (e) => {
             const data = JSON.parse(e.data);
@@ -3812,7 +4065,7 @@ async function initCameraAndStartVision() {
         };
 
     } catch (err) {
-        console.error("啟動失敗:", err);
+        handleVisionStartFailure(err);
     }
 }
 
@@ -4204,7 +4457,7 @@ function showAdventureTaskUI_Spectator(questionObj) {
 async function setupSpectatorEnvironment(skyboxUrl) {
     // 觀戰者用的是同一批 skybox 檔名，若不防護會跟著一起卡住
     loadTextureSafe(`assets/skyboxes/${skyboxUrl}`, (texture) => {
-        panoSphere.material.map = texture;
+        setPanoTexture(texture);
         panoSphere.material.opacity = 1; // 觀戰者直接顯示，不需淡入
         panoSphere.material.needsUpdate = true;
         panoSphere.position.copy(camera.position);
@@ -4358,7 +4611,13 @@ function animate() {
 				drawDiceFace(screenCtx, diceImages[3], 350, 150, false);             // 加 3
 				drawUIPill(screenCtx, `總點數：${displayVal}`, 300, "#f08c00", "#ffffff");
 			} else {
-				drawDiceFace(screenCtx, diceImages[displayVal], 270, 190, false);
+				// 🏆 修復：drawDiceFace() 把傳入座標當成圖案「中心點」，
+				// 不是左上角——這裡原本沿用 READY/ROLLING 用的
+				// diceX/diceY（270,190，那兩處是給 drawImage 當左上角用
+				// 的），結果骰子中心點變成 (270,190)，比畫面真正中心
+				// (320,240) 少了 (50,50)，停下顯示點數那一刻就會往左上
+				// 偏移一小段。改成直接傳入畫面中心點 (320,240)。
+				drawDiceFace(screenCtx, diceImages[displayVal], 320, 240, false);
 				drawUIPill(screenCtx, `🎉 恭喜你骰到 ${displayVal} 點！`, 70, "#00cdac", "#ffffff");
 			}
 			
@@ -4517,7 +4776,7 @@ async function startJumpingJackView() {
     const imgPath = `assets/skyboxes/workout_park.jpg`;
 
     loadTextureSafe(imgPath, async (texture) => {
-        panoSphere.material.map = texture;
+        setPanoTexture(texture);
         panoSphere.material.opacity = 0;
         panoSphere.material.needsUpdate = true;
         panoSphere.position.copy(camera.position);
@@ -4658,9 +4917,10 @@ async function initPoseAndStartVision() {
     // 2. 隱藏棋盤格
     setBoardVisibility(false);
 
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
-    video.srcObject = stream;
-    await video.play();
+    // 🏆 修復攝影機串流洩漏：不要自己手動呼叫 getUserMedia()，下面的
+    // Camera.start() 自己就會取得串流並指定給 video.srcObject，手動
+    // 搶一次鏡頭權限的結果只是製造一條沒人會呼叫 track.stop() 的
+    // 孤兒串流（詳見 initCameraAndStartVision() 同一套修法的註解）。
 
     // 3. 虛擬螢幕定位與縮放
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
@@ -4857,7 +5117,7 @@ async function initPoseAndStartVision() {
 		width: 640,
 		height: 480
 	});
-	activeCamera.start();
+	await activeCamera.start();
 }
 
 // 🏆 createJailCage()／playJailAnimationCore() 已抽至 static/js/spectator-animations.js
@@ -4867,11 +5127,15 @@ let birdData = { y: 240, pipes: [], coins: 0 };
 
 // 🏆 修正版：小鳥飛前置作業 (發送全網廣播，觀戰者將自動被拉入觀看情境)
 async function startBirdGameView() {
-    setMapBgmScene(true);
     console.log("🐦 進入獎勵遊戲：小鳥飛！");
     //playSfx('bird'); // 🏆 需求⑥：小鳥飛（輕快）音效
-    scene.background = null; 
+    scene.background = null;
     setBoardVisibility(false);
+    // 🏆 修復：setBoardVisibility(false) 內部會把 bgmOnMap 設回 false，
+    // 原本緊接著呼叫的 setMapBgmScene(true)（想讓小鳥飛小遊戲期間音樂
+    // 繼續播放）如果寫在它之前，會被這裡立刻蓋回去，意圖完全沒生效。
+    // 一定要在 setBoardVisibility(false) 之後才呼叫。
+    setMapBgmScene(true);
 
     const myName = localStorage.getItem('username');
     const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
@@ -4885,7 +5149,7 @@ async function startBirdGameView() {
     }
 
     loadTextureSafe(imgPath, async (texture) => {
-        panoSphere.material.map = texture;
+        setPanoTexture(texture);
         panoSphere.material.opacity = 0;
         panoSphere.material.needsUpdate = true;
         panoSphere.position.copy(camera.position);
@@ -5141,12 +5405,11 @@ async function startFlappyBirdMiniGame() {
     gameLoop();
 
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { width: 640, height: 480, frameRate: { ideal: 60 } } 
-        });
-        video.srcObject = stream;
-        await video.play();
-
+        // 🏆 修復攝影機串流洩漏：不要自己手動呼叫 getUserMedia()，下面的
+        // Camera.start() 自己就會取得串流並指定給 video.srcObject（詳見
+        // initCameraAndStartVision() 同一套修法的註解）。副作用是失去
+        // frameRate:ideal 60 這個提示，Camera 的 options 不支援這個
+        // constraint，但預設的攝影機張數已足夠這個小遊戲使用。
         globalPose.onResults((results) => {
             if (window.uiState !== 'FLAPPY_BIRD') return;
 
@@ -5221,7 +5484,7 @@ async function startFlappyBirdMiniGame() {
             width: 640,
             height: 480
         });
-        activeCamera.start();
+        await activeCamera.start();
 
     } catch (err) {
         console.error("[FLAPPY DEBUG] ❌ 相機啟動失敗", err);
@@ -5303,47 +5566,62 @@ function renderFlappyBirdAvatarSpectator(playerName) {
 
 // 🏆 小鳥飛結算與 UI 清理函式 (完美復原收購手勢按鈕與關閉提示)
 // 🏆 小鳥飛結算與 UI 清理函式 (完美復原收購手勢按鈕與關閉提示)
+// 🏆 修復小鳥飛殘影：小鳥飛小遊戲的觀戰畫面是借用收購決策面板
+// （#adventure-decision-ui）當容器，會把裡面一堆子元素的顯示/版面改掉
+// （見下面 FLAPPY_BIRD_START 分支）。還原這些修改原本寫死在
+// finishFlappyBird() 裡，但那個函式只在正在玩的那個人自己的瀏覽器上
+// 執行，從來沒有廣播給觀戰者——於是觀戰者這邊的收購面板內部狀態會一直
+// 停在被小鳥飛劫持後的樣子，直到重新整理頁面。抽成共用函式後，除了
+// finishFlappyBird() 自己用，updateSpectatorUI() 的 DECISION 分支也會
+// 在每次要顯示收購面板之前先呼叫一次，不管上一次是誰、用什麼方式弄髒
+// 它，顯示前都會自己復原。
+function restoreDecisionUIChrome() {
+    const decisionUI = document.getElementById('adventure-decision-ui');
+    if (!decisionUI) return;
+
+    const leftPanel = decisionUI.querySelector('.analysis-panel-left');
+    if (leftPanel) leftPanel.style.display = 'block';
+
+    const vHeader = decisionUI.querySelector('.vision-header');
+    if (vHeader) vHeader.style.display = 'flex';
+    const actionBtns = decisionUI.querySelector('.decision-actions');
+    if (actionBtns) actionBtns.style.display = 'flex';
+
+    const gestureBar = decisionUI.querySelector('.gesture-action-bar');
+    if (gestureBar) gestureBar.style.display = 'flex';
+
+    const splitLayout = document.getElementById('decision-split-layout');
+    if (splitLayout) splitLayout.style.justifyContent = 'space-between';
+
+    const visionFrame = decisionUI.querySelector('.vision-frame-right');
+    if (visionFrame) {
+        visionFrame.style.width = '';
+        visionFrame.style.height = '100%';
+        visionFrame.style.maxWidth = '';
+        visionFrame.style.aspectRatio = '';
+        visionFrame.style.margin = '';
+        visionFrame.style.overflow = '';
+        visionFrame.style.position = '';
+        visionFrame.style.transform = '';
+    }
+}
+
 function finishFlappyBird(coins) {
     window.uiState = 'FINISHED';
-    
+
     const fbContainer = document.getElementById('fb-container');
     if (fbContainer) fbContainer.style.display = 'none';
-    
+
     const fbStatusBar = document.getElementById('fb-status-bar');
     if (fbStatusBar) fbStatusBar.style.display = 'none';
-    
+
     const decisionUI = document.getElementById('adventure-decision-ui');
     if (decisionUI) {
         decisionUI.style.display = 'none';
-        
-        const leftPanel = decisionUI.querySelector('.analysis-panel-left');
-        if (leftPanel) leftPanel.style.display = 'block'; 
-        
-        const vHeader = decisionUI.querySelector('.vision-header');
-        if (vHeader) vHeader.style.display = 'flex';
-        const actionBtns = decisionUI.querySelector('.decision-actions');
-        if (actionBtns) actionBtns.style.display = 'flex';
-        
-        const gestureBar = decisionUI.querySelector('.gesture-action-bar');
-        if (gestureBar) gestureBar.style.display = 'flex';
-        
-        const splitLayout = document.getElementById('decision-split-layout');
-        if (splitLayout) splitLayout.style.justifyContent = 'space-between'; 
-        
-        const visionFrame = document.querySelector('.vision-frame-right');
-        if (visionFrame) {
-            visionFrame.style.width = '';
-            visionFrame.style.height = '100%';
-            visionFrame.style.maxWidth = '';
-            visionFrame.style.aspectRatio = '';
-            visionFrame.style.margin = '';
-            visionFrame.style.overflow = '';
-            visionFrame.style.position = '';
-            visionFrame.style.transform = ''; 
-        }
+        restoreDecisionUIChrome();
     }
 
-    stopAllVision(); 
+    stopAllVision();
 
     const myName = localStorage.getItem('username');
     const roomCode = JSON.parse(localStorage.getItem('pypoly_active_room'))?.code || localStorage.getItem('room_code');
@@ -5365,9 +5643,33 @@ function finishFlappyBird(coins) {
     }, 3500);
 }
 
+// 🏆 修復：先後手判定結束時統一呼叫這個函式，確保 renderLoop() 的
+// rAF 迴圈跟 #temp-video 的鏡頭串流都被明確釋放，不要只靠
+// cameraInstance.stop()（那只會停 MediaPipe Camera 輔助物件自己的
+// 擷取迴圈，不會停 renderLoop 也不會停底層 MediaStream 的 track）。
+function stopOrderRecognitionLoop() {
+    if (orderRenderLoopId) {
+        cancelAnimationFrame(orderRenderLoopId);
+        orderRenderLoopId = null;
+    }
+    const tempVideo = document.getElementById('temp-video');
+    if (tempVideo && tempVideo.srcObject) {
+        tempVideo.srcObject.getTracks().forEach(t => t.stop());
+        tempVideo.srcObject = null;
+    }
+}
 
-	
+
 async function startRecognitionProcess() {
+    // 🏆 修復平手重新擲骰疊加 renderLoop：原本 renderLoop() 唯一的停止
+    // 條件是 flow-content 被清空，但平手時 showDecideOrderUI() 會重新
+    // 產生一個新的 #recognition-canvas、重新呼叫這個函式，舊的
+    // renderLoop() 並不會因此停止（flow-content 還在、只是內容換了），
+    // 會變成新舊兩個迴圈同時畫在新 canvas 上。用遞增世代 id，每次重新
+    // 開始辨識就讓舊迴圈自己發現「我不是最新一代」而停止。
+    window.recognitionGeneration = (window.recognitionGeneration || 0) + 1;
+    const myGeneration = window.recognitionGeneration;
+
     // 🏆 1. 徹底清理舊實例，防止重複啟動導致 Aborted 崩潰
     if (cameraInstance) {
         try {
@@ -5375,6 +5677,7 @@ async function startRecognitionProcess() {
         } catch (e) { console.log("停止舊相機時發生錯誤:", e); }
         cameraInstance = null;
     }
+    stopOrderRecognitionLoop();
 
     // 🏆 2. 抓取動態產生的元素
     const video = document.getElementById('temp-video');
@@ -5394,15 +5697,12 @@ async function startRecognitionProcess() {
     });
 
     try {
-        // 🏆 4. 取得相機串流
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { width: 400, height: 300, frameRate: { max: 15 } } 
-        });
-        video.srcObject = stream;
-
-        // 確保影片播放且樣式不影響渲染
+        // 🏆 4. 確保影片播放且樣式不影響渲染
+        // 🏆 修復攝影機串流洩漏：不要自己手動呼叫 getUserMedia()，下面的
+        // Camera.start() 自己就會取得串流並指定給 video.srcObject（詳見
+        // initCameraAndStartVision() 同一套修法的註解）。副作用是失去
+        // frameRate:max 15 這個提示，但先後手判定本身對幀率沒有硬性要求。
         video.style.cssText = "position: absolute; opacity: 0; pointer-events: none;";
-        await video.play();
 
         // 🏆 5. 啟動相機工具
         cameraInstance = new Camera(video, {
@@ -5413,7 +5713,7 @@ async function startRecognitionProcess() {
             },
             width: 400, height: 300
         });
-        cameraInstance.start();
+        await cameraInstance.start();
 
         let localDiceFrame = 0;
         let isRollingLocal = false;
@@ -5423,6 +5723,9 @@ async function startRecognitionProcess() {
         function renderLoop() {
             // 如果 flow-content 被隱藏或內容被清空則停止，節省效能
             if (!flowContent || flowContent.innerHTML === "") return;
+            // 🏆 不是最新一代的辨識流程就停止，避免平手重骰時新舊兩個
+            // renderLoop() 同時畫在新的 canvas 上（見上面世代 id 的說明）。
+            if (myGeneration !== window.recognitionGeneration) return;
 
             // A. 繪製背景 (鏡像處理) - 只有當 video 就緒時才畫
             if (video.readyState === 4) {
@@ -5472,10 +5775,10 @@ async function startRecognitionProcess() {
             }
 
             drawScannerOverlay(ctx);
-            requestAnimationFrame(renderLoop);
+            orderRenderLoopId = requestAnimationFrame(renderLoop);
         }
-        
-        renderLoop();
+
+        orderRenderLoopId = requestAnimationFrame(renderLoop);
 
     } catch (err) {
         console.error("啟動辨識流程失敗:", err);
@@ -5680,10 +5983,11 @@ async function onFistUpDetected(point) {
             }
 
             // 停止並清理相機
-            if (cameraInstance) { 
-                await cameraInstance.stop(); 
-                cameraInstance = null; 
+            if (cameraInstance) {
+                await cameraInstance.stop();
+                cameraInstance = null;
             }
+            stopOrderRecognitionLoop();
 
             // 同步點數至後端
             syncOrderDice(point);
@@ -5769,6 +6073,7 @@ socket.on('dice_order_final', (results) => {
             
             setTimeout(() => {
                 if (cameraInstance) cameraInstance.stop();
+                stopOrderRecognitionLoop();
                 finalizeGameStart(iAmFirst);
             }, 3500);
         }
@@ -5881,28 +6186,39 @@ function startMainTurn(isMyTurn, targetPlayerName = "對手") {
 
     if (isMyTurn) {
         // 進入我的回合邏輯
-        window.uiState = "READY"; 
+        window.uiState = "READY";
 		window.isPlus3Active = false; // 🏆 重置狀態
 		window.localHandLandmarks = null;
-        
+
+        // 🏆 修復：換人回合時 resetToGodViewState() 想恢復背景音樂會因為
+        // uiState 當時還是上一階段留下的 "FINISHED" 而靜默失敗，之後
+        // uiState 改回 "READY" 本身不會觸發重新檢查。這裡補一行，讓
+        // 「輪到我、骰子畫面彈出來」這個最主要的回合切換時間點能正確
+        // 重新播放背景音樂。
+        syncBgm();
+
         // 檢查背包是否有「骰到步數+3」
         const inv = getPlayerInventory(myName);
         if (inv["item_plus3"] > 0) {
             showGameNotice("🎲 你擁有【骰到步數+3】道具！<br>比出 7 即可使用！", 3000);
         }
-        window.hasBroadcastResult = false; 
+        window.hasBroadcastResult = false;
         currentGameState = { status: "READY", dice_val: 1, hand_detected: false };
-        
-        const myModel = playerModels[myName];
-        const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(myModel.quaternion);
 
-        const screenPos = new THREE.Vector3().copy(myModel.position);
-        screenPos.y += 1.1; 
-        screenPos.addScaledVector(forward, 4.5);
+        // 🏆 修復第 5 項骰子畫面偏移：原本以玩家模型（myModel）座標為
+        // 基準算螢幕位置、再用 .lookAt(camera.position) 轉向——這只有
+        // 在攝影機剛好緊貼模型（第一次輪到某玩家、finalizeGameStart()
+        // 的第一人稱視角）時才會巧合置中。其他每個會顯示 virtualScreen
+        // 的畫面（收購決策/答題/商店/開合跳處罰）全部統一用「以攝影機
+        // 自己為基準」的算法，才能保證不管攝影機在哪、朝哪都穩穩貼在
+        // 畫面正中央。這裡改成跟那些畫面一致的寫法。
+        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+        const screenPos = new THREE.Vector3().copy(camera.position)
+            .addScaledVector(forward, 2.8);
 
         virtualScreen.position.copy(screenPos);
+        virtualScreen.quaternion.copy(camera.quaternion);
         virtualScreen.scale.set(1, 1, 1); // 🏆 修復 #23：每次擲骰恢復原始大小，避免沿用上一階段（商店/答題/處罰）遺留的縮放值
-        virtualScreen.lookAt(camera.position);
         virtualScreen.visible = true;
 
         initCameraAndStartVision();
@@ -6036,7 +6352,19 @@ async function playStartAnimation(playerName) {
         }
     });
 
-    gsap.to(noticeSprite.scale, { x: 0, y: 0, duration: 0.3, onComplete: () => scene.remove(noticeSprite) });
+    gsap.to(noticeSprite.scale, {
+        x: 0, y: 0, duration: 0.3,
+        onComplete: () => {
+            // 🏆 修復 GPU 顯存洩漏：每次經過起點都會建立一張新的
+            // 1024x512 CanvasTexture，原本只有 scene.remove()，從未
+            // dispose() 過，比 spawnStepBubble 的氣泡單張更大，同一套
+            // 修法：Sprite 專屬資源要手動 dispose texture 跟 material，
+            // 不能用只處理 Mesh 的 disposeObject3D()。
+            scene.remove(noticeSprite);
+            noticeSprite.material.map.dispose();
+            noticeSprite.material.dispose();
+        }
+    });
 
     // =========================================================================
     // 🏆 關鍵修改區二：金幣提示改到畫面「左邊」
@@ -6315,7 +6643,21 @@ function spawnStepBubble(parentModel, text) {
         scene.add(sprite);
 
         gsap.to(sprite.position, { y: sprite.position.y + 2, duration: 0.8 });
-        gsap.to(sprite.material, { opacity: 0, duration: 0.4, delay: 0.4, onComplete: () => scene.remove(sprite) });
+        gsap.to(sprite.material, {
+            opacity: 0, duration: 0.4, delay: 0.4,
+            onComplete: () => {
+                // 🏆 修復 GPU 顯存洩漏：這個氣泡每次對手走一步就會建立一個
+                // 新的 CanvasTexture + SpriteMaterial，原本只有 scene.remove()，
+                // 從未 dispose() 過——這兩個是 Sprite 專屬的資源，不是
+                // Mesh，不能用 disposeObject3D()（它只處理 isMesh 的子物件），
+                // 要手動 dispose texture 跟 material。對手走越多步、這個
+                // 函式被呼叫越多次，就永久多佔越多顯存，是目前已知最高
+                // 頻率的洩漏來源（每走一步就洩漏一次）。
+                scene.remove(sprite);
+                texture.dispose();
+                spriteMaterial.dispose();
+            }
+        });
     }
 }
 	
@@ -6330,30 +6672,46 @@ function spawnStepBubble(parentModel, text) {
 // 🏆 修正版：精準控制換人提示順序 [解決提示消失問題]
 socket.on('next_turn_sync', (data) => {
     const myName = localStorage.getItem('username');
-    const nextPlayer = data.next_player; 
+    const nextPlayer = data.next_player;
     const isMyTurn = (nextPlayer === myName);
-    
+    const skippedPlayer = data.skippedPlayer;
+
     resetToGodViewState();
 
     gsap.to(camera.position, {
         x: 0, y: 35, z: 25,
-        duration: 2.2, 
+        duration: 2.2,
         ease: "power2.inOut",
         onUpdate: () => camera.lookAt(0, 0, 0),
         onComplete: () => {
             setTimeout(() => {
-                if (isMyTurn) {
-                    showGameNotice("⭐ 該你了！準備行動", 2500);
-                    setTimeout(() => transitionToMyTurn(), 3500);
+                const showTurnNotice = () => {
+                    if (isMyTurn) {
+                        showGameNotice("⭐ 該你了！準備行動", 2500);
+                        setTimeout(() => transitionToMyTurn(), 3500);
+                    } else {
+                        // 1. 先顯示短暫的過場文字 (2秒)
+                        showGameNotice(`⏳ 換 ${nextPlayer} 遊玩中...`, 2000);
+
+                        // 2. 🏆 重要：等過場文字消失後，再啟動「持續性」的等待提示
+                        // 移除原本在這裡的立即呼叫 startMainTurn
+                        setTimeout(() => {
+                            startMainTurn(false, nextPlayer);
+                        }, 2200);
+                    }
+                };
+
+                // 🏆 監獄暫停一回合：如果這次換人跳過了上一輪被關進監獄的人，
+                // 先讓雙方各自看到對應的監獄提示，提示完才接著跑原本的換人流程，
+                // 不改動原本那段邏輯本身。
+                if (skippedPlayer) {
+                    const jailMsg = (skippedPlayer === myName)
+                        ? "⛓️ 因為上一輪進到監獄，暫停一回合，在監獄裡好好學習程式碼"
+                        : `⛓️ 玩家 ${skippedPlayer} 正在監獄裡好好學習程式碼`;
+                    showGameNotice(jailMsg, 2500);
+                    setTimeout(showTurnNotice, 2800);
                 } else {
-                    // 1. 先顯示短暫的過場文字 (2秒)
-                    showGameNotice(`⏳ 換 ${nextPlayer} 遊玩中...`, 2000);
-                    
-                    // 2. 🏆 重要：等過場文字消失後，再啟動「持續性」的等待提示
-                    // 移除原本在這裡的立即呼叫 startMainTurn
-                    setTimeout(() => {
-                        startMainTurn(false, nextPlayer); 
-                    }, 2200); 
+                    showTurnNotice();
                 }
             }, 800);
         }
@@ -6380,7 +6738,18 @@ function endMyTurn() {
     const myName = localStorage.getItem('username');
     const roomData = JSON.parse(localStorage.getItem('pypoly_active_room'));
     const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
-    const nextP = getNextPlayerName();
+    let nextP = getNextPlayerName();
+
+    // 🏆 監獄暫停一回合：照正常順序該輪到的人剛好是上一輪被關進監獄的人，
+    // 代表要跳過他——這是固定 2 人對局，跳過的人之外就是真正下一個輪到
+    // 的人（也就是現在正在結束回合、呼叫這個函式的自己）。只跳一次，
+    // 消耗掉旗標避免下一輪又被誤判。
+    let skippedPlayer = null;
+    if (window.jailedPlayer && nextP === window.jailedPlayer) {
+        skippedPlayer = window.jailedPlayer;
+        window.jailedPlayer = null;
+        nextP = myName;
+    }
 
     const gameSnapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot'));
     const maxTurns = gameSnapshot.winLaps || 10;
@@ -6409,7 +6778,7 @@ function endMyTurn() {
     }
     
     // 正常換人 (發送原本的信號)
-    socket.emit('next_turn_trigger', { room: roomCode, next_player: nextP });
+    socket.emit('next_turn_trigger', { room: roomCode, next_player: nextP, skippedPlayer });
 }
 
 function updateRoundUI(round) {
@@ -6426,6 +6795,12 @@ function updateRoundUI(round) {
 
 function triggerGameOver() {
     window.uiState = "FINISHED";
+    // 🏆 真正「整場比賽結束」的訊號，跟 uiState === "FINISHED" 分開——
+    // 後者在答題/商店/收購/開合跳等每個小階段結束時都會被設成同一個
+    // 字串，拿它判斷背景音樂該不該停會導致幾乎每個小階段結尾音樂都
+    // 停一下，這裡新增一個只在真正遊戲結束時才會打開的旗標給
+    // shouldPlayBgm() 用。
+    window.isMatchOver = true;
     stopAllVision();
     if (virtualScreen) virtualScreen.visible = false;
     
@@ -6495,7 +6870,20 @@ function triggerGameOver() {
 // 🏆 強化重置函式：徹底解決黑屏與 UI 殘留
 function resetToGodViewState() {
     scene.background = new THREE.Color(0xf1f5f9);
-    if (panoSphere) { panoSphere.visible = false; panoSphere.material.opacity = 0; }
+    // 🏆 修復開合跳背景殘留：panoSphere.visible=false 只是把球體藏起來，
+    // 貼圖（material.map）從來沒清過——下一次顯示觀戰背景時，如果走的是
+    // updateSpectatorUI() 「已經在觀戰中」那條不會重新呼叫
+    // loadSpectatorBackground() 的分支，看到的就是上一輪殘留的舊貼圖
+    // （例如開合跳的 workout_park.jpg）。這裡順便把貼圖清掉，強迫下次
+    // 顯示前一定要重新載入正確的貼圖。
+    if (panoSphere) {
+        panoSphere.visible = false;
+        panoSphere.material.opacity = 0;
+        if (panoSphere.material.map) {
+            setPanoTexture(null);
+            panoSphere.material.needsUpdate = true;
+        }
+    }
     setBoardVisibility(true);
     
     const players = JSON.parse(localStorage.getItem('pypoly_game_snapshot')).players;
@@ -6545,6 +6933,31 @@ function resetToGodViewState() {
     const specUniversalCanvas = document.getElementById('spectator-universal-3d-canvas');
     if (specUniversalCanvas) specUniversalCanvas.style.display = 'none';
 
+    // 🏆 修復小鳥飛殘景＋當機：renderFlappyBirdAvatarSpectator() 開的
+    // 這個獨立渲染迴圈原本沒有任何自然停止機制，只有「下一次呼叫同一個
+    // 函式」才會自己取消前一個——每打完一輪小鳥飛就會多疊加一個永遠在
+    // 背景跑的迴圈，疊久了就是回報的「當機」。這裡比照上面 spec3DAnimId
+    // 的作法一起取消掉。
+    if (window.fbSpecAnimId) {
+        cancelAnimationFrame(window.fbSpecAnimId);
+        window.fbSpecAnimId = null;
+    }
+    // 🏆 小鳥飛的 DOM／畫布：finishFlappyBird() 結束時雖然會把這些元素
+    // display:none，但下面那段「還原相機框子元素顯示」的清理邏輯原本
+    // 沒有把它們排除在外，每次換下一回合又會被重新顯示出來，而且畫布
+    // 內容從來沒清過，顯示的是停在最後一幀的舊畫面。這裡直接強制隱藏
+    // + 清空畫布，確保不會被後面的邏輯誤復原。
+    ['fb-container', 'fb-status-bar', 'spectator-flappy-3d-canvas'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+    const fbCanvasEl = document.getElementById('fb-canvas');
+    if (fbCanvasEl) {
+        fbCanvasEl.style.display = 'none';
+        const fbCtx = fbCanvasEl.getContext('2d');
+        if (fbCtx) fbCtx.clearRect(0, 0, fbCanvasEl.width, fbCanvasEl.height);
+    }
+
     // 🏆 收購決策/答題觀戰替身（renderPlayerModelInActiveVisionFrame）
     // 離開觀戰/回到上帝視角時一併從主場景移除，避免殘留。
     if (window.specDecisionAvatarModel) {
@@ -6568,8 +6981,12 @@ function resetToGodViewState() {
         frame.style.zIndex = '';
         frame.style.opacity = '';
         
+        // 🏆 fb-container／spectator-flappy-3d-canvas 不能被這段復原邏輯
+        // 重新顯示出來——它們是上面已經主動清乾淨的小鳥飛殘留，見
+        // resetToGodViewState() 開頭的說明。
+        const FLAPPY_RESIDUE_IDS = ['spectator-universal-3d-canvas', 'fb-container', 'spectator-flappy-3d-canvas'];
         Array.from(frame.children).forEach(child => {
-            if (child.id !== 'spectator-universal-3d-canvas') {
+            if (!FLAPPY_RESIDUE_IDS.includes(child.id)) {
                 child.style.display = ''; // 還原原本的 video
             }
         });
@@ -6779,7 +7196,7 @@ function loadSpectatorBackground(data) {
     if (data.payload && data.payload.skybox) {
         loadTextureSafe(`assets/skyboxes/${data.payload.skybox}`, (texture) => {
             if (panoSphere) {
-                panoSphere.material.map = texture;
+                setPanoTexture(texture);
                 panoSphere.material.opacity = 1;
                 panoSphere.material.needsUpdate = true;
                 panoSphere.visible = true;
@@ -6854,7 +7271,20 @@ function exitSpectatorMode() {
 }
 
 async function autoSmoothExitToGodView() {
-    window.lastAdvData = null; 
+    // 🏆 修復：防呆——如果本地玩家自己的回合流程已經開始（uiState 已經
+    // 被 startMainTurn(true) 設成 "READY"，代表第一人稱擲骰鏡頭/
+    // virtualScreen/手勢辨識都已經在跑），這個函式就不該再硬把人切回
+    // 觀戰者、飛去上帝視角——那只會把「我的回合」跟「被迫觀戰」兩組
+    // 狀態各做一半，卡在沒有骰子 UI 也回不去自己回合的半當機狀態。
+    // 正常情況下這個防呆不會被觸發（過期廣播已經在上層被丟棄），這裡
+    // 只是避免同一類問題以後從別的呼叫路徑冒出來。
+    if (window.uiState === "READY") {
+        console.warn("⚠️ 已經是本地玩家的回合，略過自動退回上帝視角。");
+        window.isSpectating = false;
+        return;
+    }
+
+    window.lastAdvData = null;
     window.spectatorLocationCache = "";
     window.isSpectating = false;
 
@@ -6979,8 +7409,13 @@ function updateSpectatorUI(data) {
     }
     else if (data.phase === 'DECISION') {
         taskUI.style.display = 'none';
+        // 🏆 修復小鳥飛殘影：每次要顯示收購面板之前，先把可能被小鳥飛
+        // 小遊戲弄髒的內部子元素還原乾淨——不管上一次是誰、什麼時候
+        // 弄髒它（finishFlappyBird() 的還原只在玩家自己本地生效，
+        // 從來沒有廣播給觀戰者）。
+        restoreDecisionUIChrome();
         decisionUI.style.display = 'flex';
-        
+
         if (data.payload) {
             fillDecisionUI(data.payload, data.user, window.landOwnership[playerCurrentIndex[data.user]], showGameNotice);
         }
@@ -7104,10 +7539,14 @@ function updateSpectatorUI(data) {
         });
     }
 	else if (data.phase === 'JAIL_ANIM') {
-        taskUI.style.display = 'none'; 
+        taskUI.style.display = 'none';
         decisionUI.style.display = 'none';
         if (panoSphere) { panoSphere.visible = false; panoSphere.material.opacity = 0; }
-        
+
+        // 🏆 監獄暫停一回合：這段是對手（跟觀戰者）這邊收到的廣播，
+        // 同樣記一次「下一次輪到這個人時要跳過」。
+        window.jailedPlayer = data.user;
+
         // 🏆 觀戰者同步播放監獄落下動畫
         playJailAnimationCore(buildSpectatorAnimCtx(), data.user, data.payload.tileIdx)
         .then(() => {
@@ -7359,13 +7798,31 @@ function closeTileInfo() {
 }
 
 function renderMiniMapTiles() {
+    // 🏆 小地圖加上「目前位置」標記：playerCurrentIndex 本來就會同步追蹤
+    // 雙方（不只自己）目前站在哪一格，直接拿來用，不需要額外的即時更新機制。
+    const gameSnapshot = JSON.parse(localStorage.getItem('pypoly_game_snapshot'));
+    const players = (gameSnapshot && gameSnapshot.players) || [];
+    const playerPositions = players.map(pName => ({
+        name: pName,
+        idx: playerCurrentIndex[pName] || 0,
+        color: getPlayerLandColor(pName)
+    }));
+
     renderMiniMapTilesInto(
         document.getElementById('minimap-grid-content'),
         gameMap,
         window.landOwnership,
         getPlayerLandColor,
-        (idx, tile) => showTileInfo(idx, tile)
+        (idx, tile) => showTileInfo(idx, tile),
+        playerPositions
     );
+
+    const legendEl = document.getElementById('minimap-legend');
+    if (legendEl) {
+        legendEl.innerHTML = playerPositions.map(p =>
+            `<span><span class="legend-dot" style="background:${p.color}"></span>${p.name}</span>`
+        ).join('');
+    }
 }
 
 function showTileInfo(idx, tile) {
@@ -7548,6 +8005,7 @@ function executeDebugAction() {
         const flowContent = document.getElementById('flow-content');
         if (flowContent) flowContent.innerHTML = "";
         if (cameraInstance) { cameraInstance.stop(); cameraInstance = null; }
+        stopOrderRecognitionLoop();
 
         syncOrderDice(val);
         onFistUpDetected(val);

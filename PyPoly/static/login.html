@@ -415,7 +415,7 @@
 
     <div id="statusModal" class="modal-overlay">
         <div class="modal-card">
-            <h2 id="modalTitle" style="font-family: 'Silkscreen', cursive; font-size: 1.15rem; margin-bottom: 16px;">TITLE</h2>
+            <h2 id="modalTitle" style="font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif; font-size: 1.15rem; margin-bottom: 16px;">TITLE</h2>
             <p id="modalMsg" style="font-size: 1.05rem; font-weight: 900; color: #2d3436; margin-bottom: 25px; line-height: 1.6;">內容訊息</p>
             <button id="modalBtn" class="btn-submit" onclick="closeModal()">OK (確認)</button>
         </div>
@@ -423,14 +423,22 @@
 <script>
     const API_URL = location.origin;
 
-    // 🏆 統一依身分分流跳轉：管理員 -> admin.html｜老師 -> teacher.html｜學生與一般玩家 -> lobby.html
-    function redirectByRole(userRole) {
+    // 🏆 統一依身分分流跳轉：管理員 -> admin.html｜老師 -> teacher.html｜學生與一般玩家 -> homepage.html
+    // 🏆 教師上線流程：剛被賦予教師身分、還沒自己從大廳點過一次「教師
+    // 頁面」確認的話（teacherConfirmed !== true），先跟一般玩家一樣
+    // 導去 homepage.html，不要直接跳 teacher.html——確認過一次之後，
+    // 之後登入才會直接進教師後台。
+    // 🏆 新增 homepage.html 首頁：admin／已確認教師維持現狀，登入後
+    // 直接進各自後台，不經過 homepage；其他人（一般玩家／學生／還沒
+    // 確認過的教師）改成先回到 homepage.html，右上角會顯示帳號名稱
+    // 跟「前往 Lobby」按鈕。
+    function redirectByRole(userRole, teacherConfirmed) {
         if (userRole === 'admin') {
             window.location.href = 'admin.html';
-        } else if (userRole === 'teacher') {
+        } else if (userRole === 'teacher' && teacherConfirmed) {
             window.location.href = 'teacher.html';
         } else {
-            window.location.href = 'lobby.html';
+            window.location.href = 'homepage.html';
         }
     }
 
@@ -444,6 +452,20 @@
         const token = localStorage.getItem('token');
         const username = localStorage.getItem('username');
         const role = localStorage.getItem('role');
+
+        // 🏆 homepage.html 上線後，login.html 不該再是任意直接輸入網址
+        // （含 ngrok 網址＋/static/login.html）就能直接看到的畫面——全站
+        // 其他頁面（lobby.html、game.html...）偵測到未登入時，也都是
+        // bare 導去 'login.html'，沒有帶任何標記。這裡只在「本來就沒
+        // 登入」的情況擋：沒帶 ?from=homepage 標記，代表不是從
+        // homepage.html 的「登入 / 註冊」按鈕點進來的，一律先導去
+        // homepage.html。已登入的情況完全不受影響，維持下面既有的
+        // 背景驗證→redirectByRole 流程（admin／已確認教師還是直接進
+        // 各自後台，不會被導去 homepage）。
+        if (!token && urlParams.get('from') !== 'homepage') {
+            window.location.href = 'homepage.html';
+            return;
+        }
 
         // 🔥 加入非阻塞背景驗證（附帶 2 秒超時防護），避免卡死登入畫面
         if (token && username && role) {
@@ -462,7 +484,8 @@
                         const data = await res.json();
                         if (data.is_online === 1 && data.role !== 'banned') {
                             localStorage.setItem('role', data.role);
-                            redirectByRole(data.role);
+                            localStorage.setItem('teacher_confirmed', String(data.teacher_confirmed));
+                            redirectByRole(data.role, data.teacher_confirmed);
                         }
                     }
                 } catch (err) {
@@ -509,7 +532,8 @@
                         localStorage.setItem('token', result.access_token);
                         localStorage.setItem('username', result.username);
                         localStorage.setItem('role', result.role);
-                        redirectByRole(result.role);
+                        localStorage.setItem('teacher_confirmed', String(result.teacher_confirmed));
+                        redirectByRole(result.role, result.teacher_confirmed);
                     } else {
                         showModal("🔒 登入失敗", result.detail || "帳號或密碼錯誤", false);
                     }
@@ -583,7 +607,8 @@
                 localStorage.setItem('token', result.access_token);
                 localStorage.setItem('username', result.username);
                 localStorage.setItem('role', result.role);
-                redirectByRole(result.role);
+                localStorage.setItem('teacher_confirmed', String(result.teacher_confirmed));
+                redirectByRole(result.role, result.teacher_confirmed);
             } else {
                 showModal("❌ 登入失敗", result.detail || "Google 驗證失敗", false);
             }

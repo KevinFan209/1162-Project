@@ -29,6 +29,13 @@ MIGRATIONS = [
     ("users", "character_created_at", "DATETIME NULL"),
     ("users", "character_updated_at", "DATETIME NULL"),
 
+    # 教師上線流程：role 一變成 "teacher" 當下其他程式碼就完全認定是
+    # 教師了，沒有別的依據分辨「剛被賦予身分、還沒自己確認」跟「已經
+    # 在用的教師」。DEFAULT TRUE 讓既有帳號（含目前已經在用的教師）
+    # 新增欄位時自動回填成 TRUE，不受這次改動影響。
+    ("users", "teacher_confirmed",          "BOOLEAN NOT NULL DEFAULT TRUE"),
+    ("users", "teacher_class_prompt_shown", "BOOLEAN NOT NULL DEFAULT TRUE"),
+
     # 題型改版：原本只靠 category 分基礎/進階，進階底下卻同時有
     # 「手勢比數字」與「手打程式碼」兩種題型，欄位需求互相衝突。
     ("questions", "qtype",              "VARCHAR(20) NOT NULL DEFAULT 'choice'"),

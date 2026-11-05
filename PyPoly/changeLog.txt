@@ -4708,6 +4708,1139 @@ PyPoly 變更紀錄 (changeLog)
   (6) jiajiun-next 原本修的房間列表標題、刷新閃爍、#17/#23 等
   bug 確認還是修好的狀態。
 ========================================================================
+[2026-10-29] 統一側邊選單（side menu）顯示，補齊其他頁面漏掉的項目
+
+  背景：使用者反饋 lobby.html 的側邊選單跟其他頁面沒有同步。查過整個
+  static/ 發現 lobby.html 在 hsuan_teacher 合併之後多了 3 個教師功能
+  相關的選單項目（學習手冊／加入班級／教師資格），但 game.html／
+  guide.html／learn.html／profile.html／settings.html／
+  WaitingRoom.html／character.html 這 7 個頁面的選單還停留在舊版
+  （只有 6 項），沒有一起更新。
+
+  另外查到 basic.html／camera.html／game_data.html／hard.html／
+  modal.html 這 5 個頁面雖然也有 toggleMenu() 函式，但整份檔案裡沒有
+  任何 #sideMenu 元素、沒有觸發用的選單按鈕——是完全沒有畫面效果的
+  死程式碼，不是「選單沒同步」，這次沒有動。
+
+  修法：
+  1. 在 game.html／guide.html／learn.html／profile.html／
+     settings.html／WaitingRoom.html／character.html 這 7 個頁面的
+     選單裡，補上跟 lobby.html 一樣的 3 個項目（學習手冊／加入班級／
+     教師資格），插入位置、圖示、文字都跟 lobby.html 一致。
+  2. 「加入班級」在 lobby.html 本身是跳出一個 modal（`openJoinClassModal()`），
+     這個 modal 連同它的 JS（`submitJoinClass()` 等）只在 lobby.html
+     有實作。為了不要在 7 個頁面各複製一份一樣的 modal/JS（遲早變成
+     多處不同步），其他頁面的「加入班級」改成連到
+     `lobby.html?openJoinClass=1`，lobby.html 的 `window.onload` 補上
+     檢查這個參數、自動彈出 modal 的邏輯——使用者體感上還是一樣點一下
+     就能加入班級，只是多一次頁面跳轉。
+  3. 順便修掉 settings.html 的「登出遊戲」：原本是
+     `<a href="login.html">`，完全沒呼叫 `logout()`，不會通知後端、
+     不會清 localStorage，帳號會一直卡在 `is_online=1`——是 7 個
+     頁面裡唯一沒有自己的 `logout()` 函式的。補上跟其他頁面一致的
+     `API_URL`／`logout()` 實作，選單項目也改成跟其他頁面一樣的
+     `onclick="logout()"` + `class="menu-item danger"` 寫法，同時補上
+     原本缺的 `.menu-item.danger` CSS 規則。
+  4. `WaitingRoom.html` 的「返回大廳」刻意維持原本的
+     `onclick="handleLobbyReturn()"`（離開房間前需要先做清理），沒有
+     改成跟其他頁面一樣的純連結，避免破壞它原本的特殊處理。
+
+  驗證：
+  - 8 個改到的頁面都用 Node vm.Script 做語法檢查，通過。
+  - 伺服器開起來，curl 確認全部回 HTTP 200。
+  - 逐一比對 8 個頁面的選單項目列表，確認現在完全一致（lobby.html
+    少一項「返回大廳」是刻意的，它本身就是大廳）。
+
+  ⚠️ 尚未做（選單展開的視覺效果、動畫、手感沒辦法無瀏覽器代測）：
+  (1) 打開每個頁面，確認選單展開/收合動畫跟 lobby.html 一致。
+  (2) 從非 lobby 頁面點「加入班級」，確認會先跳轉到 lobby.html 再
+  自動彈出加入班級視窗。
+  (3) 在 settings.html 點「登出遊戲」，確認帳號真的被登出（is_online
+  變回 0），不再是直接跳轉卻沒登出的狀態。
+========================================================================
+[2026-10-29] 修復結算頁誤判對手斷線
+
+  背景：使用者回報對局結束、雙方要進入結算頁時，其中一方會短暫看到
+  「對手已離線」的通知，之後又自己恢復正常。
+
+  根因：伺服器的 disconnect() handler 沒辦法區分「真的斷線」跟
+  「玩家正常導航離開 game.html」——Socket.IO 連線關閉這件事本身兩種
+  情況看起來一樣。game.html 的 triggerGameOver() 結算流程裡，雙方
+  玩家各自獨立判斷是否為「結算者」（回合順序最後一位）：結算者送出
+  /game/settle 拿到回應就立刻跳轉 results.html，非結算者固定等 1.5
+  秒才跳轉。結算者幾乎都會比對方早離開 game.html，一離開瀏覽器就關閉
+  他的 Socket.IO 連線，被伺服器誤判成斷線，廣播 opponent_disconnected
+  給還留在 game.html（正在等 1.5 秒倒數）的另一位玩家。「之後恢復
+  正常」是因為那位玩家自己的 1.5 秒倒數很快也到了、跟著跳轉離開，
+  症狀才消失。
+
+  這個誤判在上一輪合併三分支之後風險更高：對手斷線處理現在會在 5
+  秒後自動導回大廳，雖然目前 1.5 秒 < 5 秒、通常來得及在誤判生效前
+  跳轉走，但這是碰運氣，/game/settle 或網路比較慢時就可能真的被強制
+  導回大廳、連結算頁都看不到。
+
+  修法（都在 main.py，不用動前端）：
+  1. handle_dice_event()（broadcast_dice_event 的 handler）多檢查
+     data.get('type') == 'GAME_OVER'，是的話在
+     active_rooms[room]['game_ended'] 標記這個房間遊戲已經結束。
+     這個廣播比玩家導航離開早 4 秒送出，時間差遠大於網路延遲，伺服器
+     一定來得及標記。
+  2. disconnect() handler 在還沒動到 active_rooms[room]（可能把房間
+     刪掉）之前，先讀一次這個旗標存成 game_already_ended，最後廣播
+     opponent_disconnected 那一步改成只在 not game_already_ended 時
+     才送出。
+  3. 查過 results.html 完全不用 Socket.IO，遊戲結束後這個房間不會
+     再需要偵測斷線，永久壓下沒有副作用；旗標掛在 active_rooms[room]
+     上，房間本來就會在雙方都離開後被刪除，不用額外清除程式碼。這個
+     修法對「結算者/非結算者誰先離開」兩種順序都有效，不是針對目前
+     觀察到的時序硬修；完全沒有動客戶端的斷線處理邏輯，真正的斷線
+     （對局進行中真的斷網）行為完全不變。
+
+  驗證：
+  - main.py 用 python -m py_compile 通過。
+  - 開一台真的伺服器，用兩個真的 socketio.Client() 模擬：
+    (1) 房間收到 GAME_OVER 廣播後一方斷線，另一方不再收到
+        opponent_disconnected（誤判已修復）。
+    (2) 回歸測試：沒有 GAME_OVER 時斷線還是正常收到
+        opponent_disconnected（真正的斷線偵測沒有被改壞）。
+    兩項都通過。
+
+  ⚠️ 尚未做（需要真正兩人對局跑到結算，沒辦法代測）：實際玩一局到
+  結束，確認雙方都不會再看到誤判的「對手已離線」通知，順利進到
+  results.html。
+========================================================================
+[2026-10-31] 修復組員回報的 12 個問題
+
+  背景：issue_from_group_members.txt 列了組員回報的 12 個問題，每項
+  都先用 3 個背景 agent 唯讀查過實際程式碼確認根因，再動手修。連同
+  使用者自己已經做好、還沒 commit 的兩個變動一起這次推上去：
+  game.html 的 #debug-master-panel 拿掉 display:none（開發者控制台
+  恢復正常顯示）、static/outlines/ 補齊 7/8/9 號手勢輪廓圖、刪除
+  跟 static/outlines/ 內容重複、完全沒被任何程式碼引用到的孤兒資料夾
+  PyPoly/outlines/（唯一引用 outlines 的地方是 game.html 的相對路徑
+  "outlines/"，實際解析結果是 /static/outlines/，PyPoly/outlines/
+  沒有被 main.py 的任何 StaticFiles 掛載，完全讀不到）。
+
+  1~3、7、10（低風險顯示類）：
+  - character/learn/profile/guide/settings/lobby/game/WaitingRoom 共
+    8 個頁面的右側選單「遊戲設定」都加上 display:none（settings.html
+    本身保留，只隱藏選單連結）。
+  - modal.html 建房人數下拉選單刪除「1 人 (AI)」選項，只留 2 人。
+  - modal.html／WaitingRoom.html 的 #roomCodeDisplay 字體從像素字體
+    Silkscreen 改成跟頁面其他文字一致的 Zen Maru Gothic，避免房號
+    數字/字母混淆難辨識。
+  - game.html 的 #overlay／#sideMenu／漢堡選單按鈕三處都加
+    display:none，整個右側選單在對局中消失。
+  - admin.html 左側選單「影像辨識偵錯」「遊戲數據監控」兩項加
+    display:none。
+
+  4、6（背景音樂）：
+  根因是瀏覽器自動播放政策——頁面要先收到一次真的使用者手勢才准播放
+  音訊，unlockBgm() 綁在 document 的 click/keydown，邏輯本身沒問題，
+  只是玩家進對局常常先用手勢/鏡頭操作、很少主動點畫面，加上這次
+  同時把漢堡選單按鈕（原本最常見的意外解鎖來源）藏起來了，所以在
+  game.html 載入時補一個不擋操作的一次性提示「🔊 點擊畫面任一處開啟
+  音效」，引導玩家一定會點一下，不再碰運氣。
+
+  5（擲骰手勢辨識畫面骰子位置）：
+  確認是決定先後手的手勢辨識畫面（不是對局中 3D 虛擬螢幕的骰子，那邊
+  邏輯沒問題）。查到 renderLoop() 唯一的停止條件是 flow-content 被
+  清空，但平手重新擲骰時 showDecideOrderUI() 會重新呼叫
+  startRecognitionProcess()、產生新的 #recognition-canvas，舊的
+  renderLoop() 並不會因此停止，新舊兩個迴圈可能同時畫在新 canvas
+  上。補上遞增的世代 id（window.recognitionGeneration），每次重新
+  開始辨識流程就讓舊迴圈自己發現「不是最新一代」而停止。另外確認
+  onFistUpDetected() 其實已經有 2 秒讓骰子結果停留原地才隱藏相機框，
+  不需要額外加延遲。
+
+  9（開合跳／小鳥飛殘景＋當機，最關鍵）：
+  兩個獨立根因，都在 resetToGodViewState()：
+  - 開合跳：panoSphere.visible=false 只是把球體藏起來，貼圖
+    （material.map）從來沒清過，updateSpectatorUI() 在「已經在觀戰
+    中」的分支不會重新呼叫 loadSpectatorBackground()，導致下一輪看到
+    的還是殘留的舊貼圖。補上 panoSphere.material.map=null 強迫下次
+    顯示前重新載入。
+  - 小鳥飛：resetToGodViewState() 原本會把 .vision-frame-right 底下
+    所有子元素的 display 還原成預設值（只排除了
+    spectator-universal-3d-canvas），fb-container 不在排除清單裡，
+    導致 finishFlappyBird() 剛隱藏的小鳥飛畫面每回合又被這段邏輯
+    重新顯示；fb-canvas 被隱藏時也從未清空畫布內容，顯示的是停在
+    最後一幀的舊畫面；觀戰者專屬的渲染迴圈
+    window.fbSpecAnimId（renderFlappyBirdAvatarSpectator()）沒有
+    任何自然停止機制，每打完一輪小鳥飛就多疊加一個永遠在背景跑的
+    迴圈，是回報「當機」的由來（收購決策畫面用的也是同一個
+    .vision-frame-right 容器放相機/手勢提示，被疊在上面的舊小鳥飛
+    畫面蓋住才會「無法辨識」）。補上：fb-container／fb-status-bar／
+    spectator-flappy-3d-canvas／fb-canvas 強制隱藏＋清空畫布、排除
+    清單加入這幾個元素、cancelAnimationFrame(window.fbSpecAnimId)。
+
+  11、12（教師後台選單）：
+  教師後台是 3 個各自獨立的 HTML（teacher.html／teacher_question.html／
+  teacher_handbook.html），側邊選單各自複製一份。teacher_question.html／
+  teacher_handbook.html 原本漏了「前往遊戲大廳」，已經比照
+  teacher.html 補上；兩者的「個人資料設定」原本寫死連到 teacher.html
+  （沒有任何參數），而 teacher.html 的個人資料設定其實是 JS 分頁切換
+  （switchTab('profile')）不是獨立網址，點過去永遠停在預設的學生
+  管理分頁。改成連到 teacher.html?tab=profile，teacher.html 的初始化
+  邏輯補上偵測這個參數、自動呼叫 switchTab('profile')（比照先前
+  lobby.html 加 ?openJoinClass=1 自動開 modal 的做法）。
+
+  驗證：
+  - 13 個改到的 .html 都用 Node vm.Script 做語法檢查，通過。
+  - 伺服器開起來，curl 確認全部回 HTTP 200。
+  - grep 逐項確認 8 處「遊戲設定」、2 處後台選單項目都正確加上
+    display:none；modal.html 的「1 人 (AI)」選項確認已刪除。
+
+  ⚠️ 尚未做（沒辦法代測，需要使用者實際操作確認）：
+  (1) 對局中音樂是否一進房就很快播放，不用先點任何東西。
+  (2) 決定先後手時刻意連續平手幾次，確認骰子結果顯示的行為有沒有
+  改善（疊加 renderLoop 的理論修復是否真的解決視覺症狀）。
+  (3) 完整打一局，中途經過開合跳跟小鳥飛，確認下一回合（觀戰者跟
+  雙方玩家）都不再看到殘景、也不會卡住當機。
+  (4) 教師帳號分別從考題庫管理、學習手冊頁面點「前往遊戲大廳」
+  「個人資料設定」，確認都正確。
+  (5) 整體過一次視覺確認：遊戲設定選單項目、game.html 右側選單、
+  後台兩個選單項目、建房人數選單、房間代碼字體都符合預期。
+========================================================================
+[2026-10-31] 補齊「影像辨識偵錯」「遊戲數據監控」隱藏範圍
+
+  背景：上一輪只在 admin.html 隱藏了這兩個選單項目，使用者回報
+  question.html／handbook_admin.html 的左側選單也要隱藏。查過發現
+  這組選單是每個後台頁面各自複製一份（跟教師後台同一種結構），
+  除了這兩個使用者點名的頁面，camera.html／game_data.html 自己的
+  選單也有同樣兩項，一併補上，避免又漏掉。
+
+  順便發現 game_data.html 選單裡「遊戲數據監控」那個連結本身有筆誤
+  （href="game data.html"，中間是空格不是底線，實際檔名是
+  game_data.html，本來就連不到），這次會被一起隱藏，所以這個筆誤
+  暫時不影響任何人，先不修正，只記錄起來。
+
+  修法：question.html／handbook_admin.html／camera.html／
+  game_data.html 這 4 個頁面的「影像辨識偵錯」「遊戲數據監控」選單
+  項目都加上 display:none，跟 admin.html 一致。
+
+  驗證：4 個頁面都用 Node vm.Script 做語法檢查通過；伺服器開起來
+  curl 確認都回 HTTP 200。
+========================================================================
+
+========================================================================
+[2026-10-31] 補強背景音樂解鎖/持續播放、移動骰畫面偏移、結算頁斷線誤判
+
+  背景：上一輪修完 12 個問題後，使用者針對其中幾項提出更深入的想法：
+  (1) 想用「雙方按下準備完成」取代目前靠意外點擊解鎖背景音樂的做法；
+  (2) 音樂進環景圖後會停掉、換人回合後也不會自動恢復；(3) 骰子畫面
+  位置偏移（第 5 項）在使用者實測後確認上一輪的修法沒用，並糾正偏移
+  發生的場景其實是對局中每回合「決定走幾步」的移動骰畫面，不是決定
+  先後手畫面；(4) 結算頁斷線誤判「對手已離線」有時候還是會發生，
+  想在跳出「🎉 恭喜你！遊戲結束！」的當下就關掉斷線退出機制。
+
+  查證與修法：
+
+  1. 【準備完成畫面】決定先後手全程靠鏡頭比手勢觸發，從頭到尾沒有
+     任何滑鼠點擊/鍵盤事件，瀏覽器的音效自動播放限制因此永遠無法
+     解鎖。game.html 新增 showReadyGateUI()，開場動畫播放前先顯示
+     「✅ 準備完成，開始遊戲」按鈕疊層，按下後送出新的 player_ready
+     socket 事件並連帶解鎖音效（沿用既有的 unlockBgm 全域點擊監聽），
+     main.py 新增 room_ready_players 記憶體狀態與對應 handler，湊滿
+     房間人數後廣播 both_players_ready，雙方都按下才真的進入開場
+     動畫；房間清理時（_clear_room_dice_state）一併清掉這份狀態。
+
+  2. 【音樂不會自動恢復】setBoardVisibility(true) 想在換人回合恢復
+     播放時，當下 window.uiState 通常還停在上一流程留下的
+     "FINISHED"，shouldPlayBgm() 因此判定不該播放而靜默失敗；之後
+     uiState 改回 "READY" 本身不會觸發重新檢查。startMainTurn() 裡
+     補一行 syncBgm()，並加 setInterval(syncBgm, 2000) 當保險，不管
+     漏掉哪個轉場時間點，最多 2 秒內會自動修正。另外 startBirdGameView()
+     原本呼叫順序是先 setMapBgmScene(true) 再 setBoardVisibility(false)，
+     後者會把音樂狀態蓋回 false，兩行順序調換後「小鳥飛小遊戲音樂
+     繼續播放」才真的生效。
+
+  3. 【移動骰畫面偏移，第 5 項真正根因】確認使用者糾正的場景
+     （startMainTurn() 的移動骰畫面）用的是 Three.js 3D 場景裡一塊
+     會畫骰子/手勢外框的虛擬螢幕（virtualScreen），完全不是 CSS，
+     使用者這次的 top/left 尺寸假設不成立。真正問題是這塊螢幕的
+     定位方式：原本以玩家模型座標為基準＋.lookAt(camera.position)，
+     只有攝影機剛好緊貼模型（第一次輪到某玩家的第一人稱視角）時才
+     會巧合置中；程式裡其他每個會顯示這塊螢幕的畫面（收購決策/
+     答題/商店/開合跳處罰）全部統一用「以攝影機自己為基準」的算法
+     （position 跟攝影機位置算、quaternion 直接複製攝影機朝向），
+     才能保證不管攝影機在哪都穩穩置中——startMainTurn() 是唯一沒
+     跟上這個寫法的地方。這次改成跟那四個畫面一致的算法。上一輪加
+     在決定先後手畫面的「世代 id」修法跟這個問題無關，維持不動。
+
+  4. 【結算頁斷線誤判補強】main.py 的 handle_dice_event() 收到
+     GAME_OVER 時，設定 active_rooms[room]['game_ended'] = True 原本
+     寫在 await sio.emit(...) 之後，await 是 asyncio 真正會讓出控制
+     權的地方，disconnect() 有可能恰好在這個空檔讀到還沒設定的旗標
+     ——這次把設定旗標移到 await 之前，不留競態空檔；順便補上房號
+     統一轉大寫（跟 active_rooms 其他地方一致）。客戶端
+     returnToLobbyOnDisconnect() 也補上 window.uiState === "FINISHED"
+     就直接 return 的提前判斷，呼應使用者提出的方向，雙重保險。
+
+  驗證：
+  - main.py 用 python -m py_compile 做語法檢查；game.html 用 Node
+    vm.Script 做語法檢查，皆通過。
+  - 另外在隔離的測試連接埠（8001，不影響原本運行中的伺服器）上跑
+    socketio.Client() 測試：(a) 確認只有一方送 player_ready 不會觸發
+    both_players_ready，雙方都送才會；(b) 確認 GAME_OVER 廣播完成
+    後，disconnect() 正確讀到 game_ended 旗標、不再誤發
+    opponent_disconnected。
+  - curl 確認 game.html 仍回 HTTP 200。
+
+  ⚠️ 尚未做（沒辦法代測，需要使用者實際操作確認，伺服器需要重啟才會
+  套用這次改動）：
+  (1) 兩人連線，確認一定要雙方都按「準備完成」才會進入決定先後手
+  畫面，按下的當下音樂就會開始播放。
+  (2) 完整打一局，中途經過答題/商店/開合跳等畫面，確認換人回合後
+  音樂會自動恢復播放，不用自己點東西；小鳥飛小遊戲進行中音樂是否
+  持續播放。
+  (3) 連續玩多個回合（尤其是走到轉角、換方向之後的回合），確認
+  移動骰畫面每次都穩穩置中，不會再偏向左上或任何一角。
+  (4) 多打幾局到結算，確認對手已離線的誤判是否真的不再出現。
+========================================================================
+
+========================================================================
+[2026-10-31] 修復骰子停下顯示點數時偏移的真正根因、背景音樂改為永不停止
+
+  背景：上一輪把「移動骰畫面偏移」改成跟其他畫面一致的「以攝影機為
+  基準」定位 virtualScreen，使用者實測後回報完全沒解決，並補充更
+  精確的現象：擲骰三階段（辨識手碰骰子／骰子跳動／停下顯示點數）中
+  只有「停下顯示點數」那一瞬間才會往左上偏移一小段，前兩階段全程
+  置中。三階段共用同一個 virtualScreen、同一支 animate() 渲染迴圈，
+  3D 位置從頭到尾沒變過，代表上一輪查的方向整個查錯了，這次重新查
+  "RESULT" 這個分支本身在 640×480 canvas 貼圖上畫了什麼。
+
+  另外使用者這次提出新需求：音樂不管進到遊戲裡哪個場景都不要停下，
+  跟上一輪「暫停是刻意設計」的結論相反，這次照最新需求改成永不暫停。
+
+  查證與修法：
+
+  1. 【骰子停下偏移，真正根因】READY/ROLLING 兩階段用
+     screenCtx.drawImage(img, diceX, diceY, diceS, diceS)，diceX=270、
+     diceY=190 是 drawImage 的左上角語意，實際畫出來的骰子中心點是
+     (320,240)，正好是 640×480 canvas 的正中央。RESULT 階段
+     （static/game.html 約 4432 行）改呼叫共用函式 drawDiceFace()
+     （static/js/dice-roll.js:21-31），但這個函式把傳入座標當成
+     「中心點」：`ctx.drawImage(img, x - size/2, y - size/2, size, size)`。
+     呼叫端卻原封不動把左上角語意的 270,190 傳進去，骰子中心點因此
+     變成 (270,190)，比真正的畫面中心少了 (50,50)，這就是「停下那
+     一刻往左上偏移一小段」的完整成因——單純把左上角座標常數複製
+     貼上，餵給一個期待中心點座標的函式，跟 3D 攝影機/模型定位完全
+     無關。改成直接傳入畫面中心點 (320, 240)。Plus3 道具的雙骰子
+     並排座標（200,150／350,150）是另外設計的中心點座標，不是複製
+     diceX/diceY 來的，不受影響，沒有動。
+
+  2. 【背景音樂改為永不停止】shouldPlayBgm() 原本有 bgmOnMap 這個
+     條件，由 setBoardVisibility() 離開棋盤視角（答題/商店/開合跳/
+     環景圖等）時設成 false 來實現「進場景就暫停」。這次拿掉
+     `bgmOnMap &&` 這個條件，音樂不再因為切換場景被暫停；
+     bgmOnMap/setMapBgmScene() 本身留著不動，純粹不再影響播放判斷。
+     分頁切到背景（document.hidden）跟遊戲結束進結算
+     （uiState === 'FINISHED'）這兩種情況維持原本的暫停邏輯，沒有
+     變動。
+
+  驗證：
+  - static/game.html 用 Node vm.Script 做語法檢查，通過。
+  - curl 確認 game.html 仍回 HTTP 200。
+
+  ⚠️ 尚未做（沒辦法代測，需要使用者實際操作確認，伺服器需要重啟才會
+  套用這次改動）：
+  (1) 連續玩多個回合，確認骰子從碰觸、跳動到停下顯示點數，三個階段
+  畫面都穩穩置中，停下那一刻不再往左上偏移。
+  (2) 完整打一局，中途經過答題/商店/開合跳/環景圖等畫面，確認音樂
+  全程都不會停止；分頁切到背景、遊戲結束進結算頁時確認音樂仍會照
+  原本邏輯停止。
+========================================================================
+
+========================================================================
+[2026-10-31] 補修背景音樂仍會停止：uiState FINISHED 被太多小階段共用
+
+  背景：上一輪拿掉 shouldPlayBgm() 裡的 bgmOnMap 條件後，使用者實測
+  回報音樂還是會停，並問能不能把音樂改成寫在 <head> 裡的 <audio>
+  標籤。查證後這個改法不會有效——不管是 new Audio() 還是 HTML
+  <audio> 標籤，產生的都是同一種 HTMLAudioElement，.play()/.pause()
+  行為完全一樣，真正暫停音樂的是 syncBgm()/shouldPlayBgm() 這段 JS
+  邏輯本身，所以沒有改成 <audio> 標籤，繼續往 JS 邏輯裡找。
+
+  真正根因：shouldPlayBgm() 原本還有一個條件
+  `window.uiState !== 'FINISHED'`，用來排除「遊戲已結束」。但這次
+  全文搜尋發現 `window.uiState = "FINISHED"` 被答題
+  (submitQuizAnswer)、冒險答錯懲罰 (handleCodeFail)、商店比
+  DISLIKE、收購決策比 LIKE/DISLIKE、開合跳完成、付費略過開合跳等
+  將近 10 處「這個小階段跑完了」的通用訊號重複使用，不是只有真正
+  整場比賽結束（triggerGameOver()）才會設成這個值。音樂因此在玩家
+  答完一題、逛完商店、做完收購決策、跳完開合跳的瞬間都會先被判定成
+  「遊戲已結束」而暫停，等對應流程把 uiState 改回其他值、或等 2
+  秒保險機制 (setInterval(syncBgm, 2000)) 修正回來——體感上就是
+  「幾乎每個場景音樂都會停一下」。
+
+  修法：新增一個只在 triggerGameOver()（static/game.html，真正整場
+  比賽結束時才會呼叫的全域函式）裡才會打開的旗標
+  `window.isMatchOver`，shouldPlayBgm() 改成檢查
+  `!window.isMatchOver`，不再檢查 `uiState !== 'FINISHED'`——各個
+  小階段原本設定 uiState = "FINISHED" 的程式碼完全不用動，只是不再
+  被背景音樂的判斷誤用。
+
+  驗證：
+  - static/game.html 用 Node vm.Script 做語法檢查，通過。
+  - curl 確認 game.html 仍回 HTTP 200。
+  - 只改到 game.html（前端），main.py 沒有變動，不需要重啟伺服器。
+
+  ⚠️ 尚未做（沒辦法代測，需要使用者實際操作確認）：
+  完整打一局，中途經過答題、商店、收購決策、開合跳、環景圖等每一種
+  場景，確認背景音樂全程都不會停止；分頁切到背景、真正遊戲結束進
+  結算頁時確認音樂仍會照原本邏輯停止。
+========================================================================
+
+========================================================================
+[2026-10-31] 移除 <head> 裡殘留的獨立 <audio autoplay loop> 標籤
+
+  背景：音樂跟骰子都修好之後，使用者回報有 3 種音效（收購成功/監獄/
+  過路費偷錢）不會出現了。查過 playSfx() 跟 SFX 字典（buy/jail/
+  steal）本身、以及三個觸發點（executePurchase／landing in jail／
+  過路費結算），都沒被這次任何修改碰到，邏輯是通的。往回查
+  game.html 第一行附近時，發現 <head> 裡多了一行完全沒出現在我任何
+  一次改動意圖裡的標籤：
+  `<audio src="static/sounds/all_game.mp3" autoplay loop></audio>`。
+  查 git 歷史這行是在上上一輪 commit（a027ef5）跟著一起進來的，推測
+  是使用者當時自己先試過「把音樂改成 <audio> 標籤」這個方向（後來才
+  正式問起），試完留在檔案裡，那一輪 `git add` 整份 game.html 時被
+  一併提交進去，之後沒再被動過。
+
+  這個標籤完全不受 gameBgm／syncBgm()／靜音按鈕控制，音量預設 100%
+  （JS 管理的 gameBgm 音量只有 0.08），瀏覽器允許的話就會永遠循環
+  播放——等於額外多了一份不受控、全音量的背景音樂在跑。很多瀏覽器
+  對同時播放的音訊元素數量有上限，這份多出來的音軌很可能把名額佔
+  走，排擠掉 buy/jail/steal 這三個音效元素，導致音效播不出來；同時
+  也解釋了為什麼使用者覺得「音樂變好了」——有一份音樂音量全開、永遠
+  不停，蓋過了原本該有的暫停/恢復行為是否真的生效。
+
+  修法：直接移除這個標籤，只保留 JS 管理的 gameBgm，音效跟音樂都
+  回到原本單一、受控的播放路徑。
+
+  驗證：
+  - static/game.html 用 Node vm.Script 做語法檢查，通過；grep 確認
+    檔案裡已經沒有任何 <audio> 標籤殘留。
+  - curl 確認 game.html 仍回 HTTP 200。
+  - 只改到 game.html（前端），main.py 沒有變動，不需要重啟伺服器。
+
+  ⚠️ 尚未做（沒辦法代測，需要使用者實際操作確認）：
+  重新整理頁面後完整打一局，確認收購成功、進監獄、過路費被偷錢這
+  三種音效都會正常播放，背景音樂行為（全程不停、結束才停）維持
+  正常。
+========================================================================
+
+========================================================================
+[2026-10-31] 修復音效播不出來：補上跟 gameBgm 一樣的手勢解鎖
+
+  背景：移除殘留的獨立 <audio> 標籤後，使用者回報收購成功/監獄/過路
+  費被偷這 3 種音效仍然播不出來，並問是不是瀏覽器不支援同時播放多個
+  聲音。查過 playSfx()、SFX 字典、三個觸發點（executePurchase／
+  playJailAnimationCore／playTollAnimationCore／playStealAnimationCore）
+  的程式邏輯都正確，三個音檔本身用 curl 直接向伺服器要也都正常回
+  HTTP 200、正確的 audio/mpeg——排除了程式邏輯錯誤跟靜態檔案問題。
+  瀏覽器同時播放多個音訊元素本身並不是技術限制，一般桌面瀏覽器可以
+  同時播放任意數量的 Audio 物件，所以不是這個原因。
+
+  真正可能原因：playSfx() 的 3 個 Audio 物件都是「遊戲事件真正發生
+  時才第一次建立並呼叫 play()」（收購成功/進監獄/過路費實際被收走
+  那一刻），不是在使用者點擊/按鍵這種真實手勢當下呼叫的。部分瀏覽器
+  （尤其 Safari／行動裝置）的自動播放限制是以「每個音訊元素各自要
+  在手勢當下播放過一次」來解鎖，不是整個頁面點一次就對所有之後才
+  動態建立的新 Audio 物件都有效——這跟 gameBgm 當初也需要
+  unlockBgm() 綁在全域 click/keydown 監聽器上才能播放是同一類問題，
+  只是 gameBgm 在頁面載入時就建立好了，而這 3 個音效物件是事後才
+  建立，從來沒有被真正的使用者手勢「摸過」一次。
+
+  修法：在 unlockBgm() 裡新增 unlockSfx()，跟原本解鎖 gameBgm 走同一
+  個全域 click/keydown 監聽器——在使用者第一次點擊/按鍵的同一個真實
+  手勢當下，把 3 個音效物件都預先建立好、靜音播放一次立刻暫停並還原
+  音量，讓它們也在這次真實手勢裡完成瀏覽器要求的「解鎖」，之後遊戲
+  事件真正呼叫 playSfx() 時才能順利播出聲音。只會執行一次
+  （sfxUnlocked 旗標防止重複）。
+
+  驗證：
+  - static/game.html 用 Node vm.Script 做語法檢查，通過。
+  - curl 確認 game.html、3 個音效檔案、all_game.mp3 都回 HTTP 200，
+    content-type 正確。
+  - 只改到 game.html（前端），main.py 沒有變動，不需要重啟伺服器。
+
+  ⚠️ 尚未做（沒辦法代測，需要使用者實際操作確認，而且這次是對「沒辦
+  法在本機模擬真實瀏覽器手勢/音訊解鎖行為」這類問題的推論性修法，
+  如果重新整理後測試仍然沒有聲音，需要請使用者提供瀏覽器 Console
+  是否出現 `音效播放失敗：` 這行錯誤訊息，才能進一步確定真正卡在
+  哪一步）：
+  重新整理頁面、進行任何一次點擊或按鍵之後，完整打一局，確認收購
+  成功、進監獄、過路費被偷錢這三種音效都會正常播放。
+========================================================================
+
+========================================================================
+[2026-11-01] 新增 2D 畫面位置調整面板模組，補上商店/答題位置預覽頁
+
+  背景：使用者要調整兩處畫面物件位置——(1) 答題時 4 個選項的位置
+  （觀戰者看到的選項也要同步）；(2) 進入商店後左下角手勢簡短說明框、
+  以及道具選項區的位置。希望比照之前「收購/加蓋」「開合跳」預覽頁
+  已經有的座標調整面板（static/js/transform-gizmo.js）那套「調整完
+  存成 JSON，之後再把數據套回真正程式碼」的工作流程。
+
+  查過兩處實際程式碼：
+  - 答題選項：`#adv-options`（CSS class `.task-options`）。查到觀戰者
+    （`sync_adventure_phase` 的 `QUIZ` 分支）跟自己答題用的是同一個
+    `#adv-options` 元素、同一份 CSS，不是各自獨立的兩套——調整這裡
+    的位置，兩邊天然會一起套用，不需要另外做「同步」機制。
+  - 商店畫面：`#shop-ui` 內部用 flex 版面排出來的手勢說明框（含
+    `#shop-instruction-title`/`#shop-instruction-desc`）跟
+    `#shop-items-container`（道具卡片區），兩者都不是用 top/left 定位，
+    是 flex 排版排出來的。
+
+  `transform-gizmo.js` 只能調 Three.js 3D 物件的 position/rotation，
+  沒辦法套用在這兩處 CSS 排版出來的 2D 元素上，所以這次新增一個同樣
+  思路的 2D 版本：`static/js/dom-position-gizmo.js`——不去改動元素
+  原本的 top/left/flex 排版邏輯，改成在目標元素原本已有的 CSS
+  transform（例如 `.task-options` 的 `translateY(-50%)`）後面疊加一個
+  `translate(dx, dy)` 像素偏移；一定要用 `getComputedStyle()` 抓目前
+  實際生效的 transform（可能來自 CSS class）而不是只看 inline
+  style，否則會把原本的置中效果蓋掉。畫面上每個目標旁邊會出現一個
+  可以直接拖曳的「⠿」把手，也可以用右側面板的數字輸入框微調，一樣
+  可以「儲存」成 JSON（格式 `{page, savedAt, targets: {key: {dx, dy}}}`）。
+
+  另外在這個分支（Fan-fix-issue-v3）的 `static/preview/` 底下新增
+  `game_quiz.html`（答題選項位置）、`game_shop.html`（商店手勢說明框
+  +道具選項位置）兩個預覽頁——這個資料夾不進版控，兩個分支各自累積，
+  這次是在 v3 這邊照既有慣例「逐字複製來源 CSS」補上，確保調整出來
+  的像素數字能直接對應回真正的程式碼。
+
+  驗證：
+  - `static/js/dom-position-gizmo.js` 用 Node vm.Script 做語法檢查，
+    通過。
+  - curl 確認兩個預覽頁、新模組都回 HTTP 200。
+  - 只新增檔案，沒有改到任何現有的遊戲邏輯，main.py 沒有變動，不需要
+    重啟伺服器。
+
+  ⚠️ 尚未做（等使用者在預覽頁調好位置、存出 JSON 之後才能做）：
+  讀使用者存的 `game_quiz_position.json`／`game_shop_position.json`，
+  把裡面的 dx/dy 數值實際套進 `static/game.html` 對應的 CSS/行內樣式。
+========================================================================
+
+========================================================================
+[2026-11-01] 畫面位置調整面板支援縮放寬高，一起存進 JSON
+
+  背景：使用者要在 game_shop.html 的手勢說明框（#shop-instruction-box）
+  上加上可以改變寬高的功能，並把這個資訊一起存進 JSON，沿用之前的
+  畫面位置調整面板（static/js/dom-position-gizmo.js）的工作流程。
+
+  修法：dom-position-gizmo.js 的每個 target 新增可選的 `resizable: true`
+  旗標：
+  - 初始化時把目標元素目前「沒寫死寬高、靠內容撐開」的實際渲染尺寸
+    （getBoundingClientRect()）原封不動凍結成明確的 width/height，
+    同時改成 box-sizing:border-box，確保這組數字跟畫面上量出來的
+    總尺寸一致，不會因為 padding 被重複加算而跳動。
+  - 面板上該 target 的區塊多出「寬」「高」兩行數字輸入框（跟 X/Y 一樣
+    有 +/− 按鈕），這兩個是直接寫絕對像素值，不是像 dx/dy 那樣疊加
+    偏移——因為寬高之後要套回程式碼時，本來就是要直接寫進 CSS 的
+    絕對數字。
+  - 畫面上該 target 右下角會多一個黃色「↘」拖曳把手，可以直接用滑鼠
+    拖曳縮放寬高。
+  - 「重設這個」按鈕一併重設寬高（清空寫死的 width/height，讓它
+    重新用內容撐開，再重新量一次目前的尺寸）。
+  - 存出的 JSON 裡，resizable 的 target 會多出 `width`/`height` 兩個
+    欄位：`{dx, dy, width, height}`；非 resizable 的 target 維持原本
+    的 `{dx, dy}`，不受影響。
+
+  `static/preview/game_shop.html` 的 `shopInstructionBox` target 這次
+  開啟了 `resizable: true`。`quizOptions`／`shopItemsContainer` 沒有
+  開啟，維持原本只能調位置的行為。
+
+  驗證：
+  - `static/js/dom-position-gizmo.js` 用 Node vm.Script 做語法檢查，
+    通過。
+  - curl 確認 game_quiz.html／game_shop.html／dom-position-gizmo.js
+    都回 HTTP 200。
+  - 只改到共用模組跟 gitignore 底下的預覽頁，main.py 沒有變動，不需要
+    重啟伺服器。
+========================================================================
+
+========================================================================
+[2026-11-01] 畫面位置調整面板支援帶入先前存檔的起始值
+
+  背景：使用者在 game_quiz.html／game_shop.html 調完位置、存出 JSON
+  後，想先把這組數字套回預覽頁本身確認沒問題，才要再套進
+  static/game.html。另外這次存檔不小心存到 Fan-fix-issue-v2 分支底下
+  （static/preview/ 不進版控，兩個分支的這個資料夾完全獨立），已經把
+  兩個 JSON（game_quiz_position.json／game_shop_position.json）搬到
+  這個分支（Fan-fix-issue-v3）的 static/preview/ 底下。
+
+  修法：dom-position-gizmo.js 的 target 設定新增可選的 `initial` 欄位
+  （例如 `{ dx: 87, dy: -5 }`），有給的話開頁面時就直接拿來當起始
+  state，不是永遠從 {dx:0, dy:0} 開始——面板上的數字輸入框也會正確
+  顯示這組起始值，重新整理頁面就能直接看到調整過的結果，不用再手動
+  拖一次。resizable 的 target 也支援 `initial.width`/`initial.height`。
+
+  兩個預覽頁這次套用的起始值（取自使用者存的 JSON）：
+  - game_quiz.html：`quizOptions` → dx:87, dy:-5
+  - game_shop.html：`shopInstructionBox` → dx:-77, dy:0, width:331,
+    height:108；`shopItemsContainer` → dx:-162, dy:-89
+
+  驗證：
+  - `static/js/dom-position-gizmo.js` 用 Node vm.Script 做語法檢查，
+    通過。
+  - curl 確認兩個預覽頁、共用模組都回 HTTP 200。
+  - 只改到共用模組跟 gitignore 底下的預覽頁，main.py 沒有變動，不需要
+    重啟伺服器。
+
+  ⚠️ 尚未做（等使用者在預覽頁確認這組數字顯示正確沒問題之後才能做）：
+  把這 3 組 dx/dy/width/height 數值實際套進 static/game.html 的
+  `.task-options`、`#shop-instruction-box`、`#shop-items-container`。
+========================================================================
+
+========================================================================
+[2026-11-01] 套用使用者實測確認的答題選項/商店畫面位置調整
+
+  背景：使用者用 static/preview/game_quiz.html、game_shop.html 的畫面
+  位置調整面板實測並確認過 3 個目標的最終位置/尺寸，這次把確認過的
+  數值實際套進 static/game.html。
+
+  修法（都是疊加 translate(dx,dy) 在原本的排版上，不改動原本的 top/
+  left/flex 排版邏輯本身，跟預覽頁調整面板的做法一致）：
+  1. `.task-options`（答題 4 個選項區）：transform 從
+     `translateY(-50%)` 改成 `translateY(-50%) translate(87px, -5px)`。
+  2. 商店手勢說明框：補上 `id="shop-instruction-box"`（原本沒有 id，
+     方便之後對照預覽頁），加上 `box-sizing:border-box; width:331px;
+     height:108px; transform:translate(-77px, 0px);`。
+  3. `#shop-items-container`（道具選項區）：補上
+     `transform:translate(-162px, -89px);`。
+
+  驗證：
+  - `static/game.html` 用 Node vm.Script 做語法檢查，通過。
+  - curl 確認 game.html 仍回 HTTP 200。
+  - 只改到 game.html（前端），main.py 沒有變動，不需要重啟伺服器。
+
+  ⚠️ 尚未做（沒辦法代測，需要使用者實際操作確認）：
+  重新整理頁面後實際答一題、進一次商店，確認這 3 個畫面物件的位置跟
+  預覽頁裡確認過的結果一致。
+========================================================================
+
+========================================================================
+[2026-11-01] 畫面位置調整面板改成百分比（vw/vh），解決不同螢幕比例跑位
+
+  背景：使用者在 static/preview/game_quiz.html、game_shop.html 用固定
+  px 偏移調整完、套進 game.html 之後，實際拿去不同螢幕比例的裝置玩
+  才發現問題：預覽頁螢幕跟實際遊玩的螢幕長寬比不一樣時，同一組 px
+  數字在兩邊看起來的「比例位移」完全不同（小螢幕上明顯的位移，大
+  螢幕上幾乎看不出來；反過來也一樣）——固定像素天生就不是跨螢幕一致
+  的單位。
+
+  修法：dom-position-gizmo.js 整個改成用「視窗寬高百分比」（CSS 的
+  vw/vh 單位）取代固定像素：
+  - 內部狀態從 dx/dy（px）改成 dxPct/dyPct（視窗寬/高的百分之幾），
+    resizable 的 width/height 也改成 widthPct/heightPct。
+  - 套用方式從 `translate(dxpx, dypx)` 改成
+    `translate(dxPct vw, dyPct vh)`；寬高從 `width:Npx` 改成
+    `width:NvwPct vw; height:NvhPct vh`。
+  - 拖曳把手／縮放把手移動時，把滑鼠的像素位移即時換算成視窗寬/高的
+    百分之幾，不是存一個換了名字但其實還是像素的數字。
+  - resizable target 沒給 initial 時，量目前渲染尺寸後換算成百分比
+    當起始值（而不是直接記錄像素）。
+  - 存出的 JSON 欄位改成 `{dxPct, dyPct, [widthPct, heightPct]}`，
+    另外多存一個 `viewportAtSave: {width, height}` 純粹當參考記錄
+    （套回程式碼時不需要這個欄位，百分比本身就跨螢幕一致）。
+  - `initial` 選項也改成讀 `initial.dxPct`/`dyPct`/`widthPct`/
+    `heightPct`。
+
+  兩個預覽頁的 `createDomPositionGizmoPanel()` 呼叫拿掉了上一輪套用
+  的舊版 px `initial`（`dx:87,dy:-5` 等）——那組數字跟新的百分比單位
+  不是同一套東西，不能直接沿用，改成從 0 重新開始調。舊的
+  `game_quiz_position.json`／`game_shop_position.json`（px 格式）
+  也一併刪除，避免跟新格式搞混。
+
+  驗證：
+  - `static/js/dom-position-gizmo.js` 用 Node vm.Script 做語法檢查，
+    通過。
+  - curl 確認兩個預覽頁、共用模組都回 HTTP 200。
+  - 只改到共用模組跟 gitignore 底下的預覽頁，`static/game.html` 上
+    一輪套用的 px 版修正這次先不動，main.py 也沒有變動，不需要重啟
+    伺服器。
+
+  ⚠️ 尚未做（等使用者用新的百分比面板重新調好、存出新版 JSON、確認
+  沒問題之後才能做）：
+  用新的 vw/vh 數值，取代（不是疊加）上一輪已經套進
+  static/game.html 的 px 版 `.task-options` / `#shop-instruction-box`
+  / `#shop-items-container` 調整。
+========================================================================
+
+========================================================================
+[2026-11-01] 答題選項/商店版面/收購決策按鈕改用穩健置中法，取代舊版 px 微調
+
+  背景：上一輪套進 game.html 的是依使用者在預覽頁用畫面位置調整面板
+  實測出的固定 px 偏移，但使用者發現固定像素在不同螢幕比例的裝置上
+  跑位，改成用「真正置中」的 CSS 技巧取代，不再靠湊出來的數字。三處
+  都先在對應的 static/preview/ 頁面試過確認可行，才套進 game.html；
+  同時移除上一輪的 px 版調整（不是疊加，是取代）。
+
+  修法：
+
+  1. 答題選項（`.task-options`）：原本 `left:31%` 是湊出來的近似值，
+     改成 `right:50% + transform:translate(50%, -50%)`——跟經典的
+     `left:50%+translateX(-50%)` 置中法同一個原理，只是換邊，數學上
+     保證落在正中央。
+
+  2. 商店左右欄寬度：左欄原本 `flex:1`（會吃掉所有剩餘空間，一般
+     螢幕寬度下比右欄的 500px 快一倍寬），改成跟右欄一樣固定
+     `width:500px`，兩欄等寬後，各自欄位內的 `align-items:center`
+     才會讓手勢說明框／道具選項區相對整個商店畫面對稱。
+
+  3. 收購決策面板的「👍 比讚：確認收購／👎 倒讚：放棄收購」按鈕
+     （`.gesture-action-bar`）：原本用 `position:absolute` 相對
+     `.vision-frame-right` 置中——`left:50%+transform` 這個技巧本身
+     沒錯，但 `.vision-frame-right`（`flex:1.5` 沒有上限）跟
+     `.analysis-panel-left`（`flex:1` 但被 `max-width:430px` 夸住）
+     寬度不對等，大螢幕下 `vision-frame-right` 會比預期寬很多，裡面
+     的「置中」看起來就偏右，不是整個決策面板（左右兩塊加在一起）
+     的正中間。把 `position:relative` 從 `.vision-frame-right` 移到
+     外層的 `#decision-split-layout`，按鈕的定位基準就會改成整個
+     決策面板，不受左右欄寬度比例影響。
+
+  第 2、3 點是同一類成因（flex 子元素寬度不對等，導致「在自己容器內
+  置中」跟「在整個畫面置中」兩者不一致），這次一併處理。
+
+  另外新增一個預覽頁 `static/preview/game_decision.html`（答對題目後
+  的收購/加蓋決策面板），沿用既有的 static/js/decision-ui.js，可切換
+  空地/自己的地/別人的地三種情境疊加天氣/AQI 事件，並讓「比讚/倒讚」
+  可以直接點擊模擬玩家的決定。這個資料夾不進版控，不在這次 commit
+  範圍內。
+
+  驗證：
+  - `static/game.html` 用 Node vm.Script 做語法檢查，通過。
+  - curl 確認 game.html 仍回 HTTP 200。
+  - 只改到 game.html（前端），main.py 沒有變動，不需要重啟伺服器。
+
+  ⚠️ 尚未做（沒辦法代測，需要使用者實際操作確認）：
+  重新整理頁面後實際答一題、進一次商店、答對一次題目進入收購決策，
+  確認這 3 處畫面在不同視窗大小下都維持置中。
+========================================================================
+
+========================================================================
+[2026-11-01] 修復開合跳動畫跳太快會往上飄、手臂卡住不歸位
+
+  背景：使用者複製 static/preview/game_punish.html 過來後實測發現：
+  如果開合跳的頻率太快，虛擬人物會逐漸往上飄、不會回到原位；如果在
+  真正對局中發生（觀戰者看對手開合跳），人物手臂會卡在轉到一半的
+  角度回不去。play3DJumpAnimation() 是共用模組
+  （static/js/punish-minigame.js），game.html 跟預覽頁用的是同一份，
+  不是預覽頁獨有的問題。
+
+  根因：原本的寫法每次呼叫都用 yoyo 讓動畫「回到呼叫當下那一刻的
+  值」，而且重複呼叫時不會先停掉前一個還在跑的 tween。GSAP 對同一個
+  物件的同一個屬性建立新 tween 時，預設會蓋掉還沒跑完的舊 tween——
+  如果跳的頻率比動畫本身的 0.5 秒（上升 0.25s + 下降 0.25s）還快，
+  模型/手臂就會被停在尚未歸位的中間值；下一次跳躍又拿這個已經偏移的
+  中間值當「原始位置」繼續往上疊加，身體越跳越高，手臂也可能永遠
+  卡住。對局中這個路徑是 `update_pose_count_broadcast` 收到後端
+  broadcast 太快、連續觸發觀戰者這邊的 3D 動畫播放。
+
+  修法：
+  - 只在模型第一次做這個動作時，把「真正的靜止高度/角度」記錄在
+    `model.userData`／手臂 `userData` 上（`punishRestY`/
+    `punishRestZ`），之後永遠拿這組記錄值當基準，不會因為中途被
+    打斷而跟著跑掉。
+  - 每次呼叫前先 `gsap.killTweensOf()` 停掉舊的 tween。
+  - 用「上升→回到記錄值」兩段式時間軸（`gsap.timeline()`）取代
+    `yoyo`，保證動畫結束時一定精確回到原位，不管中途被打斷幾次、
+    呼叫得多快都不會累積誤差。
+
+  驗證：
+  - `static/js/punish-minigame.js` 用 Node vm.Script 做語法檢查，
+    通過。
+  - curl 確認 game.html、game_punish.html、punish-minigame.js 都回
+    HTTP 200。
+  - 只改到共用模組，main.py 沒有變動，不需要重啟伺服器。
+
+  ⚠️ 尚未做（沒辦法代測，需要使用者實際操作確認）：
+  在 game_punish.html 用「模擬跳一次」連續快速點擊，確認身體/手臂
+  最終都會準確回到原位；對局中請對手快速開合跳，觀戰確認虛擬人物
+  不會往上飄或手臂卡住。
+========================================================================
+
+========================================================================
+[2026-11-01] 修復組員回報的 4 個問題：監獄動畫同步當機、小鳥飛殘影、教師選單閃爍、班級學生名單
+
+  背景：組員再次回報 4 個問題，整理在 issue_from_group_members.txt。
+  用 3 個背景 agent 查證教師選單閃爍、監獄動畫同步+當機、小鳥飛殘影，
+  第 4 項（班級學生名單）則在查到一半後，用 112213070 家族測試帳號
+  （112213070_1 是老師、112213070／112213070_2 是學生）實際建兩個
+  班級、讓學生加入其中一個再比對，live 確認根因。
+
+  1.【監獄動畫觀戰者不同步＋回上帝視角當機】真正根因是全域旗標
+     window.uiState 卡死：processShopPurchase() 成功購買道具的 3 條
+     路徑（itemNum 3／4／其他）結束回合前都忘了把 uiState 改回
+     "FINISHED"（放棄購買的 👎 路徑有做，這幾條漏了），於是旗標卡在
+     "SHOP_BROWSING" 直到自己下一次真正輪到才會被 startMainTurn(true)
+     改回 "READY"。JAIL_ANIM／PUNISH／PUNISH_SKIP／FLAPPY_BIRD_START
+     這類自動同步觀戰的廣播收到時會先檢查 isUiStateBusy()，busy 就
+     用 setInterval 每 500ms 等它解除才補放——如果觀戰者剛好卡在這個
+     旗標，監獄動畫就會被延到自己下一回合開始擲骰那一刻才補放，跟
+     正在進行的第一人稱擲骰流程（已經設好鏡頭/virtualScreen/手勢
+     辨識）互搶全域狀態，動畫播完呼叫 autoSmoothExitToGodView() 飛去
+     上帝視角卻不知道本地回合已經開始一半，兩邊狀態各做一半卡住。
+
+     修法（三層）：
+     - processShopPurchase() 這 3 條成功購買路徑，換人前都補上
+       window.uiState = "FINISHED"（真正根因，這一項單獨就能修掉
+       回報的情境）。
+     - waitBusy 輪詢（game.html 約 1537-1558 行）補上「busy 解除時如果
+       本地回合已經開始（uiState 已經是 "READY"）就丟棄這個過期廣播，
+       不要再補放」，同時保護 PUNISH／PUNISH_SKIP／FLAPPY_BIRD_START。
+     - autoSmoothExitToGodView()（約 7087 行）加防呆：偵測到本地回合
+       已經開始就直接跳過，不要硬把人切成觀戰者。
+
+  2.【小鳥飛殘影出現在收購決策畫面】小鳥飛小遊戲的觀戰畫面借用收購
+     決策面板（#adventure-decision-ui）當容器，會隱藏/改版面面板內的
+     子元素，還原這些修改的 finishFlappyBird() 只在玩家自己本地執行，
+     從來沒有廣播給觀戰者，於是觀戰者那邊面板的內部狀態永遠停在被
+     小鳥飛劫持後的樣子，下次顯示收購面板就會原樣重現、蓋住畫面。
+     修法：把還原邏輯抽成共用函式 restoreDecisionUIChrome()，
+     finishFlappyBird() 跟 updateSpectatorUI() 的 DECISION 分支都呼叫
+     它——每次要顯示收購面板前都先強制復原乾淨，不管上一次是誰、
+     什麼時候弄髒它。
+
+  3.【教師後台「個人資料設定」會先閃過「學生管理」】teacher.html 是
+     單頁三分頁設計，studentListView 原本沒有 display:none、nav-link
+     也寫死 active，瀏覽器一定先畫出學生管理，直到 DOMContentLoaded
+     才切到正確分頁——這個時間點已經在第一次繪製之後了。
+     teacher_question.html／teacher_handbook.html 的「個人資料設定」
+     連結本身沒有問題，本來就正確連到 teacher.html?tab=profile。
+     修法：studentListView 補上 display:none；把 ?tab= 偵測邏輯從
+     DOMContentLoaded 搬到緊接著三個分頁 <main> 之後的同步行內
+     script，讓瀏覽器解析到這裡就立刻決定好分頁，不會有看得到的中間
+     狀態。原本 DOMContentLoaded 裡的 switchTab('profile') 保留當保險
+     （順便觸發 loadTeacherMe() 填值）。
+
+  4.【班級學生名單看不到學生】live 驗證確認：/teacher/my_class 一次
+     只回傳老師目前選中的「一個」班級的名單（用 class_id 參數或
+     localStorage 記住的班級決定，沒有就 fallback 成最早建立的班級）。
+     實測建第二個班級、讓學生加入第一個班級後，用 class_id 指到第二個
+     （空）班級查詢，學生確實「不見了」——資料跟查詢邏輯本身都是對的，
+     純粹是「老師目前看的班級」跟「學生實際所在班級」不一致。
+     順便查到一個額外隱患：/teacher/my_class 每次呼叫都會掃過全資料庫
+     所有班級，把任何擁有者帳號不存在的班級無條件轉移給當前呼叫者，
+     完全沒限制在跟這位老師相關的範圍內；這段邏輯原本是為了解決「老師
+     改名字後班級對不上」，但 /auth/update-profile 改名時其實已經會
+     同步更新 Classroom.teacher_username，不會再產生這種孤兒班級，這段
+     邏輯已經沒有意義、只剩風險。
+     修法：
+     - main.py 移除 /teacher/my_class 裡這段無差別轉移孤兒班級的邏輯。
+     - /teacher/my_class 的 classes 列表每個班級補上 student_count
+       （該班級目前的學生人數）。
+     - teacher.html 的班級下拉選單顯示「班級：XXX（N 位學生）」，老師
+       一看就知道選的是不是有學生的那個班級，不用猜。
+
+  驗證：
+  - main.py 用 python -m py_compile、game.html／teacher.html 用 Node
+    vm.Script 做語法檢查，皆通過。
+  - curl 確認 game.html／teacher.html 仍回 HTTP 200。
+  - 第 4 項已經用真實測試帳號（112213070_1 老師、112213070／
+    112213070_2 學生）live 建班級/加入/查詢驗證過根因，測試資料用完
+    已清乾淨（刪除測試建立的班級、學生移出班級、所有帳號登出）。
+  - 這次改到 main.py，需要重啟伺服器才會套用第 4 項的修復；
+    game.html／teacher.html 是純前端，不需要重啟。
+
+  ⚠️ 尚未做（沒辦法代測，需要使用者實際操作確認）：
+  (1) 教師帳號分別從考題庫管理、學習手冊點「個人資料設定」，確認不再
+  閃過學生管理。
+  (2) 完整打一局，安排「買道具成功後馬上換對手回合、對手踩到監獄格」
+  這個情境，確認監獄動畫觀戰時即時同步播放，換手後不會卡住/當機。
+  (3) 完整打一局，玩完小鳥飛小遊戲後讓對手進入收購決策畫面，確認面板
+  顯示正常、沒有殘影。
+  (4) 重啟伺服器後，請老師帳號有多個班級時確認下拉選單能看到學生
+  人數，選對班級後學生正常顯示。
+========================================================================
+
+========================================================================
+[2026-11-02] 修復組員回報的 3 個問題：監獄暫停一回合、小地圖玩家位置、教師上線流程
+
+  背景：組員再回報 3 個問題，整理在 issue_from_group_members.txt。用 3
+  個背景 agent 查證完畢，寫計畫並經使用者確認方向後動工。
+
+  1.【監獄邏輯沒有真的讓玩家暫停一回合】查到的機制：監獄動畫
+     （case 'JAIL':，game.html）播完就直接呼叫 endMyTurn()，跟其他
+     格子沒有任何差別——getNextPlayerName() 單純回傳「玩家清單裡不是
+     自己的那一個」，完全沒有監獄/暫停的概念；全專案也沒有任何半成品
+     的旗標，小地圖提示文字裡寫的「暫停下一個回合」純粹是說明文字，
+     沒有程式在執行。回合順序完全由客戶端自己決定：endMyTurn() 算出
+     next_player 直接 emit next_turn_trigger，main.py 只是單純轉發
+     （next_turn_sync，沒有 skip_sid），伺服器完全沒有回合權威狀態。
+     這個遊戲固定只有 2 人，不用處理 3 人以上的輪替。
+     修法（不新增伺服器狀態或新的 socket 事件，沿用既有的
+     next_turn_trigger/next_turn_sync 轉發機制夾帶資訊）：
+     - 玩家踩到監獄的那一刻，兩邊客戶端各自記下
+       window.jailedPlayer（踩到的人自己在 case 'JAIL': 裡直接設定；
+       對手/觀戰者在既有的 JAIL_ANIM 廣播處理分支裡設定）。
+     - endMyTurn() 算出「照正常順序該輪到的人」之後，檢查是不是剛好
+       等於 window.jailedPlayer：是的話代表要跳過，記住被跳過的名字、
+       清空旗標（只跳一次），因為只有 2 人，真正下一個輪到的人就是
+       現在正在結束回合的自己；把被跳過的人一起放進
+       next_turn_trigger 的 skippedPlayer 欄位。
+     - next_turn_sync 的接收端：如果 payload 帶有 skippedPlayer，在
+       現有「換人換上帝視角」動畫跑完之後、原本彈「該你了/等待中」
+       提示之前，先各自彈一則監獄提示（自己被跳過 vs. 對方被跳過文字
+       不同），提示完再接著跑原本的換人流程，不改動該邏輯本身。
+     - 順手拿掉 case 'JAIL': 裡原本算好卻從沒用到的死程式碼
+       const nextP = getNextPlayerName();。
+
+  2.【小地圖沒有顯示玩家目前位置】查到的機制：
+     renderMiniMapTilesInto()（static/js/minimap.js）只依格子類型/
+     地權上色，完全沒有「玩家在哪」的概念；好消息是 playerCurrentIndex
+     本來就會即時追蹤雙方（不只自己）目前站在哪一格，openMiniMap() 每次
+     打開都會重新渲染，不需要額外的即時更新機制。
+     修法：
+     - renderMiniMapTilesInto() 新增第 6 個可選參數
+       playerPositions（[{name, idx, color}, ...]），在對應格子的
+       .minimap-tile 內疊加一個小圓點標記（新增 CSS 類別
+       .minimap-player-marker），兩人同格時左右錯開避免疊在一起。
+     - game.html 的 renderMiniMapTiles() 從 playerCurrentIndex 跟
+       gameSnapshot.players 組出 playerPositions，顏色沿用
+       getPlayerLandColor（跟地權色、人物配色一致）。
+     - 小地圖容器加一個圖例（#minimap-legend，絕對定位疊在容器內距
+       範圍內，不影響原本的 9x6 格線排版），列出每個玩家的顏色對應。
+
+  3.【教師後台沒建班級時跳出提示訊息的邏輯＋教師上線流程】查到的機制：
+     「請建立班級」提示是 fetchMyClass() 在 data.has_class 為否時
+     無條件跳出的，跟目前切到哪個分頁完全無關——fetchMyClass() 在
+     DOMContentLoaded 裡無論如何都會呼叫，即使網址帶 ?tab=profile 也
+     一樣，這就是「點個人資料設定卻跳出請建立班級」的直接原因。
+     另外，「玩家變成教師」的兩條路徑（管理員手動改身分、教師申請
+     審核通過）都是直接把 role 設成 "teacher"，沒有任何「已核准但還
+     沒自己確認」的中間狀態，login.html 看到 role==='teacher' 就直接
+     跳 teacher.html，沒有「第一次」的例外；lobby.html 的選單項目是
+     寫死的「教師資格」連去 teacher_apply.html，teacher_apply.html
+     對於已經是教師的人還要再多點一次按鈕才會到 teacher.html。
+     「只顯示一次」如果用 localStorage 做，lobby.html 的 logout() 會
+     localStorage.clear()，旗標會在登出後失效、下次登入又跳出來，
+     必須存在資料庫。
+     修法：
+     - models.py 的 User 新增 teacher_confirmed／
+       teacher_class_prompt_shown 兩個 Boolean 欄位，預設 True（讓
+       既有、已經在用的教師帳號完全不受影響），db_migrate.py 補上對應
+       遷移並已對正式資料庫執行過。
+     - main.py：兩條「變成教師」的路徑（PUT /admin/users/{username}/role、
+       POST /admin/teacher_applications/{app_id}/review 核准分支），
+       原本角色不是 teacher、這次要變成 teacher 時，把這兩個欄位重置
+       成 False；新增 POST /teacher_apply/confirm_teacher_page（第一次
+       從大廳點進教師頁面時呼叫）跟 POST /teacher/mark_class_prompt_shown
+       （「請建立班級」第一次顯示時呼叫）兩個端點；/auth/login、
+       /auth/google_v2、/auth/update-profile、/auth/me 的回應補上
+       teacher_confirmed；/teacher/my_class 的「沒有班級」分支補上
+       teacher_class_prompt_shown 讓前端判斷要不要顯示提示。
+     - login.html 的 redirectByRole()：role==='teacher' 時多判斷一次
+       teacher_confirmed，是 true 才跳 teacher.html，否則跳 lobby.html
+       （跟一般玩家相同），並把 teacher_confirmed 存進 localStorage。
+     - teacher.html：進入守門補上同樣判斷（只在明確是字串 "false" 時
+       才擋，避免誤判舊版、沒有這個 localStorage key 的既有教師
+       session），擋到的話導回 lobby.html；fetchMyClass() 的提示邏輯
+       改成只有 teacher_class_prompt_shown 還是 false 時才彈，彈出的
+       同時呼叫端點標記成已顯示過。
+     - lobby.html 的選單項目改成依角色動態決定：role==='teacher' 時
+       文字變成「教師頁面」、點擊時先呼叫確認端點再直接導去
+       teacher.html，不再經過 teacher_apply.html；其他角色維持
+       「教師資格」連去 teacher_apply.html 走申請流程不變。
+
+  驗證：
+  - main.py 用 python -m py_compile、models.py/db_migrate.py 同樣用
+    py_compile、game.html／login.html／teacher.html／lobby.html 用
+    Node vm.Script 做語法檢查，皆通過。
+  - db_migrate.py 已對正式資料庫執行過，確認兩個新欄位存在，既有帳號
+    （112213070_1）回填值為 TRUE，不受影響。
+  - 這次改到 main.py，需要重啟伺服器才會套用教師上線流程的新/異動
+    端點；static/*.html、static/js/minimap.js 是純前端，不需要重啟。
+
+  ⚠️ 尚未做（沒辦法代測，需要使用者實際操作確認）：
+  (1) 完整打一局，玩家 1 踩到監獄後，確認玩家 2 打完自己的回合後，
+  雙方都會看到對應的監獄暫停提示，接著才是正常的換人提示，真正輪到
+  的是玩家 2 再打一次，不是玩家 1。
+  (2) 對局中打開小地圖，確認能看到自己跟對手目前的位置標記，顏色跟
+  圖例對得上。
+  (3) 請管理員把一個測試帳號的身分改成教師，確認第一次登入會先進
+  大廳、選單顯示「教師頁面」、點一次就直接進教師後台不用經過
+  teacher_apply.html；確認「請建立班級」提示只出現這一次，之後不管
+  怎麼切換分頁或重新登入都不會再跳出來（即使還沒建班級）。
+  (4) 確認現有、已經在用的教師帳號完全沒有受到影響（登入照常直接進
+  teacher.html，不會被要求重新確認）。
+========================================================================
+
+========================================================================
+[2026-11-03] 修復登入頁彈窗標題字體跑成標楷體
+
+  背景：使用者回報註冊成功後彈出的提示訊息「註冊成功」這四個字字體
+  跟其他地方不一致，看起來像標楷體。
+
+  查到的機制：static/login.html 的 #modalTitle（showModal() 用來顯示
+  標題的 <h2>）寫死 font-family: 'Silkscreen', cursive。Silkscreen
+  是純英文的像素字型，不含中文字形，所以中文標題一律 fallback 到
+  cursive 這個泛用字族，在 Windows 上就是標楷體。問題不只「註冊成功」
+  一處——login.html 裡所有 showModal() 呼叫的標題都是中文（登入失敗、
+  帳號停權、連線失敗...），全部都受影響，只是使用者在註冊成功這個情境
+  第一次注意到。
+
+  修法：
+  - static/login.html 的 #modalTitle 字體改成跟全站其他中文文字一致的
+    'Zen Maru Gothic', 'Noto Sans TC', sans-serif（跟 body 的字體堆疊
+    相同），拿掉只支援英文的 Silkscreen/cursive。
+
+  驗證：
+  - 純前端樣式調整，static/login.html 不需要重啟伺服器即可生效。
+  - 已確認專案裡其他頁面（admin.html、teacher.html 等）的 #modalTitle
+    沒有套用同樣這段會跑成標楷體的寫法，不需要一併修。
+========================================================================
+
+========================================================================
+[2026-11-03] 新增 homepage.html 作為未登入時的首頁
+
+  背景：使用者希望新增一個獨立的「行銷/介紹首頁」homepage.html：未
+  登入時先看到這頁（含系統公告、特色介紹、FAQ），右上角可以選擇登入；
+  登入成功後導回這頁，右上角改顯示帳號名稱、並新增「前往 Lobby」的
+  按鈕。使用者提供了一份設計好的 homepage.html 範例（風格跟現有頁面
+  的像素風一致），裡面的特色介紹圖是專案截圖，需要搬進 static/ 並修正
+  連結。
+
+  查到的機制：伺服器完全沒有掛 "/" 這個路由（main.py 只掛了
+  /static、/models 兩個 StaticFiles mount），所以新路由不能直接把
+  static/homepage.html 的內容當 FileResponse 回傳——homepage.html 跟
+  全站其他頁面一樣，連結都是用「同層相對路徑」寫的（href="login.html"、
+  src="assets/homepage/xxx.png"），這些相對路徑假設目前頁面本來就在
+  /static/ 底下才會解析正確；如果直接回傳檔案內容，瀏覽器會認為目前
+  網址是「/」，相對路徑就會變成對到 /login.html、
+  /assets/homepage/xxx.png（都是 404）。
+
+  範例資料夾裡 homepage.html 引用 7 張圖，但只有 4 張檔案對得上
+  （example_favicon.png／example_character_create.png／
+  example_ai_analysis.png／example_handbook.png），example_teacger_apply.png
+  是打字錯誤（html 裡寫的是 example_teacher_apply.png），但「手勢影像
+  辨識」「房產投資挑戰」「總資產結算獲勝」這 3 張完全沒有對應檔案。
+  跟使用者確認：先保留引用維持破圖，之後補檔案即可。另外跟使用者
+  確認：登入後導回 homepage 只套用在一般玩家／學生身上，admin 與
+  已確認過的教師維持現狀，登入後依然直接跳 admin.html／teacher.html，
+  不經過 homepage。
+
+  修法：
+  - 新增 static/assets/homepage/，搬入並重新命名 4 張現有截圖（檔名
+    去掉 example_ 前綴、改成 kebab-case，順手修正 1 個打字錯誤的
+    檔名），另外 3 張缺的截圖（gesture-recognition.png／
+    property-challenge.png／settle.png）先維持引用、等使用者之後補檔。
+  - 新增 static/homepage.html：圖片路徑改用上面的新檔名；加入跟
+    login.html 一致的登入狀態偵測（帶 token 打 /auth/me，2 秒逾時
+    防呆），依結果切換右上角——未登入顯示原本的「登入 / 註冊」按鈕，
+    已登入改顯示帳號名稱＋登出＋依角色導向的主按鈕（admin→管理後台、
+    已確認教師→教師後台、其他→Lobby，跟 login.html 的
+    redirectByRole()／lobby.html 的 setupTeacherMenuItem() 共用同一套
+    角色判斷慣例）；頂部橫幅的「開始冒險」按鈕同樣依登入狀態切換目的
+    地；新增 logout()（邏輯跟 lobby.html 的 logout() 相同，差異是
+    登出後留在 homepage.html，不用跳去 login.html）。
+  - main.py 新增 GET "/" 路由：**用 RedirectResponse 307 轉址到
+    /static/homepage.html**（不是直接回傳檔案內容），讓瀏覽器真正
+    載入的網址變成 /static/homepage.html，範例檔案裡原封不動的相對
+    路徑才會正確對應。
+  - static/login.html 的 redirectByRole()：admin／已確認教師兩個分支
+    維持原樣，其餘（一般玩家／學生／還沒確認過的教師）的導向從
+    lobby.html 改成 homepage.html。
+
+  驗證：
+  - main.py 用 python -m py_compile、static/homepage.html／
+    static/login.html 用 Node vm.Script 做語法檢查，皆通過。
+  - 在獨立測試用的 8001 port（不影響使用者自己在跑的 8000 port）
+    curl 驗證：GET / 回 307 轉址到 /static/homepage.html；
+    /static/homepage.html 回 200；5 張已搬移/重新命名的截圖都回
+    200；3 張還沒補檔的截圖如預期回 404；login.html／lobby.html 仍
+    正常回 200。
+  - 這次改到 main.py，需要重啟伺服器才會套用新的 "/" 轉址路由；
+    static/homepage.html、static/login.html、新增的圖片資料夾都是純
+    前端/靜態檔案，不需要重啟。
+
+  ⚠️ 尚未做（沒辦法代測，需要使用者實際操作確認）：
+  (1) 清空 localStorage 後開啟網站根目錄，確認會看到 homepage.html、
+  右上角是「登入 / 註冊」按鈕。
+  (2) 用一般玩家帳號登入，確認登入成功後回到 homepage.html，右上角
+  變成帳號名稱＋登出＋「前往 Lobby」按鈕，點下去能正常進 lobby.html。
+  (3) 用 admin／已確認教師帳號登入，確認登入後仍然直接進
+  admin.html／teacher.html，不會先經過 homepage.html。
+  (4) 在已登入狀態下手動把網址列改成網站根目錄，確認 homepage.html
+  右上角能正確顯示帳號名稱與對應角色的按鈕（admin/教師/一般玩家三種
+  都各測一次）。
+  (5) 點登出，確認會留在 homepage.html（不是 login.html），且右上角
+  變回「登入 / 註冊」。
+  (6) 之後補上 3 張缺的截圖到 static/assets/homepage/ 後，確認對應的
+  特色卡片圖片能正常顯示。
+========================================================================
+
+========================================================================
+[2026-11-03] 直接輸入 /static/login.html 網址也導去 homepage.html
+
+  背景：上一版加了 homepage.html 後，網站根目錄「/」會先導去
+  homepage.html，但使用者發現如果直接在網址列輸入完整路徑（包含 ngrok
+  網址）/static/login.html，還是會直接看到登入畫面，繞過了
+  homepage.html 這一關。
+
+  查到的機制：全站幾十個頁面（lobby.html、teacher.html、admin.html、
+  game.html、profile.html...）偵測到未登入時，都是 bare 導去
+  'login.html'（不帶任何標記），使用者直接在網址列輸入、或透過
+  ngrok 網址的任何舊書籤/分享連結，也是直接打到這個路徑——這些全部
+  都會讓人直接看到登入表單，跳過 homepage.html。
+
+  但 login.html 不能無條件整個改成導去 homepage.html：homepage.html
+  上「登入 / 註冊」跟「開始冒險」這兩個按鈕本身就是連去 login.html，
+  如果 login.html 無條件再導回 homepage.html，兩邊會互相導向形成
+  無限迴圈，使用者永遠進不去登入表單。
+
+  修法（用一個 query 參數分辨「從 homepage 點進來」跟「其他任何方式
+  抵達」）：
+  - homepage.html 的「登入 / 註冊」「開始冒險」按鈕（含 JS 動態切換
+    時設定的 href）改成連去 login.html?from=homepage。
+  - login.html 的 DOMContentLoaded 一開始新增判斷：如果目前沒有
+    token（還沒登入）且網址沒有帶 ?from=homepage 這個標記，一律導去
+    homepage.html，不渲染登入表單；已登入的情況完全不受影響，照舊
+    走原本「背景打 /auth/me 驗證 → redirectByRole」的流程（admin／
+    已確認教師還是直接進各自後台，不會被導去 homepage）。
+  - 因為全站其他頁面的 login.html 導向都是 bare（沒帶這個標記），
+    這個改動讓「任何方式、任何頁面偵測到未登入」最終都會先經過
+    homepage.html，只有真的從 homepage.html 按鈕點進來才會直接看到
+    登入表單。
+
+  驗證：
+  - static/login.html、static/homepage.html 用 Node vm.Script 做語法
+    檢查，皆通過。
+  - 純前端邏輯調整，不需要重啟伺服器即可生效。
+  - 已確認兩邊的標記字串一致（login.html?from=homepage）。
+
+  ⚠️ 尚未做（沒辦法代測，需要使用者實際操作確認）：
+  (1) 清空 localStorage 後直接在網址列輸入 .../static/login.html
+  （含 ngrok 網址），確認會被導去 homepage.html 而不是看到登入表單。
+  (2) 從 homepage.html 點「登入 / 註冊」或「開始冒險」按鈕，確認能
+  正常看到登入表單並完成登入（沒有被導回 homepage 形成迴圈）。
+  (3) 已登入狀態下直接輸入 .../static/login.html，確認 admin／已
+  確認教師依然直接進各自後台，一般玩家/學生依然導去 homepage.html
+  （這部分邏輯沒有被這次改動影響，但建議一併確認沒有意外）。
+========================================================================
+
+========================================================================
+[2026-11-03] homepage.html 文字調整 + lobby.html 加返回首頁按鈕
+
+  背景：使用者希望 homepage.html 上一般玩家/學生看到的主按鈕文字從
+  「前往 Lobby」改成「前往大廳」（跟全站其他地方用語一致），並且要
+  從 lobby.html 也能一鍵連回 homepage.html。
+
+  修法：
+  - static/homepage.html：右上角已登入時的主按鈕（#primaryBtn）跟
+    JS 的 primaryDestination() 裡，一般玩家/學生分支的文字都從
+    「🚀 前往 Lobby」改成「🚀 前往大廳」（admin／教師的按鈕文字不變）。
+  - static/lobby.html：右上角（.header-right，玩家徽章左側）新增
+    一個「🏠 返回首頁」連結，連去 homepage.html；樣式新增 .btn-home
+    （跟 homepage.html 的 .btn-nav 同一套白底+黃色 hover 配色風格），
+    套用在既有的 .btn-pixel 上，跟其他像素風按鈕一致。
+
+  驗證：
+  - static/homepage.html、static/lobby.html 用 Node vm.Script 做語法
+    檢查，皆通過。
+  - 純前端樣式/文字調整，不需要重啟伺服器即可生效。
+========================================================================
 
 ========================================================================
 [2026-11-03] Discord 機器人顯示的遊戲網址改成 homepage.html
@@ -4729,4 +5862,498 @@ PyPoly 變更紀錄 (changeLog)
   - 注意：如果用 /start 啟動的是還沒有 homepage.html 的分支（例如
     main 自己這份 PyPoly），這個網址會連到還不存在的頁面；啟動帶有
     homepage.html 的分支（例如 Fan-fix-issue-v3）時才會正常顯示。
+========================================================================
+
+========================================================================
+[2026-11-04] 情境全景圖換成最新版，107 張依 id 重新命名覆蓋
+
+  背景：使用者在 1162-Project/環景圖 資料夾放了更新後的 107 張情境
+  全景圖（檔名是景點中文名稱），要依照 scenarios 資料表的名稱對應，
+  改成以 id 命名放進 static/assets/skyboxes/scenarios/，取代原本的圖。
+
+  修法：
+  - 從 seed_scenarios.sql 解析出 107 筆 (id, name) 對照表。
+  - 跟環景圖資料夾裡的檔名比對，104 筆完全一致可以直接比對；另外 3
+    筆因為 Windows 檔名不能用「/」、且全形/半形括號跟資料庫裡的不
+    一致，手動對應：
+      id=53  紅玉紅茶（台茶18號） → 檔名用全形括號
+      id=92  大觀/明潭發電廠      → 檔名存成「大觀_明潭發電廠」
+      id=94  農產品加工 (梅乾菜/脆梅) → 檔名存成「...脆梅)」
+  - 確認 107 筆全部對應到來源圖後，先刪除
+    static/assets/skyboxes/scenarios/ 下原本的 1.jpg~107.jpg
+    （README.txt 保留），再用新圖覆蓋複製進去同樣的 {id}.jpg 檔名。
+
+  驗證：
+  - 107/107 筆全部命中，沒有缺漏、沒有對不到圖的 id。
+  - git status 顯示 107 個檔案都是 modified（內容覆蓋），檔名沒有
+    新增/刪除，跟 /game/map_config 用 id 推導檔名的邏輯不受影響。
+========================================================================
+
+========================================================================
+[2026-11-04] 更新 skyboxes/scenarios/README.txt，不再講舊的 5 筆情境
+
+  背景：static/assets/skyboxes/scenarios/README.txt 還停留在舊版
+  5 個情境（id=1~5，以 init_adventure_data.py 為準）的說明，跟現在
+  實際的 107 個情境（seed_scenarios.sql）不符，會誤導之後看文件的人。
+
+  修法：
+  - 改成直接說明 1.jpg~107.jpg 對應 107 個南投情境，對應關係以
+    seed_scenarios.sql 為準；並補充 main.py 的 /game/map_config 是
+    用 f"scenarios/{id}.jpg" 直接推導路徑，資料表本身沒有存檔名。
+  - 額外加一段警示：init_adventure_data.py 這個舊種子腳本還留著，
+    一旦照 README.md 的步驟跑了它，會把 scenarios 整表清空只灌回
+    舊的 5 筆，107 筆會被蓋掉。這是這次順便發現的、文件跟實際流程
+    不一致的地方，先記錄在這裡，還沒有動 init_adventure_data.py 或
+    README.md 本身。
+  - loadTextureSafe 失敗時退回 sky_reward.jpg 的說明維持不變。
+
+  驗證：
+  - 純文字說明檔，純人工檢查內容是否跟目前程式碼（main.py:1851、
+    seed_scenarios.sql）一致，不需要額外測試。
+========================================================================
+
+========================================================================
+[2026-11-04] 移除舊的 init_adventure_data.py，改用 run_seed_scenarios.py 灌 107 筆情境
+
+  背景：107 個情境改好圖檔跟 README 之後，順便檢查發現
+  init_adventure_data.py 這個舊種子腳本還留著、還被
+  docker/entrypoint.sh 跟 README.md 的安裝步驟引用。它只會灌 5 筆
+  舊資料（id=1~5）並清空整個 scenarios 資料表——在全新的資料庫上
+  第一次啟動時（entrypoint.sh 判斷題庫是空的才會跑 seed），實際上
+  會把 scenarios 灌成舊的 5 筆，而不是 seed_scenarios.sql 的 107 筆，
+  跟現在遊戲裡實際有的 107 個情境/天空盒完全不符。
+
+  修法：
+  - 新增 PyPoly/run_seed_scenarios.py：用專案既有的 SQLAlchemy/pymysql
+    連線（database.engine）直接執行 seed_scenarios.sql 裡的 4 條語句
+    （SET NAMES / DELETE / ALTER AUTO_INCREMENT / 一個大 INSERT），
+    不額外依賴 mysql CLI（Docker 映像特意沒裝 mariadb-client，省
+    140MB）。執行前已確認該 SQL 檔用純文字 split(';') 切語句是安全的
+    （內容裡沒有語句內部出現 ASCII 分號的情況）。
+  - 刪除 init_adventure_data.py。
+  - docker/entrypoint.sh、README.md 的種子資料步驟都改成呼叫
+    python run_seed_scenarios.py。
+  - seed_data.py 裡提到「情境交由誰負責」的註解、
+    static/assets/skyboxes/scenarios/README.txt 的警示段落也一併
+    更新成現況。
+
+  驗證：
+  - run_seed_scenarios.py / seed_data.py 用 py_compile 檢查語法通過。
+  - docker/entrypoint.sh 用 `sh -n` 檢查語法通過，且確認編輯後仍是
+    LF 換行（這個檔案要求 LF，CRLF 會在容器裡噴 bad interpreter）。
+  - 全專案搜尋 init_adventure_data，確認除了 changeLog 的歷史記錄跟
+    新腳本/README 裡說明「這是取代掉的舊檔」的文字以外，沒有任何
+    地方還會真的呼叫它。
+  - 沒有實際對資料庫執行 run_seed_scenarios.py（會覆寫現有 scenarios
+    資料，風險動作，留給使用者自行決定何時執行/重新部署時執行）。
+========================================================================
+
+========================================================================
+[2026-11-04] 修復收購決策畫面卡死全頁（鏡頭啟動失敗後整頁點不動）
+
+  背景：使用者跟組員實測都遇到，先手玩家答對題目進入「是否收購」
+  畫面後，整頁完全點不動（連靜音鈕、觀戰小地圖鈕都沒反應），鏡頭
+  也沒開起來。使用者原本猜是上一輪 localStorage 沒清乾淨，但從提供
+  的 console 紀錄最後一行「啟動失敗: NotReadableError: Could not
+  start video source」判斷不是這個原因，是鏡頭啟動失敗後沒有任何
+  畫面復原機制。
+
+  根因（兩層，用 Explore agent 查過程式碼、再直接讀原始碼覆核確認）：
+  1. initCameraAndStartVision()（game.html，骰子/答題/收購決策/商店
+     等 7 個階段轉換共用同一支函式）每次都是 await stopAllVision()
+     完全沒有延遲就馬上呼叫 getUserMedia()。track.stop() 只是「請求」
+     釋放鏡頭，作業系統真正放掉裝置的時間點不受這段 JS 控制，連續
+     快速切換階段（骰子→答題→收購決策，log 裡 3 次「🧹 視覺資源已
+     徹底釋放」就是連續跑了 3 次這個流程）容易撞上這個 race，丟出
+     NotReadableError。
+  2. 失敗後完全沒有清理：catch block 原本只有 console.error，沒有
+     finally。進收購決策畫面前已經把 #adventure-decision-ui（全螢幕、
+     z-index:30000、完全沒設 pointer-events）切成 display:flex，然後
+     裸呼叫（沒 await/catch）initCameraAndStartVision()。因為這個
+     函式把自己的錯誤整個吞掉，呼叫端原本寫好的
+     catch(){ endMyTurn(); } 永遠跑不到。這塊蓋板蓋住了 header（靜音
+     鈕，z-index:10）跟側邊欄（小地圖鈕，z-index:10），整頁點擊全被
+     吃掉。唯一會關掉蓋板的 executePurchase() 要等手勢被偵測到才會
+     跑，鏡頭沒開成功就永遠到不了那裡，整場卡死除非重新整理頁面。
+
+  修法（static/game.html，三處）：
+  - 新增 handleVisionStartFailure(err) 共用函式：把目前顯示中的全螢幕
+    蓋板（adventure-decision-ui / adventure-task-ui / shop-ui）關掉、
+    把 uiState 重設回 READY、用 showGameNotice() 提示玩家「鏡頭啟動
+    失敗，已自動跳過手勢步驟」，再重新 throw 這個錯誤——讓呼叫端
+    （submitQuizAnswer 答對分支、handleCodeSuccess）原本就寫好、但
+    從未被觸發過的 catch(){ endMyTurn(); } 真正生效，回合可以正常
+    換人繼續，不會讓兩個玩家都卡死。initCameraAndStartVision() 的
+    catch block 改成呼叫這個函式。
+  - 在 await stopAllVision() 跟 getUserMedia() 之間加 300ms 延遲，
+    讓作業系統有機會真的釋放鏡頭裝置，降低撞上這個 race 的機率（玩家
+    感覺不出這個延遲）。
+  - CSS：#adventure-decision-ui 加 pointer-events:none。同檔案裡
+    #shop-ui 本來就是這個模式（外層關閉點擊，會互動的子元素各自開
+    pointer-events:auto），#adventure-decision-ui 底下的
+    #decision-split-layout 也已經是這個寫法，只是外層容器本身忘了加
+    ——即使以後又有程式邏輯漏洞讓某個蓋板卡著忘記關，也不會再連帶擋住
+    畫面其他地方的點擊。
+
+  不在這次範圍：先後手判定手勢流程（startRecognitionProcess）另一套
+  鏡頭管理（cameraInstance/#temp-video），收尾時找不到明確的
+  track.stop()，可能是另一個鏡頭沒真正釋放乾淨的來源，但結構上獨立、
+  不是這次 log 對應到的路徑，使用者確認這次不處理，只記錄備查。也
+  沒有改其餘 5 個裸呼叫 initCameraAndStartVision() 的地方（dice 手勢、
+  答題手勢、商店等）——核心修復已經能解掉卡死，這幾處風險大於目前
+  已知的效益。
+
+  驗證：
+  - 用 Node 把 <script> 區塊抽出來做語法檢查（new Function 試編譯），
+    通過。
+  - 沒有實際模擬 getUserMedia 失敗跑一次完整流程（需要刻意讓鏡頭不可
+    用才能重現，留給使用者實機測試：刻意停用鏡頭走到收購決策畫面，
+    確認蓋板會自動消失、靜音鈕/小地圖鈕恢復可點、有提示訊息、回合
+    正常換人；鏡頭正常時也要確認延遲感覺不出來、CSS 改動沒擋到收購
+    決策畫面的按鈕/手勢列）。
+========================================================================
+
+========================================================================
+[2026-11-04] 修復先後手判定後，整局手勢辨識必定卡頓
+
+  背景：使用者跟組員實測都發現，每局開始的「先後手」手勢辨識
+  （startRecognitionProcess()）跑過一次之後，同一局後面所有鏡頭辨識
+  畫面（骰子走幾步、答題手勢）都會變得明顯卡頓，而且是必定發生、
+  不是機率性的。主控台雖然每次階段轉換都會印出「🧹 視覺資源已徹底
+  釋放」，但看起來沒有效果。
+
+  派了兩個唯讀 Explore agent 分別查前端 game.html 跟後端 main.py，
+  結論互相印證：
+  - 後端完全排除：三個 vision WebSocket route（/ws/vision/game_start、
+    /ws/vision/jumping、/ws/vision/bird）都只對前端送來的手部座標做
+    輕量數學運算，沒有任何 per-connection 的全域狀態殘留風險。
+  - 先後手判定沒有自己另外建一個 MediaPipe 模型（重用全域共用的
+    globalHands），也沒有自己開 WebSocket——這兩個方向都不成立。
+  - 真正的根因是 startRecognitionProcess() 裡的 renderLoop()（畫鏡頭
+    預覽＋掃描特效的 requestAnimationFrame 迴圈）從來沒有被明確取消
+    過。它唯二的自我停止條件（flow-content 被清空、recognitionGeneration
+    世代改變）在「正常（非平手）判定出先後手」這條路徑上都不會被
+    滿足，追蹤完整流程後確認：從先後手判定結束、經過鏡頭飛入動畫，
+    一路到第一個骰子畫面開始，這整段期間這個迴圈都還在背景持續畫圖，
+    跟新畫面自己的鏡頭/畫布處理確定有時間重疊，才會造成之後必定卡頓。
+  - 次因：#temp-video 的鏡頭串流也從頭到尾沒有被真正停掉，4 個收尾點
+    都只呼叫 cameraInstance.stop()（只停 MediaPipe Camera 輔助物件
+    自己的擷取迴圈），沒有一個呼叫 getTracks().forEach(t=>t.stop())
+    去真正停掉底層 MediaStream 的 track。檔案裡原本有一段看起來像是
+    要做這件事的死碼（renderOrderFrame()，從未被呼叫過，用到的
+    currentStream 變數也從未被賦值過），這次沒有動它（跟這次卡頓
+    無關，使用者確認不處理）。
+
+  修法（static/game.html）：
+  - 新增全域變數 orderRenderLoopId，記住 renderLoop() 每次
+    requestAnimationFrame 排程的 id。
+  - 新增共用函式 stopOrderRecognitionLoop()：cancelAnimationFrame
+    這個 id，並重新抓取 #temp-video 元素、明確停掉它的 MediaStream
+    track、清空 srcObject。
+  - 在先後手判定可能結束的全部 4 個地方（進 startRecognitionProcess
+    時的舊實例清理、onFistUpDetected 的收尾、dice_order_final 非平手
+    分支的收尾、開發者除錯介面的強制決定）都呼叫這個函式，確保不管
+    走哪條路徑結束，鏡頭跟動畫迴圈都會被明確釋放，不再只依賴間接
+    條件。
+
+  不在這次範圍：renderOrderFrame() 死碼／currentStream 變數清理、
+  小鳥小遊戲 fbAnimId 同樣缺少 cancelAnimationFrame 的問題——都是
+  調查過程中順便發現、跟這次卡頓無關的獨立問題，使用者確認先不處理。
+
+  驗證：
+  - 用 Node 把 <script> 區塊抽出來做語法檢查（new Function 試編譯），
+    通過。
+  - 沒有實機跑一局驗證效能改善幅度（留給使用者實測：走完先後手判定
+    進骰子畫面確認不再卡頓，且鏡頭指示燈應該會看到熄滅再重新亮起）。
+========================================================================
+
+========================================================================
+[2026-11-04] 修復全景貼圖沒釋放造成的 GPU 顯存洩漏（對局越玩越卡）
+
+  背景：上一輪修好先後手判定的 renderLoop 洩漏後，使用者實測回報
+  「還是會卡，而且是在先手玩家第二次擲骰才開始明顯卡頓，拳頭觸發
+  骰子後，骰子隨機變化的畫面頻率明顯下降」。先確認過
+  orderRenderLoopId 是 null（上次的修復確實有生效），排除是同一個
+  問題。又派一個 Explore agent 查遍「反覆開關鏡頭會不會累積洩漏」
+  （成長的陣列、WebSocket 疊加、MediaPipe onResults 疊加回呼、
+  Three.js 物件沒釋放），全部排除——這次骰子動畫完全是純前端
+  requestAnimationFrame 驅動，跟伺服器、跟鏡頭開關次數都無關，程式碼
+  層級找不到任何問題。
+
+  請使用者直接用 Chrome DevTools 的 Performance 分頁側錄卡頓當下的
+  畫面，Bottom-Up 分頁顯示 **readPixels 占了取樣時間的 78.1%**——
+  這是 WebGL 把 GPU 畫面讀回 CPU 的操作，是一個會強迫 GPU 同步、
+  非常昂貴的呼叫，而且會隨 GPU 顯存壓力增加而越來越慢。
+
+  順著這條線索查全檔案：**完全找不到任何 `.dispose()` 呼叫**。
+  `panoSphere`（全景球體）的貼圖在 7 個地方（進冒險格
+  testAdventureView、進商店 startShopView、觀戰同步
+  setupSpectatorEnvironment/loadSpectatorBackground、開合跳
+  startJumpingJackView、小鳥遊戲 startBirdGameView、回大廳
+  resetToGodViewState）都是直接把 `panoSphere.material.map` 換成
+  新載入的貼圖，**換之前從來沒有釋放舊的那張**。JS 的垃圾回收只會
+  清掉 JS 物件本身，不會自動釋放貼圖占用的 GPU 顯存，一定要明確呼叫
+  `texture.dispose()`——這個檔案其實已經在 `static/js/board-build.js`
+  的 `disposeObject3D()` 用過同一套做法修過棋盤格子的 GPU 洩漏
+  （changeLog #68），只是全景貼圖這邊當初漏掉了，沒套用同一套修法。
+  這些 360 度環景圖解析度通常不小，每次進冒險格/商店/觀戰同步就
+  永久多佔一塊 GPU 顯存，對局玩越久、走過越多冒險格就堆越多，完全
+  符合「越玩越卡、而且是在走過幾個冒險格之後才開始明顯」這個現象。
+
+  修法（static/game.html）：
+  - 新增共用函式 setPanoTexture(texture)：換貼圖前先檢查
+    panoSphere.material.map 是不是舊的、不同於新貼圖，是的話先呼叫
+    .dispose() 釋放，再指定新貼圖（texture 傳 null 也適用，對應
+    resetToGodViewState 那個「清空目前貼圖」的用法）。
+  - 原本 7 個直接寫 panoSphere.material.map = texture（或 = null）
+    的地方全部改呼叫這個函式。
+
+  驗證：
+  - 用 Node 把 <script> 區塊抽出來做語法檢查（new Function 試編譯），
+    通過。
+  - 檢查 7 個呼叫點前後的程式碼（opacity/needsUpdate/visible 等）都
+    維持原樣沒有被動到，只換掉賦值那一行。
+  - 沒有實機跑長局驗證 GPU 顯存是否真的不再持續成長（留給使用者
+    實測：連續走過多個冒險格/商店/回大廳幾輪，用 Performance 分頁
+    再側錄一次確認 readPixels 佔比不再隨時間上升，或用
+    chrome://gpu、工作管理員看 GPU 記憶體用量是否趨於平穩而不是
+    持續往上爬）。
+========================================================================
+
+========================================================================
+[2026-11-04] 修復收購/入獄/偷竊/走路動畫殘留的多處 GPU 顯存洩漏
+
+  背景：上一輪修好全景貼圖的 GPU 洩漏（changeLog 上一條）後，使用者
+  重開一局再測，仍回報「還是會卡」，並提供新的 Performance 側錄：
+  readPixels 這次改成是從 MediaPipe 自己的 Hands WASM 模組內部被呼叫
+  （不是從這個檔案自己的 Three.js 渲染程式碼），搭配 chrome://gpu
+  確認硬體加速一切正常、且卡頓確定是「漸進式」而不是從頭就卡——
+  這代表全景貼圖洩漏是真的、也修對了，但不是唯一的洩漏來源，
+  readPixels 的異常耗時可以用「GPU 指令佇列被其他累積工作塞爆」
+  解釋，不管是哪支程式碼實際呼叫它。
+
+  又派一次調查，照全景貼圖那次的思路（找「建立新 Three.js 幾何/
+  材質/貼圖，之後只 remove() 從不 dispose()」的模式）掃過整份
+  程式碼，另外找到 4 個同類型、確實存在、之前都沒套用過
+  disposeObject3D()（changeLog #68）或貼圖 dispose 修法的洩漏點：
+  - spawnStepBubble()：對手每走一步就會生一個新的 CanvasTexture +
+    SpriteMaterial 氣泡特效，是目前已知頻率最高的洩漏（每步一次）。
+  - playStartAnimation() 的 createNoticeSprite()：玩家每經過一次
+    起點格就會生一張新的 1024x512 CanvasTexture 提示牌，單張比
+    氣泡大，但頻率低（一圈一次）。
+  - createShovel()：購地/加蓋動畫（purchase-animation.js）跟偷竊
+    動畫（spectator-animations.js）各自呼叫一次，用完只
+    model.remove(shovel)，沒 dispose 過裡面的 Mesh。
+  - createJailCage() + 臨時建立的 tearsGroup（哭泣特效）：入獄動畫
+    （spectator-animations.js 的 playJailAnimationCore()）結束時
+    只 scene.remove(cage) / head.remove(tearsGroup)，同樣沒 dispose。
+  - updateMeshFaceTexture()/updateModelColors()：收到對手外觀廣播
+    時重新 new 一份 mesh.material（含頭部人臉貼圖），舊的材質跟
+    texture 只是被變數覆蓋掉。這個一局大概只會觸發兩三次，不像
+    前面幾個會隨回合數線性累積，但同一個洞還是順手一起補掉。
+
+  修法：
+  - static/game.html：
+    - spawnStepBubble() 跟 createNoticeSprite()（playStartAnimation()
+      內）的 gsap onComplete callback 裡，scene.remove() 之外都補上
+      texture.dispose() 跟對應 material 的 .dispose()——這兩個是
+      THREE.Sprite 專屬資源，disposeObject3D() 只處理 isMesh 的
+      子物件，Sprite.isMesh 不是 true，不能套用那個共用函式，
+      只能手動 dispose。
+    - 新增共用函式 disposeMeshMaterial(material)（放在 setPanoTexture
+      旁邊），處理單一材質或材質陣列，連同 material.map 一起
+      dispose。updateMeshFaceTexture() 的 resetToPlainSkin 分支跟
+      人臉貼圖載入成功分支、重新賦值 mesh.material 前都先呼叫它。
+  - static/js/spectator-animations.js：playJailAnimationCore() 的
+    cage/tearsGroup、playStealAnimationCore() 的 shovel，收尾
+    remove() 前都補上 disposeObject3D()——這幾個都是純 Mesh 子物件
+    組成的 THREE.Group，disposeObject3D()（board-build.js 既有的
+    全域共用函式，整份檔案都是用 <script src> 載入、不需要 import）
+    直接適用，不用另外手動拆。
+  - static/js/purchase-animation.js：runPurchaseAnimationCore() 的
+    shovel 收尾同理補上 disposeObject3D()。
+
+  不在這次範圍：updateModelColors() 目前沒有實際呼叫點被動到（跟
+  updateMeshFaceTexture() 是兩支平行、用途重疊的函式，順手一起
+  補了但沒有特別去追它現在是否還在被呼叫）；main.py 的
+  cleanup_loop() 每 10 秒在共用事件迴圈上做同步 DB 呼叫、會卡住
+  /auth/heartbeat 等請求的問題，是另一個獨立確認存在的後端問題，
+  跟這次前端 GPU 洩漏無關，使用者還沒回覆是否要另外處理，先不動。
+
+  驗證：
+  - 用 Node 把 <script> 區塊抽出來做語法檢查（new Function 試編譯），
+    通過；spectator-animations.js、purchase-animation.js 另外用
+    node --check 驗證語法，通過。
+  - 檢查 git diff，確認每個修改點都只在原本的收尾/賦值程式碼旁
+    加一行 dispose 呼叫，沒有動到其他邏輯。
+  - 沒有實機跑長局驗證 GPU 顯存是否真的不再持續成長（留給使用者
+    實測：這次修的幾個點涵蓋對手走路、經過起點、購地/加蓋、偷竊、
+    入獄、外觀廣播，建議跑一局涵蓋到這幾種事件的對局，再用
+    Performance 側錄或 chrome://gpu/工作管理員確認 GPU 記憶體用量
+    趨於平穩）。使用者提供的 Lighthouse 報告（download.json）是
+    頁面載入模式，量的是開場那一瞬間的指標，不會反映這種玩到後面
+    才出現的漸進式洩漏，無法用來驗證這次修復。
+========================================================================
+
+========================================================================
+[2026-11-04] 修復手勢辨識每次啟動都重複搶鏡頭，產生孤兒串流的 GPU 洩漏
+
+  背景：上一輪修完 5 個 Three.js 場景資源洩漏後，使用者重測仍回報
+  「還是沒有解決，Performance 側錄同樣是那幾個項目占用很高的
+  執行緒」。先掃過整份 game.html 跟 js/*.js 裡所有 new THREE.*
+  的建立點，確認上一輪該修的都修了、沒有漏掉的 Three.js 場景物件，
+  排除方向錯誤後改查「鏡頭本身」這條線。
+
+  發現整份檔案有 4 個啟動手勢辨識鏡頭的函式（
+  initCameraAndStartVision() 骰子/答題/收購、initPoseAndStartVision()
+  開合跳、startFlappyBirdMiniGame() 小鳥飛、startRecognitionProcess()
+  先後手判定）都是同一個模式：自己先手動呼叫一次
+  navigator.mediaDevices.getUserMedia()，把拿到的串流指定給
+  video.srcObject 並 play()，然後才建立 MediaPipe 的 Camera
+  工具物件並呼叫它的 start()。用 WebFetch 直接讀了
+  cdn.jsdelivr.net 上實際發布的 camera_utils.js 原始碼確認：
+  Camera.start() 自己內部也會呼叫一次 getUserMedia()，取得「另一個
+  全新的」MediaStream，再把它指定給同一個 video.srcObject——也就是
+  把上面手動拿到的那個串流直接蓋掉。被蓋掉的那個串流物件此時已經
+  沒有任何 JS 變數再參照它，但瀏覽器不會因為沒有參照就自動停止
+  實體攝影機擷取，一定要明確呼叫 track.stop() 才會真正關閉，而
+  這份程式碼裡從來沒有人記得去停它。
+
+  後果：這 4 個函式幾乎對應遊戲裡所有需要鏡頭的環節（每次骰子、
+  每次答題手勢、每次收購決策、開合跳、小鳥飛、先後手判定），等於
+  每觸發一次手勢辨識就會在背景多開一條永遠不會被關掉的攝影機
+  擷取串流，隨回合數線性累積——這比上一輪修的 Three.js 貼圖/
+  Sprite/Group 洩漏頻率更高、也更吃資源（每條孤兒串流背後是一整套
+  持續運作的攝影機硬體擷取＋色彩空間轉換管線，不只是一塊靜態
+  貼圖）。完全符合使用者回報的「必定漸進式變慢」「readPixels 顯示
+  是從 MediaPipe 自己的 WASM 模組內部被呼叫」這兩個症狀：不是
+  MediaPipe 自己壞掉，是背景一堆孤兒攝影機串流持續跟它搶 GPU/
+  驅動層的處理資源，導致它自己原本正常的 readPixels 也跟著變慢。
+
+  修法（static/game.html）：4 個函式都拿掉自己手動呼叫
+  getUserMedia()／video.srcObject = stream／video.play() 這一段，
+  改成完全交給 Camera.start() 自己取得串流；原本沒有 await 的
+  activeCamera.start() / cameraInstance.start() 全部改成
+  await，讓 Camera 內部 getUserMedia 失敗時能被原本就包著的
+  try/catch 接住（initCameraAndStartVision 跟
+  startFlappyBirdMiniGame 本來就有 catch 會呼叫
+  handleVisionStartFailure／印錯誤；initPoseAndStartVision 跟
+  startRecognitionProcess 維持跟修改前一樣沒有特別處理失敗，
+  行為不變，不是這次要補的範圍）。副作用：原本三處手動呼叫時
+  帶的 frameRate 提示（ideal 60 / max 15）沒辦法透過 Camera 的
+  options 傳進去（Camera 只吃 width/height/facingMode），拿掉了，
+  但這幾個場景本來就不是靠高幀率撐畫面，影響可忽略。
+
+  不在這次範圍：startFlappyBirdMiniGame() 呼叫 stopAllVision() 後
+  沒有像 initCameraAndStartVision() 一樣補上 300ms 延遲就直接讓
+  Camera.start() 要新串流，理論上跟最早修的「NotReadableError 卡死
+  收購畫面」是同一種 race，但這是修改前就存在的既有風險、跟這次
+  洩漏無關，先不動，使用者之後若在小鳥飛环節撞到鏡頭啟動失敗再
+  回頭補。
+
+  驗證：
+  - 用 Node 把 <script> 區塊抽出來做語法檢查（new Function 試編譯），
+    通過。
+  - 用 WebFetch 直接讀 cdn.jsdelivr.net 上的 camera_utils.js 原始碼，
+    確認 Camera.start() 真的會自己呼叫 getUserMedia、stop() 只會
+    停掉它自己取得的那個串流，不是憑空猜測的行為。
+  - 檢查 4 個呼叫點改完之後，中間沒有任何程式碼依賴「手動拿到的
+    那個串流」要同步存在（例如沒有在拿掉的那幾行之後、Camera
+    建立之前，有程式碼讀 video.videoWidth 之類的），確認拿掉是
+    安全的。
+  - 沒有實機跑長局驗證：留給使用者實測，這次應該是目前找到的洩漏
+    點裡影響最大的一個，預期能直接感受到差異；若再側錄 Performance
+    也請同時打開工作管理員看鏡頭/GPU 資源，確認不再隨回合數持續
+    往上堆。
+========================================================================
+
+========================================================================
+[2026-11-04] 修復 cleanup_loop 同步 DB 呼叫卡住唯一事件迴圈（週期性 heartbeat 503）
+
+  背景：追查前端鏡頭/GPU 洩漏的過程中，順便確認過主控台反覆出現
+  的 /auth/heartbeat...503 錯誤的根因：main.py 只開一個 Uvicorn
+  worker（沒有 --workers 參數），全部 HTTP 請求／WebSocket／
+  Socket.IO 事件共用同一個 asyncio 事件迴圈。start_cleanup_task()
+  裡的 cleanup_loop() 每 10 秒跑一次，直接在這個 async def 迴圈
+  裡呼叫同步的 perform_auto_cleanup(db)（SQLAlchemy 預設是同步
+  DB driver）——這段 DB 查詢執行期間會整個卡住唯一的事件迴圈，
+  其他所有請求（包含 /auth/heartbeat）在這段時間都會被排隊到
+  逾時，正是「約每 10 秒會有一批 503」的直接原因。這個問題跟前端
+  鏡頭/GPU 洩漏是兩個獨立的根因，當時先記下來、問過使用者要不要
+  一起處理，使用者先專心驗證前端修復，這次才回頭單獨處理。
+
+  修法（main.py）：cleanup_loop() 裡原本手動開 DB session 再呼叫
+  perform_auto_cleanup(db) 的那段，改成呼叫既有的
+  perform_auto_cleanup_bg()（本來就是給 BackgroundTasks 用、自己
+  開關 session 的版本），並用 asyncio.to_thread() 丟到背景執行緒
+  跑，讓這段同步 DB I/O 不要佔用事件迴圈。
+
+  不在這次範圍：同一個迴圈裡的 cleanup_idle_rooms() 沒有動——它
+  本身是純記憶體的 dict 操作（遍歷 active_rooms、踢掉逾時的），
+  只有真的遇到閒置房間時才會呼叫 sync_room_log() 做一次同步 DB
+  寫入，是罕見分支，不是「固定每 10 秒卡一次」這個症狀的主因。
+  而且 active_rooms 這個全域 dict 同時也被多個 async 的 Socket.IO
+  事件處理常式直接讀寫，如果把 cleanup_idle_rooms() 整個丟進
+  asyncio.to_thread() 的背景執行緒，會讓它在跟事件迴圈不同的
+  執行緒上遍歷／修改這個 dict，雖然 GIL 保證單一操作不會壞記憶體，
+  但「先算出哪些房間逾時、再逐一刪除」這整段邏輯不是原子操作，
+  可能跟事件迴圈那邊的房間建立/更新動作重疊出邏輯上的競態——
+  這個風險沒有對應的明確好處（它本來就不常跑、不常卡），所以
+  刻意不碰，只修保證每次都會執行、也保證會卡住事件迴圈的
+  perform_auto_cleanup 那段。
+
+  驗證：
+  - python -m py_compile main.py 通過，沒有語法錯誤。
+  - 檢查 perform_auto_cleanup_bg() 既有實作（自己開關 db session），
+    確認跟 cleanup_loop() 原本手動開關 session 再呼叫
+    perform_auto_cleanup(db) 的行為完全等價，只是換了呼叫方式。
+  - 沒有實機長時間監測驗證 503 真的消失（留給使用者實測：連續
+    開著對局一段時間，觀察主控台 /auth/heartbeat 是否還會固定
+    每 10 秒左右跳出一批 503）。
+========================================================================
+
+========================================================================
+[2026-11-05] 修復鹿谷/溪頭情境氣溫永遠顯示適中：站名根本不存在於氣象署清單
+
+  背景：你問「理論上每個城市都該有測站，為什麼有時候還是顯示適中」，
+  懷疑是不是跟 AQI 一樣只有 4 個站覆蓋不到。先查證 AQI
+  （air_quality.py）跟氣溫（temperature.py）是完全獨立的兩套系統：
+  AQI 真的只接環境部 4 個南投站，但氣溫（中央氣象署）的
+  TOWNSHIP_TO_STATION 涵蓋全部 13 個鄉鎮市，草屯等地其實都在
+  覆蓋範圍內，理論上不該漏。
+
+  為了實測驗證，寫了一支診斷腳本（C:\Users\范植鈞\Desktop\
+  1162-Project\test_scenarios_temperature.py，刻意放在 116Project
+  根目錄、不進這個 repo 的版控，純粹是一次性診斷工具），對
+  scenarios 資料表全部 107 筆情境跑一次真實的氣象署 API（同一個
+  測站只打一次、結果共用給所有對應到它的情境，省 API 呼叫次數）。
+  結果：96 筆正常、2 筆是 EXCLUDE_KEYWORDS 刻意排除的設計行為
+  （意麵文化／南投配天宮城隍祭，不是 bug）、**9 筆穩定失敗**——
+  全部集中在鹿谷鄉（8 筆）跟溪頭（1 筆），兩次重跑結果一致，
+  不是機率性的「有時候」。
+
+  再用同一支 API（不帶 StationName 篩選，撈全部 876 個站）直接列出
+  南投縣所有站名核對，確認根因：**氣象署的站名清單裡根本沒有叫
+  「鹿谷」或「溪頭」的站**——跟 commit 7e7170d 當時修的「竹山」不
+  一樣，竹山站名是真實存在的、只是偶爾斷訊才需要備援；鹿谷/溪頭
+  這兩個名字從 e59c67f 第一次寫氣溫整合開始就是查不到的，從來
+  沒對過。鹿谷鄉實際對應的站是「臺大溪頭」(1150m)、「鳳凰」
+  (910m)、「茶改南部分場」(390m)、「鳳鵬」(343m)。
+
+  修法（temperature.py）：
+  - TOWNSHIP_TO_STATION["鹿谷鄉"]："鹿谷" → "鳳凰"（跟受影響
+    情境之一「鳳凰谷鳥園」同名，海拔也比較貼近鹿谷鄉內多數
+    低海拔茶區景點，如凍頂烏龍茶、冬茶評鑑大賽）。
+  - SPECIAL_SPOTS["溪頭"]："溪頭" → "臺大溪頭"（真實存在、
+    就在溪頭森林遊樂區旁）。
+  - fetch_temperature() 的 fallback_stations 新增
+    "鳳凰": ["茶改南部分場"]，照既有「竹山→臺大竹山」的備援
+    模式，鳳凰站斷訊時用同在鹿谷鄉內的茶改南部分場頂替。
+
+  驗證：
+  - python -m py_compile temperature.py 通過。
+  - 用前面那支診斷腳本重跑 107 筆：鹿谷鄉 8 筆全部變成 ✅ 鳳凰站
+    23.9°C、溪頭自然教育園區變成 ✅ 臺大溪頭站 21.3°C，總計從
+    96/107 提升到 105/107（剩下 2 筆是刻意排除的設計行為，不是
+    問題）。跑了兩次結果一致，確認是穩定修復、不是當次 API 運氣好。
 ========================================================================

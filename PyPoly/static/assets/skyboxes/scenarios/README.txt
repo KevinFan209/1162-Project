@@ -1,16 +1,14 @@
 情境用的 360 度全景圖放這裡，檔名就是 scenarios 資料表的 id：
 
-    1.jpg  中興新村 - 世界茶業博覽會
-    2.jpg  埔里酒廠
-    3.jpg  魚池 - 日月潭
-    4.jpg  中寮土窯
-    5.jpg  竹山天梯
+    1.jpg ~ 107.jpg，對應 107 個南投情境地點。
 
-對應關係以 init_adventure_data.py 為準（該檔已寫死 id=1~5）。
+對應關係以 seed_scenarios.sql 為準（id 1~107，一一對應圖檔）。
+main.py 的 /game/map_config 會直接用 f"scenarios/{id}.jpg" 推導圖檔
+路徑（資料表本身沒有存檔名欄位），所以圖檔只要照 id 命名就一定對得上。
 
-為什麼放在這個子目錄：
-  上一層已有 24.jpg~107.jpg 共 84 張圖，若直接放同一層，
-  情境數成長到 24 個以上就會撞名，而且不會報錯，只會默默顯示錯的地方。
+（舊版 init_adventure_data.py 只灌 5 筆的種子腳本已經刪掉，README.md
+跟 docker/entrypoint.sh 都改成跑 run_seed_scenarios.py，一律對應這
+107 筆、不會再被蓋回舊資料。）
 
 圖還沒放進來時：
   game.html 的 loadTextureSafe 會自動改用 sky_reward.jpg 當替代背景，

@@ -26,8 +26,9 @@ const miniMapGridPositions = [
  * @param {Object} landOwnership    {格子索引: {owner}}，可傳 null
  * @param {Function} colorFn        依擁有者名稱回傳顏色
  * @param {Function} onTileClick    點擊格子時的回呼，可省略
+ * @param {Array} playerPositions   [{name, idx, color}, ...]，標記玩家目前位置，可省略
  */
-function renderMiniMapTilesInto(container, gameMap, landOwnership, colorFn, onTileClick) {
+function renderMiniMapTilesInto(container, gameMap, landOwnership, colorFn, onTileClick, playerPositions) {
     container.innerHTML = ''; // 清空重建
 
     gameMap.forEach((tile, idx) => {
@@ -59,7 +60,21 @@ function renderMiniMapTilesInto(container, gameMap, landOwnership, colorFn, onTi
         tileEl.style.backgroundColor = bgColor;
         tileEl.style.borderColor = borderColor;
         tileEl.innerHTML = icon;
-        
+
+        // 🏆 疊加玩家目前位置標記：同一格最多兩個人（固定 2 人對局），
+        // 左右錯開避免兩個點疊在一起看不出來。
+        const playersHere = (playerPositions || []).filter(p => p.idx === idx);
+        playersHere.forEach((p, i) => {
+            const marker = document.createElement('div');
+            marker.className = 'minimap-player-marker';
+            marker.style.backgroundColor = p.color;
+            marker.title = p.name;
+            if (playersHere.length > 1) {
+                marker.style.left = (i === 0) ? '8%' : '52%';
+            }
+            tileEl.appendChild(marker);
+        });
+
         // 綁定點擊事件
         tileEl.onclick = (e) => {
             e.stopPropagation(); // 防止點擊穿透關閉地圖
