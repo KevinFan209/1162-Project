@@ -2966,6 +2966,19 @@ let currentGameState = {
 
 let currentStream = null;
 let currentLandmarks = null;
+
+// 🏆 Fan-aiBattle：單裝置 AI 對戰。AI 沒有真的第二個 socket 連線，是由
+// 房主這一個連線自己模擬 AI 的回合、用這個保留帳號名稱當 data.user 送出
+// 跟人類手勢辨識成功後完全相同的事件——「演對手」那整套 handler
+// （player_move_sync、land_bought_sync…）本來就只比對 data.user 是不是
+// 等於自己，不管事件實際上是不是來自另一台裝置，AI 才能完全沿用既有的
+// 動畫/渲染程式碼，不用另外寫一套。
+const AI_USERNAME = "BeeRich_AI";
+function isVsAiRoom() {
+    const activeRoom = JSON.parse(localStorage.getItem('beerich_active_room')) || {};
+    return !!activeRoom.vsAI;
+}
+
 let playerModels = {};
 let playerCurrentIndex = {}; 
 let mapBlocks = []; 
@@ -3464,6 +3477,13 @@ async function loadPlayerModels() {
             const myColors = window.myCharacterRecipe && window.myCharacterRecipe.colors;
             if (myColors) activeColors = myColors;
             activeFace = exactFace || localStorage.getItem('beerich_char_face');
+        } else if (playerName === AI_USERNAME) {
+            // 🏆 Fan-aiBattle：AI 沒有真實帳號，/auth/character、
+            // /auth/camera_face 兩個查詢一定查不到東西——不是會壞掉
+            // （兩邊都有 try/catch 跟 res.ok 防呆），但沒意義也浪費時間。
+            // 直接給固定造型，不要走任何網路查詢。
+            activeColors = { head: '#ffe3a3', body: '#ff6b6b', arm: '#ff8787', legs: '#8c2c2c', feet: '#2c1f14' };
+            activeFace = null;
         } else {
             let oppColors = window.netPlayerColors && window.netPlayerColors[playerName];
             // 🏆 修復對局中對手人臉全黑：優先順序改成「這次連線收到的
@@ -5991,8 +6011,22 @@ async function onFistUpDetected(point) {
 
             // 同步點數至後端
             syncOrderDice(point);
+
+            // 🏆 Fan-aiBattle：AI 對戰沒有真的第二個人會送出自己的先後手
+            // 點數，handle_order_dice 永遠湊不滿 2 筆、dice_order_final
+            // 就永遠不會觸發，整局會卡在這一步。人類送出之後，由這個
+            // 連線自己延遲一下再替 AI 送一份隨機點數（跟人類手勢辨識
+            // 出來的範圍一致，都是 1~6）。
+            if (isVsAiRoom()) {
+                setTimeout(() => {
+                    const activeRoom = JSON.parse(localStorage.getItem('beerich_active_room'));
+                    const roomCode = activeRoom ? activeRoom.code : localStorage.getItem('room_code');
+                    const aiPoint = Math.floor(Math.random() * 6) + 1;
+                    socket.emit('submit_order_dice', { room: roomCode, user: AI_USERNAME, points: aiPoint });
+                }, 1200 + Math.random() * 800);
+            }
         }
-    }, 2000); 
+    }, 2000);
 }
 
 	// 🏆 修正平手再一次的邏輯 (放在 socket 監聽器內)
@@ -6222,6 +6256,11 @@ function startMainTurn(isMyTurn, targetPlayerName = "對手") {
         virtualScreen.visible = true;
 
         initCameraAndStartVision();
+    } else if (targetPlayerName === AI_USERNAME) {
+        // 🏆 Fan-aiBattle：輪到 AI，不開攝影機、不等任何真的連線，
+        // 直接由這個連線自己跑完 AI 的整個回合。
+        showCustomNotice(`🤖 AI 回合中，請稍候...`, "center", 0);
+        runAiTurn();
     } else {
         // 🏆 修正點：使用 targetPlayerName 顯示「等待 玩家ID 擲骰中」
         showCustomNotice(`等待 ${targetPlayerName} 擲骰中... 🎲`, "center", 0);
@@ -6778,6 +6817,178 @@ function endMyTurn() {
     }
     
     // 正常換人 (發送原本的信號)
+    socket.emit('next_turn_trigger', { room: roomCode, next_player: nextP, skippedPlayer });
+}
+
+// ======================================================
+// 🏆 Fan-aiBattle：單裝置 AI 對戰的「大腦」
+//
+// 設計原則：完全不呼叫 submitQuizAnswer()／executePurchase()／
+// triggerTask() 這幾個人類專用函式——它們內部全部預設「正在操作的
+// 就是 localStorage.username 自己」，會去動 window.uiState、開攝影機、
+// 改真人的 UI，硬套在 AI 身上會把人類自己的畫面狀態弄亂。AI 改成
+// 直接呼叫跟人類「手勢辨識成功之後」完全相同的底層函式／socket 事件
+// （movePlayerSequence、playTollAnimationCore、runPurchaseAnimationCore、
+// buy_land…），讓既有的「演對手」渲染程式碼免費處理掉所有畫面同步，
+// 不另外寫一套動畫。
+// ======================================================
+
+// v1 固定、簡單的 AI 行為（難度分級是下一輪的事）：
+//   - 先後手／擲骰點數：1~6 隨機，跟人類手勢辨識的範圍一致
+//   - 土地題目正確率：固定 65%
+//   - 買地策略：答對且買得起就買，不做升級／道具／商店互動
+const AI_CORRECT_RATE = 0.65;
+
+async function runAiTurn() {
+    const roomData = JSON.parse(localStorage.getItem('beerich_active_room'));
+    const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
+
+    // 模擬「思考」的停頓，體感上比較像真的在下決定，不要瞬間跳结果
+    await new Promise(r => setTimeout(r, 1000 + Math.random() * 800));
+
+    const steps = Math.floor(Math.random() * 6) + 1;
+    // 🏆 直接呼叫 movePlayerSequence，不走 player_move_sync_request 的
+    // socket 來回——AI 跟人類是同一個連線，不需要經過伺服器轉發自己
+    // 送給自己的事件，直接呼叫跟「收到對手移動同步」時會執行的是同一個
+    // 函式，省去一個不必要、還可能跟後續邏輯卡時序的 round trip。
+    await movePlayerSequence(AI_USERNAME, steps);
+
+    const aiIndex = playerCurrentIndex[AI_USERNAME];
+    const tile = gameMap[aiIndex];
+
+    try {
+        if (tile && tile.type === 'ADVENTURE') {
+            await resolveAiAdventureTile(tile, aiIndex, roomCode);
+        } else if (tile && tile.type === 'JAIL') {
+            // 🏆 自己發的廣播帶 skip_sid，AI 跟人類共用同一個連線，
+            // 一樣收不到自己的回音，所以要像人類那樣手動設定旗標
+            // （對照 triggerTask() 的 'JAIL' case）。
+            window.jailedPlayer = AI_USERNAME;
+            await playJailAnimationCore(buildSpectatorAnimCtx(), AI_USERNAME, aiIndex);
+        }
+        // START／BLANK／SHOP／PUNISH／REWARD／其他格子：v1 刻意不處理，
+        // AI 直接結束回合（START 的過 GO 獎勵已經在 movePlayerSequence
+        // 裡對任何玩家都通用地發過了，不用在這裡重複處理）。
+    } catch (err) {
+        console.error("🚨 AI 回合發生例外，強制結束回合：", err);
+    }
+
+    aiEndTurn();
+}
+
+// AI 踩到冒險格（土地格）的決策：踩自己的地不用錢、踩人類的地付過路費、
+// 空地就依固定正確率答題，答對且買得起才買。
+async function resolveAiAdventureTile(tile, aiIndex, roomCode) {
+    const landData = window.landOwnership[aiIndex];
+
+    // 情境 A：自己的地，不用付錢
+    if (landData && landData.owner === AI_USERNAME) return;
+
+    // 情境 B：人類的地，要付過路費。這裡跟 handleTollPhase() 的「情境 C」
+    // 做一樣的事（播動畫 + 雙方餘額異動），但不需要 sync_adventure_phase／
+    // broadcast_dice_event 那些廣播——這台裝置本身就同時顯示雙方的餘額
+    // UI，不需要靠廣播通知「另一台裝置」更新（根本沒有另一台裝置）。
+    if (landData && landData.owner) {
+        const ownerName = landData.owner;
+        let tollAmount = parseInt(landData.toll);
+        if (isNaN(tollAmount) || tollAmount === 0) tollAmount = 100;
+
+        await playTollAnimationCore(buildSpectatorAnimCtx(), AI_USERNAME, ownerName, tollAmount, false, aiIndex);
+        updateMoneyUI(AI_USERNAME, -tollAmount);
+        updateMoneyUI(ownerName, tollAmount);
+        return;
+    }
+
+    // 情境 C：空地——固定策略丟答對/答錯，答錯直接放棄
+    const isCorrect = Math.random() < AI_CORRECT_RATE;
+    if (!isCorrect) return;
+
+    const targetLandId = tile.id;
+    if (!targetLandId) return;
+
+    let analysisData;
+    try {
+        const res = await fetch(`${API_URL}/game/adventure_analysis/${targetLandId}`);
+        analysisData = await res.json();
+    } catch (err) {
+        console.warn("⚠️ AI 取得土地分析失敗，放棄購買：", err);
+        return;
+    }
+
+    const price = parseInt(analysisData.total_price ?? analysisData.base_price);
+    const toll = parseInt(analysisData.toll) || 0;
+    if (isNaN(price)) return;
+
+    const balanceEl = document.getElementById(`balance-${AI_USERNAME}`);
+    const aiBalance = balanceEl ? parseInt(balanceEl.innerText.replace(/,/g, '')) : 0;
+    if (!balanceEl || aiBalance < price) return; // 買不起，放棄
+
+    const landName = analysisData.name || tile.data?.name || "優質地產";
+    const scenario = tile.data?.scenario || "";
+    const aiColor = getPlayerLandColor(AI_USERNAME);
+
+    // 🏆 只要 emit buy_land，既有的 land_bought_sync 監聽器（這個連線
+    // 自己也會收到自己剛送出的這份廣播，伺服器端沒有對這個事件設
+    // skip_sid）就會自動扣錢、設定地權、播放購地動畫——不需要在這裡
+    // 重複呼叫 updateMoneyUI／runPurchaseAnimationCore，那樣反而會
+    // 造成餘額被扣兩次。
+    socket.emit('buy_land', {
+        room: roomCode, user: AI_USERNAME, tileIndex: aiIndex,
+        price: price, color: aiColor, landName: landName, toll: toll,
+        scenario: scenario, isUpgrade: false, floorCount: 1
+    });
+
+    // 等 land_bought_sync 回音 + 購地動畫播完，才繼續往下換人
+    await new Promise(r => setTimeout(r, 2500));
+}
+
+// 比照 endMyTurn()，但「本回合行動的人」固定是 AI、下一個人固定是人類
+// 自己——不能直接呼叫 endMyTurn()，那個函式整個是相對於
+// localStorage.username（人類自己）去算下一個人，套在 AI 身上方向會
+// 算反。turnEndedGuard 兩邊共用是安全的：startMainTurn() 在每個回合
+// 開始時都會無條件重置這個旗標，不管接下來是誰的回合。
+function aiEndTurn() {
+    if (turnEndedGuard) {
+        console.warn("⚠️ 本回合已經結束過，忽略重複的 aiEndTurn 呼叫");
+        return;
+    }
+    turnEndedGuard = true;
+
+    const myName = localStorage.getItem('username');
+    const roomData = JSON.parse(localStorage.getItem('beerich_active_room'));
+    const roomCode = roomData ? roomData.code : localStorage.getItem('room_code');
+    let nextP = myName;
+
+    // 監獄暫停一回合：如果接下來該輪到的人類剛好是上一輪被關進監獄的人，
+    // 要跳過他，直接換回 AI。
+    let skippedPlayer = null;
+    if (window.jailedPlayer && nextP === window.jailedPlayer) {
+        skippedPlayer = window.jailedPlayer;
+        window.jailedPlayer = null;
+        nextP = AI_USERNAME;
+    }
+
+    const gameSnapshot = JSON.parse(localStorage.getItem('beerich_game_snapshot'));
+    const maxTurns = gameSnapshot.winLaps || 10;
+    let currentRound = parseInt(localStorage.getItem('beerich_current_round')) || 1;
+
+    const turnOrder = getTurnOrder();
+    const lastMover = turnOrder[turnOrder.length - 1];
+
+    if (AI_USERNAME === lastMover) {
+        if (currentRound >= maxTurns) {
+            console.log("🏆 達到設定回合數，遊戲結束！");
+            socket.emit('broadcast_dice_event', { room: roomCode, user: AI_USERNAME, type: "GAME_OVER", point: "" });
+            triggerGameOver();
+            return;
+        } else {
+            currentRound++;
+            localStorage.setItem('beerich_current_round', currentRound);
+            socket.emit('broadcast_dice_event', { room: roomCode, user: AI_USERNAME, type: "ROUND_UPDATE", point: currentRound });
+            updateRoundUI(currentRound);
+        }
+    }
+
     socket.emit('next_turn_trigger', { room: roomCode, next_player: nextP, skippedPlayer });
 }
 

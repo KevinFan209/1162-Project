@@ -158,6 +158,7 @@ class GameRoomLog(Base):
     win_laps = Column(String(10))                # 設定的遊玩回合數
     room_type = Column(String(20))               # public / private
     test_mode = Column(Boolean, default=False)   # 是否為測試模式（含空白格）
+    vs_ai = Column(Boolean, default=False)       # 🏆 Fan-aiBattle：是否為單裝置 AI 對戰房
     # waiting  尚未開始，會出現在大廳
     # gaming   對局進行中
     # finished 正常結束（已進結算頁）

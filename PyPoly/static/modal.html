@@ -328,9 +328,10 @@
 
     <div class="flex-row">
         <div class="setting-group flex-item">
-            <label class="setting-label">最大人數</label>
+            <label class="setting-label">對戰對象</label>
             <select id="maxPlayers" class="input-box" onchange="checkAI()">
-                <option value="2" selected>2 人</option>
+                <option value="2" selected>真人對戰</option>
+                <option value="1">AI 對戰（單裝置）</option>
             </select>
         </div>
         <div class="setting-group flex-item">
@@ -425,7 +426,11 @@
             winLaps: document.getElementById('winLaps').value,
             type: document.getElementById('typeSelect').value,
             code: roomConfig.code,
-            testMode: document.getElementById('testMode')?.checked || false
+            testMode: document.getElementById('testMode')?.checked || false,
+            // 🏆 Fan-aiBattle：這行原本就漏掉，checkAI() 算出來的
+            // roomConfig.vsAI 從來沒有真的送給後端，是「選了 AI 對戰
+            // 卻實際沒辦法對戰」的根本原因。
+            vsAI: roomConfig.vsAI
         };
 
         console.log("準備傳送給後端的資料:", newRoomData);

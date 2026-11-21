@@ -116,6 +116,13 @@ async def no_cache_static(request, call_next):
         response.headers["Cache-Control"] = "no-cache, must-revalidate"
     return response
 
+# 🏆 Fan-aiBattle：AI 對戰模式的保留帳號名稱。單裝置 AI 對戰不會有真的
+# 第二個 socket 連線，而是由房主自己這個連線模擬 AI 的回合、用這個
+# 固定字串當作 data.user 送出對應事件——existing 的「演對手」渲染邏輯
+# 本來就只比對 data.user 是不是等於自己，不管事件實際上是不是真的來自
+# 另一台裝置，AI 才能完全不需要新的後端連線機制就動起來。
+AI_USERNAME = "BeeRich_AI"
+
 # 🏆 用來存放所有線上房間的「記憶體筆記本」
 # 只要伺服器沒關，房間資料都會存在這
 active_rooms = {}
@@ -214,6 +221,7 @@ def sync_room_log(code: str, status: str, room: dict = None):
             log.win_laps = str(room.get("winLaps", ""))
             log.room_type = room.get("type")
             log.test_mode = bool(room.get("testMode"))
+            log.vs_ai = bool(room.get("vsAI"))
 
         # 已結束的紀錄不再被改回進行中，避免重複呼叫 finish 造成狀態跳動
         if log.status in ("finished", "abandoned") and status in ROOM_OPEN_STATUSES:
@@ -256,9 +264,12 @@ def restore_rooms_from_db():
                 "winLaps": log.win_laps,
                 "type": log.room_type,
                 "testMode": bool(log.test_mode),
+                "vsAI": bool(log.vs_ai),
                 # 還原後 players 一律清空：socket 連線在重啟時已全數斷開，
-                # 沿用舊名單會讓房間顯示滿員卻沒有人在裡面。
-                "players": [],
+                # 沿用舊名單會讓房間顯示滿員卻沒有人在裡面。vsAI 房例外：
+                # AI 本來就不是真的 socket 連線，不會因為重啟而「斷線」，
+                # 先把它還原回去，房主只要重新 /rooms/join 一次就湊回 2 人。
+                "players": [AI_USERNAME] if log.vs_ai else [],
                 "status": log.status,
                 "is_started": log.status == "gaming",
                 "last_active": datetime.utcnow().timestamp(),
@@ -283,6 +294,9 @@ class RoomSchema(BaseModel):
     #    存在房間資料裡，客人加入時會從 /rooms/join 回傳的房間 dict 一併取得，
     #    雙方因此拿到同一張地圖。
     testMode: bool = False
+    # 🏆 Fan-aiBattle：是否為「單裝置 vs AI」房間。建房當下就會把 AI_USERNAME
+    #    塞進 players，不需要真的有第二個人連線加入。
+    vsAI: bool = False
 
 @app.on_event("startup")
 async def start_cleanup_task():
@@ -846,6 +860,11 @@ def check_id(username: str, db: Session = Depends(database.get_db)):
 
 @app.post("/auth/register")
 def register(user: UserCreate, db: Session = Depends(database.get_db)):
+    # 🏆 Fan-aiBattle：AI_USERNAME 是保留給 AI 對戰模式的虛擬帳號，不能
+    #    被真人註冊走，否則會跟 active_rooms['players'] 裡代表 AI 的那個
+    #    名字撞在一起。
+    if user.username == AI_USERNAME:
+        raise HTTPException(status_code=400, detail="ID 已被使用")
     if db.query(models.User).filter(models.User.username == user.username).first():
         raise HTTPException(status_code=400, detail="ID 已被使用")
     # 🏆 email 在 models.User 有 unique 約束，若不先檢查，重複時會由 DB 丟
@@ -1329,7 +1348,11 @@ async def create_room(room: RoomSchema):
     # 🏆 修正：初始化時就建立 players 陣列，並把房主放進去
     room_dict = room.dict()
     room_dict['code'] = code
-    room_dict['players'] = [room.hostId]
+    # 🏆 Fan-aiBattle：vsAI 房一開始就把 AI 的保留帳號塞進第二個位置，
+    #    讓既有的「湊滿 2 人才開始/才結算先後手」邏輯（/rooms/join 的人數
+    #    上限、handle_order_dice 的 len(...) >= 2 等）全部自然滿足，不用
+    #    另外放寬任何一處既有的 2 人假設。
+    room_dict['players'] = [room.hostId, AI_USERNAME] if room.vsAI else [room.hostId]
     room_dict['status'] = 'waiting'
     room_dict['is_started'] = False
     touch_room(room_dict)

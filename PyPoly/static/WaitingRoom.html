@@ -595,12 +595,18 @@
                 if (guestName) {
                     guestSlot.style.opacity = "1";
                     guestSlot.style.border = "3px solid var(--pixel-border)";
-                    guestText.innerText = (guestName === myName) ? `${guestName} (你)` : guestName;
+                    // 🏆 Fan-aiBattle：guestName 存的是內部保留帳號
+                    // AI_USERNAME（"BeeRich_AI"），直接顯示出來會很奇怪，
+                    // 改顯示友善名稱；AI 對手也不能被「請出去」。
+                    const isAiGuest = (guestName === "BeeRich_AI");
+                    guestText.innerText = isAiGuest
+                        ? "🤖 AI 對手"
+                        : (guestName === myName ? `${guestName} (你)` : guestName);
                     guestText.style.color = "var(--text-dark)";
-                    
+
                     if (isActuallyHost && kickBtn) {
-                        kickBtn.style.display = "block";
-                        kickBtn.onclick = () => kickGuest(guestName); 
+                        kickBtn.style.display = isAiGuest ? "none" : "block";
+                        kickBtn.onclick = () => kickGuest(guestName);
                     }
                 } else {
                     guestSlot.style.opacity = "0.5";

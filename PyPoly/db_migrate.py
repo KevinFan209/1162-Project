@@ -51,6 +51,10 @@ MIGRATIONS = [
     ("scenarios", "latitude",     "DECIMAL(9,6) NULL"),
     ("scenarios", "longitude",    "DECIMAL(9,6) NULL"),
     ("scenarios", "elevation_m",  "INT NULL"),
+
+    # Fan-aiBattle：單裝置 AI 對戰房標記，DEFAULT FALSE 讓既有的房間
+    # 紀錄（都是真人對戰）回填成否，不受這次改動影響。
+    ("game_room_logs", "vs_ai", "BOOLEAN NOT NULL DEFAULT FALSE"),
 ]
 
 # 除了「加欄位」之外還要做的事：改型別與回填既有資料。

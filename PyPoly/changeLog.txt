@@ -6490,4 +6490,114 @@ PyPoly 變更紀錄 (changeLog)
     沒有任何 .txt 的 README 殘留。
   - grep 全專案確認沒有其他地方以檔名引用這 3 份改過副檔名的
     文件（排除掉這次順手修正的那一處）。
+
+[2026-11-21] 新增 Fan-aiBattle 分支：單一裝置真正可對戰的「AI 對戰」模式
+
+  背景：使用者要在建房間時加一個「跟 AI 對戰」的選項，而且明確點出
+  這不是全新需求——modal.html 原本就有 roomConfig.vsAI 跟 checkAI()，
+  但從頭到尾是半成品：對應的下拉選項在 commit b72daaf 被拿掉，UI 上
+  根本點不到；就算點得到，算出來的 roomConfig.vsAI 也從來沒有被塞進
+  送給後端的 newRoomData，後端完全不知道這回事。這次要求一台裝置就能
+  真的打完一局，不是修一個開關，是從零打通整條路。
+
+  關鍵架構判斷：追完整個回合制同步流程後發現，這個遊戲的多人同步是
+  廣播式、靠事件 payload 裡的 user 欄位認身分，不是靠 Socket 連線本身
+  認身分——「演對手」那整套 handler（player_move_sync、land_bought_sync、
+  adventure_phase_broadcast…）本來就只看 data.user 是不是等於自己，
+  完全不管事件是不是真的來自另一台裝置的 socket。所以 AI 可以完全
+  活在同一個分頁裡：輪到 AI 時，host 自己這台裝置的前端不開攝影機、
+  直接呼叫跟人類手勢辨識成功後一模一樣的 socket.emit(...)，只是把
+  user 欄位換成保留帳號 AI_USERNAME（"BeeRich_AI"）。既有的「演對手」
+  渲染程式碼就會免費把 AI 的動作畫出來，幾乎不用寫新的動畫邏輯。
+  已跟使用者確認 v1 先做固定、簡單的 AI 行為（答對率固定 65%、沒有
+  難度分級、不使用道具商店），難度分級留給之後的版本。
+
+  後端改動：
+  檔案：main.py
+    - 新增常數 AI_USERNAME = "BeeRich_AI"。
+    - RoomSchema 新增欄位 vsAI: bool = False。
+    - POST /rooms/create：room.vsAI 為真時，
+      room_dict['players'] = [room.hostId, AI_USERNAME]，讓既有所有
+      「湊滿 2 人」的判斷（/rooms/join、handle_order_dice…）自然滿足，
+      完全不用逐一放寬。
+    - sync_room_log()：新增 log.vs_ai = bool(room.get("vsAI"))。
+    - restore_rooms_from_db()：還原房間時 "players" 改成
+      [AI_USERNAME] if log.vs_ai else []（AI 不是真的連線，不需要像
+      真人一樣重新加入才能湊滿人數）。
+    - /auth/register：擋掉 username 等於 AI_USERNAME 的註冊，避免
+      真人跟保留帳號撞名。
+  檔案：models.py
+    - GameRoomLog 新增欄位 vs_ai = Column(Boolean, default=False)。
+  檔案：db_migrate.py
+    - MIGRATIONS 新增 ("game_room_logs", "vs_ai",
+      "BOOLEAN NOT NULL DEFAULT FALSE")，讓已部署的資料庫補上這個
+      欄位，既有房間紀錄（都是真人對戰）回填成否。
+
+  前端改動：
+  檔案：static/modal.html
+    - #maxPlayers 下拉從單一「2 人」選項換成「對戰對象」：真人對戰／
+      AI 對戰（單裝置），不沿用舊版「1 人 (AI)」這種容易誤解的措辭。
+    - 修正真正的 bug：createAndGo() 組 newRoomData 時漏了
+      vsAI: roomConfig.vsAI 這一行，這正是使用者說「填了選項卻實際
+      沒辦法對戰」的根本原因。
+  檔案：static/WaitingRoom.html
+    - 等待房顯示客人名字時，AI_USERNAME 特殊處理成顯示「🤖 AI 對手」
+      而不是內部保留帳號字串，並隱藏「踢人」按鈕（AI 不能被踢）。
+    - 確認過 const maxCount = 2 的判斷比較的是從房間資料算出來的
+      playerCount（不是數實際連線的 socket 數），AI 建房當下就塞進
+      players 陣列，不需要再改這支檔案的任何判斷邏輯。
+  檔案：static/game.html（AI 的「大腦」，新增程式碼為主）
+    - 新增全域常數 AI_USERNAME、isVsAiRoom() 判斷目前房間是不是 AI 房。
+    - onFistUpDetected()：人類送出自己的先後手點數後，vsAI 房額外
+      延遲 1.2~2 秒，用 AI_USERNAME 身分 emit 一份 1~6 隨機點數的
+      submit_order_dice，讓 handle_order_dice 湊到 2 筆觸發
+      dice_order_final（否則永遠卡在先後手判定，等不到第二個人）。
+    - startMainTurn() 的 else 分支：targetPlayerName 等於 AI_USERNAME
+      時，顯示「AI 回合中」提示並呼叫新函式 runAiTurn()，取代單純的
+      等待提示。
+    - 新增 runAiTurn()：AI 整回合的決策流程——停頓模擬思考→隨機
+      1~6 步、直接呼叫 movePlayerSequence(AI_USERNAME, steps)（不經過
+      player_move_sync_request 的 socket 來回，同一個連線不需要繞一圈
+      伺服器轉發給自己）→依落點格子類型分派：
+        · ADVENTURE：新增 resolveAiAdventureTile()。踩自己的地不用錢；
+          踩人類的地比照 handleTollPhase() 的付費流程（播
+          playTollAnimationCore，雙方餘額直接在這台裝置上異動，不需要
+          額外廣播——沒有第二台裝置要通知）；空地固定 65% 機率答對，
+          答對且 balance-BeeRich_AI 顯示的餘額夠付才買，呼叫
+          GET /game/adventure_analysis/{id} 拿價格後 emit buy_land，
+          交給既有的 land_bought_sync 監聽器自動扣錢/設定地權/播動畫
+          （這個監聽器對沒有 skip_sid 的事件本來就會處理自己剛送出的
+          廣播，不用在這裡重複呼叫 updateMoneyUI，否則會扣兩次）。
+        · JAIL：自己發的廣播一樣會被 skip_sid 擋掉收不到回音，所以
+          手動設定 window.jailedPlayer = AI_USERNAME（比照
+          triggerTask() 的 'JAIL' case），再播 playJailAnimationCore。
+        · START／BLANK／SHOP／PUNISH／REWARD／其他：v1 刻意不處理，
+          直接結束回合（START 的過 GO 獎勵已經在 movePlayerSequence
+          裡對任何玩家通用處理過）。
+      最後呼叫新函式 aiEndTurn()。
+    - 新增 aiEndTurn()：比照 endMyTurn()，但「本回合行動者」固定是
+      AI、下一個人固定是人類自己，不能直接重用 endMyTurn()（那個函式
+      整個相對 localStorage.username 計算，套在 AI 身上方向會算反）；
+      turnEndedGuard 兩邊共用是安全的，因為 startMainTurn() 在每個
+      回合開始時都會無條件重置這個旗標。
+    - loadPlayerModels()：AI 的外觀不走「問後端對方存檔角色」那條路
+      （/auth/character、/auth/camera_face 兩個查詢對 AI_USERNAME 一定
+      查不到東西，雖然兩邊都有防呆不會壞掉，但沒意義也浪費時間），
+      直接給 AI 固定的內建配色。
+
+  v1 刻意不做（已跟使用者確認）：AI 難度分級／答題正確率可調整、AI
+  使用道具商店、跨伺服器重啟的完整對局復原（只做到上面
+  restore_rooms_from_db 的最小修補）。
+
+  驗證：
+  - python -m py_compile main.py models.py db_migrate.py 通過。
+  - static/modal.html、static/WaitingRoom.html、static/game.html 用
+    Node 腳本抽取所有非 src= 的 inline <script> 區塊、丟進
+    new Function() 編譯檢查，三份都沒有語法錯誤。
+  - 尚待使用者實機操作驗證（需要攝影機/瀏覽器，無法用語法檢查取代）：
+    建房選「AI 對戰」→ 等待房應直接顯示 2/2、可以按「開始」→ 先後手
+    手勢判定能正常跑完 → 輪到 AI 時人類端看到「AI 回合中」提示、AI
+    角色自動擲骰移動、該買地的格子 AI 會自動答題跟決定買不買、過路費
+    有正確互相扣款、回合正常交還人類 → 連續跑完一局到結算頁、回合數
+    正常遞增跟結束判定正常。
 ========================================================================
