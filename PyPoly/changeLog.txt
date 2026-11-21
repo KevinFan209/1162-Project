@@ -6600,4 +6600,38 @@ PyPoly 變更紀錄 (changeLog)
     角色自動擲骰移動、該買地的格子 AI 會自動答題跟決定買不買、過路費
     有正確互相扣款、回合正常交還人類 → 連續跑完一局到結算頁、回合數
     正常遞增跟結束判定正常。
+
+  [2026-11-21 追加] 後端邏輯模擬測試（兩個角色、不開瀏覽器）
+
+  因為正式伺服器當時正在被使用（使用者要求不要用 ngrok 去動它），改
+  在本機另開一個獨立的測試用後端程序（127.0.0.1 的其他 port），不影響
+  正在使用中的伺服器；共用同一個 beerich_db，但房號/帳號都用一次性的
+  測試字串，不碰真實帳號。用一條 socketio.Client 連線同時送出「人類」
+  與「BeeRich_AI」兩種身分的事件（完全符合單裝置架構——production
+  裡本來就是同一個連線扮演兩邊），驗證：
+    - AI_USERNAME 不能被真人註冊（400）。
+    - 建 vsAI 房會自動把 players 設成 [host, AI_USERNAME]，且第三人
+      無法再加入（房間已滿，AI 確實佔掉名額）。
+    - submit_order_dice／player_move_sync_request／buy_land／
+      next_turn_trigger 這些既有的 socket relay，對 user=AI_USERNAME
+      的事件跟對一般玩家完全一樣處理，包括 buy_land 伺服器端依
+      players.index(user) 算出的配色正確忽略前端送的顏色值。
+    - restore_rooms_from_db() 在 vsAI 房還原時，players 正確變成
+      [AI_USERNAME] 而不是空陣列，vsAI 旗標也保留。
+
+  過程中發現一個待辦事項（不是這次新 bug，是既有的部署流程本來就要
+  做的事）：共用的 beerich_db 裡 game_room_logs 表當時還沒有 vs_ai
+  欄位（db_migrate.py 寫好了但沒人跑過）。main 分支的程式碼完全不會
+  讀寫這個欄位名稱，所以正式伺服器當下不受影響；但 sync_room_log()
+  在 Fan-aiBattle 這份程式碼下，查詢/寫入 GameRoomLog 時會因為
+  SELECT 到不存在的欄位直接丟 OperationalError（有被 sync_room_log
+  自己的 try/except 吞掉，不會讓 /rooms/create 整個 500，但代表那次
+  的房間紀錄根本沒寫進資料庫）。跟使用者確認後，直接對共用資料庫
+  執行了 `python db_migrate.py`（純新增欄位、DEFAULT FALSE，官方
+  認定可在服務運行中安全執行，不鎖表也不影響既有欄位），補上
+  game_room_logs.vs_ai 之後重新跑一次同一套模擬測試，全數通過。
+
+  驗證：模擬測試腳本（socketio.Client 扮演兩角色 + REST 檢查）
+  11 項全部通過；測試房間與對應的 game_room_logs 紀錄都已清除，
+  沒有殘留在共用資料庫裡；本機額外起的測試用後端程序也已關閉。
 ========================================================================
