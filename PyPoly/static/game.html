@@ -3187,6 +3187,14 @@ function showReadyGateUI() {
     document.getElementById('readyGateBtn').addEventListener('click', () => {
         gate.innerHTML = `<p style="font-size: 1.6rem;">⏳ 等待對手準備中...</p>`;
         socket.emit('player_ready', { room: roomCode, user: myName });
+
+        // 🏆 Fan-aiBattle：AI 沒有真的第二個連線會按下「準備完成」，
+        // handle_player_ready() 會永遠湊不到 len(players) 份、
+        // both_players_ready 永遠不會發送，畫面會卡死在「等待對手
+        // 準備中」。人類按下後，由這個連線自己立刻替 AI 也送一份。
+        if (isVsAiRoom()) {
+            socket.emit('player_ready', { room: roomCode, user: AI_USERNAME });
+        }
     }, { once: true });
 
     socket.once('both_players_ready', () => {

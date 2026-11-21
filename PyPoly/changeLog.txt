@@ -6634,4 +6634,37 @@ PyPoly 變更紀錄 (changeLog)
   驗證：模擬測試腳本（socketio.Client 扮演兩角色 + REST 檢查）
   11 項全部通過；測試房間與對應的 game_room_logs 紀錄都已清除，
   沒有殘留在共用資料庫裡；本機額外起的測試用後端程序也已關閉。
+
+[2026-11-21] 修復 Fan-aiBattle：AI 對戰卡在「等待對手準備中」
+
+  背景：使用者實測回報，進入對局後按下「準備完成」就卡住不動。
+
+  檔案：static/game.html
+  原因：showReadyGateUI()（3161 行起）的「雙方都按下準備完成後才會
+  開始遊戲」這道關卡，是後端 handle_player_ready()（main.py 1677
+  行）用 room_ready_players[room] 這個 set 湊到
+  len(active_rooms[room]['players']) 份才會送出 both_players_ready。
+  這道關卡是這次 AI 對戰功能上線前就存在的機制（為了解鎖瀏覽器的
+  背景音樂自動播放限制而設計），寫 Fan-aiBattle 計畫跟程式碼時完全
+  沒注意到它——vsAI 房的 players 是 2 人（host + AI_USERNAME），但
+  AI 沒有真的連線會去按這個按鈕，room_ready_players 永遠只會湊到
+  1 份，both_players_ready 永遠不會發送，畫面因此卡死在
+  「⏳ 等待對手準備中...」。
+
+  跟先後手手勢判定階段卡住的根因是同一類問題（AI 對戰模式下，任何
+  需要「第二個真人動作」才會往下走的既有機制，都要記得補上 AI 那一
+  份），只是這一處在規劃階段被漏掉了。
+
+  修法：人類按下「✅ 準備完成，開始遊戲」按鈕、emit 自己的
+  player_ready 之後，比照 onFistUpDetected() 幫 AI 補送先後手點數
+  的做法，vsAI 房額外立刻 emit 一份 user: AI_USERNAME 的
+  player_ready，讓 room_ready_players 湊滿人數、觸發
+  both_players_ready。
+
+  驗證：static/game.html 用 Node 腳本抽取 inline <script> 丟
+  new Function() 編譯檢查，沒有語法錯誤。這一步需要實機搭配
+  WaitingRoom 走到 game.html 才能重現，無法用後端模擬測試覆蓋
+  （room_ready_players 的 both_players_ready 判斷純粹是後端 relay，
+  上次模擬測試沒有刻意測這個流程），待使用者實機重新確認「按下準備
+  完成」後是不是真的能往下進入開場動畫、先後手判定。
 ========================================================================
